@@ -1,0 +1,734 @@
+use anyhow::Result;
+use std::path::PathBuf;
+use crate::cli::TestCommands;
+use crate::dispatch::load_client;
+use jeryu::{state, test_intel, test_runner};
+
+pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
+    let (client, _) = load_client()?;
+    let db = state::Db::open().await?;
+
+    match subcmd {
+        TestCommands::Run {
+            command,
+            project_id,
+            image,
+            tags,
+            timeout,
+            force,
+        } => {
+            let commit_sha = std::process::Command::new("git")
+                .args(["log", "-1", "--format=%H"])
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_else(|_| "latest".to_string());
+
+            let tag_list = tags.map(|tags| {
+                tags.split(',')
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+            });
+
+            let opts = test_runner::TestRunOpts {
+                project_id,
+                test_command: command,
+                job_name: None,
+                image,
+                tags: tag_list,
+                timeout_secs: timeout,
+                force,
+                commit_sha,
+            };
+            println!("━━━ jeryu test run ━━━\n");
+            println!("  Project ID: {}", opts.project_id);
+            println!("  Command:    {}", opts.test_command);
+            let plan = test_runner::plan_test_run(&opts);
+            println!("  Inferred Routing:");
+            println!("    Risk Class: {}", plan.risk_class);
+            println!("    Tags:       {:?}", plan.tags);
+            for reason in &plan.rationale {
+                println!("      - {}", reason);
+            }
+            println!("\nExecuting pipeline...");
+
+            let result = test_runner::run_test(&db, &client, &opts).await?;
+            println!(
+                "\nResult: {}",
+                if result.passed {
+                    "✅ Passed"
+                } else {
+                    "❌ Failed"
+                }
+            );
+            if let Some(dur) = result.duration_secs {
+                println!("Duration: {:.1}s", dur);
+            }
+            if !result.trace_tail.is_empty() {
+                println!("\nTrace tail:\n{}", result.trace_tail);
+            }
+        }
+        TestCommands::Plan {
+            command,
+            project_id,
+            image,
+            tags,
+            timeout,
+        } => {
+            let tag_list = tags.map(|tags| {
+                tags.split(',')
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+            });
+
+            let opts = test_runner::TestRunOpts {
+                project_id,
+                test_command: command,
+                job_name: None,
+                image,
+                tags: tag_list,
+                timeout_secs: timeout,
+                force: false,
+                commit_sha: String::new(),
+            };
+            println!("━━━ jeryu test plan ━━━\n");
+            let plan = test_runner::plan_test_run(&opts);
+            println!("  Command:      {}", plan.command);
+            println!("  Risk Class:   {}", plan.risk_class);
+            println!("  Tags:         {:?}", plan.tags);
+            println!("  Timeout:      {}s", plan.timeout_secs);
+            println!("  Rationale:");
+            for reason in &plan.rationale {
+                println!("    - {}", reason);
+            }
+        }
+        TestCommands::Batch {
+            commands,
+            project_id,
+            image,
+            tags,
+            timeout,
+            max_parallel,
+            force,
+        } => {
+            let commit_sha = std::process::Command::new("git")
+                .args(["log", "-1", "--format=%H"])
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_else(|_| "latest".to_string());
+
+            let tag_list = tags.map(|tags| {
+                tags.split(',')
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+            });
+
+            let opts = test_runner::TestBatchOpts {
+                project_id,
+                test_commands: commands.clone(),
+                job_name_prefix: Some("batch-test".to_string()),
+                image,
+                tags: tag_list,
+                timeout_secs: timeout,
+                max_parallel,
+                force,
+                commit_sha,
+            };
+            println!("🧪 Starting batched test run...");
+            println!("   Commands:  {}", opts.test_commands.len());
+            println!("   Image:     {}", opts.image);
+            println!(
+                "   Tags:      {}",
+                opts.tags
+                    .as_ref()
+                    .map(|tags| format!("{:?}", tags))
+                    .unwrap_or_else(|| "smart-inferred".to_string())
+            );
+            println!("   Parallel:  {}", opts.max_parallel);
+            println!();
+            let results = test_runner::run_test_batch(&db, &client, &opts).await?;
+            let passed = results.iter().filter(|r| r.passed).count();
+            let failed = results.iter().filter(|r| !r.passed).count();
+            println!("✅ Batch complete: {} passed, {} failed", passed, failed);
+            for r in &results {
+                let icon = if r.passed { "✅" } else { "❌" };
+                println!(
+                    "  {} {:<34} {:<10} pipeline={}",
+                    icon, r.job_name, r.status, r.pipeline_id
+                );
+            }
+        }
+        TestCommands::Results {
+            pipeline_id,
+            project_id,
+        } => {
+            let results =
+                test_runner::pipeline_results(&client, project_id, pipeline_id).await?;
+
+            let passed = results.iter().filter(|r| r.passed).count();
+            let failed = results.iter().filter(|r| r.status == "failed").count();
+            let skipped = results.iter().filter(|r| r.status == "skipped").count();
+            let other = results.len() - passed - failed - skipped;
+
+            println!("Pipeline {} — {} jobs", pipeline_id, results.len());
+            println!(
+                "  ✅ {} passed  ❌ {} failed  ⏭ {} skipped  ⏳ {} other",
+                passed, failed, skipped, other
+            );
+            println!();
+
+            for r in &results {
+                let icon = match r.status.as_str() {
+                    "success" => "✅",
+                    "failed" => "❌",
+                    "skipped" => "⏭ ",
+                    "running" => "🔄",
+                    "pending" | "created" => "⏳",
+                    _ => "❓",
+                };
+                let dur = r
+                    .duration_secs
+                    .map(|d| format!("{:.0}s", d))
+                    .unwrap_or_default();
+                println!("  {} {:<40} {:>8} {}", icon, r.job_name, r.status, dur);
+            }
+        }
+        TestCommands::Retry {
+            pipeline_id,
+            job_name,
+            project_id,
+        } => {
+            println!(
+                "🔄 Retrying job '{}' in pipeline {}...",
+                job_name, pipeline_id
+            );
+            let result =
+                test_runner::retry_job_by_name(&client, project_id, pipeline_id, &job_name)
+                    .await?;
+
+            if result.passed {
+                println!("✅ Job '{}' passed on retry!", job_name);
+            } else {
+                println!("❌ Job '{}' still failing: {}", job_name, result.status);
+            }
+        }
+        TestCommands::Failed {
+            pipeline_id,
+            project_id,
+        } => {
+            let results =
+                test_runner::pipeline_results(&client, project_id, pipeline_id).await?;
+
+            let failed: Vec<_> = results
+                .into_iter()
+                .filter(|r| r.status == "failed")
+                .collect();
+
+            if failed.is_empty() {
+                println!("✅ No failed jobs in pipeline {}!", pipeline_id);
+            } else {
+                println!(
+                    "❌ {} failed job(s) in pipeline {}:\n",
+                    failed.len(),
+                    pipeline_id
+                );
+                for r in &failed {
+                    println!("━━━ {} (id={:?}) ━━━", r.job_name, r.job_id);
+                    if !r.trace_tail.is_empty() {
+                        let lines: Vec<&str> = r.trace_tail.lines().collect();
+                        let start = lines.len().saturating_sub(20);
+                        for line in &lines[start..] {
+                            println!("  {}", line);
+                        }
+                    }
+                    println!();
+                }
+            }
+        }
+        TestCommands::Impact {
+            base,
+            head,
+            repo_root,
+            json,
+        } => {
+            let output = tokio::process::Command::new("cargo")
+                .current_dir(&repo_root)
+                .args([
+                    "run",
+                    "-q",
+                    "-p",
+                    "veox-testctl",
+                    "--",
+                    "ci-impact",
+                    "--base",
+                    &base,
+                    "--head",
+                    &head,
+                    "--json",
+                ])
+                .output()
+                .await?;
+            if !output.status.success() {
+                anyhow::bail!(
+                    "ci-impact failed: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+            if json {
+                print!("{}", String::from_utf8_lossy(&output.stdout));
+            } else {
+                let value: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+                println!("━━━ jeryu test impact ━━━\n");
+                println!("  Base/head:          {base}..{head}");
+                println!(
+                    "  Release impacting:  {}",
+                    value["release_impacting"].as_bool().unwrap_or(true)
+                );
+                println!(
+                    "  Full build:         {}",
+                    value["full_build_required"].as_bool().unwrap_or(true)
+                );
+                let jobs = value["jobs"]
+                    .as_array()
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(|item| item.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    })
+                    .unwrap_or_default();
+                println!("  Jobs:               {jobs}");
+                let rules = value["matched_rules"]
+                    .as_array()
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(|item| item.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    })
+                    .unwrap_or_default();
+                println!("  Matched rules:      {rules}");
+            }
+        }
+        TestCommands::Select {
+            base,
+            head,
+            repo_root,
+            explain,
+            json,
+            emit_gitlab,
+            emit_plan,
+            emit_receipt,
+        } => {
+            let cwd = repo_root.unwrap_or_else(|| {
+                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+            });
+
+            // Get changed files via git diff
+            let diff_output = std::process::Command::new("git")
+                .current_dir(&cwd)
+                .args(["diff", "--name-only", &base, &head])
+                .output()?;
+
+            if !diff_output.status.success() {
+                anyhow::bail!(
+                    "git diff failed: {}",
+                    String::from_utf8_lossy(&diff_output.stderr)
+                );
+            }
+
+            let changed_paths: Vec<String> = String::from_utf8_lossy(&diff_output.stdout)
+                .lines()
+                .filter(|line| !line.is_empty())
+                .map(|line| line.to_string())
+                .collect();
+
+            // Run the VTI planner
+            let plan = test_intel::planner::plan_tests(&changed_paths);
+            let receipt = plan.receipt(Some(&base), Some(&head));
+
+            // Output
+            if json {
+                let json_value = test_intel::explain::explain_json(&plan);
+                println!("{}", serde_json::to_string_pretty(&json_value)?);
+            } else if explain {
+                print!("{}", test_intel::explain::explain(&plan));
+            } else {
+                println!("━━━ jeryu test select ━━━\n");
+                println!("  Base:       {}", base);
+                println!("  Head:       {}", head);
+                println!("  Changed:    {} files", changed_paths.len());
+                println!("  Mode:       {:?}", plan.mode);
+                println!("  Confidence: {:.2}", plan.confidence);
+                println!("  Receipt:    {}", receipt.receipt_id);
+                println!("  Selected:   {} test commands", plan.selected_tests.len());
+                println!("  Skipped:    {} subsystems", plan.skipped_subsystems.len());
+                if let Some(reason) = &plan.fallback_reason {
+                    println!("  Fallback:   {}", reason);
+                }
+                println!();
+                for test in &plan.selected_tests {
+                    println!("  ✓ [{}] {}", test.subsystem, test.command);
+                }
+            }
+
+            // Emit artifacts
+            if let Some(gitlab_path) = emit_gitlab {
+                let yaml = test_intel::ci_gen::emit_gitlab_child_yaml(&plan);
+                if let Some(parent) = gitlab_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::write(&gitlab_path, &yaml)?;
+                eprintln!("Wrote GitLab child pipeline to {}", gitlab_path.display());
+            }
+
+            if let Some(plan_path) = emit_plan {
+                let json_value = test_intel::explain::explain_json(&plan);
+                if let Some(parent) = plan_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::write(&plan_path, serde_json::to_string_pretty(&json_value)?)?;
+                eprintln!("Wrote test plan to {}", plan_path.display());
+            }
+
+            if let Some(receipt_path) = emit_receipt {
+                if let Some(parent) = receipt_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::write(&receipt_path, serde_json::to_string_pretty(&receipt)?)?;
+                eprintln!("Wrote VTI receipt to {}", receipt_path.display());
+            }
+        }
+        TestCommands::ExplainPlan { plan_path } => {
+            let contents = std::fs::read_to_string(&plan_path)?;
+            let plan: test_intel::planner::TestPlan = serde_json::from_str(&contents)?;
+            print!("{}", test_intel::explain::explain(&plan));
+        }
+        TestCommands::SelectExternal {
+            base,
+            head,
+            workspace,
+            explain,
+            json,
+            emit_gitlab,
+            emit_plan,
+            emit_skipped,
+        } => {
+            let testmap_path = workspace.join(".jeryu/testmap.toml");
+            if !testmap_path.exists() {
+                anyhow::bail!("no .jeryu/testmap.toml found at {}", testmap_path.display());
+            }
+
+            let map = test_intel::testmap::load_testmap(&testmap_path)
+                .map_err(|e| anyhow::anyhow!(e))?;
+
+            // Get changed files via git diff
+            let diff_output = std::process::Command::new("git")
+                .current_dir(&workspace)
+                .args(["diff", "--name-only", &base, &head])
+                .output()?;
+
+            if !diff_output.status.success() {
+                anyhow::bail!(
+                    "git diff failed: {}",
+                    String::from_utf8_lossy(&diff_output.stderr)
+                );
+            }
+
+            let changed_paths: Vec<String> = String::from_utf8_lossy(&diff_output.stdout)
+                .lines()
+                .filter(|line| !line.is_empty())
+                .map(|line| line.to_string())
+                .collect();
+
+            let plan = test_intel::testmap::plan_from_testmap(&map, &changed_paths);
+
+            // Output
+            if json {
+                let json_value = test_intel::testmap::explain_external_json(&plan);
+                println!("{}", serde_json::to_string_pretty(&json_value)?);
+            } else if explain {
+                print!("{}", test_intel::testmap::explain_external_plan(&plan));
+            } else {
+                println!("━━━ jeryu test select-external ━━━\n");
+                println!("  Workspace: {}", workspace.display());
+                println!("  Base:      {}", base);
+                println!("  Head:      {}", head);
+                println!("  Changed:   {} files", changed_paths.len());
+                println!("  Mode:      {:?}", plan.mode);
+                println!("  Confidence:{:.2}", plan.confidence);
+                println!("  Selected:  {} CI jobs", plan.selected_jobs.len());
+                println!("  Skipped:   {} CI jobs", plan.skipped_jobs.len());
+                if let Some(reason) = &plan.fallback_reason {
+                    println!("  Fallback:  {}", reason);
+                }
+                println!();
+                for job in &plan.selected_jobs {
+                    println!("  ✓ {}", job);
+                }
+            }
+
+            // Emit artifacts
+            if let Some(gitlab_path) = emit_gitlab {
+                let yaml =
+                    test_intel::testmap::emit_external_gitlab_yaml(&plan, Some(&workspace));
+                if let Some(parent) = gitlab_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::write(&gitlab_path, &yaml)?;
+                eprintln!("Wrote GitLab child pipeline to {}", gitlab_path.display());
+            }
+
+            if let Some(plan_path) = emit_plan {
+                let json_value = test_intel::testmap::explain_external_json(&plan);
+                if let Some(parent) = plan_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::write(&plan_path, serde_json::to_string_pretty(&json_value)?)?;
+                eprintln!("Wrote test plan to {}", plan_path.display());
+            }
+
+            if let Some(skipped_path) = emit_skipped {
+                let json_value = test_intel::testmap::explain_external_skipped_json(&plan);
+                if let Some(parent) = skipped_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::write(&skipped_path, serde_json::to_string_pretty(&json_value)?)?;
+                eprintln!("Wrote VTI skipped metadata to {}", skipped_path.display());
+            }
+        }
+        TestCommands::Audit {
+            changed,
+            failed,
+            all_tests,
+            sha,
+            json,
+            workspace,
+        } => {
+            let changed_paths: Vec<String> = changed
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            let failed_tests: Vec<String> = failed
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            let all_test_list: Vec<String> = all_tests
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            let mut external_map = None;
+            if let Some(workspace_path) = workspace {
+                let testmap_path = workspace_path.join(".jeryu/testmap.toml");
+                if testmap_path.exists() {
+                    external_map = match test_intel::testmap::load_testmap(&testmap_path) {
+                        Ok(m) => Some(m),
+                        Err(e) => {
+                            eprintln!("Warning: failed to load testmap: {}", e);
+                            None
+                        }
+                    };
+                }
+            }
+
+            let report = test_intel::nightly::audit_selector(
+                &changed_paths,
+                &failed_tests,
+                &all_test_list,
+                &sha,
+                external_map.as_ref(),
+            );
+
+            if json {
+                let json_value = test_intel::nightly::explain_audit_json(&report);
+                println!("{}", serde_json::to_string_pretty(&json_value)?);
+            } else {
+                print!("{}", test_intel::nightly::explain_audit(&report));
+            }
+
+            // Persist misses to DB
+            // (plan_id=None for CLI audits — no linked test_plans record)
+            for miss in &report.misses {
+                if let Err(e) = db
+                    .record_selector_miss(
+                        None,
+                        &miss.missed_test,
+                        &miss.failed_sha,
+                        &miss.detected_by,
+                    )
+                    .await
+                {
+                    eprintln!("Warning: failed to persist selector miss: {}", e);
+                }
+            }
+        }
+        TestCommands::Learn {
+            changed,
+            failed,
+            all_tests,
+            sha,
+            json,
+            workspace,
+        } => {
+            let changed_paths: Vec<String> = changed
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            let failed_tests: Vec<String> = failed
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            let all_test_list: Vec<String> = all_tests
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            let mut external_map = None;
+            if let Some(workspace_path) = workspace {
+                let testmap_path = workspace_path.join(".jeryu/testmap.toml");
+                if testmap_path.exists() {
+                    external_map = match test_intel::testmap::load_testmap(&testmap_path) {
+                        Ok(m) => Some(m),
+                        Err(e) => {
+                            eprintln!("Warning: failed to load testmap: {}", e);
+                            None
+                        }
+                    };
+                }
+            }
+
+            let report = test_intel::nightly::audit_selector(
+                &changed_paths,
+                &failed_tests,
+                &all_test_list,
+                &sha,
+                external_map.as_ref(),
+            );
+            let result = test_intel::nightly::learn_from_audit(&report);
+
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "processed": result.processed,
+                        "new_misses": result.new_misses,
+                        "flagged_subsystems": result.flagged_subsystems,
+                        "suggestions": result.suggestions,
+                    }))?
+                );
+            } else {
+                println!("━━━ VTI Learn ━━━\n");
+                println!("  Processed: {} tests", result.processed);
+                println!("  New misses: {}", result.new_misses);
+                if !result.flagged_subsystems.is_empty() {
+                    println!("  Flagged:   {}", result.flagged_subsystems.join(", "));
+                }
+                println!();
+                for suggestion in &result.suggestions {
+                    println!("  {}", suggestion);
+                }
+            }
+        }
+        TestCommands::CacheStatus { base, head, json } => {
+            // 1. Get changed paths
+            let diff_output = std::process::Command::new("git")
+                .args(["diff", "--name-only", &base, &head])
+                .output()?;
+            let changed_paths: Vec<String> = String::from_utf8_lossy(&diff_output.stdout)
+                .lines()
+                .filter(|l| !l.is_empty())
+                .map(|l| l.to_string())
+                .collect();
+
+            // 2. Compute test plan
+            let plan = test_intel::planner::plan_tests(&changed_paths);
+
+            // 3. Compute source hashes for changed files
+            let mut source_hashes: Vec<(String, String)> = Vec::new();
+            for path in &changed_paths {
+                let hash_output = std::process::Command::new("git")
+                    .args(["hash-object", path])
+                    .output();
+                let hash = match hash_output {
+                    Ok(out) if out.status.success() => {
+                        String::from_utf8_lossy(&out.stdout).trim().to_string()
+                    }
+                    _ => "unknown".to_string(),
+                };
+                source_hashes.push((path.clone(), hash));
+            }
+
+            // 4. Get Cargo.lock hash and rustc version
+            let lock_hash = std::process::Command::new("git")
+                .args(["hash-object", "Cargo.lock"])
+                .output()
+                .ok()
+                .filter(|o| o.status.success())
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_else(|| "no-lock".to_string());
+
+            let rustc_ver = std::process::Command::new("rustc")
+                .args(["--version"])
+                .output()
+                .ok()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_else(|| "unknown".to_string());
+
+            // 5. Compute cache keys for each selected test
+            let source_refs: Vec<(&str, &str)> = source_hashes
+                .iter()
+                .map(|(p, h)| (p.as_str(), h.as_str()))
+                .collect();
+
+            let tests_with_keys: Vec<(String, test_intel::cache::TestCacheKey)> = plan
+                .selected_tests
+                .iter()
+                .map(|t| {
+                    let key = test_intel::cache::compute_cache_key(
+                        &t.command,
+                        &source_refs,
+                        &lock_hash,
+                        &rustc_ver,
+                        1, // epoch
+                    );
+                    (t.command.clone(), key)
+                })
+                .collect();
+
+            // 6. Check against cache (empty for now — no persisted verdicts yet)
+            let result = test_intel::cache::check_cache(&tests_with_keys, &[]);
+
+            if json {
+                let json_value = test_intel::cache::explain_cache_json(&result);
+                println!("{}", serde_json::to_string_pretty(&json_value)?);
+            } else {
+                println!("━━━ jeryu test cache-status ━━━\n");
+                println!("  Base: {}", base);
+                println!("  Head: {}", head);
+                println!("  Changed: {} files", changed_paths.len());
+                println!(
+                    "  Plan: {:?}, {} commands",
+                    plan.mode,
+                    plan.selected_tests.len()
+                );
+                println!();
+                print!("{}", test_intel::cache::explain_cache_lookup(&result));
+            }
+        }
+    }
+    Ok(())
+}

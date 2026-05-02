@@ -1,5 +1,9 @@
 pub mod git;
-pub mod pool;
-pub mod system;
-pub mod secrets;
 pub mod host;
+pub mod job;
+pub mod pipeline;
+pub mod pool;
+pub mod release;
+pub mod secrets;
+pub mod system;
+pub mod test;
