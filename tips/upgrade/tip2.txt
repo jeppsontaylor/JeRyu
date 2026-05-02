@@ -1,0 +1,2260 @@
+Absolutely — this is a **very serious, very exciting control plane**. The architecture already has the bones of something much more powerful than a CI dashboard: it is part GitLab control plane, part agent operations center, part release commander, part secure execution runtime, and part production flight deck.
+
+My highest-level read: **vgit is already architecturally close to a “developer command center,” but the TUI and capability API are not yet exposing the full intelligence of the system.** The strongest opportunity is to turn the existing state, release gates, evidence capsules, VTI plans, runner health, cache intelligence, and agent workflows into a unified, real-time, action-oriented cockpit.
+
+Below is my best feedback, organized by gaps, agent dreams, risks, and a dream TUI redesign.
+
+---
+
+# 1. Executive assessment
+
+The system is strong because it has three things many internal developer platforms lack:
+
+1. **A real state plane.** SQLite is not just incidental storage; it is the coordination and evidence layer.
+2. **A typed control philosophy.** GitLab, Docker, Vault, runners, tests, releases, agents, cache, and secrets are not random shell scripts. They are mostly mediated through domain modules.
+3. **A production safety model.** Production promotion is deliberately pipeline-mediated, evidence-backed, and release-gated.
+
+The biggest current gap is not lack of power. The gap is **visibility and operational synthesis**.
+
+Right now, vgit has a lot of truth, but the user has to infer too much:
+
+* Why is this pipeline waiting?
+* Is this failure infra, regression, flaky, tainted, or capacity-related?
+* What is blocking release?
+* Which jobs are release-critical?
+* What can I safely do next?
+* What is the agent doing?
+* Which action will mutate GitLab, SQLite, Vault, Docker, or production?
+* Which evidence proves the system is safe to proceed?
+
+The “dream” version of this system is not just a TUI with prettier panels. It is a **high-contrast operational command console** where every pipeline, agent, runner, cache decision, release gate, and available action is visible, explainable, and safely executable.
+
+---
+
+# 2. The biggest architectural strengths
+
+## 2.1 The release path is correctly conservative
+
+The production model is excellent in principle:
+
+```text
+green main
+  -> release eligibility
+  -> canary/release-execution pipeline
+  -> E2E + handoff + validation evidence
+  -> production-promotion pipeline
+```
+
+That is the right shape. Production is not a CLI shell command. It is a controlled GitLab pipeline product with explicit variables and tracked state.
+
+This should be preserved aggressively.
+
+## 2.2 The state model is unusually valuable
+
+The SQLite state model gives vgit a memory of:
+
+* runner pools
+* job events
+* tracked pipelines
+* release attempts
+* evidence capsules
+* retry decisions
+* test plans
+* selector misses
+* cache verdicts
+* secret rotations
+* audit events
+
+That means vgit can become much smarter than GitLab’s normal UI. GitLab shows you what happened. vgit can explain **why it happened**, **what it means**, and **what to do next**.
+
+## 2.3 The agent model is promising
+
+The current agent model has the right philosophy:
+
+* agents should not hold broad PATs
+* agents should operate through capabilities
+* merge should go through risk gates
+* tests should run through controlled ephemeral CI branches
+* untrusted work should escalate
+
+That is exactly the right direction.
+
+But the capability API is currently too thin to let agents fully participate in the system.
+
+---
+
+# 3. Clear gaps and issues I would address
+
+## 3.1 Capability API: deferred intents should not return normal success
+
+This is one of the clearest issues.
+
+The docs say these intents deserialize and return success, but active routing is deferred:
+
+* `ProposePatch`
+* `RacePatches`
+* `RequestMerge`
+
+That is dangerous because the response semantics can mislead an agent. An agent may believe it successfully proposed a patch, raced hypotheses, or requested a merge when the server only accepted the shape of the request.
+
+I would change the response model from:
+
+```json
+{
+  "success": true,
+  "message": "..."
+}
+```
+
+to something like:
+
+```json
+{
+  "success": false,
+  "status": "deferred_not_implemented",
+  "message": "Intent deserialized but no active routing exists.",
+  "data": {
+    "implemented": false,
+    "recommended_surface": "vgit agent spawn / GitLab MR workflow"
+  }
+}
+```
+
+Even better, make the capability response typed:
+
+```rust
+enum CapabilityStatus {
+    Completed,
+    Rejected,
+    Deferred,
+    RequiresApproval,
+    NotImplemented,
+    Failed,
+}
+```
+
+This matters a lot for supervised agents.
+
+---
+
+## 3.2 Capability API needs identity, permissions, and auditing
+
+The Unix socket gives locality, but locality is not the same as authorization.
+
+For a serious agent control plane, I would want every capability request to include or derive:
+
+* agent identity
+* task id
+* actor type: human, agent, system, runner, TUI
+* allowed scopes
+* target project
+* target ref
+* trust tier
+* correlation id
+* idempotency key
+* audit event id
+* approval state, if needed
+
+Example request envelope:
+
+```json
+{
+  "api_version": "v1",
+  "request_id": "cap-...",
+  "actor": {
+    "kind": "agent",
+    "id": "agent-42",
+    "task_id": "issue-123"
+  },
+  "intent": "RunTests",
+  "payload": {
+    "project_id": 2,
+    "target_ref": "feature/foo",
+    "test_scope": "unit"
+  },
+  "idempotency_key": "agent-42-run-unit-feature-foo"
+}
+```
+
+That would make the capability API much more powerful and much safer.
+
+---
+
+## 3.3 Capability API needs discovery
+
+Agents should be able to ask:
+
+```json
+{
+  "intent": "DescribeCapabilities"
+}
+```
+
+And get back:
+
+```json
+{
+  "api_version": "4.0.0",
+  "implemented_intents": [
+    "FetchCapsule",
+    "RunTests"
+  ],
+  "deferred_intents": [
+    "ProposePatch",
+    "RacePatches",
+    "RequestMerge"
+  ],
+  "limits": {
+    "max_payload_bytes": 65536
+  }
+}
+```
+
+This prevents agents from assuming unavailable behavior.
+
+---
+
+## 3.4 `FetchCapsule` should use the evidence table, not scan the latest 500 events
+
+The current behavior says `FetchCapsule` scans the latest 500 event rows looking for a `failure_capsule`.
+
+But the state API already has:
+
+* `insert_evidence_capsule`
+* `latest_evidence_for_job`
+* `list_evidence_for_ref`
+
+I would strongly prefer the capability path to use the evidence table directly.
+
+Scanning latest 500 event rows can miss old failures, high-volume systems, or long-running investigations. Evidence capsules are important enough to deserve a first-class query path.
+
+---
+
+## 3.5 The 64 KiB capability payload cap is too small for patch workflows
+
+A 64 KiB buffer is fine for small JSON intents, but not for serious agent operations.
+
+It becomes a problem for:
+
+* patch proposals
+* multi-file diffs
+* long failure context
+* structured test plans
+* agent racing hypotheses
+* logs
+* artifact references
+
+I would not necessarily increase the socket buffer blindly. I would introduce artifact-backed payloads:
+
+```json
+{
+  "intent": "ProposePatch",
+  "payload": {
+    "patch_artifact": "file:///.../patches/task-123.diff",
+    "summary": "...",
+    "base_ref": "main"
+  }
+}
+```
+
+Or:
+
+```json
+{
+  "intent": "ProposePatch",
+  "payload": {
+    "bundle_id": "artifact://vgit/agent/task-123/patch"
+  }
+}
+```
+
+The capability socket should carry control messages, not giant documents.
+
+---
+
+## 3.6 The TUI has active pane state that does not match the visible layout
+
+The current TUI still has active pane states for:
+
+* Pools
+* Pipelines
+* Jobs
+
+But the active Flow layout only visibly shows Jobs. The pool and pipeline renderers exist but are not active.
+
+That creates confusing behavior:
+
+* `Tab` cycles to panes the user cannot clearly see.
+* `p` can pause/resume a selected pool, but the pool pane is not visible.
+* pipeline focus can affect border color, but there is no standalone pipeline list.
+* delete behavior depends on active pane, even when that pane is not visually obvious.
+
+This is a UX hazard.
+
+Either restore visible Pools and Pipelines panes, or remove those panes from the active focus model until they are visible again.
+
+---
+
+## 3.7 Delete actions should be renamed or reworked
+
+The TUI supports deleting local DB records for jobs and pipelines.
+
+That is operationally useful, but from a safety and audit perspective, “delete” is risky language. If the event ledger is supposed to be append-only by convention, local deletion of job/pipeline records can make the UI appear cleaner while hiding important context.
+
+I would change the semantics to one of these:
+
+* `Hide local record`
+* `Archive local record`
+* `Tombstone local record`
+* `Dismiss from dashboard`
+
+Prefer a tombstone model over hard deletion. The TUI should make clear:
+
+```text
+This does not cancel the GitLab job.
+This only hides the local vgit record.
+```
+
+For serious systems, I would avoid destructive local deletion from the TUI unless it writes an audit event.
+
+---
+
+## 3.8 The Audit tab should not be a placeholder
+
+Given how much event data vgit already records, the Audit tab should be one of the most important surfaces.
+
+It should show:
+
+* webhook events
+* retry decisions
+* supersedence cancellations
+* release gate transitions
+* production promotion decisions
+* secret rotations
+* pool scale events
+* cache taints
+* disk pressure GC
+* agent actions
+* merge gate decisions
+* manual TUI actions
+
+This system already has the data to make the Audit tab powerful. Leaving it as a placeholder undersells the platform.
+
+---
+
+## 3.9 Release state strings should become typed enums
+
+The docs use several related but possibly inconsistent state names:
+
+* `canary_status`
+* `canary_state`
+* `green`
+* `released`
+* `in-flight`
+* `canary-authorized`
+* `waiting`
+* `ready-for-canary`
+* `blocked`
+* `blocked-by-upstream`
+* `failed`
+* `e2e-passed`
+
+The release system is safety-critical. I would avoid free-form strings where possible.
+
+Use typed states:
+
+```rust
+enum CanaryState {
+    WaitingForGreenUpstream,
+    ReadyForCanary,
+    CanaryAuthorized,
+    CanaryRunning,
+    E2ePassed,
+    E2eFailed,
+    BlockedByUpstream,
+    BlockedByHandoff,
+    BlockedByTelemetry,
+    Released,
+    Failed,
+}
+```
+
+The TUI can still render friendly text, but the core release logic should use types.
+
+---
+
+## 3.10 Production promotion needs a very explicit evidence panel
+
+The production promotion gate requires:
+
+* release attempt exists
+* `canary_state == "e2e-passed"`
+* C handoff artifact exists
+* C validation artifact exists
+* no existing production-promotion pipeline for same SHA/ref
+
+That is good, but the UI should expose every one of those checks.
+
+A production promotion section should look like:
+
+```text
+Production Gate
+✓ Release attempt exists
+✓ Canary E2E passed
+✓ Handoff artifact present
+✓ Validation artifact present
+✓ No existing prod pipeline for this SHA
+→ Next action: production-promotion pipeline eligible
+```
+
+If blocked:
+
+```text
+Production Gate
+✓ Release attempt exists
+✓ Canary E2E passed
+✕ Validation artifact missing
+○ Production pipeline not triggered
+Blocker: /path/to/validation.json not found
+```
+
+This should be central, not hidden.
+
+---
+
+## 3.11 Runner scaling should become tag-aware and trust-aware in the UI
+
+The engine reconciles pools using pending job count and pool min/max constraints. That is good baseline behavior, but for the user, what matters is:
+
+* Which jobs are waiting?
+* Which tags do they require?
+* Which pool can run them?
+* Is the matching pool paused?
+* Is the matching runner offline?
+* Are there warm managers?
+* Is max capacity reached?
+* Is a job waiting because of trust tier, tags, Docker, or GitLab assignment?
+
+The TUI should display queue pressure by pool/tag/trust tier.
+
+Example:
+
+```text
+Queue Pressure
+build       3 pending   2 warm   4 max   ETA 45s
+default     1 pending   2 warm   4 max   ETA now
+untrusted   2 pending   0 warm   2 max   BLOCKED: pool paused
+```
+
+This would make capacity issues immediately obvious.
+
+---
+
+## 3.12 Logs should support structured overlays
+
+The live log system is already useful. It polls job traces every 650ms and keeps the tail capped at 160 KB.
+
+But logs become dramatically more powerful if the UI overlays:
+
+* failure capsule summary
+* detected failure kind
+* retry advice
+* last retry decision
+* matching previous failures
+* suspected owning module
+* relevant changed files
+* VTI-selected tests
+* cache verdict
+* runner/pool/backend
+
+Imagine a failed job log pane with:
+
+```text
+Failure Capsule
+Kind: RustCompileError
+Classification: Regression
+Retry: DoNotRetry
+Likely owner: release.rs
+Changed files: src/release.rs, src/state.rs
+Suggested validation: cargo test -p vgit -- release::tests
+```
+
+That is the difference between “log viewer” and “developer dream console.”
+
+---
+
+## 3.13 TUI actions need a command preview / dry-run layer
+
+The TUI can perform meaningful actions:
+
+* retry failed job
+* delete local records
+* pause/resume pools
+* eventually scale pools
+* trigger release reconcile
+* trigger prod promotion
+* rotate/finalize secrets
+* merge agent MR
+
+For every meaningful action, I would show:
+
+1. What command/action will run.
+2. What state it will mutate.
+3. Whether it is safe, risky, or production-impacting.
+4. Whether approval is required.
+5. What audit event will be recorded.
+
+Example action modal:
+
+```text
+Action: Retry Job #14445
+
+Target:
+  Project: 2
+  Job:     14445
+  Name:    test-rust-nextest
+  Status:  failed
+
+Evidence:
+  Classification: Infrastructure
+  Retry policy: RetryOnce
+  Previous retries: 0
+
+Effect:
+  Calls GitLab retry_job(project=2, job=14445)
+  Records retry_decision
+  Appends audit event
+
+[Enter] Execute    [Esc] Cancel
+```
+
+This would make the TUI feel powerful without feeling dangerous.
+
+---
+
+# 4. What an agent would dream to be able to do
+
+An agent would dream of vgit becoming a **typed, least-privilege DevOps operating system**.
+
+Right now, agents can do useful things through CLI and a thin capability API. But the dream agent interface would expose the whole system as a structured action graph.
+
+## 4.1 The agent wants a “what is happening?” endpoint
+
+Agents should not have to scrape CLI output or infer system state from many calls.
+
+Add:
+
+```text
+vgit agent context --project-id 2 --ref main --json
+```
+
+Or capability intent:
+
+```json
+{
+  "intent": "GetOperationalContext",
+  "payload": {
+    "project_id": 2,
+    "ref_name": "main"
+  }
+}
+```
+
+Response should include:
+
+* active pipelines
+* release state
+* blockers
+* failed jobs
+* evidence capsules
+* selected VTI plan
+* runner pressure
+* cache taints
+* open agent tasks
+* recommended next actions
+* actions the agent is allowed to perform
+
+This would be incredibly useful.
+
+---
+
+## 4.2 The agent wants a “why is this blocked?” endpoint
+
+Example:
+
+```json
+{
+  "intent": "ExplainBlocker",
+  "payload": {
+    "project_id": 2,
+    "pipeline_id": 530
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "blocked": true,
+  "blockers": [
+    {
+      "kind": "failed_job",
+      "job_id": 14445,
+      "name": "integration-e2e",
+      "classification": "Regression",
+      "retry_advice": "DoNotRetry",
+      "release_critical": true
+    }
+  ],
+  "next_actions": [
+    {
+      "action": "FetchCapsule",
+      "safe": true
+    },
+    {
+      "action": "SpawnAgentTask",
+      "safe": true
+    }
+  ]
+}
+```
+
+This is exactly the kind of thing agents are good at consuming.
+
+---
+
+## 4.3 The agent wants real patch capabilities
+
+The deferred intents are the obvious dream area.
+
+A strong version would support:
+
+* `ProposePatch`
+* `ApplyPatchToBranch`
+* `CreateMergeRequest`
+* `RacePatches`
+* `RunValidationPlan`
+* `ExplainValidationPlan`
+* `RequestMerge`
+* `RequestHumanApproval`
+* `RollbackPatch`
+* `BisectFailure`
+* `QuarantineFlakyTest`
+* `SuggestVtiRule`
+* `UpdateAgentSurfaceDocs`
+
+The key is that the agent should not get arbitrary shell. It should get typed operations.
+
+---
+
+## 4.4 The agent wants hypothesis racing
+
+The docs already mention `RacePatches`, but it is deferred.
+
+This could be a killer feature.
+
+Example:
+
+```json
+{
+  "intent": "RacePatches",
+  "payload": {
+    "base_branch": "main",
+    "commit_message": "Fix release handoff validation",
+    "hypotheses": [
+      {
+        "name": "Fix missing artifact path",
+        "patch_bundle": "artifact://..."
+      },
+      {
+        "name": "Fix release state transition",
+        "patch_bundle": "artifact://..."
+      },
+      {
+        "name": "Fix GitLab artifact lookup",
+        "patch_bundle": "artifact://..."
+      }
+    ],
+    "validation": {
+      "strategy": "vti",
+      "max_parallel": 3
+    }
+  }
+}
+```
+
+The system would create branches, run targeted tests, compare outcomes, and present the winning branch.
+
+This is exactly where vgit could become extraordinary.
+
+---
+
+## 4.5 The agent wants “next best safe action”
+
+Agents should be able to ask:
+
+```json
+{
+  "intent": "RecommendNextActions",
+  "payload": {
+    "scope": "release",
+    "project_id": 2,
+    "ref_name": "main"
+  }
+}
+```
+
+Example result:
+
+```json
+{
+  "actions": [
+    {
+      "label": "Retry infra-classified failed job",
+      "intent": "RetryJob",
+      "risk": "low",
+      "requires_approval": false
+    },
+    {
+      "label": "Spawn agent to investigate regression",
+      "intent": "SpawnAgentTask",
+      "risk": "low",
+      "requires_approval": false
+    },
+    {
+      "label": "Promote production",
+      "intent": "PromoteProduction",
+      "risk": "high",
+      "requires_approval": true,
+      "blocked_by": ["missing validation artifact"]
+    }
+  ]
+}
+```
+
+This would let agents act as operators while preserving the safety model.
+
+---
+
+## 4.6 The agent wants event streaming
+
+The current capability API is request/response. That is fine for simple actions, but agents would benefit enormously from a subscription model.
+
+Possible surfaces:
+
+```text
+vgit events stream --json
+vgit capability stream /tmp/vgit-events.sock
+GET /events/stream
+```
+
+Event types:
+
+* job started
+* job failed
+* failure capsule created
+* retry decision inserted
+* pipeline superseded
+* release gate changed
+* production promotion triggered
+* runner capacity changed
+* disk pressure GC triggered
+* cache taint detected
+* secret set rotated
+* agent task updated
+
+Agents would then react to system changes without polling.
+
+---
+
+## 4.7 The agent wants action budgets
+
+A supervised agent should have explicit budgets:
+
+```json
+{
+  "agent_id": "agent-42",
+  "allowed": {
+    "run_tests": true,
+    "spawn_branch": true,
+    "create_mr": true,
+    "retry_infra_failures": true,
+    "merge": false,
+    "prod_promote": false,
+    "rotate_secrets": false
+  },
+  "limits": {
+    "max_parallel_pipelines": 3,
+    "max_runtime_minutes": 60,
+    "max_patch_files": 20
+  }
+}
+```
+
+This gives the agent freedom inside safe boundaries.
+
+---
+
+# 5. Operational issues I would prioritize
+
+Here is the priority order I would use.
+
+## Priority 1: Fix misleading capability success
+
+Deferred intents should not return normal success. That is the first thing I would fix.
+
+## Priority 2: Align TUI focus model with visible UI
+
+Do not let users focus invisible panes and trigger actions whose targets they cannot see.
+
+Either reintroduce visible Pools and Pipelines panes or make the active Flow layout Jobs-only until those panes return.
+
+## Priority 3: Build the Audit tab
+
+The Audit tab should become the system’s black box recorder.
+
+Minimum viable Audit tab:
+
+* latest 100 events
+* filters by type
+* actor
+* timestamp
+* target
+* result
+* selected event inspector
+
+## Priority 4: Add action confirmation modals for risky operations
+
+At minimum:
+
+* pool pause/resume
+* pool scale/drain/delete
+* job retry
+* pipeline cancel
+* release reconcile
+* production promotion
+* secrets rotate/finalize
+* local record deletion/archive
+
+## Priority 5: Normalize release states
+
+Move from loose string states toward typed enums and consistent rendering.
+
+## Priority 6: Add blocker explanation everywhere
+
+Every major screen should answer:
+
+```text
+What is blocked?
+Why?
+What evidence proves it?
+What can I do?
+```
+
+## Priority 7: Make runner queue pressure visible
+
+This is one of the most important operational surfaces. Users need to know whether a pipeline is slow because of tests, code, cache, GitLab, or capacity.
+
+## Priority 8: Make VTI confidence visible
+
+The VTI system is powerful, but users need to trust it.
+
+Show:
+
+* selected tests
+* skipped tests
+* reason for each
+* confidence
+* global invalidators
+* selector misses
+* last failure caused by skipped coverage
+* cache keys
+
+## Priority 9: Replace hard local deletion with tombstones
+
+Keep auditability. Make local dismissal explicit.
+
+## Priority 10: Add structured event/correlation IDs
+
+Every action should be traceable across:
+
+* TUI action
+* CLI command
+* DB event
+* GitLab API call
+* webhook response
+* release attempt
+* agent task
+
+---
+
+# 6. Dream TUI redesign: the vgit Developer Command Console
+
+I would redesign the TUI as a **real-time command cockpit**.
+
+Not just a dashboard.
+
+Not just a log viewer.
+
+A cockpit.
+
+The ideal mental model:
+
+```text
+Top:     global mission status
+Left:    navigation and active scopes
+Center:  live operational graph
+Right:   selected-object inspector
+Bottom:  command console + event stream
+```
+
+A power user should be able to answer in five seconds:
+
+1. Is GitLab healthy?
+2. Is CI moving?
+3. What is blocking release?
+4. What is the ETA?
+5. What failed and why?
+6. What is the next safe action?
+7. What is the agent doing?
+8. Can this ship?
+9. Is production protected?
+10. Is the host/cache/runner fleet healthy?
+
+---
+
+# 7. Dream layout
+
+## 7.1 Global header
+
+At the very top:
+
+```text
+VGIT COMMAND CENTER  GitLab ● ONLINE  Runners 7/10  Queue 3  Cache 82% hit  Disk 68%  Release BLOCKED  Prod SAFE
+```
+
+Use compact colored status pills:
+
+```text
+[GitLab ONLINE] [Vault OK] [Docker OK] [Cache DEGRADED] [Disk 68%] [Release BLOCKED] [Agents 3]
+```
+
+This header should always be visible.
+
+Color semantics:
+
+* Green: healthy / passed / eligible
+* Blue: running / active
+* Cyan: selected / interactive focus
+* Yellow: waiting / warning
+* Orange: degraded / capacity pressure
+* Red: failed / blocked / dangerous
+* Magenta: security / escalation / taint
+* Gray: stale / inactive / unknown
+
+Also use text labels and symbols so the UI is not color-only.
+
+---
+
+## 7.2 Left navigation rail
+
+The left side should be a stable navigation rail:
+
+```text
+1 Flow
+2 Release
+3 Pipelines
+4 Jobs
+5 Agents
+6 Runners
+7 Tests
+8 Cache
+9 Host
+0 Audit
+S Secrets
+```
+
+Each item gets a small badge:
+
+```text
+Flow       ●
+Release    BLOCKED
+Pipelines  2
+Jobs       3 failed
+Agents     4 active
+Runners    pressure
+Tests      1 flaky
+Cache      tainted
+Host       ok
+Audit      12 new
+Secrets    current
+```
+
+This makes the TUI feel like a command system, not a collection of screens.
+
+---
+
+## 7.3 Center: live flow graph
+
+The central pane should show a multi-lane flow graph.
+
+Current columns are good:
+
+* Admission
+* Impact
+* Build
+* Tests
+* Security
+* Package
+* Release Gates
+* Canary
+* Production
+
+I would keep that, but make it more information-dense.
+
+Example:
+
+```text
+Admission       Impact          Build           Tests              Security        Canary          Prod
+─────────       ──────          ─────           ─────              ────────        ──────          ────
+✓ hook          ✓ vti-plan       ✓ image         ● unit 72% 0:43    ✓ secrets       ○ waiting       locked
+✓ policy        ✓ docs/full      ● compile 41%   ✕ e2e failed       ✓ honeypot
+                                                ○ integration
+```
+
+Each node should show:
+
+* status icon
+* job name
+* percent
+* ETA
+* whether release-critical
+* whether selected
+* whether retryable
+* whether blocked by capacity
+* whether stale
+
+Critical path should be visually emphasized.
+
+A selected failed node should glow red/magenta and populate the right inspector.
+
+---
+
+## 7.4 Right inspector: the most important pane
+
+The right inspector is where the TUI becomes magical.
+
+Whatever the user selects — job, pipeline, release, agent, runner, cache object, secret set, audit event — the right side should show structured details.
+
+For a failed job:
+
+```text
+JOB INSPECTOR
+Job: integration-e2e
+Status: FAILED
+Pipeline: #530
+Stage: test
+Runner: untrusted / manager-2
+Duration: 7m42s
+Release critical: YES
+
+Failure
+Kind: Regression
+Classification: Regression
+Retry advice: DoNotRetry
+Exit: 101
+
+Evidence
+Capsule: available
+Trace tail: available
+Changed files: 4
+Likely owner: test_intel/external
+
+Actions
+[r] Retry         disabled: regression
+[a] Spawn agent   available
+[t] Run focused   available
+[o] Open MR       available
+[x] Cancel pipe   risky
+```
+
+For a release:
+
+```text
+RELEASE INSPECTOR
+Version: ci-fa51a52a7882
+SHA: fa51a52a...
+Upstream: success
+Release pipeline: running
+Canary: e2e-passed
+Production: not triggered
+
+Production Gate
+✓ release attempt exists
+✓ canary e2e passed
+✓ handoff artifact exists
+✓ validation artifact exists
+✓ no existing prod pipeline
+
+Next action
+Promote production pipeline eligible
+Requires approval: YES
+```
+
+For an agent:
+
+```text
+AGENT INSPECTOR
+Task: Fix release validation artifact lookup
+Branch: agent/fix-release-artifact
+MR: !17
+Status: testing
+Hypotheses: 3
+Best candidate: hypothesis-B
+Confidence: medium
+
+Validation
+✓ cargo check
+✓ release::tests
+● integration gate running
+
+Next action
+Wait for pipeline #531
+```
+
+This inspector is where power users fall in love with the tool.
+
+---
+
+## 7.5 Bottom command console
+
+At the bottom, add a command palette / command console.
+
+Open with `/` or `:`.
+
+Examples:
+
+```text
+: retry selected
+: explain selected
+: run tests unit
+: scale pool build 4
+: release reconcile
+: promote prod
+: spawn agent fix selected failure
+: show audit release
+: filter jobs failed
+```
+
+The console should fuzzy-match actions and show risk:
+
+```text
+retry selected failed job       LOW       GitLab job retry
+spawn agent from failure        LOW       creates branch/MR
+cancel pipeline                 MEDIUM    cancels GitLab pipeline
+promote production              HIGH      requires release gates + approval
+rotate release secrets          HIGH      Vault + handoff mutation
+```
+
+Before execution, show a preview modal.
+
+This is the difference between “keyboard shortcuts” and a true command console.
+
+---
+
+## 7.6 Bottom event stream
+
+Either below or beside the command console, show a real-time event stream:
+
+```text
+12:04:01  job_failed             integration-e2e #14445
+12:04:02  evidence_capsule       regression, retry=no
+12:04:03  risk_gate              MR !17 escalated: pending jobs
+12:04:10  runner_scale           build 2 -> 4
+12:04:16  cache_taint            image sha256:...
+12:04:20  release_gate           canary e2e passed
+```
+
+The event stream should be filterable and selectable.
+
+Selecting an event opens the inspector.
+
+---
+
+# 8. Dream tabs
+
+## 8.1 Flow tab
+
+Purpose: “What is happening right now?”
+
+Should show:
+
+* active release/pipeline graph
+* live jobs
+* blockers
+* current selected log
+* critical path
+* queue pressure summary
+* next actions
+
+This remains the default tab.
+
+---
+
+## 8.2 Release tab
+
+Purpose: “Can this ship?”
+
+Show a release timeline:
+
+```text
+Upstream main  →  Release execution  →  Canary  →  E2E  →  Handoff  →  Production
+    ✓                    ✓                ✓        ✓        ✕            locked
+```
+
+Include:
+
+* release attempt history
+* current SHA/version
+* upstream pipeline
+* release pipeline
+* production pipeline
+* canary state
+* E2E evidence
+* telemetry evidence
+* handoff artifact
+* validation artifact
+* secret set status
+* prod approval status
+* exact blocker
+* promote action
+
+This tab should be stunningly clear.
+
+A release operator should never have to ask, “Why didn’t prod trigger?”
+
+---
+
+## 8.3 Pipelines tab
+
+Purpose: “What pipelines exist and how healthy are they?”
+
+Show:
+
+* active pipelines
+* recent pipelines
+* release-critical vs extended vs research
+* downstream bridges
+* progress
+* ETA
+* blockers
+* supersedence status
+* cancel/retry actions
+
+Potential table:
+
+```text
+Pipeline  Ref    SHA       Product              Status    Progress  ETA    Blocker
+#530      main   fa51a52   upstream             running   62%       4m     e2e
+#531      main   fa51a52   release-execution    pending   10%       8m     runner
+#532      main   fa51a52   production-promo     locked    0%        —      gate
+```
+
+---
+
+## 8.4 Jobs tab
+
+Purpose: “What job needs attention?”
+
+Show grouped jobs:
+
+* Running
+* Failed
+* Pending
+* Retryable
+* Release-critical
+* Infra-suspected
+* Regression-suspected
+* Flaky-suspected
+
+Each job should show:
+
+* status
+* stage
+* runner/pool
+* duration
+* queued time
+* ETA
+* classification
+* retry advice
+* release criticality
+
+The selected job opens logs and evidence in the inspector.
+
+---
+
+## 8.5 Agents tab
+
+Purpose: “What are agents doing?”
+
+This would be a huge unlock.
+
+Show:
+
+```text
+Agent Task             Branch                 MR     State       Confidence  Next
+Fix e2e artifact path  agent/fix-e2e-path     !17    testing     medium      wait
+Improve VTI map        agent/vti-map          !18    blocked     low         human
+Race cache fix         agent/cache-race       !19    racing      high        candidate B
+```
+
+Inspector shows:
+
+* task
+* branch
+* MR
+* issue
+* current hypothesis
+* tests run
+* failures
+* next action
+* permissions requested
+* risk gate state
+* merge eligibility
+
+This would make the agent system feel real.
+
+---
+
+## 8.6 Runners tab
+
+Purpose: “Is capacity healthy?”
+
+Show pool cards:
+
+```text
+default      trusted     2 warm / 4 max     1 pending     healthy
+build        privileged  4 warm / 4 max     3 pending     saturated
+untrusted    untrusted   0 warm / 2 max     2 pending     paused
+```
+
+Show:
+
+* pool paused state
+* trust tier
+* executor
+* tags
+* warm managers
+* active managers
+* max managers
+* queued jobs matching tags
+* average queue time
+* crashed/OOM managers
+* last scale event
+* token age
+* manager container health
+
+Actions:
+
+* scale
+* pause/resume
+* drain
+* rotate token
+* show logs
+
+This should make runner capacity obvious.
+
+---
+
+## 8.7 Tests tab
+
+Purpose: “What should I test, what is slow, and what is flaky?”
+
+The Tests tab should combine current bottlenecks with VTI intelligence.
+
+Show:
+
+* selected tests
+* skipped tests
+* why selected
+* why skipped
+* cache keys
+* historical duration
+* flake rate
+* selector misses
+* current failed tests
+* recommended validation lane
+
+Example:
+
+```text
+VTI Plan for fa51a52
+Impact lane: Integration
+Confidence: Medium
+Global invalidator: no
+Selected: 12
+Skipped: 84
+Estimated runtime saved: 38m
+Selector misses last 30d: 2
+```
+
+Then list selected tests with reasons:
+
+```text
+integration-auth     selected   changed: src/auth/*
+release-gates        selected   changed: src/release.rs
+docs-lint            skipped    docs unaffected
+full-build           skipped    no global invalidator
+```
+
+This would make VTI trustworthy.
+
+---
+
+## 8.8 Cache tab
+
+Purpose: “Is cache helping or hurting?”
+
+Current Cache tab is good, but I would make it more causal.
+
+Show:
+
+* hit ratio
+* exact hits
+* misses
+* cold downgrades
+* active taints
+* quarantined objects
+* cache promotions
+* force refresh rules
+* BuildKit namespace health
+* per-pool cache health
+* top miss causes
+
+Example:
+
+```text
+Cache Health
+Hit ratio: 82%
+Misses: 14
+Cold downgrades: 2
+Active taints: 1
+Trust breaches: 0
+
+Top miss causes
+1. Cargo.lock changed          8
+2. Epoch invalidated           3
+3. Trust boundary mismatch     2
+4. Force refresh               1
+```
+
+The user should know whether cache behavior is expected or suspicious.
+
+---
+
+## 8.9 Host tab
+
+Purpose: “Is the machine safe?”
+
+Show:
+
+* root disk usage
+* data directory size
+* Docker storage
+* runner storage
+* CAS size
+* crate cache size
+* DB size
+* disk pressure state
+* last GC
+* next GC candidate
+* reclaim plan
+
+Actions:
+
+* storage audit
+* cache GC dry run
+* host reclaim plan
+* host reclaim apply
+
+Always preview destructive reclaim.
+
+---
+
+## 8.10 Audit tab
+
+Purpose: “What happened, who did it, and why?”
+
+This should be the immutable black box.
+
+Show timeline:
+
+```text
+Time      Actor     Type                         Target             Result
+12:04:01  engine    job_failed                   #14445             recorded
+12:04:02  engine    retry_decision               #14445             do-not-retry
+12:04:10  tui       pool_pause_requested         untrusted          applied
+12:04:20  release   production_gate_evaluated    ci-fa51a52         blocked
+```
+
+Filters:
+
+* release
+* agent
+* secrets
+* cache
+* jobs
+* pipelines
+* runners
+* security
+* manual actions
+* system actions
+
+Selecting an audit event opens full structured JSON in the inspector.
+
+---
+
+## 8.11 Secrets tab
+
+Purpose: “Are release secrets safe and current?”
+
+Show:
+
+* Vault health
+* authority status
+* latest secret set
+* target
+* version
+* finalized state
+* handoff path
+* recovery path
+* audit events
+* rotation/finalization actions
+
+But never show secret values.
+
+This should be a high-trust operational surface.
+
+---
+
+# 9. Critical information the dream console should prioritize
+
+For a power user, the most important information is not every detail. It is the right detail at the right moment.
+
+## 9.1 System-level
+
+Always visible:
+
+* GitLab online/offline
+* Docker healthy/unhealthy
+* Vault healthy/unhealthy
+* runner capacity
+* queue pressure
+* disk pressure
+* cache health
+* release state
+* production state
+* active blockers
+* stale data indicator
+
+## 9.2 Pipeline-level
+
+For every important pipeline:
+
+* product: upstream, release-execution, production-promotion, test scratch
+* ref
+* SHA
+* status
+* progress
+* ETA
+* critical path
+* blockers
+* release-critical jobs
+* downstream pipelines
+* supersedence state
+* latest event time
+
+## 9.3 Job-level
+
+For every selected job:
+
+* status
+* name
+* stage
+* runner/pool
+* trust tier
+* tags
+* queued duration
+* runtime
+* ETA
+* failure classification
+* retry recommendation
+* evidence capsule
+* trace tail
+* artifacts
+* cache verdict
+* owning module
+* matching previous failures
+
+## 9.4 Release-level
+
+For release:
+
+* upstream pipeline status
+* release pipeline status
+* canary state
+* E2E state
+* telemetry state
+* handoff artifact status
+* validation artifact status
+* production pipeline status
+* secret set status
+* exact blocker
+* next eligible action
+* approval requirement
+
+## 9.5 Agent-level
+
+For agents:
+
+* task
+* branch
+* MR
+* current hypothesis
+* tests run
+* validation state
+* confidence
+* blockers
+* permissions requested
+* merge gate status
+* next action
+
+## 9.6 Safety-level
+
+For actions:
+
+* what will mutate
+* risk level
+* gate status
+* required approval
+* audit event that will be recorded
+* dry-run output
+* rollback option if available
+
+---
+
+# 10. Color and visual design
+
+I would use a very high-contrast dark theme with consistent semantic color.
+
+## 10.1 Color semantics
+
+```text
+Green       success, eligible, healthy, passed
+Blue        running, active, in progress
+Cyan        selected, focused, interactive
+Yellow      waiting, pending, warning
+Orange      degraded, capacity pressure, slow ETA
+Red         failed, blocked, dangerous
+Magenta     security, taint, escalation, untrusted
+Gray        stale, inactive, unknown, omitted
+White       normal primary text
+Dim gray    secondary metadata
+```
+
+## 10.2 Status symbols
+
+Do not rely on color alone.
+
+Use symbols:
+
+```text
+✓ passed
+● running
+○ pending
+◌ created
+✕ failed
+! warning
+◆ blocked
+⏱ ETA
+🔒 locked / gated
+⚑ release-critical
+```
+
+If emoji rendering is unreliable, use ASCII-safe alternatives:
+
+```text
+OK
+RUN
+PEND
+FAIL
+WARN
+LOCK
+GATE
+CRIT
+```
+
+## 10.3 Visual hierarchy
+
+Use intensity carefully:
+
+* Bold bright text only for current blockers and selected objects.
+* Dim stale data.
+* Use red sparingly so real failures stand out.
+* Use magenta specifically for security/taint/escalation.
+* Use yellow for waiting, not for catastrophic failure.
+* Use cyan only for user focus.
+
+## 10.4 “Stale” should be visually obvious but not scary
+
+The current anti-blanking behavior is excellent. Retaining the last non-empty flow board is the right choice.
+
+But stale data should be visibly marked:
+
+```text
+FLOW BOARD [STALE 42s]
+```
+
+Possibly dim the graph and add a small warning line:
+
+```text
+Retaining last non-empty snapshot while GitLab data is unavailable.
+```
+
+That makes the stability behavior transparent.
+
+---
+
+# 11. The dream command palette
+
+The command palette is where the TUI becomes a power-user dream.
+
+Open with `/`.
+
+Example:
+
+```text
+/ retry selected job
+/ explain selected failure
+/ spawn agent from selected failure
+/ run vti tests for selected pipeline
+/ cancel superseded pipelines
+/ scale build pool to 4
+/ release reconcile main
+/ promote production
+/ rotate secrets version ci-fa51a52a
+/ host reclaim plan
+```
+
+Each command should show:
+
+```text
+Command                         Risk       Requires approval   Effect
+retry selected job              low        no                  GitLab retry
+cancel selected pipeline        medium     yes                 GitLab cancel
+promote production              high       yes                 prod pipeline
+rotate secrets                  high       yes                 Vault + files
+```
+
+When selected:
+
+```text
+Preview
+Action: promote production
+Project: 2
+Ref: main
+Version: ci-fa51a52a7882
+
+Gate status:
+✓ canary e2e passed
+✓ handoff artifact exists
+✓ validation artifact exists
+✓ no existing prod pipeline
+
+Effect:
+Triggers GitLab pipeline with CI_PIPELINE_PRODUCT=production-promotion
+
+[Enter] Execute   [Esc] Cancel
+```
+
+That would be incredible.
+
+---
+
+# 12. Concrete TUI improvements I would make first
+
+If I had to sequence the TUI work, I would do it like this.
+
+## Phase 1: Make current TUI coherent
+
+1. Restore visible Pools and Pipelines panes, or remove them from focus cycling.
+2. Add an actual Audit tab from the event ledger.
+3. Rename local delete to dismiss/archive/tombstone.
+4. Add action confirmation modals.
+5. Show selected job details beside logs.
+6. Add release gate checklist to Release Watch.
+7. Show stale age consistently.
+
+## Phase 2: Make it operationally intelligent
+
+1. Add blocker summaries.
+2. Add failure capsule display.
+3. Add retry advice display.
+4. Add runner queue pressure.
+5. Add VTI plan summary.
+6. Add release criticality labels.
+7. Add cache verdicts for selected jobs.
+8. Add critical path and ETA confidence.
+
+## Phase 3: Make it an agent console
+
+1. Add Agents tab.
+2. Add capability/event stream.
+3. Add agent task/MR/branch visibility.
+4. Add hypothesis racing visualization.
+5. Add permission request queue.
+6. Add agent action audit.
+7. Add recommended next actions.
+
+## Phase 4: Make it a true command center
+
+1. Add command palette.
+2. Add action preview/dry-run.
+3. Add right-side inspector.
+4. Add multi-pipeline flow board.
+5. Add release flight deck.
+6. Add host/cache/security cockpit.
+7. Add customizable layouts.
+
+---
+
+# 13. Specific design: main Flow screen v2
+
+I would redesign the default screen like this:
+
+```text
+┌ VGIT COMMAND CENTER ─ GitLab ONLINE ─ Runners 7/10 ─ Queue 3 ─ Release BLOCKED ─ Disk 68% ┐
+│ 1 Flow  2 Release  3 Pipes  4 Jobs  5 Agents  6 Runners  7 Tests  8 Cache  9 Audit       │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Release: ci-fa51a52a  Canary E2E PASSED  Prod BLOCKED: validation artifact missing         │
+├───────────────┬──────────────────────────────────────────────────────────┬─────────────────┤
+│ Active Scope  │ Flow Graph                                                │ Inspector       │
+│               │                                                           │                 │
+│ main          │ Admission → Impact → Build → Tests → Security → Canary     │ Selected Job    │
+│ #530 upstream │ ✓ hook      ✓ plan   ● build  ✕ e2e    ✓ guard   ○ prod    │ e2e-release     │
+│ #531 release  │                                                           │ FAILED          │
+│               │ Critical path: build → e2e → canary → prod                 │ Regression      │
+│ Queue         │ ETA: 6m, confidence medium                                 │ Retry: no       │
+│ build: 3      │                                                           │ Actions:        │
+│ default: 1    │                                                           │ [a] agent fix   │
+│ untrusted: 2  │                                                           │ [t] tests       │
+├───────────────┴──────────────────────────────────────────────────────────┴─────────────────┤
+│ Live Jobs                                                                                  │
+│ >> FAIL integration-e2e     #14445  7m42s  release-critical  regression  retry=no          │
+│    RUN  build-image          #14446  42%    ETA 1m20s        build pool                    │
+│    PEND security-scan        #14447  queued 2m             waiting runner                  │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Log: integration-e2e [stale 2s | follow]                                                    │
+│ error: validation artifact not found: gate-canary-e2e.json                                  │
+│ ...                                                                                        │
+├────────────────────────────────────────────────────────────────────────────────────────────┤
+│ : command palette    ? help    Enter maximize logs    a spawn agent    r retry    x actions │
+└────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+This would feel like a real-time engineering cockpit.
+
+---
+
+# 14. Specific design: Release Flight Deck
+
+The Release tab should look like this:
+
+```text
+RELEASE FLIGHT DECK
+
+Version: ci-fa51a52a7882
+Ref:     main
+SHA:     fa51a52a
+State:   BLOCKED BEFORE PRODUCTION
+
+Timeline
+✓ Upstream pipeline        #530 success
+✓ Release eligibility      passed
+✓ Release execution        #531 success
+✓ Canary deployment        complete
+✓ Canary E2E               passed
+✓ Handoff artifact         present
+✕ Validation artifact      missing
+○ Production promotion     not triggered
+
+Gate Details
+Production trigger: blocked
+Reason: required validation artifact not found
+Expected: /home/ubuntu/dougx/.../c-validation.json
+
+Actions
+[reconcile] Refresh release state
+[report]    Show handoff report
+[agent]     Spawn agent to repair missing validation artifact
+[promote]   Disabled until gate passes
+```
+
+This is the kind of clarity release operators need.
+
+---
+
+# 15. Specific design: Agent Operations tab
+
+The Agents tab could become one of the most distinctive parts of vgit.
+
+```text
+AGENT OPERATIONS
+
+Task                         Branch                   MR    State       Tests       Gate
+Fix validation artifact      agent/fix-validation     !17   testing     2/3 pass    pending
+Race flaky e2e hypotheses    agent/race-e2e           !18   racing      1 winner    blocked
+Update VTI testmap           agent/vti-testmap        !19   review      pass        escalated
+
+Selected Agent
+Task: Fix validation artifact
+Goal: Restore production promotion gate
+Current hypothesis: artifact path mismatch
+Branch: agent/fix-validation
+Pipeline: #534 running
+
+Evidence
+✓ cargo check
+✓ release tests
+● e2e handoff test running
+
+Next recommended action
+Wait for pipeline #534, then request merge if green.
+```
+
+The user should feel like they are supervising a fleet of competent engineering agents.
+
+---
+
+# 16. Specific design: Failure view
+
+A selected failed job should get a first-class failure view.
+
+```text
+FAILURE ANALYSIS
+
+Job: integration-e2e
+Pipeline: #530
+Stage: test
+Release critical: yes
+
+Classification
+Kind: MissingArtifact
+Class: Regression
+Confidence: medium
+Retry advice: DoNotRetry
+
+Evidence
+Trace snippet:
+  error: gate-canary-e2e.json not found
+
+Related changes
+  src/release.rs
+  src/secrets.rs
+  .gitlab-ci.yml
+
+Similar failures
+  #14301 same artifact missing, fixed by !12
+  #14188 handoff path mismatch
+
+Actions
+[a] Spawn repair agent
+[t] Run focused validation
+[o] Open related MR
+[c] Copy capsule JSON
+```
+
+This is exactly what developers dream of: not just the log, but the diagnosis.
+
+---
+
+# 17. Specific design: Runner/capacity view
+
+```text
+RUNNER CAPACITY
+
+Pool        Trust        Exec      Warm  Active  Max  Queue  Health
+default     trusted      docker    2     2       4    1      OK
+build       privileged   docker    2     4       4    3      SATURATED
+untrusted   untrusted    custom    1     0       2    2      PAUSED
+
+Queue Analysis
+3 jobs waiting for build,docker-build,dind
+2 jobs waiting for untrusted,sandbox,mr
+
+Recommendations
+- build pool is saturated; scale max or inspect long-running jobs
+- untrusted pool is paused; resume to process MR jobs
+
+Actions
+[s] scale selected
+[p] pause/resume
+[d] drain
+[l] logs
+```
+
+This would make vgit feel operationally intelligent.
+
+---
+
+# 18. Specific design: VTI/Test Intelligence view
+
+```text
+TEST INTELLIGENCE
+
+Current change: fa51a52a
+Impact lane: Integration
+Global invalidator: no
+Selected tests: 12
+Skipped tests: 84
+Estimated time saved: 38m
+Confidence: medium
+Selector misses last 30d: 2
+
+Selected
+✓ release-gates        changed src/release.rs
+✓ integration-e2e      changed deploy handoff path
+✓ secrets-rotation     changed src/secrets.rs
+
+Skipped
+○ docs-lint            no docs changes
+○ full-build           no global invalidator
+○ cache-gateway        unaffected subsystem
+
+Warnings
+! selector miss recorded 3 days ago for release-gates
+! e2e historically flaky: 7% failure rate
+```
+
+This makes test selection explainable, not magical.
+
+---
+
+# 19. Specific design: Audit tab
+
+```text
+AUDIT LEDGER
+
+Time      Actor    Event                         Target             Result
+12:01:02  engine   pipeline_success              #530               recorded
+12:01:03  release  canary_claimed                ci-fa51a52a         ok
+12:01:05  engine   release_pipeline_triggered    #531               ok
+12:08:44  engine   release_pipeline_success      #531               ok
+12:08:45  release  prod_gate_checked             ci-fa51a52a         blocked
+12:08:45  release  prod_gate_blocker             validation file     missing
+12:09:10  tui      agent_spawn_requested         fix validation      ok
+
+Selected Event
+Type: prod_gate_blocker
+Reason: validation artifact missing
+Release: ci-fa51a52a
+Actor: release
+Correlation: rel-fa51a52a-prod-gate
+```
+
+This gives trust.
+
+---
+
+# 20. Additional system improvements
+
+## 20.1 Add `--json` everywhere agents may need to parse
+
+Many commands already have JSON flags, but the ideal agent-operable system has structured output for every meaningful command:
+
+* pool list/status
+* job explain
+* release status/watch
+* progress
+* host doctor
+* cache status/gc
+* secrets status/report
+* agent list
+* TUI snapshot maybe
+
+Human text is great. Agent JSON is essential.
+
+---
+
+## 20.2 Add `plan/apply` to more risky operations
+
+You already have `host reclaim --plan|--apply`.
+
+That pattern should spread.
+
+Examples:
+
+```text
+vgit pool scale build 4 --plan
+vgit release promote-prod --plan
+vgit secrets rotate --plan
+vgit pipeline cancel 530 --plan
+```
+
+The TUI can call the plan first and render it before applying.
+
+---
+
+## 20.3 Add a unified action ledger
+
+Every operational action should produce a durable record:
+
+* actor
+* source: CLI/TUI/engine/capability/webhook
+* action
+* target
+* request id
+* result
+* timestamp
+* risk level
+* approval id, if any
+
+This would make the Audit tab and agent supervision much stronger.
+
+---
+
+## 20.4 Add “safe mode” and “operator mode”
+
+The TUI should have modes:
+
+```text
+Observe mode:
+  no mutations allowed
+
+Operator mode:
+  normal operational actions allowed
+
+Admin mode:
+  pool delete, secret rotate, prod promote, host reclaim apply
+```
+
+Mode should be visible in the header.
+
+---
+
+## 20.5 Add stale-data handling to every pane
+
+The Flow board already has good anti-blanking behavior.
+
+Extend this idea:
+
+* release status stale
+* cache status stale
+* runner status stale
+* logs stale
+* GitLab API unavailable
+* DB available but remote unavailable
+* Docker unavailable
+
+Always show when data was generated.
+
+---
+
+# 21. The single biggest dream feature
+
+If I had to choose one transformative feature, it would be this:
+
+## A unified “Blocker → Evidence → Action” system
+
+Every blocker in the system should render as:
+
+```text
+Blocker:
+  Production promotion blocked
+
+Why:
+  Validation artifact missing
+
+Evidence:
+  Release attempt ci-fa51a52a
+  Canary E2E passed
+  Handoff artifact exists
+  Validation artifact path missing
+
+Impact:
+  Production pipeline not triggered
+
+Recommended actions:
+  1. Spawn repair agent
+  2. Reconcile release after artifact is restored
+  3. Promote production after gate passes
+```
+
+This pattern should apply to:
+
+* failed jobs
+* pending jobs
+* stuck pipelines
+* paused pools
+* cache taints
+* missing release artifacts
+* secret issues
+* disk pressure
+* merge gate escalation
+* agent blockers
+
+That would make vgit feel brilliant.
+
+---
+
+# 22. My strongest recommendations
+
+If I were steering the next major iteration, I would focus on these ten items:
+
+1. **Fix capability deferred-success semantics.**
+2. **Add capability identity, request ids, and discovery.**
+3. **Make the Audit tab real.**
+4. **Align TUI focus with visible panes.**
+5. **Add a right-side inspector for selected objects.**
+6. **Add action preview modals with risk and mutation summary.**
+7. **Add release gate checklist and exact blocker explanations.**
+8. **Add runner queue pressure by tag/trust/pool.**
+9. **Expose failure capsules directly in the TUI.**
+10. **Add a command palette with safe/risky action classification.**
+
+Those changes would dramatically raise the perceived power and trustworthiness of the system without weakening the safety model.
+
+---
+
+# 23. Final take
+
+vgit is already much more than a CI helper. The architecture is pointing toward a **local autonomous delivery control plane**. The missing piece is a UI and capability layer that fully exposes the intelligence already present in the system.
+
+The dream version is a terminal-native **developer operations cockpit** where a power user can see:
+
+* every active pipeline
+* every release gate
+* every failed job
+* every agent task
+* every runner bottleneck
+* every cache/security issue
+* every production blocker
+* every available action
+* every audit event
+
+And for each one, the console answers:
+
+```text
+What is happening?
+Why?
+How bad is it?
+What evidence proves it?
+What can I safely do next?
+What will happen if I do it?
+```
+
+That is the standard I would design toward.
+
+The foundation is very strong. The next leap is to make the invisible intelligence visible, typed, actionable, and beautiful.
+

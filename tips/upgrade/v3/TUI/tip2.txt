@@ -1,0 +1,1103 @@
+I wasn’t able to clone the repo inside the container because GitHub DNS resolution failed, so this pass is based on the current GitHub source/docs pages: `docs/API.md`, `docs/VGIT_TUI.md`, `src/capability.rs`, `src/cli.rs`, `src/tui/*`, and `src/tui/flow/*`.
+
+## My diagnosis
+
+The current API/TUI is already pointed in the right direction, but the TUI still feels like a **control-plane observability dashboard**, not yet a **world-class agent mission-control cockpit**.
+
+The best redesign is not “add more tabs.” The best redesign is:
+
+> Make the TUI answer, every second: **What is happening? What is blocked? Why? What can safely happen next? Who/what is authorized to do it? What evidence proves it?**
+
+Right now, `vgit` has many strong pieces: CLI, webhook server, Unix-socket capability API, action registry, state DB, release status, evidence capsules, cache metrics, job logs, agent pipeline tracking, and Ratatui UI. The docs explicitly list the public and internal surfaces: CLI, TUI, webhook HTTP API, capability API, Git server hook, custom executor, action registry, state API, settings API, GitLab client, release API, and secrets API. ([GitHub][1])
+
+The missing piece is a **unified UX/API layer** that turns all of that into one coherent experience.
+
+---
+
+# 1. Current API surface: what exists
+
+## Public/control surfaces today
+
+The API doc describes a wide control surface:
+
+| Surface              | Current purpose                                |
+| -------------------- | ---------------------------------------------- |
+| CLI                  | Human/agent process invocation                 |
+| TUI                  | Human/supervising-agent dashboard              |
+| Webhook server       | GitLab event ingestion                         |
+| Capability API       | Local supervised-agent JSON over Unix socket   |
+| Git server hook      | Admission/pre-receive control                  |
+| Custom executor      | GitLab Runner execution hooks                  |
+| Action registry      | Static registry for CLI/TUI/capability actions |
+| State API            | Internal DB methods                            |
+| GitLab REST wrapper  | Internal GitLab operations                     |
+| Release/secrets APIs | Release monitoring, Vault, secret lifecycle    |
+
+That breadth is very good. It means the TUI can become much more than a terminal skin; it can become the **front-end to an autonomous delivery OS**. ([GitHub][1])
+
+## CLI/API commands that matter for the TUI
+
+The CLI includes lifecycle, status, pool, job, pipeline, cache, logs, agent, shadow, test, release, secrets, progress, next-action, explain-blocker, action list, host, custom executor, server hook, and capability commands. The TUI command itself supports `--once` and deterministic `--capture` PNG output with tabs such as `mission`, `release`, `jobs`, `agents`, `tests`, `pools`, `cache`, `evidence`, and `secrets`. ([GitHub][2])
+
+That screenshot/capture mode is a really good idea. It should become a first-class “share state with humans/agents” API.
+
+## Webhook API today
+
+The webhook server exposes `/health`, `/hooks`, and `/cache/summary`. GitLab events are ingested through `/hooks`; job hooks can update job state and retry/scale, pipeline hooks can track release/prod state, push hooks can cancel superseded pipelines and record impact/VTI plans, but merge request hooks are currently logged without active behavior. ([GitHub][1])
+
+That MR limitation matters a lot for the TUI. An agent-first Git cockpit needs a real MR lifecycle: intent → branch → diff → validation plan → evidence → review → merge gate → release. If MR hooks are passive, the UI cannot feel like a true autonomous review/merge console.
+
+## Capability API today
+
+The capability API is a Unix-domain-socket JSON API. It uses a tagged `AgentIntent` enum with intents including `ProposePatch`, `RacePatches`, `RunTests`, `FetchCapsule`, `RequestMerge`, `ExplainBlockers`, `GetSystemSnapshot`, `ListAllowedActions`, and `PlanValidation`. Responses are a generic `CapabilityResponse { success, message, data }`. ([GitHub][1])
+
+This is a strong start, but it is too generic for a world-class TUI. The TUI needs typed, structured responses with display hints, entity links, risk level, recommended next actions, and correlation IDs.
+
+## Action registry today
+
+The action registry is one of the most promising parts. It assigns each action an id, label, key hint, risk tier, surfaces, dry-run support, description, side-effect class, and required grant. Actions include logs, retry, delete record, pause pool, explain blockers, system snapshot, propose patch, race patches, request merge, plan validation, run tests, next action, tab navigation, audit toggle, and quit. ([GitHub][3])
+
+But there is a gap: the command palette currently routes only tab navigation and audit toggle; other action ids are present in the registry but not actually executed from the palette. The source says “Other actions: user uses key binding or capability API.” ([GitHub][4])
+
+That makes the palette feel like a launcher, not a control surface. In a world-class TUI, the palette should be the universal action system.
+
+---
+
+# 2. Current TUI surface: what exists
+
+## Current structure
+
+The TUI is Ratatui/crossterm-based. It runs a draw/input/tick loop around every 250ms, and the app owns DB, Docker, and GitLab handles so it can perform operational actions directly. The current top-level tabs are:
+
+1. Mission
+2. Release
+3. Jobs
+4. Agents
+5. Tests
+6. Pools
+7. Cache
+8. Evidence
+9. Secrets
+
+The default tab is Jobs. ([GitHub][5])
+
+This is already more advanced than the older five-tab doc mental model. The current source has a header, stale indicator, event console, footer, Ctrl-K palette, and nine tabs. ([GitHub][6])
+
+## Refresh model
+
+The app currently has three asynchronous refresh streams: a general snapshot worker, a flow collector, and a live log worker. General and flow refreshes run around every 1500ms; live logs poll GitLab job trace around every 650ms. The TUI docs explicitly say current logs are polling-based and there is no websocket transport. ([GitHub][5])
+
+The anti-blanking/stale behavior is one of the best current UX decisions. Empty flow snapshots do not wipe the visible board; the last non-empty board is retained and marked stale. ([GitHub][5])
+
+## Current tab behavior
+
+The current Mission tab is a four-card overview: system health, pipeline summary, release status, and cache health. The Release tab shows a release gate matrix plus an inspector. The Jobs tab has pipeline nav, release banner, flow board, live jobs, logs, and a job inspector. The Agents tab shows agent pipelines and capability call history. The Tests tab shows bottlenecks plus history. Pools, Cache, Evidence, and Secrets each have basic dashboards. ([GitHub][6])
+
+That is a good skeleton.
+
+The big issue: many panes are still **status panels**, not **decision panels**. They tell me what exists, but not enough about what matters, what changed, what is risky, and what action should happen next.
+
+---
+
+# 3. The biggest missing pieces
+
+## 1. The TUI needs a real “next action” brain
+
+The API already has `vgit next` and `explain-blocker`, but the TUI does not make “next best action” the main UI primitive. It should.
+
+Every major screen should show:
+
+```text
+Recommended action:
+  Retry job #1842 — likely transient runner failure, 87% confidence.
+  Press r to preview. Press R to execute.
+```
+
+Or:
+
+```text
+Recommended action:
+  Do not merge !42.
+  Blocked by selector miss in auth/api boundary and cache taint #17.
+```
+
+This should be generated by a shared API, not recomputed ad hoc in UI code.
+
+## 2. The TUI should not directly own DB/Docker/GitLab operational logic
+
+Right now `App` owns the database, Docker controller, and GitLab client, and it performs operational actions such as retrying jobs and pausing pools. ([GitHub][5])
+
+That is okay for a prototype, but a world-class TUI should be a **thin real-time client** over a stable `vgit` API. Otherwise, the TUI becomes a second control plane with its own refresh logic, retries, stale states, policy bugs, and incomplete action semantics.
+
+The redesign should introduce:
+
+```text
+vgit api serve --uds /tmp/vgit.sock
+vgit tui --connect /tmp/vgit.sock
+```
+
+The TUI should subscribe to events and call typed actions. The control plane should own DB/GitLab/Docker/Vault.
+
+## 3. The command palette is underpowered
+
+The action registry is excellent, but the palette currently only switches tabs or toggles the Evidence/Audit view. ([GitHub][3])
+
+The palette should become the main UX:
+
+```text
+Ctrl-K → "retry"
+  Retry job #1842
+  Risk: Low
+  Enabled: yes
+  Why: job failed, retry allowed, no newer pipeline supersedes it
+  Preview: will call GitLab retry_job(project=2, job=1842)
+```
+
+For high-risk actions:
+
+```text
+Ctrl-K → "merge"
+  Request merge !42
+  Risk: Production
+  Enabled: no
+  Blockers:
+    - pipeline has 1 failed required job
+    - selector miss last 24h
+    - grant missing: merge_approval
+```
+
+Every action should support:
+
+```text
+preview → explain → execute → result → undo/rollback when possible
+```
+
+## 4. The flow graph is still too synthetic
+
+The flow model has columns, nodes, edges, lanes, ETA, backend refs, and critical path fields. ([GitHub][7]) The builder now classifies jobs by name, creates coarse stage-ordering edges, and computes a critical path over those edges. ([GitHub][8]) The widget, however, mainly paints columns and stacked nodes with status icons; it does not render a rich dependency graph with actual CI `needs`, bridge/downstream edges, evidence reuse, or VTI skip/reuse edges. ([GitHub][9])
+
+The flow graph should be rebuilt from real pipeline topology:
+
+* GitLab stages and `needs`
+* child/downstream pipelines
+* VTI selected/skipped jobs
+* cache-hit skipped work
+* superseded/canceled jobs
+* release/canary/prod gates
+* agent repair attempts
+* merge-gate decision nodes
+
+The goal is not just “pipeline visualization.” The goal is **causal visualization**.
+
+## 5. Pipeline selection does not drive the flow board enough
+
+The Jobs tab has a pipeline nav, but the flow board renders `active_pipelines.first()`. ([GitHub][6]) Selecting a pipeline should update the board, inspector, logs, jobs, evidence, VTI plan, and recommendations. Current source has some selection state, but the rendered board is still first-pipeline-centric.
+
+That is a key UX bug because it makes the pipeline nav feel decorative.
+
+## 6. Normal log preview may not actually follow selection
+
+The source’s `update_log_target()` only sets a log target when `maximize_logs` is true; otherwise it clears the target. ([GitHub][10]) That means the “Log Preview” pane may not truly stream the selected job unless a maximized log view has been opened. The docs describe a live log preview, but the source suggests live polling is gated by maximized-log state. ([GitHub][5])
+
+The fix: log preview should follow selected job in the Jobs tab, while maximized view only changes layout and scroll behavior.
+
+## 7. Agent tab is too pipeline-centric
+
+The Agents tab currently shows agent pipelines and capability call history. ([GitHub][6]) That is useful, but an agent-first product needs agent missions, not just pipelines.
+
+The tab should show:
+
+```text
+Agent mission
+Intent
+Grant
+Branch
+MR
+Diff summary
+Validation plan
+Current blocker
+Repair attempts
+Confidence
+Risk
+Next action
+```
+
+Agents are not just CI branches. They are actors with goals, constraints, authority, and evidence trails.
+
+## 8. Evidence tab is good, but not actionable enough
+
+The Evidence tab lists failure capsules and shows job/ref/SHA/stage/exit/kind/log snippet, plus some causal links like superseded/retry-of when available. ([GitHub][6])
+
+Great start. But a world-class evidence viewer should also show:
+
+* root cause hypothesis
+* exact reproduction command
+* affected files/modules
+* related historical failures
+* owner
+* flake likelihood
+* retry recommendation
+* patch suggestion
+* whether this evidence is merge-blocking
+* whether it is superseded by a newer SHA
+* actions: retry, quarantine, assign agent, open logs, open diff, mark flaky, request human review
+
+## 9. Tests tab is bottleneck-focused, not validation-focused
+
+The Tests tab shows bottleneck lists and history. ([GitHub][5]) That is useful performance telemetry, but not enough for agentic validation.
+
+The Tests tab should be renamed or expanded into **Validation Intelligence**:
+
+* changed files
+* selected tests
+* skipped tests
+* why each test was selected/skipped
+* VTI confidence
+* selector misses
+* flake risk
+* historical duration
+* expected cost
+* coverage gap
+* merge-gate impact
+* “run missing proof” action
+
+## 10. Cache tab lacks “why this matters”
+
+The Cache tab shows storage, gateway health, singleflight analytics, and trust/taint boundaries. ([GitHub][5])
+
+It should also show:
+
+* minutes saved
+* dollars saved
+* jobs skipped by exact cache hit
+* cache objects currently blocking trust
+* which jobs were downgraded to cold execution and why
+* which cache object is tainted
+* cache lineage/provenance
+* cache hit ratio by project/lane/pool
+* “clear taint” or “quarantine object” action with preview
+
+## 11. Secrets tab is too shallow
+
+The Secrets tab currently shows secret audit events and a generic Vault status panel. ([GitHub][6])
+
+A serious agent-first TUI needs a security cockpit:
+
+* active secret leases
+* lease age and expiry
+* which agent/job holds each lease
+* which artifacts are tainted by secret exposure
+* rotation status by release
+* revoked/expired/pending secrets
+* suspicious access
+* honeytoken trips
+* network egress attempts
+* “revoke now” action
+* “rotate release secrets” action
+* “show grant chain” action
+
+---
+
+# 4. Ground-up TUI redesign
+
+## New design principle
+
+The TUI should be built around **entities and decisions**, not tabs and raw status.
+
+The core entities:
+
+```text
+Mission
+Agent
+Intent
+Grant
+Branch
+Merge Request
+Pipeline
+Job
+Test Plan
+Evidence Capsule
+Cache Object
+Secret Lease
+Release Attempt
+Policy Decision
+Recommended Action
+```
+
+The core question:
+
+```text
+For each entity, what is its state, why is it in that state, what blocks it, and what action is safe next?
+```
+
+## New top-level layout
+
+I would redesign the default screen as **Mission Control**:
+
+```text
+┌ vgit Agent OS ─ GitLab OK ─ Events LIVE ─ Risk MED ─ Agents 4 ─ Runners 7/12 ┐
+│ Next Action: Retry job #1842 — likely transient infra failure — 87% confidence │
+├───────────────────────┬──────────────────────────────────────┬───────────────┤
+│ Mission Queue          │ Active Flow / DAG                     │ Inspector     │
+│ > !42 auth fix         │ intent → patch → VTI → tests → gate   │ selected: job  │
+│   !43 deps update      │              ↘ evidence → repair      │ why blocked    │
+│   !44 docs cleanup     │                                       │ actions        │
+├───────────────────────┴──────────────────────────────────────┴───────────────┤
+│ Event stream: [BLOCKER] job#1842 failed compile_failure · [ACTION] retry ready │
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+This should be the default, not the current Jobs tab.
+
+## Suggested top-level sections
+
+I would reduce cognitive load by grouping the current nine tabs into six stronger sections:
+
+1. **Mission** — global overview, blockers, next actions, active missions.
+2. **Work** — agents, branches, MRs, diffs, grants, approvals.
+3. **Flow** — pipelines, jobs, DAG, logs, critical path.
+4. **Validation** — VTI, tests, selector misses, flakes, proof coverage.
+5. **Release** — canary/prod gates, telemetry, rollback readiness.
+6. **Infra/Security** — runners, cache, secrets, taints, storage, Vault.
+
+You can still keep numeric shortcuts, but each section should have subviews rather than nine equal tabs.
+
+## Persistent right-side inspector
+
+Every selected object should have the same inspector contract:
+
+```text
+Identity
+State
+Why
+Evidence
+Risk
+Actions
+Links
+History
+```
+
+Example for a failed job:
+
+```text
+Job #1842
+Status: failed
+Stage: test
+Failure: test_failure
+Risk: blocks merge
+
+Why:
+  auth::session_refresh failed after token expiry change
+
+Evidence:
+  capsule: cap_abc
+  log: 3 relevant lines
+  repro: cargo test auth::session_refresh
+
+Actions:
+  r Retry — enabled, low risk
+  a Assign repair agent — enabled, high risk
+  q Quarantine test — disabled: no flake history
+  x Explain more
+```
+
+## Persistent bottom event stream
+
+Replace the current small evidence-only event console with a real event stream:
+
+```text
+[12:04:01] BLOCKER job#1842 test_failure blocks !42
+[12:04:04] ACTION  retry_job available confidence=0.87
+[12:04:08] CACHE   cold execution: taint rule matched cargo registry
+[12:04:11] AGENT   agent-a proposed repair patch +12/-3
+```
+
+Each event should have severity, entity links, and suggested actions.
+
+## Better visual hierarchy
+
+Use four severity classes:
+
+| Class          | Meaning                            | UI behavior                   |
+| -------------- | ---------------------------------- | ----------------------------- |
+| Green          | safe / complete / allowed          | calm                          |
+| Blue/Cyan      | running / selected / informational | active                        |
+| Yellow         | attention / waiting / stale        | visible but not alarming      |
+| Red            | blocking / failed / unsafe         | urgent                        |
+| Magenta/Purple | security / secret / taint          | separate from normal failures |
+
+Current color use is basically right, but it should become a formal design system with colorblind-safe icons and labels. Current status colors are centralized around green/running blue/failed red/pending yellow/canceled dark gray. ([GitHub][5])
+
+## Better graphics
+
+Use terminal-friendly visualizations:
+
+* **Braille sparklines** for queue depth, cache hit rate, failure rate, runner utilization.
+* **Heatmaps** for test duration, flake rate, runner pool pressure.
+* **Waterfall charts** for pipeline critical path.
+* **DAG edges** with Unicode line drawing.
+* **Risk badges** on every mission/MR.
+* **Progress rings/bars** for release gates.
+* **Timeline strips** for agent repair attempts.
+* **Diff-size bars** for competing agent patches.
+* **Confidence meters** for VTI and merge gate.
+
+Example:
+
+```text
+Validation
+Selected tests: 14  Skipped: 82  Confidence: ████████░░ 0.82
+Selector misses: 1  Flake risk: ███░░░░░░░ low
+Cost estimate: 7m  Saved: 41m via VTI/cache
+```
+
+---
+
+# 5. Specific screen redesigns
+
+## Mission screen
+
+Current Mission is health/pipeline/release/cache. Good start. Make it command-oriented:
+
+```text
+Top cards:
+  Blockers     3
+  Merge-ready 2
+  Agents      4 active
+  Risk        medium
+  CI waste    18m avoidable
+  Security    1 taint
+
+Main:
+  Critical blockers sorted by blast radius.
+  Active agent missions sorted by state.
+  Recommended next action.
+```
+
+The Mission screen should be where a human can supervise the whole system in 30 seconds.
+
+## Work / Agents screen
+
+Replace the pipeline-centric view with a mission board:
+
+```text
+Mission             Agent     Phase        Confidence  Risk  Blocker
+!42 auth fix        agent-a   repairing    0.71        med   job#1842
+!43 deps update     agent-b   validating   0.88        low   none
+!44 docs cleanup    agent-c   merge-ready  0.97        low   approval
+```
+
+Inspector shows:
+
+```text
+Intent: fix failing auth refresh
+Grant: write src/auth/**, tests/auth/**
+Branch: agent/auth-refresh-fix
+MR: !42
+Diff: +48 -12
+Validation: 12/14 tests passed
+Evidence: capsule #cap_1842
+Next: retry targeted integration test
+```
+
+Add race-mode view:
+
+```text
+Race: auth-fix-race
+A minimal patch      passed   risk low    +12/-3   winner
+B refactor           failed   risk med    +180/-70 rejected
+C workaround         passed   risk high   +4/-1    policy hold
+```
+
+## Flow screen
+
+The Flow screen should use real topology and selected pipeline.
+
+Current flow board classifies jobs by name and stacks nodes by column/lane. ([GitHub][8]) Upgrade it to:
+
+* real GitLab stages/needs
+* child pipeline edges
+* VTI-selected jobs
+* skipped/reused jobs
+* cache-hit nodes
+* superseded nodes
+* merge-gate node
+* release-gate node
+* critical path with duration
+* stuck job detector
+* runner assignment overlay
+
+Example:
+
+```text
+Commit ─ Impact ─ Build ─ Unit ─ Integration ─ Merge Gate ─ Canary ─ Prod
+  ✓       ✓        ✓      ✓      ✗ job#1842      BLOCKED
+```
+
+The inspector should always answer “why is this node here?”
+
+## Validation screen
+
+This should be one of the product’s killer screens.
+
+```text
+Changed files:
+  src/auth/session.rs
+  src/auth/token.rs
+
+Selected tests:
+  auth-unit              required: touched module
+  api-login-integration  required: dependency edge
+  session-refresh-e2e    required: historical miss risk
+
+Skipped:
+  billing-suite          unaffected subsystem
+  frontend-suite         no dependency edge
+  docs-suite             irrelevant
+
+Confidence:
+  0.91
+  Warning: auth/api boundary had one selector miss in 7 days
+```
+
+Actions:
+
+```text
+r run selected tests
+f force full suite
+e explain selection
+a audit selector
+m update test map
+```
+
+## Release screen
+
+Current Release Gate Matrix is good. It should become a release cockpit:
+
+```text
+Release ci-fa51a52a
+Main: green
+Release pipeline: running
+Canary: healthy 14m
+E2E: pending
+Prod: not triggered
+Rollback: ready
+Secrets: rotated/finalized
+Telemetry delta: +0.3% errors, within threshold
+```
+
+Add:
+
+* canary telemetry sparkline
+* rollback readiness
+* secret handoff state
+* promotion blockers
+* exact evidence paths
+* production risk score
+* “promote” preview
+* “rollback” preview
+
+## Infra/Security screen
+
+Unify runners, cache, secrets, storage, and taints.
+
+```text
+Runner pools:
+  default      4/4 active   queue 0   healthy
+  build        2/4 active   queue 3   scaling
+  untrusted    1/2 active   queue 1   sandbox
+
+Cache:
+  hit ratio 78%
+  saved 42m today
+  taints 1
+
+Secrets:
+  active leases 3
+  expiring soon 1
+  honeytoken trips 0
+```
+
+Security should never be buried.
+
+---
+
+# 6. API redesign to make the TUI world-class
+
+## A. Create a TUI/agent projection API
+
+The current TUI collects data from DB, GitLab, Docker, filesystem, release reports, cache metrics, and test history. ([GitHub][5]) That should move into a projection API.
+
+Example:
+
+```text
+GET /v1/tui/overview
+GET /v1/tui/missions
+GET /v1/tui/flow?project_id=2&pipeline_id=123
+GET /v1/tui/entity/job/1842
+GET /v1/tui/entity/mr/42
+GET /v1/tui/evidence?limit=50
+GET /v1/tui/recommended-actions
+```
+
+Over Unix socket, this can be JSON-RPC instead of HTTP:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "tui.overview",
+  "params": { "project_id": 2, "ref": "main" },
+  "id": "req-123"
+}
+```
+
+## B. Add event streaming
+
+Replace polling with a stream:
+
+```text
+SUBSCRIBE /v1/events
+```
+
+Event shape:
+
+```json
+{
+  "id": "evt_01",
+  "ts": "2026-04-27T12:04:01Z",
+  "type": "job.failed",
+  "severity": "blocker",
+  "entity": { "kind": "job", "id": 1842 },
+  "parents": [
+    { "kind": "pipeline", "id": 530 },
+    { "kind": "mr", "id": 42 }
+  ],
+  "summary": "auth integration failed",
+  "suggested_actions": [
+    {
+      "id": "retry_job",
+      "enabled": true,
+      "risk": "low",
+      "why": "classified as transient runner failure"
+    }
+  ]
+}
+```
+
+This would power the TUI, agents, logs, and notifications.
+
+## C. Make every action previewable
+
+Action API:
+
+```text
+action.list
+action.preview
+action.execute
+action.result
+action.explain
+```
+
+Preview response:
+
+```json
+{
+  "action_id": "retry_job",
+  "enabled": true,
+  "risk": "low",
+  "side_effects": ["gitlab.job.retry"],
+  "requires_grant": "agent_task",
+  "why_enabled": ["job is failed", "not superseded", "retry budget available"],
+  "why_disabled": [],
+  "expected_result": "new GitLab job will be created"
+}
+```
+
+The TUI command palette should call `action.preview` before execution.
+
+## D. Version the capability API
+
+Current capability responses are generic `success/message/data`. ([GitHub][11]) Replace with typed envelopes:
+
+```json
+{
+  "api_version": "vgit.capability.v2",
+  "request_id": "req_123",
+  "idempotency_key": "agent-a-1842-retry",
+  "actor": {
+    "kind": "agent",
+    "id": "agent-a"
+  },
+  "intent": "RequestMerge",
+  "status": "blocked",
+  "result_type": "merge_gate_proof",
+  "result": {},
+  "links": [],
+  "recommended_actions": []
+}
+```
+
+## E. Give every entity a universal `explain` endpoint
+
+```text
+entity.explain(job, 1842)
+entity.explain(mr, 42)
+entity.explain(agent_mission, abc)
+entity.explain(test_plan, xyz)
+entity.explain(cache_object, cas123)
+entity.explain(secret_lease, lease123)
+entity.explain(release, ci-fa51a52a)
+```
+
+Return:
+
+```json
+{
+  "state": "blocked",
+  "why": ["required integration job failed"],
+  "blockers": [],
+  "evidence": [],
+  "recommended_actions": []
+}
+```
+
+This lets the TUI use one inspector model everywhere.
+
+## F. Upgrade `RunTests`
+
+Current capability `RunTests` accepts a simple `test_scope` and generates basic dynamic CI YAML. ([GitHub][1]) Replace scope strings with a full validation plan:
+
+```json
+{
+  "intent": "RunValidationPlan",
+  "payload": {
+    "project_id": 2,
+    "ref": "agent/auth-fix",
+    "plan": {
+      "tests": ["auth-unit", "api-login-integration"],
+      "mode": "selected",
+      "reason": "changed src/auth/session.rs",
+      "allow_cache": true,
+      "allow_reuse": true,
+      "timeout_policy": "historical-p95"
+    }
+  }
+}
+```
+
+## G. Upgrade `RacePatches`
+
+Current `RacePatches` launches branches/pipelines and returns a note that the caller must poll pipeline status and manually clean up losers. ([GitHub][11]) Make race mode a first-class entity:
+
+```text
+race.create
+race.status
+race.compare
+race.pick_winner
+race.cleanup_losers
+race.explain_winner
+```
+
+The TUI should show the race table live.
+
+## H. Make MR hooks active
+
+Because MR hooks are currently logged but not active, the TUI lacks a true MR intelligence layer. ([GitHub][1]) Add MR event ingestion that creates/updates:
+
+* MR entity
+* branch entity
+* diff summary
+* validation plan
+* merge gate
+* approval state
+* agent mission link
+* release impact
+
+## I. Add a canonical `MergeGateProof` projection
+
+The TUI needs a stable merge-gate object:
+
+```json
+{
+  "mr_iid": 42,
+  "head_sha": "abc123",
+  "decision": "blocked",
+  "required_jobs": [],
+  "failed_jobs": [],
+  "pending_jobs": [],
+  "selector_misses": [],
+  "cache_taints": [],
+  "approvals": [],
+  "policy_version": "merge-gate.v3",
+  "evidence_hash": "sha256:...",
+  "next_action": "fix job #1842"
+}
+```
+
+This should be shared by CLI, TUI, capability API, and webhook reconciliation.
+
+---
+
+# 7. Concrete TUI feature upgrades
+
+## Immediate UX fixes
+
+1. **Make selected pipeline control the flow board.** Stop rendering only `active_pipelines.first()`.
+
+2. **Make log preview actually live in normal Jobs view.** Maximize should change layout, not whether polling/streaming happens.
+
+3. **Make Ctrl-K execute all registered actions.** Every action should preview, explain disabled state, execute, then show result.
+
+4. **Add `x = explain` everywhere.** Selected job, pipeline, MR, release, test plan, cache taint, secret event.
+
+5. **Add `/` global search/filter.** Search jobs, MRs, agents, evidence, tests, actions.
+
+6. **Add `?` contextual help.** Show only keys relevant to the current pane/entity.
+
+7. **Add action result toasts.** After retry/pause/delete/etc., show: “Retry requested: new job #1850.”
+
+8. **Add disabled-action visibility.** Show actions even when disabled, with “why disabled.”
+
+9. **Make event console global.** Include agent, release, cache, secret, policy, and job events, not only capsules.
+
+10. **Add project/ref selector.** The TUI is currently strongly centered on default release project/ref in many places; make project/ref explicit and switchable.
+
+## Medium upgrades
+
+1. **Entity inspector framework.** One reusable right panel for any selected object.
+
+2. **Real DAG rendering.** Draw edges, bridge/downstream nodes, skipped/reused nodes, critical path.
+
+3. **Merge Gate tab/pane.** Show every MR as green/yellow/red with exact blockers.
+
+4. **Agent mission board.** Track intent, grant, branch, MR, validation, repair loop, confidence.
+
+5. **Validation Intelligence tab.** Show VTI selected/skipped/reused tests and confidence.
+
+6. **Evidence replay.** From any capsule: press `R` to show exact repro command, `A` to assign repair agent.
+
+7. **Security cockpit.** Grants, leases, honeytokens, taints, egress, revocations, policy denials.
+
+8. **Cost/performance dashboard.** CI minutes saved, cache savings, queue pressure, runner utilization.
+
+9. **Mouse support that matters.** Click tabs, rows, actions, scroll logs. Mouse capture is enabled today, but active interactions are keyboard-driven. ([GitHub][5])
+
+10. **Themes.** Default dark, high contrast, colorblind-safe, monochrome.
+
+## Epic upgrades
+
+1. **Autonomy confidence score.**
+
+```text
+Autonomy: 82%
+Reasons:
+  + tests selected with high confidence
+  + no security taints
+  - one flaky integration test
+  - no human approval for prod
+```
+
+2. **Agent replay timeline.**
+
+```text
+Intent → Grant → Patch → Test Plan → Failure → Evidence → Repair → Pass → Merge Gate
+```
+
+3. **Policy simulator.**
+
+```text
+“What would be required to auto-merge this?”
+```
+
+4. **Causal incident mode.**
+
+When a release fails, the TUI auto-pivots to:
+
+```text
+Release failed because canary E2E failed.
+Likely caused by MR !42, job #1842, auth/session.rs.
+Rollback ready: yes.
+Suggested action: rollback canary.
+```
+
+5. **Agent judge/race view.**
+
+Show competing patches side-by-side by tests, risk, diff size, runtime, readability, and confidence.
+
+6. **Shareable state capsules.**
+
+Press `S` to export current UI state as:
+
+* PNG
+* JSON
+* Markdown incident report
+* agent-readable context packet
+
+---
+
+# 8. Suggested new color/visual system
+
+Use colors consistently:
+
+| Color          | Meaning                               |
+| -------------- | ------------------------------------- |
+| Green          | completed, allowed, safe              |
+| Cyan           | selected, active focus, informational |
+| Blue           | running                               |
+| Yellow         | waiting, stale, attention             |
+| Light red/red  | failed, blocking                      |
+| Magenta/purple | security, secrets, taint, policy      |
+| Gray           | skipped, reused, inactive, historical |
+
+Use text labels and icons in addition to color:
+
+```text
+✓ OK
+● RUN
+✗ FAIL
+○ WAIT
+⊘ CANCELED
+◇ UNKNOWN
+⚑ BLOCKER
+🔒 GRANT
+```
+
+Do not rely on color alone.
+
+---
+
+# 9. Proposed API objects for the TUI
+
+## `TuiOverview`
+
+```rust
+struct TuiOverview {
+    generated_at: DateTime<Utc>,
+    freshness: Freshness,
+    health_cards: Vec<HealthCard>,
+    blockers: Vec<BlockerSummary>,
+    recommended_actions: Vec<ActionPreview>,
+    active_missions: Vec<MissionSummary>,
+    merge_ready: Vec<MergeCandidate>,
+    security_alerts: Vec<SecurityAlert>,
+    runner_pressure: RunnerPressure,
+    release_summary: Option<ReleaseSummary>,
+}
+```
+
+## `ActionPreview`
+
+```rust
+struct ActionPreview {
+    id: String,
+    label: String,
+    enabled: bool,
+    risk_tier: RiskTier,
+    required_grant: GrantRequirement,
+    side_effects: Vec<String>,
+    why_enabled: Vec<String>,
+    why_disabled: Vec<String>,
+    confirmation: ConfirmationPolicy,
+}
+```
+
+## `EntityInspector`
+
+```rust
+struct EntityInspector {
+    entity: EntityRef,
+    title: String,
+    state: String,
+    severity: Severity,
+    why: Vec<String>,
+    blockers: Vec<Blocker>,
+    evidence: Vec<EvidenceRef>,
+    suggested_actions: Vec<ActionPreview>,
+    history: Vec<EventRef>,
+}
+```
+
+## `FlowProjection`
+
+```rust
+struct FlowProjection {
+    pipeline_id: i64,
+    head_sha: String,
+    nodes: Vec<FlowNode>,
+    edges: Vec<FlowEdge>,
+    critical_path: Vec<NodeId>,
+    selected_tests: Vec<TestRef>,
+    skipped_tests: Vec<SkippedTest>,
+    reused_evidence: Vec<EvidenceRef>,
+    blockers: Vec<Blocker>,
+}
+```
+
+---
+
+# 10. Prioritized build plan
+
+## Phase 1: Make the existing TUI feel coherent
+
+* Wire selected pipeline to flow board.
+* Make log preview follow selected job.
+* Add `x` explain everywhere.
+* Make Ctrl-K execute registered actions through preview/execute.
+* Add action result messages/toasts.
+* Add `/` filtering.
+* Upgrade event console to all recent events.
+* Add project/ref selector.
+* Normalize keybindings and contextual help.
+
+## Phase 2: Make the TUI API-driven
+
+* Add `vgit api serve --uds`.
+* Move DB/GitLab/Docker/Vault calls out of TUI.
+* Add event stream.
+* Add typed entity inspector endpoint.
+* Add action preview/execute endpoint.
+* Add real-time log streaming/backfill.
+* Add correlation IDs across actions/events.
+
+## Phase 3: Make it agent-first
+
+* Replace Agents tab with Mission Board.
+* Add intent/grant/branch/MR/diff/validation/evidence lifecycle.
+* Add merge gate cockpit.
+* Add VTI validation map.
+* Add race mode UI.
+* Add agent performance/cost metrics.
+
+## Phase 4: Make it world-class
+
+* Real DAG with edges, critical path, skipped/reused evidence.
+* Release cockpit with telemetry and rollback readiness.
+* Security cockpit with grants/secrets/taints/egress.
+* Shareable PNG/JSON/Markdown state exports.
+* Themes and accessibility.
+* Full mouse support.
+
+---
+
+## Final verdict
+
+The current API/TUI has a strong foundation: broad CLI/API surface, typed capability intents, action registry, real TUI tabs, flow model, release matrix, evidence viewer, cache panel, agents panel, secrets panel, background refresh, stale-state handling, and screenshot capture.
+
+The next leap is to stop thinking of the TUI as “a dashboard with tabs” and redesign it as:
+
+> **A real-time autonomous software delivery cockpit where every object has state, cause, evidence, risk, and a safe next action.**
+
+The most important API change is a unified, event-streamed, typed control-plane API. The most important TUI change is a mission-control UX with persistent inspector, global event stream, real command palette, real DAG, agent mission board, merge-gate cockpit, and validation intelligence.
+
+[1]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/API.md "raw.githubusercontent.com"
+[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/cli.rs "raw.githubusercontent.com"
+[3]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/action_registry.rs "raw.githubusercontent.com"
+[4]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/mod.rs "raw.githubusercontent.com"
+[5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[6]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/ui.rs "raw.githubusercontent.com"
+[7]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/flow/model.rs "raw.githubusercontent.com"
+[8]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/flow/builder.rs "raw.githubusercontent.com"
+[9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/flow/widget.rs "raw.githubusercontent.com"
+[10]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/app.rs "raw.githubusercontent.com"
+[11]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/capability.rs "raw.githubusercontent.com"
+

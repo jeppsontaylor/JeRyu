@@ -1,0 +1,14 @@
+/target
+
+# Proof-scoped control plane generated outputs
+/.witness/
+/agent-map.json
+/test-map.json
+/aer-findings.json
+/vrc-plan.json
+
+# LaTeX build byproducts; paper sources, screenshots, and final PDFs are tracked.
+/paper/*.aux
+/paper/*.bbl
+/paper/*.blg
+/paper/*.log

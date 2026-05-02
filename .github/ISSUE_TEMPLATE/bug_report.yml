@@ -1,0 +1,41 @@
+name: Bug Report
+description: Create a report to help us improve the vgit hypersor
+title: "[BUG] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue! Please provide as much detail as possible to help us reproduce it.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? What were you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps To Reproduce
+      description: Please list the exact steps required to reproduce the issue.
+      placeholder: |
+        1. Run `vgit init`
+        2. Wait for GitLab to boot
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      description: What OS are you running on? (e.g. macOS Sonoma, Ubuntu 24.04)
+    validations:
+      required: true

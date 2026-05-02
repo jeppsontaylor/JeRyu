@@ -1,0 +1,1065 @@
+Yes. For vgit, the right answer is **not** “add a few `rules:changes` blocks.” The best answer is to make vgit itself a **test-selection control plane**: it should compute a proof-backed test plan from Git diffs, Cargo dependency graphs, semantic Rust changes, historical coverage, flake data, and policy risk. GitLab should merely execute the dynamically generated plan.
+
+The target design I would build is:
+
+> **vgit Test Intelligence Kernel**
+> A Rust-native regression-test-selection system that produces “run” and “skip” decisions with auditable evidence, learns from nightly full runs, and fails closed whenever impact is uncertain.
+
+---
+
+## 1. What best practice says
+
+Regression Test Selection is the established name for this. The key concept is: re-run only tests that can change behavior because of the current code change. Research literature defines the ideal selector as **safe** if it does not miss affected tests, and **precise** if it avoids running unaffected tests. Typical RTS systems collect dependencies for each test and select tests whose dependencies changed. That maps almost perfectly to what vgit is already trying to do with `impact.rs`, `test_runner.rs`, `decision.rs`, and the SQLite ledger. 
+
+The strongest industry patterns are:
+
+1. **Changed-file filtering** for cheap first-pass pruning.
+2. **Dependency graph expansion** so changes to a library run tests in dependents.
+3. **Dynamic CI generation** instead of a giant static `.gitlab-ci.yml`.
+4. **Test-result and coverage history** to learn real test dependencies.
+5. **Full scheduled regression** to audit the selector.
+6. **Random sampling of skipped tests** so selector mistakes are detected before trust decays.
+7. **Fail-closed policy**: if the selector is uncertain, run more tests, not fewer.
+
+GitLab already supports coarse file-based job skipping via `rules:changes:compare_to`, and GitLab’s own docs explicitly describe using it to skip jobs when a branch has no relevant changes. That is useful as an outer guard, but it is not smart enough to be the core of the system. ([GitLab Docs][1])
+
+GitLab also supports dynamic child pipelines from a generated YAML artifact, which is exactly the mechanism vgit should use: first job computes the plan, second job triggers the generated pipeline. ([GitLab Docs][2])
+
+For Rust specifically, `cargo nextest` should become the default executor for selected test runs. It is designed for Rust CI, supports fast execution, test filtering, machine-readable test lists, partitioning/sharding, retries, per-test configuration, JUnit output, and test groups for resource-limited tests. ([Nexte.st][3])
+
+The closest existing build-system models are Pants and Bazel. Pants has a `--changed-since` + `--changed-dependents=transitive` workflow for running checks/tests affected by changed files and their dependents. ([Pants][4]) Bazel exposes dependency graph queries, and tools like `bazel-diff` compute impacted targets between Git revisions, with a strong warning that an untrusted affected-target selector destroys CI confidence. ([Bazel][5])
+
+So the best plan is: **borrow the principles, but implement the selector inside vgit** because vgit already owns GitLab orchestration, policy, caches, runners, SQLite, release gates, failure capsules, and agent capabilities.
+
+---
+
+## 2. The core design: vgit Test Intelligence Kernel
+
+Add a new subsystem:
+
+```text
+src/test_intel/
+├── mod.rs
+├── manifest.rs       # Declarative test map + generated inventory
+├── diff.rs           # base/head diff, changed files, changed symbols
+├── graph.rs          # Cargo package graph + reverse dependency expansion
+├── selector.rs       # Main test-selection algorithm
+├── coverage.rs       # Per-test file/symbol coverage edges
+├── history.rs        # Flake, duration, past failures, missed-selection data
+├── ci_gen.rs         # Dynamic GitLab child-pipeline YAML generator
+├── audit.rs          # Nightly full-run comparison + selector self-healing
+├── explain.rs        # Human-readable "why this ran/skipped"
+└── policy.rs         # Fail-closed rules, trust budgets, invalidators
+```
+
+The data flow should be:
+
+```text
+Git diff
+  → changed files
+  → changed packages
+  → changed Rust symbols
+  → affected components
+  → reverse dependent packages/tests
+  → coverage/history expansion
+  → risk expansion
+  → run plan
+  → dynamic child pipeline
+  → nextest / cargo / e2e execution
+  → SQLite evidence
+  → nightly audit updates selector
+```
+
+This turns test selection into a first-class vgit policy decision, not a brittle CI YAML trick.
+
+---
+
+## 3. Selection should use an “evidence ladder”
+
+Every test decision should come from one or more evidence sources. Cheaper, deterministic evidence comes first; more expensive evidence is used when needed.
+
+### Layer 1 — coarse file rules
+
+This is the fast path:
+
+```text
+docs/*.md                  → docs lint only
+src/decision.rs            → decision unit tests + risk-gate tests
+src/pool.rs                → pool tests + runner-manager smoke
+src/docker.rs              → docker-control tests + pool smoke
+src/cache*.rs              → cache integration tests
+src/tui/**                 → tui --once smoke
+tests/e2e.rs               → selected e2e lane
+.gitlab-ci.yml             → full CI-shape validation
+Cargo.lock                 → dependency-impact plan
+```
+
+This layer is declarative and easy to inspect.
+
+### Layer 2 — Cargo package graph
+
+Use `cargo metadata` and a graph crate such as `guppy`. Cargo’s `metadata` command emits workspace and dependency information as JSON, and `guppy` parses `cargo metadata` into a queryable package graph. ([Rust Documentation][6])
+
+For a Rust workspace, the selector should compute:
+
+```text
+changed package
+  → package tests
+  → reverse workspace dependents
+  → integration tests that target those packages
+```
+
+For vgit today, the repo may be a single binary crate, but this still matters. Long-term, you should split vgit into internal crates like `vgit-state`, `vgit-gitlab`, `vgit-runner`, `vgit-test-intel`, `vgit-release`, and `vgit-cache`. That immediately makes dependency-based selection sharper.
+
+### Layer 3 — Rust semantic diff
+
+Path-based selection is too blunt. Changing a private helper in `cache.rs` should not automatically run all cache, pool, release, and E2E tests.
+
+Use `ra_ap_syntax` or `syn` to identify changed Rust items:
+
+```text
+fn classify_failure changed
+  → decision tests
+  → auto-retry tests
+  → job explain tests
+
+struct Pool changed
+  → state tests
+  → pool manager tests
+  → maybe TUI snapshot tests
+
+public method signature changed
+  → reverse dependent packages
+  → integration tests
+```
+
+`ra_ap_syntax` is attractive because it is the rust-analyzer syntax-tree library and is designed for fast, error-tolerant, full-fidelity parsing. ([Docs.rs][7])
+
+### Layer 4 — empirical coverage edges
+
+Nightly full runs should collect **which tests actually touch which files/functions**. Rust supports LLVM source-based coverage with `-C instrument-coverage`; coverage-instrumented programs emit `.profraw` files, which are merged with LLVM tools to generate coverage reports. ([Rust Documentation][8])
+
+Because nextest uses per-test isolation and supports machine-readable test inventory, vgit can build a per-test coverage map:
+
+```text
+test_id → file path
+test_id → line range
+test_id → function/symbol
+test_id → observed resources
+```
+
+Then, for a change to `src/release.rs:launch_canary_for_green_pipeline`, the selector can include tests that historically cover that symbol, not just every release test.
+
+### Layer 5 — history, flakes, risk, and agent trust
+
+The selector should include tests based on:
+
+```text
+recent failures near this component
+historically flaky tests in this lane
+tests that failed last time this file changed
+tests that caught previous selector misses
+agent trust tier
+release-criticality
+security sensitivity
+```
+
+A Trusted human change to docs can skip almost everything. An Untrusted agent change touching `secrets.rs`, `admission.rs`, `policy.rs`, `sandbox.rs`, `honeypot.rs`, or `gitlab_client.rs` should expand aggressively.
+
+---
+
+## 4. Add a declarative test map, but let vgit learn beyond it
+
+Create a repo-level file:
+
+```toml
+# .vgit/testmap.toml
+
+[selector]
+default_mode = "smart"
+fail_closed = true
+skip_attestations = true
+random_skip_audit_percent = 5
+full_on_selector_change = true
+full_on_unknown_file_type = true
+full_on_ci_config_change = true
+full_on_security_plane_change = true
+
+[full_run]
+schedule = "nightly"
+include_e2e = true
+include_coverage = true
+include_mutation_sample = true
+
+[[component]]
+name = "decision"
+paths = ["src/decision.rs"]
+lanes = ["unit"]
+nextest_filter = "package(vgit) & test(decision::)"
+critical = true
+
+[[component]]
+name = "state"
+paths = ["src/state.rs"]
+lanes = ["unit", "integration"]
+nextest_filter = "package(vgit) & (test(state::) | binary(state_tests))"
+critical = true
+
+[[component]]
+name = "pool"
+paths = ["src/pool.rs", "src/docker.rs"]
+lanes = ["unit", "integration", "runner-smoke"]
+nextest_filter = "binary(pool_tests) | test(pool::) | test(docker::)"
+runner_tags = ["build", "docker-build"]
+
+[[component]]
+name = "agent"
+paths = ["src/agent.rs", "src/capability.rs"]
+lanes = ["unit", "integration"]
+nextest_filter = "binary(agent_tests) | test(agent::) | test(capability::)"
+
+[[component]]
+name = "cache"
+paths = ["src/cache.rs", "src/cache_proxy.rs", "src/cache_brain.rs", "src/gateway/**"]
+lanes = ["unit", "integration"]
+nextest_filter = "binary(cache_integration_test) | test(cache::) | test(gateway::)"
+
+[[component]]
+name = "release"
+paths = ["src/release.rs", "src/secrets.rs"]
+lanes = ["unit", "release-smoke"]
+nextest_filter = "test(release::) | test(secrets::)"
+
+[[component]]
+name = "tui"
+paths = ["src/tui/**"]
+lanes = ["smoke"]
+command = "cargo run -- tui --once"
+
+[[invalidator]]
+name = "ci-config"
+paths = [".gitlab-ci.yml", ".github/workflows/**", "ops/ci/**"]
+action = "full-ci-shape"
+
+[[invalidator]]
+name = "cargo-dependencies"
+paths = ["Cargo.toml", "Cargo.lock", "build.rs"]
+action = "dependency-impact"
+
+[[invalidator]]
+name = "security-plane"
+paths = [
+  "src/admission.rs",
+  "src/policy.rs",
+  "src/sandbox.rs",
+  "src/honeypot.rs",
+  "src/secrets.rs",
+  "src/capability.rs"
+]
+action = "expanded-security"
+```
+
+The key rule: **the manifest is a seed, not the final truth**. vgit should continuously add learned edges from coverage and nightly audit.
+
+---
+
+## 5. The selector algorithm
+
+At a high level:
+
+```rust
+fn select_tests(base: Sha, head: Sha, mode: SelectionMode, actor: Actor) -> RunPlan {
+    let diff = git_diff(base, head);
+
+    if diff.is_empty() {
+        return RunPlan::noop("no changed files");
+    }
+
+    let invalidators = policy.match_invalidators(&diff);
+    if invalidators.requires_full() {
+        return RunPlan::full(invalidators.reason());
+    }
+
+    let changed_files = diff.changed_files();
+    let changed_symbols = semantic_diff(changed_files);
+    let owned_components = manifest.components_for_paths(&changed_files);
+
+    let changed_packages = cargo_graph.packages_owning(&changed_files);
+    let reverse_dependents = cargo_graph.reverse_dependents(changed_packages);
+
+    let candidates = TestSet::new()
+        .union(manifest.tests_for_components(owned_components))
+        .union(nextest.tests_for_packages(changed_packages))
+        .union(nextest.tests_for_packages(reverse_dependents))
+        .union(coverage.tests_covering(changed_files, changed_symbols))
+        .union(history.tests_that_failed_near(changed_files))
+        .union(policy.required_sentinels(diff, actor));
+
+    let expanded = risk_gate.expand(candidates, diff, actor);
+
+    RunPlan::from(expanded)
+        .with_skip_proofs(all_tests - expanded)
+        .with_explanations()
+}
+```
+
+The selector should produce a JSON plan like:
+
+```json
+{
+  "base": "abc123",
+  "head": "def456",
+  "mode": "smart-pr",
+  "selector_version": "3.1.0",
+  "changed_files": ["src/decision.rs"],
+  "run": [
+    {
+      "id": "decision-unit",
+      "kind": "nextest",
+      "filter": "package(vgit) & test(decision::)",
+      "reason": [
+        "src/decision.rs matched component decision",
+        "risk gate requires direct unit tests",
+        "historical coverage edge: decision tests cover classify_failure"
+      ],
+      "lane": "unit",
+      "runner_tags": ["default", "rust", "test"]
+    },
+    {
+      "id": "agent-risk-gate",
+      "kind": "nextest",
+      "filter": "test(agent_merge_risk_gate)",
+      "reason": [
+        "agent merge uses evaluate_risk_gate",
+        "semantic symbol changed: evaluate_risk_gate"
+      ],
+      "lane": "integration",
+      "runner_tags": ["default", "rust", "test"]
+    }
+  ],
+  "skip": [
+    {
+      "test_id": "cache_integration_test::proxy_hit_miss",
+      "reason": "no changed path, package, symbol, coverage, or history edge",
+      "confidence": 0.97
+    }
+  ],
+  "fallback": false
+}
+```
+
+That “why” output matters. Developers and agents need to trust the selector.
+
+---
+
+## 6. Dynamic GitLab pipeline generation
+
+Instead of maintaining a giant static test matrix, let vgit generate it.
+
+Parent pipeline:
+
+```yaml
+stages:
+  - plan
+  - selected
+
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+
+test-plan:
+  stage: plan
+  interruptible: true
+  tags: ["default", "rust", "test"]
+  script:
+    - vgit test plan
+        --base "${CI_MERGE_REQUEST_DIFF_BASE_SHA:-$CI_COMMIT_BEFORE_SHA}"
+        --head "$CI_COMMIT_SHA"
+        --mode smart-pr
+        --emit-json .vgit-test-plan.json
+        --emit-gitlab-child .vgit-selected-tests.yml
+  artifacts:
+    paths:
+      - .vgit-test-plan.json
+      - .vgit-selected-tests.yml
+
+selected-tests:
+  stage: selected
+  interruptible: true
+  trigger:
+    include:
+      - artifact: .vgit-selected-tests.yml
+        job: test-plan
+    strategy: mirror
+```
+
+GitLab supports downstream/child pipelines, and child pipelines run under the same project/ref/SHA as the parent. ([GitLab Docs][2]) It also supports triggering a child pipeline from a dynamically generated config artifact. ([GitLab Docs][2])
+
+Generated child pipeline example:
+
+```yaml
+stages:
+  - test
+
+decision-unit:
+  stage: test
+  image: rust:1.92.0
+  tags: ["default", "rust", "test"]
+  interruptible: true
+  script:
+    - cargo nextest run -E 'package(vgit) & test(decision::)' --profile ci
+  artifacts:
+    when: always
+    reports:
+      junit: target/nextest/ci/junit.xml
+    paths:
+      - target/nextest/ci/junit.xml
+      - .vgit-test-evidence.json
+
+agent-risk-gate:
+  stage: test
+  image: rust:1.92.0
+  tags: ["default", "rust", "test"]
+  interruptible: true
+  script:
+    - cargo nextest run -E 'test(agent_merge_risk_gate)' --profile ci
+```
+
+One caveat: GitLab notes that combining reports from child pipelines into parent pipelines is not fully supported for `artifacts:reports`, so vgit should ingest JUnit/plan artifacts itself through the GitLab API and record them in SQLite rather than relying only on GitLab’s MR UI aggregation. ([GitLab Docs][9])
+
+---
+
+## 7. Map vgit’s current test suites into smart lanes
+
+Your current test suite should be split into lanes like this:
+
+| Change area                                                              |                      Minimal required tests |                                      Expanded tests |                       Full/e2e trigger |
+| ------------------------------------------------------------------------ | ------------------------------------------: | --------------------------------------------------: | -------------------------------------: |
+| `src/decision.rs`                                                        |                         decision unit tests | agent merge risk-gate tests, retry classifier tests |                   trust policy changed |
+| `src/impact.rs`                                                          |                           impact unit tests |                           selector regression tests |             selector algorithm changed |
+| `src/state.rs`                                                           |                           SQLite unit tests |               cache/release/state integration tests |               schema migration changed |
+| `src/pool.rs`                                                            |                 pool unit/integration tests |                         Docker runner-manager smoke |      scaling/drain/token paths changed |
+| `src/docker.rs`                                                          |                        Docker wrapper tests |                                          pool tests |       runner container anatomy changed |
+| `src/gitlab_client.rs`                                                   |                       client contract tests |                                one GitLab API smoke |       endpoint auth/pagination changed |
+| `src/agent.rs`                                                           |                     `agent_tests.rs` subset |                        risk-gate + GitLab bot smoke |    token scopes/merge behavior changed |
+| `src/capability.rs`                                                      |                capability socket unit tests |                                  agent intent tests |                protocol schema changed |
+| `src/cache*.rs`, `src/gateway/**`                                        |                            cache unit tests |                         `cache_integration_test.rs` |  cache key/taint/witness logic changed |
+| `src/release.rs`                                                         |                          release unit tests |                              canary/promotion smoke |     production promotion logic changed |
+| `src/secrets.rs`                                                         |                     Vault client/unit tests |                               Vault container smoke |        secret lifecycle/policy changed |
+| `src/tui/**`                                                             |                           `vgit tui --once` |                                                none |                TUI state model changed |
+| `src/bootstrap.rs`, `src/config.rs`                                      |                       config template tests |                                     bootstrap smoke | compose/GitLab/Vault templates changed |
+| `src/admission.rs`, `src/policy.rs`, `src/sandbox.rs`, `src/honeypot.rs` |                                  unit tests |                    security smoke + detonation lane |       always expanded; never docs-only |
+| `tests/e2e.rs`                                                           |                           targeted e2e case |                            related integration lane |                  e2e framework changed |
+| `.gitlab-ci.yml`, `.github/workflows/**`, `ops/ci/**`                    |              CI lint + generated plan smoke |                               selected jobs dry run |                          full CI shape |
+| `Cargo.toml`, `Cargo.lock`, `build.rs`                                   | cargo check/build + dependency-impact tests |                       affected package reverse deps |       major dependency/security update |
+
+This alone should eliminate most unnecessary integration and E2E runs.
+
+---
+
+## 8. New CLI/API surface
+
+Add these commands:
+
+```bash
+# Build or refresh test inventory from nextest + manifest + Cargo graph
+vgit test index
+
+# Show selected tests and skip proofs
+vgit test plan --base origin/main --head HEAD --mode smart-pr --why
+
+# Machine-readable test plan
+vgit test plan --base origin/main --head HEAD --json
+
+# Generate GitLab dynamic child-pipeline YAML
+vgit test plan --base origin/main --head HEAD --emit-gitlab-child .vgit-selected-tests.yml
+
+# Execute the generated plan locally or in CI
+vgit test run --plan .vgit-test-plan.json
+
+# Explain why a test did or did not run
+vgit test explain --test "cache_integration_test::proxy_hit_miss" --base origin/main --head HEAD
+
+# Nightly audit: run full tests, compare against what smart mode would have selected
+vgit test audit --full --compare-smart --update-edges
+
+# Emergency override
+vgit test run --full
+```
+
+Add a capability intent for agents:
+
+```json
+{
+  "PlanTests": {
+    "project_id": 2,
+    "base_ref": "main",
+    "target_ref": "agent/fix-parser",
+    "mode": "smart-pr"
+  }
+}
+```
+
+Agents should not decide test sufficiency themselves. They ask vgit for a plan; vgit returns an enforceable plan and skip proofs.
+
+---
+
+## 9. SQLite schema additions
+
+Your existing `test_executions` table is a good seed, but it is not enough. Add:
+
+```sql
+CREATE TABLE test_inventory (
+    test_id           TEXT PRIMARY KEY,
+    package_name      TEXT NOT NULL,
+    binary_name       TEXT NOT NULL,
+    binary_kind       TEXT NOT NULL,
+    test_name         TEXT NOT NULL,
+    source_path       TEXT,
+    lane              TEXT NOT NULL,
+    tags              TEXT NOT NULL,
+    resource_group    TEXT,
+    first_seen_at     TEXT NOT NULL,
+    last_seen_at      TEXT NOT NULL,
+    active            BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE TABLE test_component_edges (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    test_id           TEXT NOT NULL REFERENCES test_inventory(test_id),
+    component_name    TEXT NOT NULL,
+    source            TEXT NOT NULL, -- manifest, coverage, history, ai_proposed, human
+    confidence        REAL NOT NULL,
+    created_at        TEXT NOT NULL,
+    updated_at        TEXT NOT NULL
+);
+
+CREATE TABLE test_file_edges (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    test_id           TEXT NOT NULL REFERENCES test_inventory(test_id),
+    file_path         TEXT NOT NULL,
+    source            TEXT NOT NULL, -- manifest, coverage, history
+    confidence        REAL NOT NULL,
+    last_observed_at  TEXT NOT NULL
+);
+
+CREATE TABLE test_symbol_edges (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    test_id           TEXT NOT NULL REFERENCES test_inventory(test_id),
+    symbol_path       TEXT NOT NULL,
+    file_path         TEXT NOT NULL,
+    source            TEXT NOT NULL,
+    confidence        REAL NOT NULL,
+    last_observed_at  TEXT NOT NULL
+);
+
+CREATE TABLE test_selection_runs (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id        INTEGER NOT NULL,
+    base_sha          TEXT NOT NULL,
+    head_sha          TEXT NOT NULL,
+    selector_version  TEXT NOT NULL,
+    mode              TEXT NOT NULL,
+    actor             TEXT NOT NULL,
+    plan_json         TEXT NOT NULL,
+    created_at        TEXT NOT NULL
+);
+
+CREATE TABLE test_selection_items (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    selection_run_id  INTEGER NOT NULL REFERENCES test_selection_runs(id),
+    test_id           TEXT NOT NULL,
+    decision          TEXT NOT NULL, -- run, skip, sample
+    reason_json       TEXT NOT NULL,
+    confidence        REAL NOT NULL
+);
+
+CREATE TABLE test_result_history (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    test_id           TEXT NOT NULL,
+    project_id        INTEGER NOT NULL,
+    pipeline_id       INTEGER,
+    job_id            INTEGER,
+    commit_sha        TEXT NOT NULL,
+    status            TEXT NOT NULL,
+    duration_ms       INTEGER,
+    retry_count       INTEGER NOT NULL DEFAULT 0,
+    flaky             BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at        TEXT NOT NULL
+);
+
+CREATE TABLE selector_audit_findings (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    base_sha          TEXT NOT NULL,
+    head_sha          TEXT NOT NULL,
+    test_id           TEXT NOT NULL,
+    smart_decision    TEXT NOT NULL,
+    full_status       TEXT NOT NULL,
+    finding           TEXT NOT NULL, -- missed_failure, overselected, stale_edge
+    remediation_json  TEXT NOT NULL,
+    created_at        TEXT NOT NULL
+);
+```
+
+This turns every skip into an auditable policy decision, just like your events ledger and failure capsules.
+
+---
+
+## 10. Skip proofs and witness attestations
+
+A skipped test should never be invisible. It should have a proof:
+
+```json
+{
+  "test_id": "pool_tests::scale_down_drains",
+  "decision": "skip",
+  "base": "abc123",
+  "head": "def456",
+  "selector_version": "3.1.0",
+  "policy_hash": "sha256:...",
+  "manifest_hash": "sha256:...",
+  "reasons": [
+    "no changed files under component pool",
+    "no changed Cargo package dependency edge",
+    "no coverage edge matched changed files",
+    "not selected by random audit sample"
+  ],
+  "confidence": 0.98
+}
+```
+
+Because vgit already has `witness.rs`, use it to attest:
+
+```text
+RunPlan hash
++ selected tests
++ skipped tests
++ selector version
++ policy hash
++ base/head SHA
+→ witness attestation
+```
+
+The admission plane can then enforce:
+
+```text
+No merge unless:
+  required tests passed
+  skipped tests have valid attestations
+  selector version is allowed
+  nightly audit is not stale
+```
+
+That is how you get speed without losing trust.
+
+---
+
+## 11. Full testing should become rare but mandatory in the right places
+
+Use four modes:
+
+### `micro`
+
+For local agent iteration.
+
+```text
+Runs:
+  directly modified tests
+  tests covering changed symbols
+  one smoke test if needed
+```
+
+### `smart-pr`
+
+Default for PR/MR and agent branches.
+
+```text
+Runs:
+  selected unit/integration tests
+  dependency reverse tests
+  policy sentinels
+  random skipped-test sample
+```
+
+### `main-guard`
+
+For merge to `main`.
+
+```text
+Runs:
+  smart-pr
+  release-critical lane
+  affected E2E smoke
+  no random sample below minimum
+```
+
+### `nightly-full`
+
+Scheduled full validation.
+
+```text
+Runs:
+  cargo fmt
+  cargo clippy
+  cargo nextest all
+  cargo test --doc
+  all integration tests
+  full e2e
+  coverage collection
+  selector audit
+  optional mutation sample
+```
+
+GitLab supports scheduled pipelines for time-based jobs such as periodic maintenance or regression runs. ([GitLab Docs][10])
+
+---
+
+## 12. E2E protection without running E2E constantly
+
+E2E should be decomposed into named lanes:
+
+```text
+e2e-bootstrap
+e2e-pool-scale
+e2e-agent-flow
+e2e-cache-gateway
+e2e-release-canary
+e2e-vault-secrets
+e2e-admission-hook
+e2e-custom-executor
+```
+
+Each lane gets a small smoke version and a full version.
+
+Examples:
+
+```text
+src/pool.rs changed
+  → e2e-pool-scale-smoke only
+
+src/bootstrap.rs or config.rs changed
+  → e2e-bootstrap-smoke
+
+src/release.rs changed
+  → release unit + canary state-machine smoke
+
+src/secrets.rs changed
+  → Vault smoke, not full GitLab lifecycle
+
+src/admission.rs changed
+  → admission hook smoke + policy tests
+```
+
+Full E2E runs nightly, before production promotion, and whenever a selector invalidator fires.
+
+---
+
+## 13. Self-healing selector
+
+The system should improve automatically.
+
+Nightly audit should do this:
+
+1. Compute what `smart-pr` would have selected for recent commits.
+2. Run full tests.
+3. Compare full failures against skipped tests.
+4. If a skipped test failed, mark it as a **selector miss**.
+5. Add a stronger edge from changed file/symbol/component to that test.
+6. Reduce confidence for the rule that skipped it.
+7. Open an issue or append a ledger event.
+8. Require expanded testing for that component until enough clean audits pass.
+
+Example remediation:
+
+```json
+{
+  "finding": "missed_failure",
+  "changed_file": "src/gitlab_client.rs",
+  "missed_test": "agent_tests::spawn_creates_project_access_token",
+  "action": "add_edge",
+  "edge": {
+    "test_id": "agent_tests::spawn_creates_project_access_token",
+    "file_path": "src/gitlab_client.rs",
+    "confidence": 0.91,
+    "source": "nightly_audit"
+  }
+}
+```
+
+This makes the selector self-managing rather than permanently hand-authored.
+
+---
+
+## 14. Use nextest as the execution substrate
+
+Move CI test execution to:
+
+```bash
+cargo nextest run --profile ci
+```
+
+Recommended `.config/nextest.toml`:
+
+```toml
+[profile.ci]
+retries = 1
+failure-output = "immediate-final"
+success-output = "never"
+status-level = "pass"
+final-status-level = "slow"
+
+[profile.ci.junit]
+path = "junit.xml"
+
+[test-groups]
+docker = { max-threads = 1 }
+gitlab = { max-threads = 1 }
+vault = { max-threads = 1 }
+network = { max-threads = 2 }
+
+[[profile.ci.overrides]]
+filter = 'binary(e2e)'
+test-group = 'gitlab'
+
+[[profile.ci.overrides]]
+filter = 'test(vault) | test(secrets)'
+test-group = 'vault'
+
+[[profile.ci.overrides]]
+filter = 'test(docker) | test(pool)'
+test-group = 'docker'
+```
+
+This matters because your tests touch Docker, GitLab, Vault, ports, Unix sockets, and local filesystem state. nextest test groups give you concurrency control for exactly those shared-resource cases. ([Nexte.st][11])
+
+---
+
+## 15. Use GitLab `rules:changes` only as a cheap outer filter
+
+Use `rules:changes` for obvious low-risk gates:
+
+```yaml
+docs-only:
+  script: echo "docs changed"
+  rules:
+    - changes:
+        compare_to: 'refs/heads/main'
+        paths:
+          - 'docs/**/*'
+          - '**/*.md'
+```
+
+But do not encode the real dependency logic in YAML. That belongs in Rust, because vgit can reason over Cargo metadata, semantic Rust diffs, coverage history, release policy, agent trust, and skip attestations.
+
+Also keep your existing supersedence engine and GitLab auto-cancel behavior. GitLab can auto-cancel pending/running pipelines for newer commits on the same branch, and `interruptible` controls whether running jobs may be canceled. ([GitLab Docs][12])
+
+---
+
+## 16. Recommended implementation roadmap
+
+### Phase 0 — immediate speedup
+
+Do this first:
+
+```text
+- install cargo-nextest in CI
+- add .config/nextest.toml
+- replace cargo test --tests with cargo nextest run --profile ci
+- keep cargo test --doc separately
+- enable GitLab/GitHub stale pipeline cancellation
+- split e2e tests into named smoke/full lanes
+```
+
+Expected gain: often 2–5x just from nextest, better sharding, and fewer resource collisions.
+
+### Phase 1 — declarative path/component selection
+
+Build:
+
+```text
+src/test_intel/manifest.rs
+src/test_intel/selector.rs
+src/test_intel/ci_gen.rs
+```
+
+Add:
+
+```bash
+vgit test plan --base --head --why
+vgit test plan --emit-gitlab-child
+```
+
+This gives you immediate selective testing.
+
+### Phase 2 — Cargo graph expansion
+
+Use `cargo metadata` + `guppy`:
+
+```text
+changed file → owning package → reverse dependents → package tests
+```
+
+This prevents under-testing shared code.
+
+### Phase 3 — nextest inventory and SQLite evidence
+
+Use:
+
+```bash
+cargo nextest list --message-format json
+```
+
+Store discovered tests in `test_inventory`. nextest documents machine-readable JSON test lists and recommends `nextest-metadata` for parsing in Rust. ([Nexte.st][13])
+
+### Phase 4 — coverage learning
+
+Nightly:
+
+```bash
+RUSTFLAGS="-C instrument-coverage" cargo nextest run --profile coverage
+```
+
+Store file/symbol coverage edges.
+
+### Phase 5 — selector audit and self-healing
+
+Nightly full runs compare:
+
+```text
+smart selected set vs. full result set
+```
+
+Missed failures create new edges and lower selector confidence.
+
+### Phase 6 — semantic Rust impact
+
+Add `ra_ap_syntax` parsing:
+
+```text
+changed file → changed functions/types/impls → tests covering those symbols
+```
+
+This is where vgit starts feeling genuinely intelligent.
+
+### Phase 7 — admission enforcement
+
+Before agent/human merge:
+
+```text
+- required plan was generated
+- selected tests passed
+- skipped tests have valid skip proofs
+- selector audit freshness is acceptable
+- no security invalidator bypassed
+```
+
+This ties test intelligence into your existing admission plane.
+
+---
+
+## 17. The policy that keeps this safe
+
+The selector must fail closed.
+
+Run a broader lane or full tests when:
+
+```text
+- selector code changed
+- testmap changed
+- Cargo.lock changed in a security-sensitive dependency
+- .gitlab-ci.yml changed
+- Dockerfile/build.rs changed
+- database schema changed
+- admission/policy/sandbox/secrets/honeypot changed
+- changed file has no known owner
+- coverage map is stale
+- nightly audit found recent selector misses
+- agent is untrusted
+- release-critical path changed
+```
+
+Do not allow:
+
+```text
+- AI-only skip decisions
+- silent skips
+- skipping because a test is flaky
+- skipping E2E forever because it is expensive
+- merging when selector evidence is stale
+```
+
+Flaky tests should be retried and tracked, not ignored. nextest supports retries and marks tests flaky if they pass on retry. ([Nexte.st][14])
+
+---
+
+## 18. What “100x faster” realistically looks like
+
+The 100x win comes from combining multiple reductions:
+
+```text
+full integration/e2e suite avoided on most PRs
++ only affected unit/integration tests selected
++ nextest faster execution and isolation
++ sharding only selected tests
++ stale pipelines canceled
++ cached build artifacts
++ nightly full runs moved out of the PR path
+```
+
+Example:
+
+```text
+Before:
+  every PR → fmt + clippy + build + all unit + all integration + TUI + maybe E2E
+
+After:
+  docs change → docs lint only
+  decision.rs change → 10–30 decision/risk tests
+  tui change → tui --once
+  cache gateway change → cache unit + cache integration
+  pool/docker change → pool tests + one runner smoke
+  release/secrets change → release/secrets tests + targeted Vault/canary smoke
+  nightly → everything
+```
+
+That is the right model: **PRs run enough; nightly proves the selector; release gates run critical validation.**
+
+---
+
+## 19. The best final architecture
+
+Name it something like:
+
+> **VTI — vgit Test Intelligence**
+
+And define it as a fifth operational plane beside your current four:
+
+```text
+Admission Plane    → enforces that test evidence exists before merge
+Control Plane      → schedules selected tests and records decisions
+Execution Plane    → runs selected tests in isolated runners/sandboxes
+Cognition Plane    → agents request plans, not free-form test choices
+Validation Plane   → computes, explains, audits, and improves test selection
+```
+
+The key principle:
+
+> **A skipped test is not “not run.” It is a signed decision backed by dependency evidence, policy, history, and audit.**
+
+That is how vgit gets radically faster without becoming reckless.
+
+[1]: https://docs.gitlab.com/ci/jobs/job_rules/ "Specify when jobs run with rules | GitLab Docs"
+[2]: https://docs.gitlab.com/ci/pipelines/downstream_pipelines/ "Downstream pipelines | GitLab Docs"
+[3]: https://nexte.st/ "Home - cargo-nextest"
+[4]: https://www.pantsbuild.org/dev/docs/using-pants/advanced-target-selection "Advanced target selection | Pantsbuild"
+[5]: https://bazel.build/query/language "The Bazel Query Reference"
+[6]: https://doc.rust-lang.org/cargo/commands/cargo-metadata.html?utm_source=chatgpt.com "cargo metadata - The Cargo Book"
+[7]: https://docs.rs/ra_ap_syntax?utm_source=chatgpt.com "ra_ap_syntax - Rust"
+[8]: https://doc.rust-lang.org/rustc/instrument-coverage.html "Instrumentation-based Code Coverage - The rustc book"
+[9]: https://docs.gitlab.com/ci/yaml/ "CI/CD YAML syntax reference | GitLab Docs"
+[10]: https://docs.gitlab.com/ci/pipelines/schedules/ "Scheduled pipelines | GitLab Docs"
+[11]: https://nexte.st/docs/configuration/test-groups/ "Mutual exclusion and rate-limiting - cargo-nextest"
+[12]: https://docs.gitlab.com/ci/pipelines/settings/ "Customize pipeline configuration | GitLab Docs"
+[13]: https://nexte.st/docs/machine-readable/list/ "Test and binary lists - cargo-nextest"
+[14]: https://nexte.st/docs/features/retries/ "Retries and flaky tests - cargo-nextest"
+

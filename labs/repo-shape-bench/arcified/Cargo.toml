@@ -1,0 +1,13 @@
+[workspace]
+members = [
+    "crates/http-api",
+    "crates/orders-core",
+]
+resolver = "2"
+
+[workspace.metadata.agent]
+validation_order = ["cargo check --workspace"]
+shared_contracts = ["Public APIs must run semver validation before release."]
+ci_profiles = [
+    { name = "scheduled-hardening", commands = ["cargo semver-checks check-release"] },
+]

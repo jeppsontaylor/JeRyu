@@ -1,0 +1,53 @@
+[package]
+name = "cargo-aer"
+version.workspace = true
+edition = "2024"
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Audit agent-hostile repository structure and manage Agent Exception Records."
+
+[package.metadata.agent]
+purpose = "Audit ARC defaults and produce AER findings"
+owned_paths = ["src/**", "AGENTS.md"]
+entrypoints = ["scan_command", "report_command", "stale_command", "init_command"]
+invariants = [
+  "Findings should be explicit about confidence and suggested fixes",
+  "Heuristic findings must not pretend to be proof",
+]
+local_validate = [
+  "cargo check -p cargo-aer",
+  "cargo test -p cargo-aer",
+  "cargo test -p cargo-aer --doc",
+]
+boundary_validate = [
+  "cargo nextest run -E 'rdeps(cargo-aer)' --ignore-default-filter",
+]
+public_api = true
+risk = "medium"
+consumers = ["arc-bench"]
+exceptions = [
+    "mega-file.scanner-module",
+    "mega-function.scanner-core",
+    "public-api-no-semver-gate.cargo-aer"
+]
+
+[lib]
+name = "cargo_aer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cargo-aer"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+clap.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+toml.workspace = true
+walkdir.workspace = true
+cargo-vrc = { path = "../cargo-vrc" }

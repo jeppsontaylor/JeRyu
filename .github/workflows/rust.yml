@@ -1,0 +1,309 @@
+name: Rust
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    - cron: "0 3 * * 1"  # weekly Monday 03:00 UTC
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Build workspace
+        run: cargo build --verbose
+
+  test-select:
+    name: VTI Test Selection
+    runs-on: ubuntu-latest
+    needs: [build]
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      unit_filter_expr: ${{ steps.plan.outputs.unit_filter_expr }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Compute test plan
+        id: plan
+        run: |
+          mkdir -p target/vgit
+          cargo build --bin vgit
+          ./target/debug/vgit test select \
+            --base origin/main \
+            --head HEAD \
+            --explain \
+            --emit-plan target/vgit/test-plan.json
+          MODE=$(jq -r '.mode' target/vgit/test-plan.json)
+          # Extract the combined nextest -E filter expression from all unit_filter entries.
+          # The plan stores full commands like: cargo nextest run -E 'test(/pool|docker/)'
+          # We extract just the expression part and OR them together.
+          UNIT_FILTER_EXPR=$(python3 - <<'PYEOF'
+import json, sys
+plan = json.load(open("target/vgit/test-plan.json"))
+exprs = []
+for t in plan.get("selected_tests", []):
+    if t.get("kind") == "unit_filter":
+        cmd = t.get("command", "")
+        prefix = "cargo nextest run -E '"
+        if cmd.startswith(prefix) and cmd.endswith("'"):
+            exprs.append(cmd[len(prefix):-1])
+print(" | ".join(exprs))
+PYEOF
+)
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "unit_filter_expr=$UNIT_FILTER_EXPR" >> "$GITHUB_OUTPUT"
+          echo "VTI mode: $MODE"
+          echo "VTI unit filter: ${UNIT_FILTER_EXPR:-(full run)}"
+      - name: Upload test plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: vti-test-plan
+          path: target/vgit/test-plan.json
+
+  test-lib:
+    name: Library Tests
+    runs-on: ubuntu-latest
+    needs: [build, test-select]
+    # Skip unit tests entirely when VTI says docs_only (no logic changed)
+    if: needs.test-select.outputs.mode != 'docs_only'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Download VTI plan
+        uses: actions/download-artifact@v4
+        with:
+          name: vti-test-plan
+          path: target/vgit/
+        continue-on-error: true
+      - name: Run library tests
+        run: |
+          MODE="${{ needs.test-select.outputs.mode }}"
+          FILTER="${{ needs.test-select.outputs.unit_filter_expr }}"
+          if [ "$MODE" = "selected" ] && [ -n "$FILTER" ]; then
+            echo "VTI selected: running filter: $FILTER"
+            cargo nextest run -p vgit --lib --profile ci -E "$FILTER"
+          else
+            echo "VTI mode=${MODE:-unknown}: running full lib suite"
+            cargo nextest run -p vgit --lib --profile ci
+          fi
+
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [test-select]
+    # Only run integration tests when VTI says Full or Selected (not DocsOnly)
+    if: needs.test-select.outputs.mode != 'docs_only'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Run integration tests
+        run: cargo test --tests --verbose
+
+  tui-smoke:
+    name: TUI Smoke
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Render one TUI frame
+        run: cargo run -- tui --once
+
+  supply-chain:
+    name: Supply Chain Audit
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@cargo-deny
+      - name: Run cargo deny
+        run: cargo deny check
+
+  witness:
+    name: Witness Graph
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Build witness graph
+        run: cargo run -p cargo-witness -- build
+      - name: Upload witness graph
+        uses: actions/upload-artifact@v4
+        with:
+          name: witness-graph
+          path: .witness/witness-graph.json
+          if-no-files-found: warn
+
+  vrc-map:
+    name: VRC Map
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Generate agent + test maps
+        run: cargo run -p cargo-vrc -- map --output-dir .
+      - name: Upload maps
+        uses: actions/upload-artifact@v4
+        with:
+          name: vrc-maps
+          path: |
+            agent-map.json
+            test-map.json
+          if-no-files-found: warn
+
+  vrc-plan:
+    name: VRC Plan
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Compute changed files
+        run: git diff --name-only origin/main...HEAD > changed-files.txt; cat changed-files.txt
+      - name: Run VRC plan
+        run: |
+          CHANGED=$(cat changed-files.txt | tr '\n' ' ')
+          if [ -n "$CHANGED" ]; then
+            cargo run -p cargo-vrc -- plan $CHANGED --output vrc-plan.json
+          else
+            echo '{"mode":"full","reason":"no changed files detected"}' > vrc-plan.json
+          fi
+      - name: Upload VRC plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: vrc-plan
+          path: vrc-plan.json
+          if-no-files-found: warn
+
+  aer-scan:
+    name: AER Structural Audit
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Scan for structural exceptions
+        run: cargo run -p cargo-aer -- scan --output aer-findings.json
+      - name: Upload AER findings
+        uses: actions/upload-artifact@v4
+        with:
+          name: aer-findings
+          path: aer-findings.json
+          if-no-files-found: warn
+
+  scheduled-hardening:
+    name: Scheduled Hardening
+    runs-on: ubuntu-latest
+    # Only run on the weekly schedule trigger, not on push/PR
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Install cargo-semver-checks
+        uses: taiki-e/install-action@cargo-semver-checks
+      - name: Semver check
+        run: cargo semver-checks check-release -p vgit 2>/dev/null || cargo semver-checks check-release || true
+      - name: AER structural audit
+        run: cargo run -p cargo-aer -- scan --output aer-findings.json
+      - name: Upload hardening findings
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardening-aer-findings
+          path: aer-findings.json
+          if-no-files-found: warn

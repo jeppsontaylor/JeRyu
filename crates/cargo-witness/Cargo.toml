@@ -1,0 +1,54 @@
+[package]
+name = "cargo-witness"
+version.workspace = true
+edition = "2024"
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Witness graph and repair routing for agent-native Rust workspaces"
+
+[dependencies]
+anyhow = { workspace = true }
+cargo_metadata = { workspace = true }
+cargo-vrc = { path = "../cargo-vrc" }
+chrono = { workspace = true }
+clap = { workspace = true }
+quote = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+syn = { workspace = true }
+walkdir = { workspace = true }
+witness-rt = { path = "../witness-rt" }
+
+[package.metadata.agent]
+purpose = "Witness graph builder, compile diagnostic router, impact classifier, and repair bundle emitter"
+owned_paths = ["src/**", "tests/**"]
+entrypoints = ["build_command", "diff_command", "diagnose_command", "repair_command"]
+invariants = [
+  "Interface hashes capture all pub item signatures",
+  "Implementation hashes exclude pub signatures",
+  "Compile diagnostics are always routed to an owning ARC",
+  "Repair bundles contain minimal sufficient context",
+]
+local_validate = [
+  "cargo check -p cargo-witness",
+  "cargo test -p cargo-witness",
+  "cargo test -p cargo-witness --doc",
+]
+boundary_validate = [
+  "cargo nextest run -E 'rdeps(cargo-witness)' --ignore-default-filter",
+]
+public_api = true
+risk = "medium"
+
+exceptions = [
+    "mega-function.build_crate_witness",
+    "mega-function.diagnose_workspace",
+    "mega-function.diff_witness_graphs",
+    "mega-function.dispatch",
+    "mega-function.extract_pub_items",
+    "mega-function.repair_from_compile_packets",
+    "public-api-no-semver-gate.cargo-witness"
+]

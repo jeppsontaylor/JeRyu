@@ -1,0 +1,9 @@
+id: aer.vgit.mega-file.release
+class_id: mega-file
+rule: "Files should stay below the house budget unless locality would be harmed."
+exception: "src/release.rs contains the full release pipeline: tag negotiation, artifact publication, GitLab release API, and rollback logic."
+reason: "Release operations are a tightly-coupled transaction sequence. Splitting into sub-files would require shared mutable state across file boundaries and make rollback paths harder to trace. The file grows with each new release artifact type, not from lack of cohesion."
+risk: medium
+owner: vgit-core
+doc_links: []
+sunset_condition: "Refactor when release is decomposed into distinct artifact-type handlers with a shared orchestrator, each under 500 lines."

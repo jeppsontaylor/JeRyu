@@ -1,0 +1,52 @@
+[package]
+name = "cargo-vrc"
+version.workspace = true
+edition = "2024"
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Cargo-native validation radius control plane for agentic Rust repositories."
+
+[package.metadata.agent]
+purpose = "Generate ARC and VRC maps for a Cargo workspace"
+owned_paths = ["src/**", "AGENTS.md"]
+entrypoints = ["map_command", "plan_command", "explain_command", "verify_command"]
+invariants = [
+  "Generated maps must be deterministic for the same Cargo state",
+  "Validation plans expand by dependency graph, not folder ancestry",
+]
+local_validate = [
+  "cargo check -p cargo-vrc",
+  "cargo test -p cargo-vrc",
+  "cargo test -p cargo-vrc --doc",
+]
+boundary_validate = [
+  "cargo nextest run -E 'rdeps(cargo-vrc)' --ignore-default-filter",
+]
+public_api = true
+risk = "medium"
+consumers = ["cargo-aer", "arc-bench", "paper-sync"]
+exceptions = [
+    "mega-file.planner-module",
+    "mega-function.vrc-plan",
+    "public-api-no-semver-gate.cargo-vrc"
+]
+
+[lib]
+name = "cargo_vrc"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cargo-vrc"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+cargo_metadata.workspace = true
+chrono.workspace = true
+clap.workspace = true
+globset.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+walkdir.workspace = true

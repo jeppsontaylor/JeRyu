@@ -1,0 +1,34 @@
+[defaults]
+max_doc_opens = 2
+max_log_opens = 1
+prefer_generated_indexes = true
+prefer_structured_diagnostics = true
+
+[preserve]
+exit_code = true
+failing_command = true
+decisive_output_tail = true
+raw_log_path = true
+evidence_paths = true
+compiler_spans = true
+gitlab_job_ids = true
+
+[priority]
+summary_files = [
+  "agent-index.json",
+  "agent-index.md",
+  "docs/VTI.md",
+]
+raw_log_dirs = [
+  ".vgit",
+  "logs",
+]
+
+[rtk]
+default_prefix = "rtk"
+use_proxy_for = [
+  "docker build",
+  "docker compose",
+  "journalctl",
+  "gitlab-runner",
+]

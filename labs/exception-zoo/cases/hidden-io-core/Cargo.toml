@@ -1,0 +1,15 @@
+[package]
+name = "hidden-io-core"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+
+[package.metadata.agent]
+purpose = "Pure domain core fixture with accidental I/O"
+owned_paths = ["src/**"]
+local_validate = ["cargo check"]
+public_api = false
+
+[lib]
+path = "src/lib.rs"

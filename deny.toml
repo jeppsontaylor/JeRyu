@@ -1,0 +1,73 @@
+# deny.toml — supply-chain policy for vgit
+# Run: cargo deny check
+
+[graph]
+targets = []
+
+[advisories]
+version = 2
+ignore = []
+
+[licenses]
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "CC0-1.0",
+    "Zlib",
+    "MPL-2.0",
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+skip = [
+    { crate = "bitflags@1.3.2", reason = "Transitive platform dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "block-buffer@0.10.4", reason = "Transitive crypto dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "cpufeatures@0.2.17", reason = "Transitive crypto dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "crypto-common@0.1.7", reason = "Transitive crypto dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "digest@0.10.7", reason = "Transitive crypto dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "foldhash@0.1.5", reason = "Transitive collection dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "getrandom@0.2.17", reason = "Transitive random dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "getrandom@0.3.4", reason = "Transitive random dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "hashbrown@0.14.5", reason = "Transitive collection dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "hashbrown@0.15.5", reason = "Transitive collection dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "r-efi@5.3.0", reason = "Transitive platform dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "rand@0.8.6", reason = "Transitive random dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "rand_chacha@0.3.1", reason = "Transitive random dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "rand_core@0.6.4", reason = "Transitive random dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "redox_syscall@0.5.18", reason = "Transitive platform dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "sha2@0.10.9", reason = "Transitive crypto dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows-sys@0.48.0", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows-sys@0.52.0", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows-sys@0.60.2", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows-targets@0.48.5", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows-targets@0.52.6", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows_aarch64_gnullvm@0.48.5", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows_aarch64_gnullvm@0.52.6", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows_aarch64_msvc@0.48.5", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows_aarch64_msvc@0.52.6", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows_i686_gnu@0.48.5", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows_i686_gnu@0.52.6", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows_i686_gnullvm@0.52.6", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows_i686_msvc@0.48.5", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows_i686_msvc@0.52.6", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows_x86_64_gnu@0.48.5", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows_x86_64_gnu@0.52.6", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows_x86_64_gnullvm@0.48.5", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows_x86_64_gnullvm@0.52.6", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows_x86_64_msvc@0.48.5", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+    { crate = "windows_x86_64_msvc@0.52.6", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
+]
+
+[sources]
+unknown-registry = "warn"
+unknown-git = "warn"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

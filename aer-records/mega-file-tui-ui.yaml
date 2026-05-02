@@ -1,0 +1,9 @@
+id: aer.vgit.mega-file.tui-ui
+class_id: mega-file
+rule: "Files should stay below the house budget unless locality would be harmed."
+exception: "src/tui/ui.rs contains the full ratatui render pass for all vgit TUI views."
+reason: "TUI render functions are visually scanned as a whole — splitting across files makes it hard to reason about layout composition and widget placement. The ratatui API requires passing the Frame reference through the entire render tree, making sub-file splits result in boilerplate-heavy call chains."
+risk: low
+owner: vgit-tui
+doc_links: []
+sunset_condition: "Refactor when TUI grows additional distinct views (e.g. separate pipeline view, agent view) that each exceed 300 lines independently."

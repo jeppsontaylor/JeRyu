@@ -1,0 +1,18 @@
+[package]
+name = "http-api"
+version = "0.1.0"
+edition = "2024"
+
+[package.metadata.agent]
+purpose = "HTTP adapter for quote rendering"
+owned_paths = ["src/**"]
+entrypoints = ["render_quote"]
+local_validate = [
+    "cargo check -p http-api",
+    "cargo test -p http-api",
+    "cargo test -p http-api --doc",
+]
+public_api = true
+
+[lib]
+path = "src/lib.rs"

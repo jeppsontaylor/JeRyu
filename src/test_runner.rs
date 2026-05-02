@@ -1,0 +1,729 @@
+//! Owner: CI Test Runner subsystem
+//! Proof: `cargo nextest run -p vgit -- test_runner`
+//! Invariants: Test execution preserves lane semantics and reports enough structure for VTI feedback.
+//! Test Runner: Agent-friendly single-test execution via vgit.
+//!
+//! Enables an agent to run a single test (or set of tests) through the
+//! GitLab CI pipeline and get structured results back. Works by creating
+//! a dynamic pipeline with just the requested test command.
+
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
+use std::cmp::max;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::Semaphore;
+use tokio::task::JoinSet;
+use tokio::time::sleep;
+use tracing::info;
+
+use crate::gitlab_client::GitlabClient;
+
+// ---------------------------------------------------------------------------
+// Public types
+// ---------------------------------------------------------------------------
+
+/// Result of a test run through the CI pipeline.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TestRunResult {
+    pub pipeline_id: i64,
+    pub job_id: Option<i64>,
+    pub job_name: String,
+    pub status: String,
+    pub duration_secs: Option<f64>,
+    pub trace_tail: String,
+    pub passed: bool,
+}
+
+/// Planning metadata for a test run.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TestRunPlan {
+    pub command: String,
+    pub job_name: String,
+    pub image: String,
+    pub tags: Vec<String>,
+    pub timeout_secs: u64,
+    pub risk_class: String,
+    pub rationale: Vec<String>,
+}
+
+/// Options for running a test.
+#[derive(Debug, Clone)]
+pub struct TestRunOpts {
+    pub project_id: i64,
+    pub test_command: String,
+    pub job_name: Option<String>,
+    pub image: String,
+    pub tags: Option<Vec<String>>,
+    pub timeout_secs: u64,
+    pub force: bool,
+    pub commit_sha: String,
+}
+
+impl Default for TestRunOpts {
+    fn default() -> Self {
+        Self {
+            project_id: 2,
+            test_command: String::new(),
+            job_name: None,
+            image: "rust:1.92.0".to_string(),
+            tags: None,
+            timeout_secs: 600,
+            force: false,
+            commit_sha: "latest".to_string(),
+        }
+    }
+}
+
+/// Options for running multiple tests in parallel through CI pipelines.
+#[derive(Debug, Clone)]
+pub struct TestBatchOpts {
+    pub project_id: i64,
+    pub test_commands: Vec<String>,
+    pub job_name_prefix: Option<String>,
+    pub image: String,
+    pub tags: Option<Vec<String>>,
+    pub timeout_secs: u64,
+    pub max_parallel: usize,
+    pub force: bool,
+    pub commit_sha: String,
+}
+
+impl Default for TestBatchOpts {
+    fn default() -> Self {
+        Self {
+            project_id: 2,
+            test_commands: Vec::new(),
+            job_name_prefix: None,
+            image: "rust:1.92.0".to_string(),
+            tags: None,
+            timeout_secs: 600,
+            max_parallel: 3,
+            force: false,
+            commit_sha: "latest".to_string(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Core API
+// ---------------------------------------------------------------------------
+
+pub fn plan_test_run(opts: &TestRunOpts) -> TestRunPlan {
+    let job_name = opts
+        .job_name
+        .clone()
+        .unwrap_or_else(|| "vgit-test-run".to_string());
+    let inferred = opts
+        .tags
+        .clone()
+        .unwrap_or_else(|| infer_test_tags(&opts.test_command));
+    let routing = infer_test_routing(&opts.test_command);
+    let timeout_secs = if opts.timeout_secs == TestRunOpts::default().timeout_secs {
+        routing.timeout_secs
+    } else {
+        opts.timeout_secs
+    };
+
+    TestRunPlan {
+        command: opts.test_command.clone(),
+        job_name,
+        image: opts.image.clone(),
+        tags: inferred,
+        timeout_secs,
+        risk_class: routing.risk_class,
+        rationale: routing.rationale,
+    }
+}
+
+/// Run a single test command via a dynamic CI pipeline.
+///
+/// Creates a scratch branch, commits a minimal `.gitlab-ci.yml` with the
+/// test command, triggers a pipeline, waits for it to finish, then cleans up.
+pub async fn run_test(
+    db: &crate::state::Db,
+    client: &GitlabClient,
+    opts: &TestRunOpts,
+) -> Result<TestRunResult> {
+    let start_time = tokio::time::Instant::now();
+    let plan = plan_test_run(opts);
+
+    if !opts.force
+        && opts.commit_sha != "latest"
+        && !opts.commit_sha.is_empty()
+        && let Ok(Some(cached_run)) = db
+            .latest_successful_test_execution(&opts.test_command)
+            .await
+    {
+        let old_sha = &cached_run.version;
+        let mut can_skip = false;
+        let mut skip_reason = String::new();
+
+        if old_sha == &opts.commit_sha {
+            can_skip = true;
+            skip_reason = "Exact commit cache hit".to_string();
+        } else if old_sha != "latest" && !old_sha.is_empty() {
+            // Determine impact between old (cached) and new (current)
+            if let Ok(impact_plan) =
+                crate::impact::plan_for_push(client, opts.project_id, old_sha, &opts.commit_sha)
+                    .await
+            {
+                if impact_plan.selected_lanes.len() == 1
+                    && impact_plan
+                        .selected_lanes
+                        .contains(&crate::decision::ImpactLane::DocsOnly)
+                {
+                    can_skip = true;
+                    skip_reason = "Impact Analysis: DocsOnly cache hit".to_string();
+                } else if !impact_plan
+                    .selected_lanes
+                    .contains(&crate::decision::ImpactLane::Full)
+                {
+                    // Advanced heuristics if needed, for instance if unit tests were requested but impact was only integration.
+                    // We will rely on DocsOnly caching as the safest boundary for now before Canary testing.
+                }
+            }
+        }
+
+        if can_skip {
+            tracing::info!(test_command = %opts.test_command, reason = %skip_reason, "test skipped: internal database validated old test is still valid");
+            return Ok(TestRunResult {
+                pipeline_id: 0,
+                job_id: None,
+                job_name: plan.job_name,
+                status: "success".to_string(),
+                duration_secs: Some(0.0),
+                trace_tail: format!(
+                    "Test skipped.\n✅ Auto-pruned by vgit.\nReason: The internal database determined the old test is still valid ({skip_reason}).\nNote: Supply --force to override this optimization."
+                ),
+                passed: true,
+            });
+        }
+    }
+
+    let branch_name = format!(
+        "vgit-test-{}",
+        uuid::Uuid::new_v4()
+            .to_string()
+            .chars()
+            .take(8)
+            .collect::<String>()
+    );
+
+    let tags_yaml = plan
+        .tags
+        .iter()
+        .map(|t| format!("    - {}", t))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // Build a minimal CI yaml for this single test
+    let ci_yaml = format!(
+        r#"# Auto-generated by vgit test run — ephemeral pipeline
+{job_name}:
+  stage: test
+  image: {image}
+  tags:
+{tags}
+  script:
+    - {command}
+"#,
+        job_name = plan.job_name,
+        image = plan.image,
+        tags = tags_yaml,
+        command = plan.command,
+    );
+
+    info!(
+        project_id = opts.project_id,
+        branch = %branch_name,
+        command = %plan.command,
+        tags = ?plan.tags,
+        risk_class = %plan.risk_class,
+        "creating ephemeral test pipeline"
+    );
+
+    // 1. Create branch from main
+    client
+        .create_branch(opts.project_id, &branch_name, "main")
+        .await
+        .context("failed to create test branch")?;
+
+    // 2. Commit the dynamic CI yaml
+    // Use create_or_update to handle both cases
+    if client
+        .update_file(
+            opts.project_id,
+            &branch_name,
+            ".gitlab-ci.yml",
+            &ci_yaml,
+            &format!("[vgit] test run: {}", plan.command),
+        )
+        .await
+        .is_err()
+    {
+        // If update failed (file might not exist on branch yet), try creating via the
+        // commits API with "create" action
+        create_file_on_branch(
+            client,
+            opts.project_id,
+            &branch_name,
+            ".gitlab-ci.yml",
+            &ci_yaml,
+            &format!("[vgit] test run: {}", plan.command),
+        )
+        .await
+        .context("failed to commit test CI yaml")?;
+    }
+
+    // 3. The commit triggers a pipeline automatically. Find it.
+    //    Note: creating the branch also triggers a pipeline with the FULL CI
+    //    config from main. We need to find the LATEST pipeline (from our commit)
+    //    and cancel any older ones to avoid consumer runner slots.
+    //    GitLab may take several seconds to register the pipeline under load,
+    //    so we retry with escalating delays.
+    let mut pipelines = Vec::new();
+    for attempt in 0..5u32 {
+        let delay = Duration::from_secs(3 + (attempt as u64) * 2);
+        sleep(delay).await;
+        pipelines = client
+            .list_pipelines(opts.project_id, Some(&branch_name))
+            .await
+            .context("failed to list pipelines for test branch")?;
+        if !pipelines.is_empty() {
+            break;
+        }
+    }
+
+    let pipeline_id = if let Some(pipeline) = pipelines.first() {
+        pipeline.id
+    } else {
+        info!(
+            branch = %branch_name,
+            "branch pipeline not visible yet; triggering one explicitly"
+        );
+        client
+            .trigger_pipeline(opts.project_id, &branch_name, Vec::new())
+            .await
+            .context("failed to trigger fallback test pipeline")?
+    };
+
+    // Cancel any older pipelines on this branch (from the branch-create event)
+    for p in &pipelines[1..] {
+        if matches!(p.status.as_str(), "pending" | "running" | "created") {
+            info!(
+                pipeline_id = p.id,
+                "canceling spurious branch-create pipeline"
+            );
+            let _ = client.cancel_pipeline(opts.project_id, p.id).await;
+        }
+    }
+
+    info!(
+        pipeline_id,
+        "ephemeral test pipeline started, waiting for completion"
+    );
+
+    // 4. Wait for pipeline to complete
+    let result = wait_for_test_result(
+        client,
+        opts.project_id,
+        pipeline_id,
+        &plan.job_name,
+        plan.timeout_secs,
+    )
+    .await?;
+
+    // 5. Clean up: delete the scratch branch
+    if let Err(e) = client.delete_branch(opts.project_id, &branch_name).await {
+        tracing::warn!(error = %e, branch = %branch_name, "failed to clean up test branch");
+    }
+
+    let duration_ms = start_time.elapsed().as_millis() as i64;
+    let version_to_record = if opts.commit_sha.is_empty() {
+        "latest"
+    } else {
+        &opts.commit_sha
+    };
+    let _ = db
+        .record_test_execution(
+            &opts.test_command,
+            version_to_record,
+            duration_ms,
+            &result.status,
+        )
+        .await;
+
+    Ok(result)
+}
+
+/// Run several test commands in parallel through CI pipelines.
+pub async fn run_test_batch(
+    db: &crate::state::Db,
+    client: &GitlabClient,
+    opts: &TestBatchOpts,
+) -> Result<Vec<TestRunResult>> {
+    let max_parallel = opts.max_parallel.max(1);
+    let semaphore = Arc::new(Semaphore::new(max_parallel));
+    let mut join_set = JoinSet::new();
+
+    for (index, command) in opts.test_commands.iter().cloned().enumerate() {
+        let permit = semaphore.clone().acquire_owned().await?;
+        let db = db.clone();
+        let client = client.clone();
+        let image = opts.image.clone();
+        let tags = opts.tags.clone();
+        let project_id = opts.project_id;
+        let timeout_secs = opts.timeout_secs;
+        let job_name_prefix = opts.job_name_prefix.clone();
+        let force = opts.force;
+        let commit_sha = opts.commit_sha.clone();
+        join_set.spawn(async move {
+            let _permit = permit;
+            let job_name = job_name_prefix
+                .map(|prefix| format!("{prefix}-{:02}", index + 1))
+                .filter(|value| !value.is_empty());
+            let run_opts = TestRunOpts {
+                project_id,
+                test_command: command.clone(),
+                job_name,
+                image,
+                tags,
+                timeout_secs,
+                force,
+                commit_sha,
+            };
+            let outcome = run_test(&db, &client, &run_opts).await;
+            (index, command, outcome)
+        });
+    }
+
+    let mut results: Vec<Option<TestRunResult>> = std::iter::repeat_with(|| None)
+        .take(opts.test_commands.len())
+        .collect();
+    while let Some(joined) = join_set.join_next().await {
+        let (index, command, outcome) = joined?;
+        let result = match outcome {
+            Ok(result) => result,
+            Err(error) => TestRunResult {
+                pipeline_id: 0,
+                job_id: None,
+                job_name: format!("batch-{index:02}"),
+                status: "error".to_string(),
+                duration_secs: None,
+                trace_tail: format!("{command}\n\n{error:#}"),
+                passed: false,
+            },
+        };
+        results[index] = Some(result);
+    }
+
+    Ok(results.into_iter().flatten().collect())
+}
+
+/// Retry a specific failed job from the latest pipeline.
+pub async fn retry_job_by_name(
+    client: &GitlabClient,
+    project_id: i64,
+    pipeline_id: i64,
+    job_name: &str,
+) -> Result<TestRunResult> {
+    let jobs = client.list_pipeline_jobs(project_id, pipeline_id).await?;
+
+    let job = jobs.iter().find(|j| j.name == job_name).ok_or_else(|| {
+        anyhow::anyhow!("job '{}' not found in pipeline {}", job_name, pipeline_id)
+    })?;
+
+    if job.status == "failed" || job.status == "canceled" {
+        client.retry_job(project_id, job.id).await?;
+        info!(project_id, job_id = job.id, job_name, "retried job");
+
+        // Wait for the retried job to complete
+        wait_for_test_result(client, project_id, pipeline_id, job_name, 600).await
+    } else {
+        Ok(TestRunResult {
+            pipeline_id,
+            job_id: Some(job.id),
+            job_name: job_name.to_string(),
+            status: job.status.clone(),
+            duration_secs: job.queued_duration,
+            trace_tail: String::new(),
+            passed: job.status == "success",
+        })
+    }
+}
+
+/// Get the results of all jobs in a pipeline.
+pub async fn pipeline_results(
+    client: &GitlabClient,
+    project_id: i64,
+    pipeline_id: i64,
+) -> Result<Vec<TestRunResult>> {
+    let jobs = client.list_pipeline_jobs(project_id, pipeline_id).await?;
+
+    let mut results = Vec::new();
+    for job in &jobs {
+        let trace_tail = if job.status == "failed" {
+            client
+                .get_job_log_snippet(project_id, job.id, 2000)
+                .await
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
+
+        results.push(TestRunResult {
+            pipeline_id,
+            job_id: Some(job.id),
+            job_name: job.name.clone(),
+            status: job.status.clone(),
+            duration_secs: job.queued_duration,
+            trace_tail,
+            passed: job.status == "success",
+        });
+    }
+
+    Ok(results)
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+struct TestRoutingInference {
+    tags: Vec<String>,
+    risk_class: String,
+    timeout_secs: u64,
+    rationale: Vec<String>,
+}
+
+fn infer_test_tags(command: &str) -> Vec<String> {
+    infer_test_routing(command).tags
+}
+
+fn infer_test_routing(command: &str) -> TestRoutingInference {
+    let lower = command.to_ascii_lowercase();
+
+    let untrusted_patterns = [
+        "security",
+        "chaos",
+        "ip_exfiltration",
+        "ip guard",
+        "ip-guard",
+        "sandbox",
+        "fuzz",
+    ];
+    if untrusted_patterns
+        .iter()
+        .any(|pattern| lower.contains(pattern))
+    {
+        return TestRoutingInference {
+            tags: vec!["untrusted".to_string()],
+            risk_class: "untrusted".to_string(),
+            timeout_secs: 1800,
+            rationale: vec!["matched untrusted/risky command pattern".to_string()],
+        };
+    }
+
+    let build_patterns = [
+        "deployctl",
+        "payloadctl",
+        "build-local",
+        "publish-rc",
+        "cargo check",
+        "cargo build",
+        "cargo nextest",
+        "cargo test --workspace",
+        "cargo test -p veox-deploy",
+        "cargo test -p veox-bootstrap",
+        "cargo test -p veox-rc-gate",
+        "cargo test -p cargo-vrc",
+        "cargo test -p cargo-aer",
+        "cargo test -p cargo-witness",
+        "cargo test -p nht",
+        "test-local-built",
+        "test-local-rc",
+        "deploy-canary",
+    ];
+    if build_patterns.iter().any(|pattern| lower.contains(pattern)) {
+        return TestRoutingInference {
+            tags: vec!["build".to_string()],
+            risk_class: "build".to_string(),
+            timeout_secs: 1200,
+            rationale: vec!["matched build-heavy command pattern".to_string()],
+        };
+    }
+
+    TestRoutingInference {
+        tags: vec!["default".to_string()],
+        risk_class: "default".to_string(),
+        timeout_secs: max(600, TestRunOpts::default().timeout_secs),
+        rationale: vec!["no heavy/risky pattern matched; using default runner".to_string()],
+    }
+}
+
+/// Create a file on a branch using the "create" action.
+async fn create_file_on_branch(
+    client: &GitlabClient,
+    project_id: i64,
+    branch: &str,
+    file_path: &str,
+    content: &str,
+    message: &str,
+) -> Result<()> {
+    client
+        .create_file(project_id, branch, file_path, content, message)
+        .await
+}
+
+/// Wait for a pipeline to appear on a branch.
+#[allow(dead_code)]
+async fn wait_for_pipeline(
+    client: &GitlabClient,
+    project_id: i64,
+    ref_name: &str,
+    max_attempts: u32,
+) -> Result<i64> {
+    for _ in 0..max_attempts {
+        let pipelines = client.list_pipelines(project_id, Some(ref_name)).await?;
+        if let Some(p) = pipelines.first() {
+            return Ok(p.id);
+        }
+        sleep(Duration::from_secs(2)).await;
+    }
+    anyhow::bail!("no pipeline appeared for ref '{}' after waiting", ref_name)
+}
+
+/// Wait for a test job within a pipeline to reach a terminal state.
+async fn wait_for_test_result(
+    client: &GitlabClient,
+    project_id: i64,
+    pipeline_id: i64,
+    job_name: &str,
+    timeout_secs: u64,
+) -> Result<TestRunResult> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
+
+    loop {
+        if tokio::time::Instant::now() > deadline {
+            return Ok(TestRunResult {
+                pipeline_id,
+                job_id: None,
+                job_name: job_name.to_string(),
+                status: "timeout".to_string(),
+                duration_secs: Some(timeout_secs as f64),
+                trace_tail: "Timed out waiting for job to complete".to_string(),
+                passed: false,
+            });
+        }
+
+        let jobs = client.list_pipeline_jobs(project_id, pipeline_id).await?;
+
+        // Find our job (may have a suffix if retried)
+        if let Some(job) = jobs.iter().find(|j| j.name == job_name) {
+            match job.status.as_str() {
+                "success" => {
+                    let trace = client
+                        .get_job_log_snippet(project_id, job.id, 2000)
+                        .await
+                        .unwrap_or_default();
+                    return Ok(TestRunResult {
+                        pipeline_id,
+                        job_id: Some(job.id),
+                        job_name: job_name.to_string(),
+                        status: "success".to_string(),
+                        duration_secs: job.queued_duration,
+                        trace_tail: trace,
+                        passed: true,
+                    });
+                }
+                "failed" => {
+                    let trace = client
+                        .get_job_log_snippet(project_id, job.id, 4000)
+                        .await
+                        .unwrap_or_default();
+                    return Ok(TestRunResult {
+                        pipeline_id,
+                        job_id: Some(job.id),
+                        job_name: job_name.to_string(),
+                        status: "failed".to_string(),
+                        duration_secs: job.queued_duration,
+                        trace_tail: trace,
+                        passed: false,
+                    });
+                }
+                "canceled" | "skipped" => {
+                    return Ok(TestRunResult {
+                        pipeline_id,
+                        job_id: Some(job.id),
+                        job_name: job_name.to_string(),
+                        status: job.status.clone(),
+                        duration_secs: job.queued_duration,
+                        trace_tail: String::new(),
+                        passed: false,
+                    });
+                }
+                _ => {
+                    // Still running/pending/created
+                }
+            }
+        }
+
+        sleep(Duration::from_secs(3)).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn infers_build_routing_for_deploy_commands() {
+        let plan = plan_test_run(&TestRunOpts {
+            project_id: 2,
+            test_command: "cargo test -p veox-deploy".to_string(),
+            job_name: None,
+            image: "rust:1.92.0".to_string(),
+            tags: None,
+            timeout_secs: 600,
+            ..TestRunOpts::default()
+        });
+
+        assert_eq!(plan.tags, vec!["build"]);
+        assert_eq!(plan.risk_class, "build");
+        assert!(plan.timeout_secs >= 1200);
+    }
+
+    #[test]
+    fn infers_untrusted_routing_for_security_commands() {
+        let plan = plan_test_run(&TestRunOpts {
+            project_id: 2,
+            test_command: "cargo test -p dougx security-scan".to_string(),
+            job_name: None,
+            image: "rust:1.92.0".to_string(),
+            tags: None,
+            timeout_secs: 600,
+            ..TestRunOpts::default()
+        });
+
+        assert_eq!(plan.tags, vec!["untrusted"]);
+        assert_eq!(plan.risk_class, "untrusted");
+        assert!(plan.timeout_secs >= 1800);
+    }
+
+    #[test]
+    fn defaults_to_default_routing_for_simple_commands() {
+        let plan = plan_test_run(&TestRunOpts {
+            project_id: 2,
+            test_command: "cargo test -p veox-testctl".to_string(),
+            job_name: None,
+            image: "rust:1.92.0".to_string(),
+            tags: None,
+            timeout_secs: 600,
+            ..TestRunOpts::default()
+        });
+
+        assert_eq!(plan.tags, vec!["default"]);
+        assert_eq!(plan.risk_class, "default");
+    }
+}

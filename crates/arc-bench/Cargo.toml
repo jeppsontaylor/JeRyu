@@ -1,0 +1,44 @@
+[package]
+name = "arc-bench"
+version.workspace = true
+edition = "2024"
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Benchmarks for agent-native Rust repo shape, runtime design, and exception handling."
+
+[package.metadata.agent]
+purpose = "Run measurable comparisons for ARC/VRC repository design claims"
+owned_paths = ["src/**", "AGENTS.md"]
+entrypoints = ["repo_shape_benchmark", "runtime_benchmark", "exception_benchmark", "report_command"]
+invariants = [
+  "Bench outputs are machine-readable and reproducible enough for CI diffs",
+  "Comparisons should document tradeoffs rather than overfit a single winner",
+]
+local_validate = [
+  "cargo check -p arc-bench",
+  "cargo test -p arc-bench",
+]
+boundary_validate = []
+public_api = false
+risk = "medium"
+consumers = ["paper"]
+exceptions = ["mega-function.runtime_actor_loop"]
+
+[[bin]]
+name = "arc-bench"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+clap.workspace = true
+libc.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+walkdir.workspace = true
+cargo-aer = { path = "../cargo-aer" }
+cargo-vrc = { path = "../cargo-vrc" }
+cargo-witness = { path = "../cargo-witness" }
+witness-rt = { path = "../witness-rt" }

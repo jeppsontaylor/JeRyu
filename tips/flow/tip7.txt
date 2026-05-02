@@ -1,0 +1,1263 @@
+Build the new TUI around a default view called **Flow Mission Control**. The current dashboard answers “is the system alive?” The new default should answer, at a glance:
+
+**What version are we shipping? Where is it in the Git → CI → release flow? What is running now? What is blocked? What is pending? What is the ETA, and why?**
+
+## 1. Product concept: Flow Mission Control
+
+The core visual should be a **left-to-right execution graph**, not a job list. Treat GitLab, runner pools, tests, canary, gates, secrets, and production promotion as one observable delivery DAG.
+
+The CEO-level mental model:
+
+```text
+Git change  →  Admission  →  Pipeline  →  Build  →  Parallel tests  →  Evidence gates  →  Canary  →  Prod
+```
+
+Parallel work should stack vertically inside each stage. The current critical path should be visually dominant. Everything pending should be categorized as either **queued**, **blocked by dependency**, **waiting for runner**, **manual gate**, **retrying**, **failed**, **superseded**, or **release-gated**.
+
+A good first frame should look closer to this:
+
+```text
+vgit God Mode | GitLab ● ONLINE | Containers 10 | Release ci-54c658aac9c3 | main
+ETA 06m 20s p80 | Critical path: build-enclave-server → integration-api → remote-gate
+Current blocker: build-enclave-server running 99%, canary not yet eligible
+
+Active Runs
+┌──────┬──────┬────────┬────────────┬──────────┬──────────────┐
+│ #407 │ main │ 54c658 │ RUNNING    │ 83%      │ ETA 06m20s   │
+│ #405 │ main │ 3a9c22 │ SUPERSEDED │ canceled │ by #407      │
+│ #403 │ main │ a98b11 │ SUCCESS    │ released │ ci-a98b11... │
+└──────┴──────┴────────┴────────────┴──────────┴──────────────┘
+
+Git Ledger       Admission        Pipeline          Build             Unit Tests              Integration        Release Gates      Prod
+┌────────────┐   ┌────────────┐   ┌────────────┐   ┌─────────────┐   ┌──────────────────┐    ┌──────────────┐   ┌────────────┐    ┌────────┐
+│ main@54c65 │──▶│ hook ✓     │──▶│ #407       │──▶│ build-api ✓ │──▶│ unit-local ○     │──┬▶│ int-api ○    │──▶│ canary ○   │───▶│ prod ○ │
+│ pushed 3m  │   │ impact:Full│   │ running    │   │ 00:42       │   │ queued default   │  │ │ blocked      │   │ blocked    │    │ gated  │
+└────────────┘   └────────────┘   └────────────┘   ├─────────────┤   ├──────────────────┤  │ └──────────────┘   ├────────────┤    └────────┘
+                                                    │ enclave ▶99%│━━▶│ unit-public ○    │──┤                    │ remote ○   │
+                                                    │ ETA < 10s   │   │ queued default   │  │                    │ telemetry ○│
+                                                    └─────────────┘   ├──────────────────┤  │                    │ e2e ○      │
+                                                                      │ test-local ○     │──┘                    └────────────┘
+                                                                      │ queued default   │
+                                                                      └──────────────────┘
+
+Inspector: build-enclave-server
+Status RUNNING | elapsed 08m12s | ETA <10s | pool build | manager 5a6f67c | queue 1.2s
+Critical path: yes
+Next unlocks: unit-local, unit-public, test-local, int-api
+Actions: [Enter] drill  [l] logs  [e] evidence  [r] retry  [c] cancel  [x] explain  [/] search
+```
+
+The visual priority should be:
+
+1. **Critical path first**: show the one chain controlling release ETA.
+2. **Parallel stacks second**: show concurrent tests as stacked nodes inside their stage.
+3. **Details on demand**: logs, traces, capsules, retry decisions, runner details, and artifacts live in the inspector.
+
+## 2. Default screen zones
+
+### Header: executive summary
+
+Keep the current top bar, but upgrade it into a release cockpit:
+
+```text
+vgit God Mode | GitLab ● ONLINE | Containers 10 | Cache HIT 84% | Runner pressure 5/8
+Release ci-54c658aac9c3 | main | Pipeline #407 RUNNING | 83% | ETA 06m20s p80
+Blocker: build-enclave-server running 99% | Pending: 7 jobs | Failed: 0 | Superseded: 2
+```
+
+Header fields:
+
+| Field           | Meaning                                                                             |
+| --------------- | ----------------------------------------------------------------------------------- |
+| Release version | From `release_attempts.version` or `ci-<sha>` fallback                              |
+| State           | `created`, `running`, `blocked`, `failed`, `canary-authorized`, `released`, `stale` |
+| ETA             | Critical-path estimate, not naive sum                                               |
+| Confidence      | `p50`, `p80`, `p90`, or `low-confidence`                                            |
+| Current blocker | The selected or computed critical-path node preventing next transition              |
+| Runner pressure | Active managers vs. max managers, plus pending queue                                |
+| Cache health    | SmartCache hit ratio and proxy status                                               |
+| Risk            | Risk gate state: allow, deny, escalate                                              |
+
+### Active Runs ribbon
+
+Below the header, show a compact horizontal ribbon of active and recent pipelines:
+
+```text
+[#407 main RUNNING 83% ETA 6m] [#405 main SUPERSEDED] [#403 SUCCESS released] [#400 SUCCESS]
+```
+
+Keyboard:
+
+```text
+[ / ]  previous/next pipeline
+f      follow latest pipeline
+a      show all active refs
+```
+
+The selected pipeline drives the main graph.
+
+### Main FlowGraph area
+
+The center of the TUI should be a scrollable, zoomable graph.
+
+The graph is not free-form. Use deterministic columns:
+
+```text
+Git Ledger → Admission → Pipeline → Build → Unit → Integration → Extended → Research → Release Exec → Canary → Prod
+```
+
+For projects with custom stages, map GitLab stages into these canonical buckets while preserving original stage names in the node labels.
+
+### Right inspector
+
+The right side should always explain the selected thing.
+
+For a **pipeline**, show:
+
+```text
+Pipeline #407
+Ref main
+SHA 54c658aac9c3
+Status running
+Progress 22/31 passed
+ETA 06m20s p80
+Critical path:
+  build-enclave-server
+  integration-api
+  remote-gate
+Blocking remaining:
+  unit-local
+  unit-public
+  integration-api
+Superseded pipelines:
+  #405 canceled
+  #403 preserved
+```
+
+For a **job**, show:
+
+```text
+Job build-enclave-server
+Status running
+Stage build
+Pool build
+Runner manager 5a6f67c
+Queued 1.2s
+Elapsed 08m12s
+Predicted duration p80 08m20s
+ETA <10s
+Trace tail:
+  compiling ...
+  finalizing enclave image ...
+Actions:
+  l logs
+  c cancel
+  r retry after fail
+  e evidence capsule
+  d docker manager logs
+```
+
+For a **failed job**, the inspector should become a failure triage panel:
+
+```text
+Failure Capsule
+Kind: test_failure
+Classification: regression
+Retry recommendation: do_not_retry
+Exit: 101
+Summary: assertion mismatch in parser::roundtrip
+Repro:
+  ./repro-job-12345.sh
+Actions:
+  e open capsule
+  r retry anyway
+  x explain pipeline
+```
+
+For a **release gate**, show remote gate, telemetry gate, e2e gate, secret rotation/finalization, and the production promotion prerequisite.
+
+### Bottom command bar
+
+The footer should be a command bar, not just help text:
+
+```text
+[Tab] panes | [←/→] stage | [↑/↓] parallel node | [Enter] drill | [Esc] back | [/] search | [?] help
+Actions: [l] logs [e] evidence [r] retry [c] cancel [p] play [x] explain [q] quit
+```
+
+## 3. The graph model
+
+Add a dedicated TUI flow module:
+
+```text
+src/tui/flow/
+├── mod.rs
+├── model.rs          # FlowGraph, FlowNode, FlowEdge, status types
+├── builder.rs        # Build FlowGraph from Db + GitLab + release state
+├── eta.rs            # ETA model, critical path, confidence
+├── layout.rs         # Deterministic virtual graph layout
+├── widget.rs         # Ratatui StatefulWidget renderer
+├── inspector.rs      # Right-side selected-node panel
+├── commands.rs       # TUI actions mapped to vgit APIs
+└── palette.rs        # Semantic status styles and glyphs
+```
+
+Core model:
+
+```rust
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FlowNodeId(pub String);
+
+#[derive(Clone, Debug)]
+pub struct FlowGraph {
+    pub project_id: i64,
+    pub ref_name: String,
+    pub sha: String,
+    pub pipeline_id: Option<i64>,
+    pub version: Option<String>,
+    pub generated_at: chrono::DateTime<chrono::Utc>,
+    pub nodes: Vec<FlowNode>,
+    pub edges: Vec<FlowEdge>,
+    pub columns: Vec<FlowColumn>,
+    pub lanes: Vec<FlowLane>,
+    pub critical_path: Vec<FlowNodeId>,
+    pub eta: EtaSummary,
+}
+
+#[derive(Clone, Debug)]
+pub struct FlowNode {
+    pub id: FlowNodeId,
+    pub kind: FlowNodeKind,
+    pub label: String,
+    pub subtitle: String,
+    pub status: FlowStatus,
+    pub lane: FlowLaneKind,
+    pub column: FlowColumnKind,
+    pub progress: Option<Progress>,
+    pub eta: Option<EtaEstimate>,
+    pub started_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub finished_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub project_id: Option<i64>,
+    pub pipeline_id: Option<i64>,
+    pub job_id: Option<i64>,
+    pub pool_name: Option<String>,
+    pub manager_id: Option<String>,
+    pub system_id: Option<String>,
+    pub is_critical_path: bool,
+    pub is_blocker: bool,
+    pub is_group: bool,
+    pub children: Vec<FlowNodeId>,
+    pub metadata: serde_json::Value,
+}
+
+#[derive(Clone, Debug)]
+pub enum FlowNodeKind {
+    GitRef,
+    Admission,
+    ImpactDecision,
+    Supersedence,
+    Pipeline,
+    StageGroup,
+    Job,
+    TestGroup,
+    CacheVerdict,
+    WitnessAttestation,
+    ReleaseAttempt,
+    Canary,
+    RemoteGate,
+    TelemetryGate,
+    E2eGate,
+    SecretRotation,
+    ProductionPromotion,
+}
+
+#[derive(Clone, Debug)]
+pub enum FlowStatus {
+    Unknown,
+    Created,
+    Pending,
+    Queued,
+    Blocked,
+    Running,
+    Success,
+    Failed,
+    Canceled,
+    Skipped,
+    Manual,
+    Retrying,
+    Superseded,
+    Quarantined,
+    Stale,
+    Released,
+}
+
+#[derive(Clone, Debug)]
+pub struct FlowEdge {
+    pub from: FlowNodeId,
+    pub to: FlowNodeId,
+    pub kind: FlowEdgeKind,
+    pub is_critical_path: bool,
+}
+
+#[derive(Clone, Debug)]
+pub enum FlowEdgeKind {
+    Sequential,
+    Unlocks,
+    Needs,
+    Supersedes,
+    ReleaseGate,
+    RetryOf,
+}
+```
+
+## 4. Canonical columns and lanes
+
+### Columns
+
+Use these canonical columns for left-to-right readability:
+
+| Column       | Source                                                   |
+| ------------ | -------------------------------------------------------- |
+| Git Ledger   | `tracked_pipelines`, push events, ref, SHA               |
+| Admission    | admission hook events, impact analysis, supersedence     |
+| Pipeline     | GitLab pipeline status                                   |
+| Build        | jobs with build/package/compile/docker/enclave semantics |
+| Unit         | unit test jobs                                           |
+| Integration  | integration/e2e/API/system test jobs                     |
+| Extended     | non-blocking extended validation                         |
+| Research     | experimental or non-blocking research jobs               |
+| Release Exec | release-execution lane jobs                              |
+| Canary       | `release_attempts.canary_status`                         |
+| Gates        | remote, telemetry, e2e, artifact contract                |
+| Prod         | production promotion, secret finalization                |
+
+### Lanes
+
+Use vertical lanes so the graph remains CEO-readable:
+
+```text
+release-critical
+unit
+integration
+extended
+research
+release-execution
+infra/cache
+```
+
+A stage can contain many jobs. The stage column shows either individual jobs or grouped summaries depending on zoom level.
+
+Collapsed group:
+
+```text
+┌ Unit Tests ───────────┐
+│ ✓ 42  ▶ 3  ○ 11       │
+│ ETA 04m12s | p80      │
+└───────────────────────┘
+```
+
+Expanded group:
+
+```text
+┌ unit-parser ✓ 00:31 ┐
+┌ unit-api    ▶ 72%   │ ETA 01m05s
+┌ unit-db     ○ queue │ default pool
+┌ unit-cache  ○ block │ waits build-api
+```
+
+## 5. Status language
+
+Use consistent status glyphs and labels. Color helps, but every node must also be readable without color.
+
+| Status      |         Glyph | Label      | Meaning                         |
+| ----------- | ------------: | ---------- | ------------------------------- |
+| Success     |           `✓` | passed     | Complete and non-blocking       |
+| Running     | `▶` / spinner | running    | Actively executing              |
+| Pending     |           `○` | pending    | Created but not started         |
+| Queued      |           `…` | queued     | Waiting for runner              |
+| Blocked     |           `⧖` | blocked    | Waiting for upstream dependency |
+| Failed      |           `✕` | failed     | Blocking failure                |
+| Canceled    |           `⊘` | canceled   | Intentionally canceled          |
+| Superseded  |           `↯` | superseded | Canceled by newer SHA           |
+| Manual      |           `▷` | manual     | Needs play/approval             |
+| Retrying    |           `↻` | retrying   | Auto/manual retry in progress   |
+| Quarantined |           `☣` | quarantine | Honeypot or sandbox quarantine  |
+| Released    |           `◆` | released   | Release complete                |
+
+Critical path edges should use a heavier line:
+
+```text
+normal:       ───▶
+critical:     ━━━▶
+blocked:      ┄┄┄▶
+superseded:   ╌╌╌▶
+```
+
+## 6. ETA: compute the critical path, not a naive average
+
+The ETA should be based on **remaining critical path duration**. Never sum all parallel jobs. For a stage with parallel jobs, the stage ETA is the longest remaining job in that stage. For a DAG with dependencies, compute the longest remaining path.
+
+### ETA inputs
+
+Use these sources:
+
+| Data                     | Source                                            |
+| ------------------------ | ------------------------------------------------- |
+| Active job status        | `GitlabClient::list_pipeline_jobs()`              |
+| Job queue duration       | `job_events.queued_duration`, GitLab job metadata |
+| Job state timestamps     | `job_events.received_at`, GitLab job timestamps   |
+| Historical test duration | `test_executions`, past pipeline jobs             |
+| Failure classification   | `evidence_capsules`, `retry_decisions`            |
+| Runner pressure          | `pools`, `managers`, pending job count            |
+| Release gate duration    | `release_attempts` history                        |
+| Cache pressure           | `cache_requests`, `cache_metrics`                 |
+
+### ETA model
+
+Implement:
+
+```rust
+#[derive(Clone, Debug)]
+pub struct EtaEstimate {
+    pub remaining: std::time::Duration,
+    pub expected_finish_at: chrono::DateTime<chrono::Utc>,
+    pub confidence: EtaConfidence,
+    pub basis: EtaBasis,
+}
+
+#[derive(Clone, Debug)]
+pub enum EtaConfidence {
+    High,
+    Medium,
+    Low,
+    Unknown,
+}
+
+#[derive(Clone, Debug)]
+pub enum EtaBasis {
+    HistoricalSamples { p50_ms: i64, p80_ms: i64, p90_ms: i64, samples: usize },
+    RunningElapsed { elapsed_ms: i64 },
+    QueueOnly { queue_p80_ms: i64 },
+    DefaultByStage { stage: String },
+    Unknown,
+}
+```
+
+Per-job estimate:
+
+```text
+running remaining =
+  max(predicted_runtime_p80 - elapsed_runtime, minimum_visible_remaining)
+
+pending/queued remaining =
+  predicted_queue_p80(pool, tags) + predicted_runtime_p80(job_name, stage)
+
+blocked remaining =
+  max(predecessor remaining) + predicted_runtime_p80(job)
+
+manual remaining =
+  unknown unless configured; display "manual gate"
+```
+
+Pipeline ETA:
+
+```text
+ETA = longest remaining path from current incomplete nodes to terminal release node
+```
+
+Pseudo-code:
+
+```rust
+pub fn compute_critical_path(graph: &FlowGraph) -> CriticalPathResult {
+    let order = topo_sort(&graph.nodes, &graph.edges);
+
+    let mut finish: HashMap<FlowNodeId, Duration> = HashMap::new();
+    let mut previous: HashMap<FlowNodeId, FlowNodeId> = HashMap::new();
+
+    for node in order {
+        let own = remaining_duration(node);
+        let best_pred = predecessors(node)
+            .map(|p| finish.get(&p.id).copied().unwrap_or_default())
+            .max()
+            .unwrap_or_default();
+
+        finish.insert(node.id.clone(), best_pred + own);
+
+        if let Some(pred) = predecessor_with_max_finish(node) {
+            previous.insert(node.id.clone(), pred.id.clone());
+        }
+    }
+
+    let terminal = finish.iter().max_by_key(|(_, d)| *d).map(|(id, _)| id.clone());
+    backtrack_path(terminal, previous)
+}
+```
+
+Display ETA with honesty:
+
+```text
+ETA 06m20s p80          enough samples
+ETA ~08m low confidence few samples
+ETA manual gate         human action required
+ETA unknown             missing timestamps or no historical data
+```
+
+### Current blocker
+
+A node is the current blocker when:
+
+1. It is incomplete.
+2. It lies on the critical path.
+3. All predecessors are complete, or it is the first incomplete dependency.
+4. It controls the earliest next flow transition.
+
+Examples:
+
+```text
+build-enclave-server running 99%
+unit-public queued: waiting for default pool
+remote-gate blocked: canary not launched
+prod-promotion manual: canary not fully passed
+```
+
+## 7. Rust TUI technology choice
+
+Keep the stack as **Ratatui + Crossterm + Tokio**, and do not introduce a large UI framework. Ratatui is a strong fit because it is immediate-mode: each frame rebuilds the widgets from app state, and the application owns input handling and event/state updates. ([Ratatui][1]) Ratatui already provides the core widgets needed for this design, including tables, gauges, charts, lists, progress-style visualizations, and constraint-based dynamic layout. ([Ratatui][2])
+
+Use **Crossterm** for keyboard, mouse, resize, raw mode, and alternate-screen terminal control. Its event module supports keyboard, mouse, and resize events, and its docs explicitly warn against reading events from multiple threads or mixing `read`/`poll` with `EventStream`, so the TUI should have exactly one input reader. ([Docs.rs][3])
+
+Use **Tokio** for the async event loop and data refresh tasks. `tokio::select!` is appropriate for waiting on multiple concurrent branches, such as input events, ticks, snapshot updates, action responses, and shutdown signals; blocking work should stay out of those branches because the futures run concurrently on the current task, not in parallel. ([Docs.rs][4])
+
+Use Ratatui’s **Canvas** only for optional mini-maps or high-level sparkline-style flow previews. The primary graph should be a custom `StatefulWidget` drawing directly into the `Buffer`, because crisp node boxes, labels, edge elbows, selection borders, and keyboard navigation are easier to control cell-by-cell. Ratatui Canvas can draw lines, rectangles, points, labels, and custom shapes, but its Braille/default marker behavior is better suited to shape drawing than dense job cards. ([Docs.rs][5])
+
+## 8. Rendering architecture
+
+### Main app state
+
+Extend the existing `App`:
+
+```rust
+pub struct App {
+    pub active_tab: Tab,
+    pub mode: TuiMode,
+    pub snapshot: TuiStateSnapshot,
+    pub flow: FlowViewState,
+    pub inspector: InspectorState,
+    pub command: CommandState,
+    pub should_quit: bool,
+}
+
+pub enum Tab {
+    Flow,
+    Dashboard,
+    Storage,
+    Cache,
+    Logs,
+}
+
+pub struct FlowViewState {
+    pub selected_pipeline_id: Option<i64>,
+    pub follow_latest: bool,
+    pub graph: Option<FlowGraph>,
+    pub viewport: Viewport,
+    pub selected_node: Option<FlowNodeId>,
+    pub expanded_nodes: std::collections::HashSet<FlowNodeId>,
+    pub zoom: FlowZoom,
+    pub show_critical_path_only: bool,
+    pub show_non_blocking: bool,
+    pub search_query: Option<String>,
+}
+
+pub enum FlowZoom {
+    Executive, // group jobs by stage
+    Stage,     // show active stage expanded
+    Job,       // show all visible jobs
+    Dense,     // compact labels
+}
+```
+
+### Snapshot
+
+Extend `TuiStateSnapshot`:
+
+```rust
+pub struct TuiStateSnapshot {
+    pub generated_at: chrono::DateTime<chrono::Utc>,
+
+    pub gitlab_online: bool,
+    pub containers_count: usize,
+
+    pub pools: Vec<PoolView>,
+    pub managers: Vec<ManagerView>,
+
+    pub active_pipelines: Vec<PipelineRunView>,
+    pub selected_pipeline: Option<PipelineRunView>,
+    pub recent_pipelines: Vec<PipelineRunView>,
+
+    pub release: Option<ReleaseFlowView>,
+    pub cache: CacheSummaryView,
+
+    pub pending_jobs: Vec<JobView>,
+    pub running_jobs: Vec<JobView>,
+    pub failed_jobs: Vec<JobView>,
+
+    pub flow_graph: Option<FlowGraph>,
+}
+```
+
+### Event loop
+
+Use one input task and one app loop:
+
+```rust
+pub enum TuiEvent {
+    Tick,
+    RenderTick,
+    Input(crossterm::event::Event),
+    Snapshot(TuiStateSnapshot),
+    ActionResult(ActionResult),
+    LogTail(LogTailUpdate),
+    Shutdown,
+}
+```
+
+The loop shape:
+
+```rust
+loop {
+    tokio::select! {
+        _ = render_tick.tick() => {
+            app.on_event(TuiEvent::RenderTick)?;
+            terminal.draw(|f| ui::render(f, &mut app))?;
+        }
+
+        _ = data_tick.tick() => {
+            snapshot_tx.send(fetch_snapshot_request()).await?;
+        }
+
+        Some(snapshot) = snapshot_rx.recv() => {
+            app.on_event(TuiEvent::Snapshot(snapshot))?;
+        }
+
+        Some(input) = input_rx.recv() => {
+            app.on_event(TuiEvent::Input(input))?;
+        }
+
+        Some(result) = action_rx.recv() => {
+            app.on_event(TuiEvent::ActionResult(result))?;
+        }
+
+        _ = shutdown.cancelled() => break,
+    }
+}
+```
+
+Render at a capped cadence, such as 10 FPS, while data refreshes at slower intervals. The running spinner can tick every 100 ms without forcing expensive GitLab calls.
+
+## 9. FlowGraph layout algorithm
+
+Use a **virtual canvas** larger than the terminal. The viewport pans over it.
+
+```rust
+pub struct VirtualRect {
+    pub x: i32,
+    pub y: i32,
+    pub width: u16,
+    pub height: u16,
+}
+
+pub struct FlowLayout {
+    pub node_rects: HashMap<FlowNodeId, VirtualRect>,
+    pub edge_paths: Vec<RoutedEdge>,
+    pub total_width: i32,
+    pub total_height: i32,
+}
+```
+
+### Column placement
+
+```text
+x = left_margin + column_index * (column_width + column_gap)
+column_width:
+  Executive zoom: 22
+  Stage zoom:     26
+  Job zoom:       30
+  Dense zoom:     16
+```
+
+### Lane placement
+
+```text
+lane_y_start = header_offset + lane_index * lane_height
+lane_height = max(visible_nodes_in_lane * node_height, minimum_lane_height)
+```
+
+Parallel jobs in the same column/lane stack vertically:
+
+```text
+Build column:
+  build-api
+  build-enclave-server
+  package-image
+
+Unit column:
+  unit-local
+  unit-public
+  unit-parser
+  unit-cache
+```
+
+### Grouping rule
+
+When a column has too many nodes to fit:
+
+```text
+visible_count > available_rows / node_height
+```
+
+collapse into a group node:
+
+```rust
+FlowNodeKind::StageGroup {
+    children: Vec<FlowNodeId>,
+}
+```
+
+Auto-expand rules:
+
+1. Always expand the critical-path stage.
+2. Always expand a failed stage.
+3. Always expand the selected stage.
+4. Collapse non-blocking stages in Executive zoom.
+
+### Edge routing
+
+Draw edges before nodes. Use elbow routes:
+
+```text
+source right center → horizontal → vertical lane join → horizontal → target left center
+```
+
+Route critical-path edges last or with heavier glyphs so they dominate.
+
+Edge glyphs:
+
+```rust
+pub struct EdgeGlyphSet {
+    pub horizontal: char,      // ─ or ━
+    pub vertical: char,        // │ or ┃
+    pub tee_right: char,       // ├
+    pub tee_left: char,        // ┤
+    pub corner_down: char,     // ╭
+    pub corner_up: char,       // ╰
+    pub arrow: char,           // ▶
+}
+```
+
+Provide ASCII fallback:
+
+```text
+-->, |, +, *
+```
+
+## 10. Node rendering
+
+Each node should have a compact card shape.
+
+### Job node
+
+```text
+┌▶ enclave 99%────┐
+│ ETA <10s        │
+│ build | q 1.2s  │
+└─────────────────┘
+```
+
+### Pending job
+
+```text
+┌○ unit-local─────┐
+│ queued default  │
+│ ETA 02m40s      │
+└─────────────────┘
+```
+
+### Failed job
+
+```text
+┌✕ parser-test────┐
+│ regression      │
+│ no retry        │
+└─────────────────┘
+```
+
+### Release gate
+
+```text
+┌⧖ remote gate────┐
+│ waits canary    │
+│ ETA blocked     │
+└─────────────────┘
+```
+
+### Group node
+
+```text
+╔ Unit Tests ═════╗
+║ ✓42 ▶3 ○11     ║
+║ ETA 04m12s     ║
+╚ press Enter ═══╝
+```
+
+## 11. Interaction model
+
+### Navigation
+
+| Key              | Action                                              |
+| ---------------- | --------------------------------------------------- |
+| `←` / `→`        | Move to previous/next stage column                  |
+| `↑` / `↓`        | Move within parallel stack                          |
+| `h` / `l`        | Pan graph left/right                                |
+| `j` / `k`        | Pan graph down/up                                   |
+| `Tab`            | Cycle graph → inspector → active runs → command bar |
+| `Enter`          | Drill into selected node                            |
+| `Esc`            | Back out one drill level                            |
+| `[` / `]`        | Previous/next active pipeline                       |
+| `f`              | Follow latest pipeline                              |
+| `z`              | Cycle zoom: Executive → Stage → Job → Dense         |
+| `.`              | Jump to current blocker                             |
+| `c` then confirm | Cancel selected job or pipeline                     |
+| `r`              | Retry selected failed job                           |
+| `p`              | Play selected manual job                            |
+| `l`              | Open log view for selected job                      |
+| `e`              | Open evidence capsule                               |
+| `x`              | Pipeline explain / job explain                      |
+| `/`              | Search jobs, stages, refs, SHAs                     |
+| `?`              | Help overlay                                        |
+| `q`              | Quit                                                |
+
+### Mouse
+
+Enable mouse capture for terminals that support it:
+
+| Mouse action           | Behavior                         |
+| ---------------------- | -------------------------------- |
+| Click node             | Select node                      |
+| Double click node      | Drill down                       |
+| Scroll main graph      | Pan vertically                   |
+| Shift-scroll           | Pan horizontally                 |
+| Click active run       | Switch selected pipeline         |
+| Click inspector action | Trigger action with confirmation |
+
+### Drill levels
+
+Use a stack:
+
+```rust
+pub enum DrillTarget {
+    Pipeline(i64),
+    Stage { stage: String },
+    Job { project_id: i64, job_id: i64 },
+    Evidence { project_id: i64, job_id: i64 },
+    ReleaseAttempt { id: i64 },
+    RunnerManager { manager_id: String },
+}
+```
+
+Drilldown path example:
+
+```text
+Pipeline #407
+  → Build stage
+    → build-enclave-server
+      → trace tail
+      → failure capsule
+      → runner manager logs
+```
+
+## 12. Data builder
+
+Create `FlowGraphBuilder`.
+
+```rust
+pub struct FlowGraphBuilder<'a> {
+    pub db: &'a state::Db,
+    pub gitlab: &'a GitlabClient,
+    pub project_id: i64,
+    pub ref_name: String,
+    pub selected_pipeline_id: Option<i64>,
+}
+
+impl<'a> FlowGraphBuilder<'a> {
+    pub async fn build(&self) -> anyhow::Result<FlowGraph> {
+        // 1. Load selected/latest pipeline
+        // 2. Load jobs from GitLab
+        // 3. Load job events from SQLite
+        // 4. Load release attempt
+        // 5. Load evidence/retry records
+        // 6. Load impact/supersedence/admission events
+        // 7. Build canonical nodes/edges
+        // 8. Compute ETA and critical path
+        // 9. Return immutable FlowGraph
+    }
+}
+```
+
+### Data refresh cadence
+
+| Data                         |                                    Cadence |
+| ---------------------------- | -----------------------------------------: |
+| DB pools/managers/job events |                                         1s |
+| Active pipelines             |                                         2s |
+| Selected pipeline jobs       |              2s while active, 5s when idle |
+| GitLab traces                | only selected job, 2s while log panel open |
+| Docker manager logs          |              only selected manager/job, 3s |
+| Cache metrics                |                                         5s |
+| Release status               |                                         5s |
+| Historical ETA model         |                  30s or on pipeline finish |
+
+Do not fetch every trace for every job. Only fetch traces on selection or failed jobs.
+
+## 13. How to infer lanes
+
+Implement a classifier:
+
+```rust
+pub fn classify_job_lane(job: &JobView) -> FlowLaneKind {
+    let name = job.name.to_lowercase();
+    let stage = job.stage.to_lowercase();
+    let tags = job.tags.join(",").to_lowercase();
+
+    if stage.contains("release") || name.contains("canary") || name.contains("promote") {
+        return FlowLaneKind::ReleaseExecution;
+    }
+
+    if name.contains("research") || tags.contains("research") {
+        return FlowLaneKind::Research;
+    }
+
+    if name.contains("extended") || tags.contains("extended") {
+        return FlowLaneKind::Extended;
+    }
+
+    if name.contains("integration") || name.contains("e2e") || name.contains("api") {
+        return FlowLaneKind::Integration;
+    }
+
+    if name.contains("unit") || name.contains("test") {
+        return FlowLaneKind::Unit;
+    }
+
+    if name.contains("build") || name.contains("compile") || name.contains("docker") || name.contains("enclave") {
+        return FlowLaneKind::ReleaseCritical;
+    }
+
+    FlowLaneKind::ReleaseCritical
+}
+```
+
+Use the release schema when available. Classifier fallback should only be used when schema metadata is absent.
+
+## 14. “What is pending?” panel
+
+Add a right-inspector subpanel called **Pending Queue**.
+
+Group pending items by reason:
+
+```text
+Pending Queue
+Waiting for runner
+  ○ unit-local       default pool | q 00:42 | ETA 02m
+  ○ unit-public      default pool | q 00:41 | ETA 03m
+
+Blocked by build-enclave-server
+  ⧖ integration-api
+  ⧖ remote-gate
+
+Manual
+  ▷ promote-prod     requires canary gates
+
+Superseded
+  ↯ pipeline #405    canceled by #407
+```
+
+Pending categories:
+
+```rust
+pub enum PendingReason {
+    WaitingForRunner { pool: Option<String>, queued_for: Duration },
+    BlockedByDependency { dependency: FlowNodeId },
+    ManualAction,
+    ReleaseGate,
+    RetryBackoff,
+    Superseded,
+    Unknown,
+}
+```
+
+This panel is the answer to “what are we waiting on?”
+
+## 15. “Where are we?” markers
+
+Use three persistent markers:
+
+### Global marker
+
+In the header:
+
+```text
+Current phase: Build
+```
+
+### Graph marker
+
+Above the active critical-path node:
+
+```text
+          YOU ARE HERE
+               │
+               ▼
+        ┌▶ enclave 99%────┐
+```
+
+### Footer marker
+
+In the command bar:
+
+```text
+Selected: build-enclave-server | Current blocker | Critical path | ETA <10s
+```
+
+## 16. Actions mapped to existing API
+
+The TUI should call internal Rust functions, not shell out to the CLI.
+
+| UI action         | Internal API                                             |
+| ----------------- | -------------------------------------------------------- |
+| Retry job         | `GitlabClient::retry_job(project_id, job_id)`            |
+| Cancel job        | `GitlabClient::cancel_job(project_id, job_id)`           |
+| Play manual job   | `GitlabClient::play_job(project_id, job_id)`             |
+| Cancel pipeline   | `GitlabClient::cancel_pipeline(project_id, pipeline_id)` |
+| Job logs          | `GitlabClient::job_trace(project_id, job_id)`            |
+| Failure capsule   | `Db::latest_evidence_for_job(project_id, job_id)`        |
+| Pipeline explain  | existing `explain.rs` logic                              |
+| Pipeline doctor   | existing pipeline doctor logic                           |
+| Release status    | `release::status` logic                                  |
+| Promote prod      | `release::promote_prod` logic, with confirmation         |
+| Pool pause/resume | pool manager functions                                   |
+| Runner logs       | `DockerClient::manager_logs(manager_id, lines)`          |
+
+Destructive actions should require confirmation:
+
+```text
+Cancel job build-enclave-server? press c again to confirm, Esc to abort.
+```
+
+Production promotion should require a stronger confirmation:
+
+```text
+Promote ci-54c658aac9c3 to production? type promote to confirm.
+```
+
+## 17. Inspector-driven log view
+
+When pressing `l`, replace the inspector with a log tail panel. Do not leave the graph.
+
+```text
+Logs: build-enclave-server
+────────────────────────────────────────
+$ cargo build --release
+Compiling ...
+warning: ...
+Finished release [optimized] target(s) in 8m 20s
+────────────────────────────────────────
+[l] close logs | [f] follow | [/] search trace | [e] evidence
+```
+
+Use `ansi-to-tui` to preserve colored traces, since it is already in your dependency map.
+
+## 18. Pipeline explain overlay
+
+Pressing `x` should produce a modal overlay:
+
+```text
+Pipeline Explain #407
+────────────────────────────────────────
+Release-critical
+  passed: 8/11
+  running: build-enclave-server
+  pending: integration-api, remote-gate
+
+Blocking
+  build-enclave-server controls critical path
+  integration-api waits on build-enclave-server
+  canary blocked until release-critical lane passes
+
+Non-blocking
+  research-fuzz failed, non-blocking
+  extended-docs pending, non-blocking
+
+Recommendation
+  No human action yet. Wait for build-enclave-server.
+```
+
+This should be powered by existing `pipeline explain` and `pipeline doctor` logic, but presented as a TUI overlay.
+
+## 19. Responsive behavior
+
+The TUI should be excellent in large terminals and still useful in small terminals.
+
+| Terminal size | Behavior                                               |
+| ------------- | ------------------------------------------------------ |
+| `>= 180x50`   | Full graph + inspector + active runs                   |
+| `120x40`      | Full graph, narrower inspector                         |
+| `100x32`      | Executive zoom, grouped stages                         |
+| `< 90x28`     | List mode: active runs + critical path + pending queue |
+| `< 70x24`     | Minimal mode: header, current blocker, pending list    |
+
+Compact list mode:
+
+```text
+Pipeline #407 main 54c658 RUNNING ETA 6m20s
+Critical path:
+  ▶ build-enclave-server 99% ETA <10s
+  ○ integration-api blocked
+  ○ remote-gate blocked
+  ○ canary blocked
+Pending:
+  3 queued default pool
+  4 blocked by build
+```
+
+## 20. Performance constraints
+
+The renderer must not degrade under large pipelines.
+
+Rules:
+
+```text
+Only render visible nodes.
+Only route visible edges.
+Never fetch all logs.
+Never re-layout if graph topology did not change.
+Use stable node IDs so selection survives refresh.
+Debounce GitLab refreshes.
+Cap rendering at 10 FPS.
+Cap data snapshots at 1–2 FPS.
+```
+
+Store layout cache:
+
+```rust
+pub struct FlowLayoutCache {
+    pub graph_fingerprint: String,
+    pub zoom: FlowZoom,
+    pub terminal_size: (u16, u16),
+    pub layout: FlowLayout,
+}
+```
+
+Graph fingerprint:
+
+```text
+pipeline_id + sha + job_id/status/version list hash
+```
+
+## 21. New CLI flags
+
+Extend `vgit tui`:
+
+```bash
+vgit tui
+vgit tui --view flow
+vgit tui --view flow --project-id 2 --ref-name main
+vgit tui --view flow --pipeline-id 407
+vgit tui --view flow --once
+vgit tui --view flow --ascii
+vgit tui --view flow --no-mouse
+```
+
+Defaults:
+
+```text
+--view flow
+--project-id 2
+--ref-name main
+--follow-latest true
+```
+
+## 22. Acceptance criteria
+
+The implementation is done when these are true:
+
+1. Opening `vgit tui` defaults to the Flow view.
+2. The latest active pipeline is selected automatically.
+3. The graph shows Git → admission → pipeline → stage/test → release gates left-to-right.
+4. Parallel jobs in the same stage are stacked vertically.
+5. The active critical path is highlighted.
+6. Header shows release version, phase, ETA, confidence, and current blocker.
+7. Pending jobs are grouped by reason.
+8. Selecting a node updates the inspector.
+9. `Enter` drills into stages/jobs/release gates.
+10. `l`, `e`, `r`, `c`, `p`, and `x` perform the expected job/pipeline actions.
+11. `--once` renders a deterministic frame for CI smoke tests.
+12. Small terminals fall back to critical-path list mode.
+13. No background task fetches traces for unselected successful jobs.
+14. Pipeline supersedence is visible.
+15. Release canary and production gates are visible in the same flow.
+
+## 23. Build sequence for an agent
+
+Implement in this order:
+
+```text
+Phase 1 — Data model
+  Add src/tui/flow/model.rs
+  Add FlowGraphBuilder skeleton
+  Build graph from selected pipeline + jobs
+  Add fake/sample graph tests
+
+Phase 2 — Rendering
+  Add FlowWidget as StatefulWidget
+  Render columns, lanes, nodes, edges
+  Add viewport and selection
+  Add Executive/Stage/Job zoom
+
+Phase 3 — ETA
+  Add eta.rs
+  Compute per-node remaining duration
+  Compute critical path
+  Add current blocker detection
+
+Phase 4 — Inspector
+  Add pipeline/job/release inspectors
+  Add pending queue panel
+  Add log tail panel
+
+Phase 5 — Actions
+  Wire retry/cancel/play/explain/evidence
+  Add confirmation prompts
+  Add action result notifications
+
+Phase 6 — Polish
+  Add active-runs ribbon
+  Add search
+  Add mouse
+  Add ASCII fallback
+  Add compact layout
+
+Phase 7 — Tests
+  Unit-test graph building
+  Unit-test lane classification
+  Unit-test ETA/critical path
+  Snapshot-test --once output
+```
+
+The big design principle: **the TUI should feel less like monitoring and more like air-traffic control for software delivery.** One glance gives the release state. One key jumps to the blocker. One drilldown explains the cause. One action resolves it.
+
+[1]: https://ratatui.rs/templates/component/ "Component Template | Ratatui"
+[2]: https://ratatui.rs/ "Ratatui | Ratatui"
+[3]: https://docs.rs/crossterm/latest/crossterm/event/index.html "crossterm::event - Rust"
+[4]: https://docs.rs/tokio/latest/tokio/macro.select.html?utm_source=chatgpt.com "select in tokio - Rust"
+[5]: https://docs.rs/ratatui/latest/ratatui/widgets/canvas/index.html "ratatui::widgets::canvas - Rust"
+

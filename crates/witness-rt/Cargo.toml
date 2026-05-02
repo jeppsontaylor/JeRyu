@@ -1,0 +1,38 @@
+[package]
+name = "witness-rt"
+version.workspace = true
+edition = "2024"
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Runtime repair packets for agent-native Rust"
+
+[dependencies]
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[package.metadata.agent]
+purpose = "Runtime repair packet library: panic hooks, structured failure envelopes, agent-friendly error macros"
+owned_paths = ["src/**", "tests/**"]
+entrypoints = ["install_panic_hook", "agent_ensure", "agent_bail", "agent_expect"]
+invariants = [
+  "Repair packets always include source location",
+  "Panic hook never panics itself",
+  "Runtime repair packets keep a deliberately small dependency surface",
+]
+local_validate = [
+  "cargo check -p witness-rt",
+  "cargo test -p witness-rt",
+  "cargo test -p witness-rt --doc",
+]
+boundary_validate = [
+  "cargo nextest run -E 'rdeps(witness-rt)' --ignore-default-filter",
+]
+public_api = true
+risk = "medium"
+exceptions = [
+    "public-api-no-semver-gate.witness-rt",
+    "mega-function.emit_repair_packet"
+]
+

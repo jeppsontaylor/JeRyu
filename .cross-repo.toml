@@ -1,0 +1,24 @@
+# Cross-Repo Contract — JeRyu (Consumer Side)
+#
+# This file documents the boundary between JeRyu (CI/CD control plane) and
+# dougx (product). JeRyu reads but never writes the shared surfaces listed
+# below.
+
+[boundary]
+ci_meaning_owner = "dougx"          # apps/veox-testctl/src/ci.rs
+ci_execution_owner = "JeRyu"     # src/engine.rs, src/release.rs
+testmap_owner = "dougx"             # .vgit/testmap.toml
+testmap_consumer = "JeRyu"       # src/test_intel/
+
+[contracts]
+# These surfaces are owned by dougx. JeRyu reads them but never modifies them.
+consumed_surfaces = [
+    "CI lane semantics      ← dougx/apps/veox-testctl/src/ci.rs",
+    "Release evidence schema ← dougx/ops/releases/<version>/",
+    "VTI subsystem map       ← dougx/.vgit/testmap.toml",
+]
+
+[validation]
+# If the consumed surface schema changes in dougx, run these locally:
+local_check = "cargo check -p vgit --message-format=json"
+local_vti_tests = "cargo test -p vgit -- test_intel"

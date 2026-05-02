@@ -1,0 +1,1242 @@
+I reviewed only the **current API and TUI surfaces** this time: `docs/API.md`, `docs/VGIT_TUI.md`, `src/cli.rs`, `src/capability.rs`, `src/tui/*`, and the flow/action-registry modules. I could not clone via `git` from the container because DNS resolution for GitHub failed, so I used the live raw repo files and downloaded the relevant API/TUI source snapshot. I did **not** run `cargo check` or the test suite.
+
+## Executive verdict
+
+The current TUI is already aiming at the right thing: it is not just “CI logs in a terminal.” It has jobs, agents, tests, pools, cache, evidence, secrets, release, and mission views. The API also has the right instincts: a CLI surface, webhook surface, capability API, action registry, release API, secrets API, state API, and GitLab integration. The documented API surface is broad and includes CLI, TUI, webhook HTTP, Unix-socket capability API, Git server hooks, a custom executor, state/settings APIs, GitLab REST client, release, and secrets APIs. ([GitHub][1])
+
+But the current UX still feels like a **status dashboard assembled from many subsystems**, not yet a **world-class real-time mission-control interface for agents**. The biggest missing piece is a single API-backed, causal, explainable TUI data model: one that can say what is happening, why it is happening, what changed, what is blocked, what the agent should do next, and what the human can safely approve.
+
+My strongest recommendation: redesign the TUI and API around **entities, causal events, and actions**, not around tabs full of local polling data.
+
+---
+
+# What the current TUI/API already does well
+
+## 1. The current TUI has the right high-level categories
+
+The TUI currently exposes nine tabs: **Mission, Release, Jobs, Agents, Tests, Pools, Cache, Evidence, and Secrets**. The default tab is Jobs, and the Jobs view combines release status, a flow board, live jobs, logs, and an inspector-style side pane. ([GitHub][2])
+
+That set of tabs is much better than a normal CI dashboard. It recognizes that agent-first Git needs visibility into agents, cache, proof, release, secrets, and operational state.
+
+## 2. It has real background refresh behavior
+
+The TUI already has background workers. The docs describe a 250 ms event loop, general/flow refresh around 1500 ms, log polling around 650 ms, anti-blanking behavior, and no WebSocket stream today. ([GitHub][2])
+
+That is a good start. It means the TUI is alive, not static. The next step is moving from polling snapshots to an event stream.
+
+## 3. The flow model has strong raw material
+
+The flow model has useful concepts: pipeline flows, columns, nodes, edges, lane kinds, critical path, ETA, progress percentage, release state, pools, containers, and cache metrics. The builder classifies jobs into columns such as admission, impact, build, tests, security, package, release gates, canary, and production, then computes stage-order edges and a critical path. ([GitHub][3])
+
+That is exactly the kind of abstraction a world-class TUI needs. The problem is that it is currently too heuristic and not yet causal enough.
+
+## 4. The visual vocabulary is emerging
+
+The flow widget already uses status icons, lane grouping, status colors, selected-node styling, and critical-path badges. ([GitHub][4])
+
+This is good. The TUI should absolutely become more visual. Terminal UIs can be beautiful when they use columns, badges, gauges, sparklines, heatmaps, timelines, and strong semantic color.
+
+## 5. The action registry is the right foundation
+
+The API docs describe an action registry with actions such as `open_logs`, `retry_job`, `delete_record`, `pause_pool`, `explain_blockers`, `get_system_snapshot`, `propose_patch`, `race_patches`, `request_merge`, `plan_validation`, `run_tests`, `next_action`, tab switching, audit toggling, and quit. ([GitHub][1])
+
+This is extremely important. A great TUI should not have hardcoded random keybindings. It should be driven by an action registry with preflight, risk, required grants, and undo/rollback metadata.
+
+---
+
+# The biggest things missing
+
+## 1. There is no single canonical TUI API model
+
+Right now, the TUI appears to assemble its own state from GitLab, local DB state, Docker/pool state, release state, cache state, evidence state, and secret audit events. That makes the TUI powerful, but also messy.
+
+A world-class TUI needs one canonical API object:
+
+```text
+TuiSnapshot
+├── project / repo / ref / sha
+├── freshness / source health
+├── mission summary
+├── active agents
+├── active intents
+├── active pipelines
+├── causal flow graph
+├── release gates
+├── evidence capsules
+├── cache / taint / reuse state
+├── secret lease state
+├── blockers
+├── next recommended actions
+└── available contextual actions
+```
+
+The TUI should render this object. Agents should be able to query the same object. Humans and agents should see the same world.
+
+## 2. The TUI is tab-centric, not entity-centric
+
+The current tabs are useful, but the mental model should be:
+
+```text
+Everything is an entity.
+Every entity has status, evidence, blockers, actions, and explanation.
+```
+
+Entities should include:
+
+```text
+Agent
+Intent
+Patch
+Branch
+Pipeline
+Job
+Proof
+Evidence capsule
+Cache object
+Secret lease
+Release gate
+Merge decision
+Race candidate
+Human approval
+```
+
+The current UI makes the user jump between tabs. A better UI lets the user select any entity and always see the same universal inspector:
+
+```text
+What is this?
+Why does it exist?
+What changed?
+What is blocked?
+What evidence supports it?
+What can I do now?
+What can the agent do now?
+What is risky?
+```
+
+## 3. The flow graph is not yet an actual causal graph
+
+The flow builder currently classifies jobs using job-name and stage-name heuristics. That is useful for a prototype, but a world-class TUI should not infer meaning from names like `test`, `lint`, `security`, or `deploy`. The graph should come from actual API/evidence data:
+
+```text
+Intent → Admission → Impact Plan → Proof Plan → Job → Evidence → Policy Gate → Merge Decision → Release Gate
+```
+
+The current widget has a nice column layout, but the graph should visually show actual edges, dependency reasons, critical path, skipped nodes, reused evidence, tainted cache, flaky tests, superseded jobs, and human gates.
+
+## 4. Real-time insight is polling-based
+
+The current docs say there is no WebSocket stream and that background workers refresh on intervals. ([GitHub][2])
+
+That is okay for early TUI development, but the best version needs event streaming:
+
+```text
+job.status.changed
+job.log.appended
+pipeline.created
+pipeline.superseded
+flow.node.updated
+agent.intent.created
+agent.intent.blocked
+evidence.capsule.created
+cache.hit
+cache.rejected
+secret.lease.created
+release.gate.changed
+action.preflight.completed
+action.executed
+merge.decision.changed
+```
+
+Polling makes the TUI feel like a dashboard. Streaming makes it feel alive.
+
+## 5. The API is too command-shaped, not enough decision-shaped
+
+The API has many useful commands, but the agent and TUI need richer decision objects.
+
+For example, `RequestMerge` is documented as advisory/roadmap-like rather than a fully authoritative merge decision. ([GitHub][1])
+
+The TUI should not have to guess whether a merge is safe. It should receive a typed decision:
+
+```json
+{
+  "decision": "blocked",
+  "reason": "missing_security_proof",
+  "head_sha": "abc123",
+  "required_evidence": ["security/auth", "unit/api"],
+  "satisfied_evidence": ["fmt", "clippy", "unit/core"],
+  "stale_evidence": [],
+  "human_required": true,
+  "safe_actions": ["run_security_auth", "open_evidence"],
+  "unsafe_actions": ["merge"]
+}
+```
+
+## 6. The command palette is not yet the control center
+
+The current action registry is promising, but the TUI should make the command palette the main operator interface.
+
+A world-class palette should be:
+
+```text
+context-aware
+searchable
+risk-aware
+grant-aware
+preflighted
+undo-aware
+explainable
+```
+
+When the user highlights a failed job and presses `Ctrl-K`, the top actions should be:
+
+```text
+Explain failure
+Replay locally
+Retry with same environment
+Retry without cache
+Open evidence capsule
+Ask agent to repair
+Start patch race
+Mark flaky
+Quarantine cache input
+```
+
+When the user highlights a merge decision:
+
+```text
+Explain blockers
+Run missing proofs
+Approve merge
+Deny merge
+Request human review
+Open rollback plan
+```
+
+## 7. ETA/progress are too heuristic
+
+The ETA module currently uses lane-based default durations, with comments indicating real historical data should be used later. ([GitHub][5])
+
+The TUI should show confidence in the ETA:
+
+```text
+ETA: 4m 20s ± 1m
+Based on: last 37 runs, same runner class, 82% cache hit probability
+Risk: high variance because integration tests are flaky
+```
+
+That is the kind of insight that makes a TUI feel intelligent rather than decorative.
+
+---
+
+# Ground-up redesign: the world-class version
+
+## 1. Redesign the API around a TUI data plane
+
+Create a dedicated TUI/agent API, not just scattered commands.
+
+### Core endpoints
+
+```text
+GET  /api/v1/tui/snapshot
+GET  /api/v1/tui/events/stream
+GET  /api/v1/entities/:type/:id
+GET  /api/v1/entities/:type/:id/explain
+GET  /api/v1/entities/:type/:id/actions
+POST /api/v1/actions/:id/preflight
+POST /api/v1/actions/:id/execute
+GET  /api/v1/flow/:pipeline_id
+GET  /api/v1/logs/:job_id/stream
+GET  /api/v1/evidence/:capsule_id
+GET  /api/v1/agents
+GET  /api/v1/intents
+GET  /api/v1/next
+POST /api/v1/races
+GET  /api/v1/races/:id
+```
+
+The TUI should not directly reconstruct reality from multiple subsystems. The backend should produce a clean UI-ready model.
+
+### Standard response envelope
+
+Every API response should use the same envelope:
+
+```json
+{
+  "schema_version": "vgit.response.v1",
+  "request_id": "req_...",
+  "generated_at": "2026-04-27T12:00:00Z",
+  "freshness_ms": 312,
+  "source": {
+    "gitlab": "online",
+    "db": "online",
+    "cache": "online",
+    "runner_pool": "degraded"
+  },
+  "data": {},
+  "warnings": [],
+  "suggested_actions": [],
+  "links": []
+}
+```
+
+This would let the TUI show freshness, warnings, source health, and next actions everywhere.
+
+## 2. Make `TuiSnapshot` the source of truth
+
+A world-class snapshot should look like this:
+
+```json
+{
+  "project": {
+    "id": 2,
+    "name": "my-repo",
+    "ref": "main",
+    "head_sha": "abc123"
+  },
+  "mission": {
+    "status": "blocked",
+    "headline": "Merge blocked by missing auth security proof",
+    "confidence": 0.74,
+    "next_best_action": "run_security_auth"
+  },
+  "flow": {
+    "active_pipeline_id": 921,
+    "critical_path": ["impact", "security-auth", "merge-gate"],
+    "blockers": ["security-auth"]
+  },
+  "agents": [],
+  "intents": [],
+  "release": {},
+  "cache": {},
+  "evidence": {},
+  "secrets": {},
+  "actions": []
+}
+```
+
+This one object powers the top header, mission page, flow board, agent page, release page, and event console.
+
+## 3. Add an event stream
+
+The event stream should be the heartbeat of the TUI.
+
+```json
+{
+  "event_id": "evt_...",
+  "type": "job.status.changed",
+  "time": "2026-04-27T12:01:02Z",
+  "entity": {
+    "type": "job",
+    "id": "job_123"
+  },
+  "old": {
+    "status": "running"
+  },
+  "new": {
+    "status": "failed"
+  },
+  "severity": "error",
+  "summary": "security-auth failed",
+  "suggested_actions": ["explain_failure", "replay_job", "ask_agent_to_fix"]
+}
+```
+
+The TUI should subscribe once and update incrementally. Logs should stream. Flow nodes should update. The event console should show meaningful changes, not just a small subset of evidence events.
+
+## 4. Make every action preflightable
+
+Before any TUI action executes, the API should support:
+
+```text
+preflight → show risk/result → execute → emit event → update snapshot
+```
+
+Example:
+
+```json
+{
+  "action_id": "retry_job_without_cache",
+  "risk": "medium",
+  "will_do": [
+    "create new job",
+    "disable cache reuse",
+    "attach evidence to same intent"
+  ],
+  "requires": [
+    "runner capacity",
+    "job retry grant"
+  ],
+  "estimated_cost": {
+    "time": "6m",
+    "runner_minutes": 6
+  },
+  "rollback": "not_applicable",
+  "decision": "allow"
+}
+```
+
+This turns the TUI into an operator console, not just a viewer.
+
+---
+
+# Redesigned TUI layout
+
+I would redesign the whole TUI around a persistent four-region layout:
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ vgit  repo/main@abc123  Fresh 0.8s  GitLab OK  Runners 7/9  Agents 4        │
+│ Merge BLOCKED: missing security/auth proof   Release READY   Next: Run proof │
+├───────────────┬──────────────────────────────────────────────┬───────────────┤
+│ Navigation    │ Main Canvas                                  │ Inspector     │
+│               │                                              │               │
+│ Mission       │ Context-specific visual view                 │ Why           │
+│ Flow          │                                              │ Evidence      │
+│ Agents        │ Graphs, timelines, lanes, heatmaps, logs     │ Blockers      │
+│ Races         │                                              │ Actions       │
+│ Tests         │                                              │ Risks         │
+│ Cache         │                                              │               │
+│ Evidence      │                                              │               │
+│ Release       │                                              │               │
+│ Secrets       │                                              │               │
+├───────────────┴──────────────────────────────────────────────┴───────────────┤
+│ Event stream / command bar / alerts                                          │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+This keeps the mental model stable:
+
+* top = global state;
+* left = where am I;
+* center = visual workspace;
+* right = explanation and actions;
+* bottom = live events and command input.
+
+## Header: make status immediately actionable
+
+The header should not just say “GitLab OK.” It should answer:
+
+```text
+Can we merge?
+Can we release?
+Are agents healthy?
+What is blocked?
+What should happen next?
+Is the data fresh?
+```
+
+Example:
+
+```text
+vgit  my-repo main@abc123  Fresh 0.7s
+Merge: BLOCKED(2)  Release: CANARY OK  Agents: 4 active  CI: 73%  Cache: 81% hit
+Next: Run SecurityAudit(auth)  [Enter]
+```
+
+That one line gives a human or agent the whole situation.
+
+---
+
+# Screen-by-screen redesign
+
+## 1. Mission screen
+
+The Mission screen should be the default, not Jobs.
+
+It should show:
+
+```text
+Mission status
+Merge readiness
+Release readiness
+Active agents
+Current blockers
+Risk heatmap
+Next best action
+Recent important events
+```
+
+Example:
+
+```text
+Mission: Ship auth refactor
+Status: BLOCKED — missing security proof
+
+┌ Merge Readiness ─────────────┐ ┌ Active Agents ───────────────┐
+│ 6/8 gates passed             │ │ 4 active, 1 blocked           │
+│ Missing: SecurityAudit(auth) │ │ Agent A: repairing auth test  │
+│ Stale: integration/login     │ │ Agent B: waiting on runner    │
+└──────────────────────────────┘ └───────────────────────────────┘
+
+┌ Risk Heatmap ────────────────┐ ┌ Next Best Action ────────────┐
+│ Auth        HIGH             │ │ Run SecurityAudit(auth)       │
+│ API         MED              │ │ Est: 3m 40s, cost: low        │
+│ Docs        LOW              │ │ Reason: auth/session.rs diff  │
+└──────────────────────────────┘ └───────────────────────────────┘
+```
+
+The current Mission tab has health-style cards. That is fine, but it should become a decision summary.
+
+## 2. Flow screen
+
+The Flow screen should become the most visual part of the TUI.
+
+It should render the causal graph:
+
+```text
+Intent
+  │
+Admission ── Impact Plan ── Build ── Unit Tests ── Security ── Merge Gate
+                                │          │            │
+                                ✓          ✓            ✕ blocked
+```
+
+Add badges:
+
+```text
+✓ passed
+● running
+○ pending
+✕ failed
+↻ retrying
+S stale
+R reused
+T tainted
+F flaky
+H human required
+C critical path
+```
+
+The current widget already has icons, columns, lanes, and critical-path markers. ([GitHub][4]) The next jump is to draw actual dependency edges and show **why** each edge exists.
+
+Selecting a node should show:
+
+```text
+Node: SecurityAudit(auth)
+Why required: auth/session.rs changed
+Status: failed
+Evidence: capsule evi_123
+Failure class: auth regression
+Cache: bypassed because tainted dependency
+Next actions:
+  1. Explain failure
+  2. Replay locally
+  3. Ask agent to repair
+  4. Retry without cache
+```
+
+## 3. Agents screen
+
+The current Agents tab should become an **agent air-traffic-control board**.
+
+Each agent lane should show:
+
+```text
+Agent identity
+Current intent
+Branch/ref
+Grant scope
+Allowed paths
+Forbidden paths
+Grant TTL
+Current action
+Last tool call
+Budget used
+Risk level
+Blocked reason
+```
+
+Example:
+
+```text
+Agent A  repairing-login-test
+Branch: agents/a/auth-fix
+Scope: crates/auth/**, tests/login/**
+Grant: write, expires in 9m
+Now: editing session.rs
+Proof: unit/auth passed, security/auth failed
+Risk: HIGH because auth path changed
+Next: run security/auth
+```
+
+This would be a huge differentiator. GitHub/GitLab do not show agent authority, scope, or intent clearly.
+
+## 4. Races screen
+
+Patch racing deserves its own screen.
+
+```text
+Race: fix flaky login failure
+Budget: 30m
+Candidates: 5
+
+┌ Candidate ┬ Status  ┬ Proof       ┬ Risk ┬ Score ┬ Notes             ┐
+│ A         │ passed  │ 7/7         │ low  │ 92    │ smallest diff     │
+│ B         │ failed  │ 5/7         │ med  │ 41    │ breaks auth       │
+│ C         │ running │ 4/7         │ low  │ --    │ waiting security  │
+│ D         │ stale   │ superseded  │ --   │ --    │ older base SHA    │
+│ E         │ failed  │ compile     │ low  │ 12    │ syntax error      │
+└───────────┴─────────┴─────────────┴──────┴───────┴───────────────────┘
+
+Recommended winner: A
+Reason: all proof passed, smallest diff, no taint, no flaky evidence
+Actions: inspect diff, approve winner, delete losers, run wider proof
+```
+
+The current API has `RacePatches`, but it needs lifecycle operations: poll, compare, select winner, cancel, cleanup, and preserve evidence.
+
+## 5. Tests / VTI screen
+
+The current Tests tab shows bottlenecks and history. It should become a **test decision screen**.
+
+Show:
+
+```text
+Changed files
+Impacted tests
+Selected tests
+Skipped tests
+Reason for each skip
+Confidence
+Historical misses
+Flaky tests
+Coverage gaps
+```
+
+Example:
+
+```text
+Impact Plan
+Changed: crates/auth/session.rs
+Selected:
+  ✓ unit/auth_session
+  ✓ integration/login
+  ● security/auth
+Skipped:
+  - docs/sidebar: no code path overlap
+  - unit/cache: no dependency edge
+Risk:
+  HIGH because auth path changed and public API witness changed
+Confidence:
+  74%, reduced by 2 historical selector misses
+```
+
+This is the kind of insight agents need to avoid either over-testing or under-testing.
+
+## 6. Cache screen
+
+The current cache screen has storage, gateway, singleflight, and trust/taint panels. That is good. I would make it much more visual:
+
+```text
+Cache Hit Waterfall
+dependency fetch      ██████████ 93%
+cargo build artifacts ███████░░░ 71%
+test artifacts        ████░░░░░░ 42%
+
+Taint Graph
+crate A ──taints──▶ build artifact B ──blocks──▶ test reuse C
+
+Rejected Reuse
+artifact abc123 rejected
+Reason: cache epoch changed + tainted source dependency
+Action: explain, quarantine, rebuild, trust override
+```
+
+The killer feature is **cache explanation**. Every hit or miss should answer why.
+
+## 7. Evidence screen
+
+The Evidence tab should become a time machine.
+
+Instead of just listing capsules, show a timeline:
+
+```text
+12:04 intent created
+12:05 admission allowed branch write
+12:06 impact plan selected 7 tests
+12:07 cache reused artifact abc123
+12:08 unit tests passed
+12:09 security proof failed
+12:10 agent proposed patch
+12:11 security proof passed
+12:12 merge blocked: stale base SHA
+```
+
+Every event opens:
+
+```text
+Evidence capsule
+Exact SHA
+Runner image digest
+Command/proof template
+Artifacts
+Logs
+Cache inputs
+Secrets used
+Policy decision
+Replay command
+```
+
+This makes debugging and audit radically easier.
+
+## 8. Release cockpit
+
+Release needs its own high-confidence cockpit:
+
+```text
+Release target: main@abc123
+Status: READY FOR CANARY
+
+Gates:
+✓ exact SHA verified
+✓ all required proof passed
+✓ artifacts signed
+✓ rollback image ready
+✓ no secret anomalies
+✓ canary healthy
+H prod approval required
+
+Timeline:
+build → sign → canary → metrics → promote → watch → complete
+```
+
+The Release tab should always answer:
+
+```text
+Can we release?
+Can we rollback?
+What exact SHA are we releasing?
+What proof supports it?
+What human approval is needed?
+```
+
+## 9. Secrets screen
+
+The current Secrets tab shows audit events and vault status. It should become a **lease and exposure map**:
+
+```text
+Secret leases
+┌ Secret        ┬ Agent ┬ Job       ┬ TTL  ┬ Scope       ┬ Risk ┐
+│ gitlab-token  │ A     │ deploy    │ 4m   │ GitLab API  │ med  │
+│ signing-key   │ rel   │ release   │ 1m   │ sign only   │ high │
+└───────────────┴───────┴───────────┴──────┴─────────────┴──────┘
+
+Alerts:
+⚠ Secret-like string redacted from job 912 log
+⚠ Agent requested secret outside scope
+```
+
+For agent-first systems, secret use should be visible, scoped, and explainable.
+
+---
+
+# Better graphics, colors, and visual language
+
+## Semantic palette
+
+Use color consistently:
+
+```text
+Green      success / safe / released
+Blue       running / active / selected process
+Cyan       information / selected entity / neutral highlight
+Amber      warning / pending / human-needed
+Red        failure / denied / unsafe
+Magenta    security / taint / secret / policy risk
+Gray       stale / skipped / omitted / offline
+White bold primary text
+Dim        secondary metadata
+```
+
+Do not rely only on color. Always pair color with icons, labels, or badges.
+
+## Theme system
+
+Add themes:
+
+```text
+dark-default
+high-contrast
+colorblind-safe
+no-color
+nerd-font
+ascii-only
+presentation
+compact
+```
+
+Terminal rendering varies wildly. A world-class TUI should survive bad terminals, SSH, tmux, screen recordings, and no-color environments.
+
+## Visual components to add
+
+Use terminal-native visuals:
+
+```text
+sparklines
+progress bars
+stacked bars
+heatmaps
+tree graphs
+DAG edges
+badges
+timelines
+mini diff stats
+runner queue gauges
+cache hit waterfalls
+risk matrices
+```
+
+Examples:
+
+```text
+Risk:      auth ██████████ HIGH
+Cache:     hit  ███████░░░ 72%
+Progress:       ██████░░░░ 61%
+ETA:             3m 20s ± 50s
+```
+
+## Use badges heavily
+
+Badges make dense systems readable:
+
+```text
+[CRIT] critical path
+[STALE] stale evidence
+[REUSED] reused proof
+[TAINT] tainted cache
+[HUMAN] approval required
+[FLAKE] flaky signal
+[RAW] raw shell
+[SAFE] policy allow
+[DENY] policy deny
+```
+
+---
+
+# API changes that would make the TUI dramatically better
+
+## 1. Upgrade `GetSystemSnapshot`
+
+Today, `GetSystemSnapshot` is useful but too narrow. It should become the canonical TUI snapshot.
+
+It should include:
+
+```text
+project/ref/head
+active pipelines
+active agents
+active intents
+active races
+release status
+merge readiness
+cache status
+secret leases
+evidence summary
+current blockers
+next actions
+available actions by context
+freshness by source
+```
+
+The TUI should call this once at startup, then subscribe to events.
+
+## 2. Add `WatchEvents`
+
+Capability/API addition:
+
+```rust
+AgentIntent::WatchEvents {
+    project_id: Option<u64>,
+    ref_name: Option<String>,
+    entity_filter: Option<Vec<EntityRef>>,
+}
+```
+
+Response should be a stream, not a one-shot response.
+
+## 3. Add typed `Explain`
+
+Current `ExplainBlockers` should become more general:
+
+```rust
+Explain {
+    entity: EntityRef,
+    depth: ExplainDepth,
+}
+```
+
+Entity examples:
+
+```text
+job:123
+pipeline:456
+agent:repair-auth
+intent:int_789
+race:race_1
+cache:artifact_abc
+secret:lease_def
+release:main
+merge:abc123
+```
+
+The response should include:
+
+```text
+summary
+root causes
+supporting evidence
+missing evidence
+risk factors
+safe next actions
+unsafe actions
+related entities
+```
+
+## 4. Make `RequestMerge` authoritative
+
+The TUI needs a real merge decision object:
+
+```json
+{
+  "decision": "allow | deny | needs_human | needs_more_proof",
+  "head_sha": "abc123",
+  "base_sha": "def456",
+  "branch_state": "up_to_date",
+  "required_evidence": [],
+  "satisfied_evidence": [],
+  "missing_evidence": [],
+  "stale_evidence": [],
+  "policy_exceptions": [],
+  "human_approvals": [],
+  "rollback_plan": {},
+  "actions": []
+}
+```
+
+The current advisory posture is not enough for a world-class TUI. The UI should show the exact merge gate with confidence.
+
+## 5. Add race lifecycle APIs
+
+Current race support needs to become a first-class workflow:
+
+```text
+StartRace
+WatchRace
+ScoreRace
+SelectRaceWinner
+CancelRaceCandidate
+CleanupRace
+PreserveRaceEvidence
+```
+
+The TUI should render a race leaderboard and explain the winner.
+
+## 6. Improve `PlanValidation`
+
+Instead of only “can I run these tests?”, it should return:
+
+```text
+selected tests
+skipped tests
+why selected
+why skipped
+impact graph
+coverage confidence
+historical selector misses
+flake risk
+required wider proof
+estimated cost
+```
+
+That would make the Tests tab much more useful.
+
+## 7. Standardize errors
+
+Every API error should be typed:
+
+```text
+CapabilityDenied
+PathOutOfScope
+GrantExpired
+EvidenceMissing
+EvidenceStale
+MergeBlocked
+CacheTainted
+SecretLeaseDenied
+RunnerUnavailable
+PipelineSuperseded
+ActionRequiresHuman
+```
+
+The TUI can turn those into useful UI, instead of generic error messages.
+
+## 8. Add context-aware action discovery
+
+Endpoint:
+
+```text
+GET /api/v1/entities/:type/:id/actions
+```
+
+Example for a failed job:
+
+```json
+[
+  {
+    "id": "explain_failure",
+    "label": "Explain failure",
+    "risk": "none",
+    "hotkey": "x"
+  },
+  {
+    "id": "replay_job",
+    "label": "Replay locally",
+    "risk": "low",
+    "hotkey": "r"
+  },
+  {
+    "id": "ask_agent_to_fix",
+    "label": "Ask agent to fix",
+    "risk": "medium",
+    "hotkey": "a"
+  }
+]
+```
+
+This would make the command palette feel intelligent.
+
+---
+
+# Concrete fixes to the current TUI
+
+These are implementation-level changes I would make soon.
+
+## 1. Fix navigation semantics
+
+Current behavior mixes tab switching and pane movement. I would standardize:
+
+```text
+1-9        switch sections
+Tab        move focus between visible panes
+Shift-Tab  move focus backward
+Enter      inspect selected entity
+o          open logs/details
+a          actions for selected entity
+?          explain selected entity
+/          search/filter
+Ctrl-K     command palette
+Esc        close overlay/back
+q          quit
+```
+
+Right now, `Tab` cycling tabs is surprising if the layout also has panes. Make the model obvious.
+
+## 2. Make the inspector universal
+
+Every screen should use the right pane the same way:
+
+```text
+Summary
+Status
+Why
+Evidence
+Risks
+Actions
+Related entities
+```
+
+Do not have separate inspector logic that behaves differently per tab.
+
+## 3. Make the command palette actually execute actions
+
+If an action is shown, it should either:
+
+```text
+execute
+preflight then execute
+or clearly show unavailable/coming soon
+```
+
+Do not show action-registry entries that silently no-op.
+
+## 4. Show toasts/action results
+
+When the user retries, pauses a pool, deletes a record, opens logs, or toggles evidence mode, show:
+
+```text
+✓ Retry requested for job 912
+⚠ Pool paused; 3 queued jobs will wait
+✕ Cannot merge: missing security proof
+```
+
+Small feedback messages make the UI feel responsive and trustworthy.
+
+## 5. Make event console comprehensive
+
+The bottom event console should merge:
+
+```text
+job events
+pipeline events
+agent events
+capability events
+release events
+cache events
+secret events
+evidence events
+policy decisions
+```
+
+It should support filtering:
+
+```text
+all | errors | agents | release | cache | secrets | current entity
+```
+
+## 6. Use selected pipeline consistently
+
+The Jobs screen has a pipeline nav. Selecting a pipeline should drive the flow board, job list, logs, inspector, and evidence context. The user should never wonder which pipeline the center panel is showing.
+
+## 7. Tail selected job logs in preview mode
+
+The log preview should automatically follow the selected job even when not maximized. Maximizing should only change layout, not whether logs are active.
+
+## 8. Move heavy storage scans to slower workers
+
+Storage breakdowns and filesystem scans should not run at the same cadence as UI-critical state. Cache them and update every 30–60 seconds unless the user explicitly refreshes.
+
+## 9. Make stale data visible per panel
+
+Every panel should show freshness:
+
+```text
+Flow: fresh 0.8s
+Logs: live
+Cache: fresh 12s
+Storage: fresh 54s
+GitLab: degraded
+```
+
+This is essential when mixing polling, local DB state, and remote GitLab.
+
+## 10. Add search everywhere
+
+A world-class TUI needs `/` search:
+
+```text
+job id
+pipeline id
+agent id
+intent id
+file path
+test name
+error text
+secret lease
+cache artifact
+evidence capsule
+```
+
+Search results should be entity references; selecting one opens it in the inspector.
+
+---
+
+# Dream TUI behavior
+
+The best TUI should feel like this:
+
+1. I open it.
+2. I immediately know whether the repo is healthy.
+3. I immediately know what agents are doing.
+4. I immediately know what is blocked.
+5. I can select anything and press `?` to understand why.
+6. I can press `a` to see safe actions.
+7. Every risky action is preflighted.
+8. Every failure has evidence and replay.
+9. Every skipped/reused proof is explained.
+10. Every merge/release decision is exact-SHA and evidence-backed.
+
+A possible top-level view:
+
+```text
+vgit  JeRyu/main@abc123  Fresh 0.6s  GitLab OK  Runners 7/9  Cache 82%
+Merge: BLOCKED(2)  Release: READY  Agents: 4 active, 1 blocked
+Next: Run SecurityAudit(auth)  Why: auth/session.rs changed
+
+┌ Mission ───────────────┬ Flow ───────────────────────────────┬ Inspector ──────┐
+│ Status: BLOCKED        │ Intent → Admission → Impact → Build │ Selected: Merge │
+│ Confidence: 74%        │                         │           │ Why blocked     │
+│                        │                         ▼           │ Missing proof:  │
+│ Agents                 │ Unit ✓   Integration ✓  Security ✕  │ security/auth   │
+│ A repairing auth       │                         │           │                 │
+│ B waiting runner       │                      Merge Gate H    │ Actions         │
+│ C idle                 │                                      │ Run proof       │
+│                        │ Critical path: Security → Merge      │ Explain         │
+└────────────────────────┴──────────────────────────────────────┴─────────────────┘
+Events: 12:09 security/auth failed | 12:10 Agent A proposed fix | 12:11 cache rejected
+```
+
+That is the kind of TUI I would want as an agent operator.
+
+---
+
+# Highest-impact API/TUI backlog
+
+## P0: Make the TUI coherent and actionable
+
+1. Create canonical `TuiSnapshot`.
+2. Add event streaming.
+3. Make the inspector universal.
+4. Make command palette actions real and preflighted.
+5. Add typed `Explain(entity)` API.
+6. Add context-aware action discovery.
+7. Make selected pipeline drive all Jobs subviews.
+8. Add action result toasts.
+9. Fix navigation semantics.
+10. Add per-panel freshness indicators.
+
+## P1: Make the UI intelligent
+
+1. Replace job-name flow inference with causal proof/evidence graph.
+2. Draw real graph edges.
+3. Add next-best-action panel.
+4. Add agent intent/grant/scope lanes.
+5. Add race leaderboard screen.
+6. Add evidence timeline.
+7. Add cache hit/miss/taint explanation.
+8. Add historical ETA/confidence.
+9. Add test impact/skip explanation.
+10. Add release cockpit with exact-SHA readiness.
+
+## P2: Make it beautiful and world-class
+
+1. Add themes: high contrast, no color, colorblind-safe, nerd font.
+2. Add sparklines, heatmaps, gauges, and mini timelines.
+3. Add mouse support for selecting entities and opening inspector.
+4. Add layout profiles: compact, wide, presentation, SSH-safe.
+5. Add search across all entities.
+6. Add user-configurable dashboards.
+7. Add TUI snapshot export: `vgit tui snapshot --json`.
+8. Add screen recording/capture improvements for demos.
+9. Add diff/evidence side-by-side view.
+10. Add “operator replay”: browse historical UI state at a previous time.
+
+---
+
+# The north-star redesign
+
+The current TUI is a strong start, but I would shift it from:
+
+> “A terminal dashboard for jobs, pools, cache, agents, and release state.”
+
+to:
+
+> **“A real-time command center where every agent action, proof, cache decision, secret use, merge gate, and release step is represented as an explainable entity with evidence, risk, and safe next actions.”**
+
+That is what GitHub/GitLab do not have. The API should feed that directly. The TUI should make it impossible to miss what matters, easy to understand why something happened, and safe to act on it.
+
+[1]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/API.md "raw.githubusercontent.com"
+[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[3]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/flow/builder.rs "raw.githubusercontent.com"
+[4]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/flow/widget.rs "raw.githubusercontent.com"
+[5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/flow/eta.rs "raw.githubusercontent.com"
+

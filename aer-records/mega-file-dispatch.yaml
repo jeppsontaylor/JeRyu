@@ -1,0 +1,9 @@
+id: aer.vgit.mega-file.dispatch
+class_id: mega-file
+rule: "Files should stay below the house budget unless locality would be harmed."
+exception: "src/dispatch.rs is the single command dispatch table that wires CLI structs to domain modules — no business logic lives here."
+reason: "dispatch.rs is intentionally a flat registry: one match arm per command, no logic. Its size is a direct function of the number of vgit commands. Splitting it would create multiple partial registries with no natural cohesion boundary. The main.rs doc comment explicitly designates this as the dispatcher-only file."
+risk: low
+owner: vgit-core
+doc_links: []
+sunset_condition: "Refactor if dispatch grows beyond pure command routing (i.e. if business logic migrates into it)."

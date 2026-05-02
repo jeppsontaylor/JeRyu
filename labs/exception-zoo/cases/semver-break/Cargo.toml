@@ -1,0 +1,18 @@
+[package]
+name = "semver-break"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+
+[workspace.metadata.agent]
+shared_contracts = ["Public APIs must run semver validation before release."]
+
+[package.metadata.agent]
+purpose = "Public API fixture missing doctest coverage"
+owned_paths = ["src/**"]
+local_validate = ["cargo check"]
+public_api = true
+
+[lib]
+path = "src/lib.rs"

@@ -1,0 +1,1285 @@
+## Scope and blunt verdict
+
+I focused only on the **current API surfaces** and the **current TUI implementation**.
+
+My read: JeRyu already has a surprisingly ambitious TUI and action model, but it is not yet a world-class “agent-first operations cockpit.” Right now it feels like a powerful internal dashboard with many promising panels. The next step is to turn it into a **real-time command center** where the user can instantly answer:
+
+> What is happening?
+> What is blocked?
+> Why is it blocked?
+> Who or what can fix it?
+> What is the safest next action?
+> What evidence proves that action is safe?
+
+The biggest missing piece is not more tabs. It is a stronger **read-model API + event stream + action execution API** that lets the TUI become a clean, live, actionable interface instead of a polling dashboard that manually stitches together GitLab, DB, Docker, cache, release, and evidence state.
+
+---
+
+# 1. Current API surface
+
+The current API is split across several surfaces rather than being one coherent product API.
+
+## A. CLI API
+
+The CLI is broad. It includes commands for init, serve, TUI, status, pools, jobs, pipelines, cache, logs, agents, tests, release, secrets, host, executor hooks, capability server, next action, blocker explanation, and action listing. The TUI command also supports one-shot rendering and PNG capture with selectable tabs such as mission, release, jobs, agents, tests, pools, cache, evidence, and secrets. ([GitHub][1])
+
+That is good for automation, but the CLI has grown faster than the product API. Some commands expose JSON flags, some expose human output, some mutate state, and some are effectively operational/debug hooks. For a world-class TUI, these should all route through one underlying **typed action API**.
+
+## B. Engine HTTP API
+
+The Axum engine exposes a small HTTP surface: `/health`, `/hooks`, and `/cache/summary`. The webhook route verifies the GitLab token and handles job, pipeline, push, and merge request hooks. Push hooks trigger supersedence and impact planning, while pipeline hooks update release/canary/prod-related state. The cache summary endpoint requires `X-Vgit-Token` and returns a compact cache health summary. ([GitHub][2])
+
+This is useful, but it is not enough for a first-class TUI. The TUI needs a dedicated API that answers “give me the current operational truth,” not just webhook ingestion and cache summary.
+
+## C. Capability API
+
+The capability API is the most agent-facing surface. It accepts JSON intents over a Unix socket. Current intents include `ProposePatch`, `RacePatches`, `RunTests`, `FetchCapsule`, `RequestMerge`, `ExplainBlockers`, `GetSystemSnapshot`, `ListAllowedActions`, and `PlanValidation`. Responses use a simple `CapabilityResponse { success, message, data }` shape. ([GitHub][3])
+
+This is a good start, but it is too coarse for a world-class TUI/API. For example, `RequestMerge` currently evaluates a merge gate and returns a proof-style result; it does not appear to actually perform a merge. `RacePatches` creates branches and pipelines but returns manual cleanup / polling notes rather than becoming a full race lifecycle API. `GetSystemSnapshot` returns useful high-level data, but not a rich typed UI state model. ([GitHub][3])
+
+## D. Action registry
+
+The action registry is one of the best current design choices. It defines actions with ID, label, description, risk tier, allowed surfaces, dry-run availability, side-effect class, and grant requirement. Risk tiers include `ReadOnly`, `Low`, `High`, and `Production`; side-effect classes include read-only, local state, Git write, CI execution, merge, and production. The registry is intended to be consumed by the TUI palette, CLI `vgit action list`, and capability `ListAllowedActions`. ([GitHub][4])
+
+This should become the center of the API redesign. Every button, hotkey, command-palette command, and agent intent should be backed by this registry.
+
+The problem: the registry describes actions, but the TUI does not yet execute most of them through a unified dispatcher. The TUI command palette currently handles tab switching and audit-ledger toggling, while other actions are ignored or handled by separate keybindings / APIs. ([GitHub][5])
+
+---
+
+# 2. Current TUI design
+
+The current TUI has nine tabs:
+
+```text
+Mission
+Release
+Jobs
+Agents
+Tests
+Pools
+Cache
+Evidence
+Secrets
+```
+
+The state snapshot tracks a large amount of operational data: pools, GitLab readiness, active containers, recent jobs, pipelines, flow state, live logs, cache metrics, proxy/registry/mirror/CA health, singleflight metrics, taints, release status, test bottlenecks, evidence, secret audit events, agent pipelines, and recent audit events. Background sync loops fetch flow/log/snapshot updates on short polling intervals. ([GitHub][6])
+
+The visual layout has a header, tab bar, main content area, event console, and footer. The header shows GitLab health, active containers, pool counts, release SHA/canary state, stale indicators, and tab shortcuts. ([GitHub][7])
+
+That is a strong foundation. The repo already has many of the ingredients for an excellent terminal UI.
+
+## What the current TUI does well
+
+The **Mission tab** gives a compact operational overview: system health, pipeline summary, release status, and cache health. ([GitHub][7])
+
+The **Release tab** has a useful gate matrix covering main branch health, release identity, release pipeline, canary health, E2E gate, and production promotion. It also has an inspector with SHA/ref/canary URL/eligibility-style details. ([GitHub][7])
+
+The **Jobs tab** is the richest current view. It combines pipeline list, release banner, flow board, jobs/logs, and an inspector. The job inspector can show evidence capsule snippets and relevant actions like retry/delete. ([GitHub][7])
+
+The **Cache tab** already has gateway health, singleflight analytics, storage overview, and trust/taint boundaries. ([GitHub][7])
+
+The **Evidence tab** can show capsules and audit ledger views. That is extremely important for agent-first development because the TUI should not merely show logs; it should show durable proof. ([GitHub][7])
+
+The **flow model** is also promising. It models phases, columns, lanes, nodes, edges, critical path, cache metrics, ETA, and trace tails. ([GitHub][8])
+
+---
+
+# 3. Biggest TUI problems
+
+## 1. It is tab-first, not attention-first
+
+The current TUI organizes data into tabs, but a world-class operational TUI should organize around **attention**.
+
+The first thing a user should see is not “Mission / Release / Jobs / Agents / Tests.” It should be:
+
+```text
+3 things need attention.
+1 production release is blocked.
+2 agents are stuck.
+1 cache taint is preventing merge.
+Next safest action: rerun clean validation for MR !42.
+```
+
+Right now, the user has to inspect multiple tabs to understand what matters.
+
+## 2. The command palette is underpowered
+
+The action registry is strong, but the command palette is not yet a true command center. It mostly handles tab switching and audit toggling; most actions are not executed through the registry. ([GitHub][5])
+
+This is a major UX gap. In a world-class TUI, the command palette should be the main interface:
+
+```text
+> explain release blocker
+> retry failed job
+> quarantine cache object
+> grant agent test capability
+> open merge proof
+> run minimal validation
+> promote canary
+```
+
+Every command should show risk, grant requirement, dry-run availability, side effects, expected evidence, and whether it is currently enabled.
+
+## 3. The Agents tab is not really an agent cockpit
+
+The current Agents tab appears to show agent pipelines and capability history rather than full agent objects with objectives, contracts, status, budgets, current step, risk, branch, MR, evidence, and next action. ([GitHub][7])
+
+For an agent-first product, this tab should be one of the most important screens.
+
+A user should be able to answer:
+
+```text
+What is each agent trying to do?
+What branch is it on?
+What is its current hypothesis?
+What evidence has it collected?
+What is it waiting on?
+What permission does it need?
+What did it last change?
+Can I pause/kill/revoke/approve/merge?
+```
+
+## 4. The flow view is visually promising but not yet truthful enough
+
+The flow builder classifies pipeline columns by job-name heuristics: admission, impact, build, tests, security, package, release gates, canary, production, and other. It also constructs edges by connecting jobs in one column to jobs in the previous column. ([GitHub][9])
+
+That is fine for an initial visualization, but a world-class pipeline graph should use the actual GitLab DAG, `needs`, dependencies, bridge jobs, child pipelines, and artifact relationships. Synthetic edges are useful for display, but the UI must distinguish “actual dependency” from “visual grouping.”
+
+The widget renders columns, nodes, icons, lanes, selected state, and a critical-path badge, but it does not appear to render actual graph edges visually. ([GitHub][10])
+
+## 5. ETA is too rough
+
+The ETA model currently uses rough lane-based fallbacks and comments that a real implementation would query historical DB/test-bottleneck data. ([GitHub][11])
+
+ETA is one of the most valuable things a TUI can provide. “Will this be green in 2 minutes or 40 minutes?” changes how a human or agent behaves.
+
+## 6. Pane navigation is incomplete
+
+The app has active pane types such as Pools, Pipelines, and Jobs, but the pane-cycling logic currently forces the active pane back to Jobs because only the Jobs pane is rendered. ([GitHub][6])
+
+That makes the UI feel less like a true multi-pane terminal application and more like a fixed dashboard.
+
+## 7. Real-time behavior is polling-heavy
+
+The TUI syncs logs and snapshots through short polling loops. Live logs poll about every 650 ms; snapshot/flow loops run around 1500 ms. ([GitHub][6])
+
+That can work locally, but world-class real-time insight should use a proper event stream: WebSocket, SSE, or Unix-socket event subscription. Polling should be fallback mode.
+
+## 8. Too much data hydration happens inside the TUI
+
+The TUI itself pulls from GitLab, database queries, cache metrics, release status, Docker/container state, and other sources. The code even comments that some heavy storage queries are POC-style and should be cached every 60 seconds. ([GitHub][6])
+
+The TUI should not be the thing assembling operational truth. The backend should expose a dedicated **TUI read model**.
+
+## 9. The event console is too small and too narrow
+
+The current normal layout includes a four-line event console. ([GitHub][7])
+
+For agent-first development, the event stream is the flight recorder. It should support filtering, expansion, severity, entity links, agent links, proof links, and “why did this happen?” drilldown.
+
+## 10. Color needs to become semantic
+
+There are status color helpers and release color helpers. ([GitHub][7]) That is a good start, but the design needs a full semantic theme system:
+
+```text
+Green     verified / safe / passed
+Blue      active / running / selected process
+Cyan      focus / selected object
+Yellow    waiting / human attention / degraded
+Orange    risky / expensive / stale warning
+Red       failed / blocked / unsafe
+Magenta   security / secret / taint / policy violation
+Gray      historical / stale / disabled / superseded
+```
+
+Also: add dark, light, high-contrast, and colorblind-safe themes.
+
+---
+
+# 4. Ground-up redesign
+
+I would redesign the TUI around four persistent regions:
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Global status: GitLab OK · Stream LIVE · Runners 8/12 · Cache 91% · Risk LOW │
+├───────────────┬───────────────────────────────────────────┬──────────────────┤
+│ Attention     │ Main workspace                            │ Inspector         │
+│ queue         │ pipelines / agents / tests / release       │ why + actions     │
+├───────────────┴───────────────────────────────────────────┴──────────────────┤
+│ Event timeline / command palette / live logs                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+The user should never have to hunt through tabs to find the problem. The left side should always show the current attention queue. The right side should always show the selected object’s explanation and available actions.
+
+## Proposed top-level navigation
+
+Instead of nine equal tabs, use seven domains:
+
+```text
+1 Overview
+2 Agents
+3 Pipelines
+4 Tests
+5 Evidence
+6 Resources
+7 Release
+```
+
+Then fold the current tabs into those domains:
+
+```text
+Mission  → Overview
+Jobs     → Pipelines
+Pools    → Resources
+Cache    → Resources
+Secrets  → Release/Security or Resources/Security
+Evidence → Evidence
+Release  → Release
+Tests    → Tests
+Agents   → Agents
+```
+
+This keeps all current functionality but reduces cognitive load.
+
+---
+
+# 5. Redesigned Overview / Mission Control
+
+The Overview should answer one question:
+
+> What should I care about right now?
+
+Recommended layout:
+
+```text
+┌─ Mission Control ───────────────────────────────────────────────────────────┐
+│ Autonomy Score      82%       Release Readiness      4/6 gates passed       │
+│ Active agents        7        CI time saved today    63%                    │
+│ Blocked work         3        Cache trust            91% trusted            │
+│ Highest risk         Cache taint blocking MR !42                            │
+├─ Attention Queue ───────────────────────────────────────────────────────────┤
+│ P0  MR !42 cannot merge       cache taint in build artifact   [Explain]     │
+│ P1  Agent fix-auth stuck      needs test capability grant     [Grant]       │
+│ P1  Canary deploy waiting     e2e gate pending 11m            [Open]        │
+├─ Live System Timeline ──────────────────────────────────────────────────────┤
+│ 14:03 agent/race-17 started 3 hypotheses                                    │
+│ 14:04 build-cache denied untrusted artifact                                  │
+│ 14:05 release candidate created main@a1b2c3                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+Add these metrics:
+
+```text
+Autonomy Score
+Blocked Contracts
+Current Highest-Risk Entity
+Mean Repair Loop Count
+CI Minutes Saved
+Cache Denial Rate
+Flake Suspicion Count
+Selector Confidence
+Release Readiness
+Security Posture
+```
+
+The current Mission tab already has system health, pipeline summary, release status, and cache health. ([GitHub][7]) The redesign should make it more decision-oriented.
+
+---
+
+# 6. Redesigned Agents view
+
+This should become the star of the product.
+
+Current agent display is not enough. It should show actual agent state:
+
+```text
+┌─ Agents ────────────────────────────────────────────────────────────────────┐
+│ Agent        Objective              State        Branch        Risk  Next    │
+│ fix-auth     repair login tests      validating   agent/auth    med   wait   │
+│ race-17/a    hypothesis: revert      failed       agent/r17-a   low   view   │
+│ race-17/b    hypothesis: patch       running      agent/r17-b   med   watch  │
+│ release-bot  canary promotion        blocked      release/main  high  approve│
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+Inspector for selected agent:
+
+```text
+OBJECTIVE
+Fix failing auth integration tests after MR !42.
+
+CURRENT STEP
+Validation attempt 2/4. Running integration lane.
+
+CAPABILITIES
+✓ read repo
+✓ write branch agent/auth
+✓ run tests
+✗ merge
+✗ production deploy
+
+BUDGET
+time 18m / 45m
+tokens 61k / 120k
+CI minutes 14 / 40
+
+LAST EVIDENCE
+capsule compile_failure#991
+test_plan vti#188
+cache_denial build-cache#abc
+
+NEXT SAFE ACTION
+Grant run_tests on integration lane.
+```
+
+Actions:
+
+```text
+pause
+kill
+revoke capability
+grant capability
+open branch diff
+open MR
+run validation
+race alternatives
+merge with proof
+```
+
+This requires a real API object for agents and work contracts, not just pipelines and audit events.
+
+---
+
+# 7. Redesigned Pipelines / Flow view
+
+The current flow model is one of the best parts, but the visualization should become a “flight deck.”
+
+## Pipeline graph
+
+Use actual pipeline DAG data when available. Keep heuristic columns for grouping, but draw real edges. Node cards should show:
+
+```text
+status icon
+job name
+duration / ETA
+queue time
+runner pool
+cache verdict
+required/optional badge
+flake risk
+evidence badge
+critical path badge
+```
+
+Example:
+
+```text
+Commit → Admission → Impact → Build → Tests → Security → Package → Canary → Prod
+
+         ┌────────┐   ┌────────┐   ┌──────────┐
+         │ impact │──▶│ build  │──▶│ unit     │──┐
+         └────────┘   │ 92%    │   │ ✓ 1m13s  │  │
+                      └────────┘   └──────────┘  ▼
+                                      ┌──────────────┐
+                                      │ integration  │
+                                      │ ● 43% ETA 4m │
+                                      │ cache MISS   │
+                                      └──────────────┘
+```
+
+The current widget renders columns, lanes, icons, and selected nodes, but not visible edges. ([GitHub][10]) The model already has edges, so this is a natural upgrade. ([GitHub][8])
+
+## “Why” mode
+
+Every selected job should expose:
+
+```text
+Why did this run?
+Why did this fail?
+Why is this required?
+Why is this blocking merge?
+Why was cache denied?
+Why was this runner selected?
+What changed since last green?
+```
+
+The job inspector already shows node status, progress, ETA, phase, lane, required/critical state, and trace tail. ([GitHub][12]) Add blocker and proof explanations directly there.
+
+## Critical path mode
+
+Show the path that determines total completion time:
+
+```text
+Critical path: build → integration → e2e → canary
+Expected green: 7m 22s
+Delay source: integration queue time
+Recommended action: scale integration runner pool +2
+```
+
+The current flow model already tracks critical path information. ([GitHub][8]) Use it as a first-class visual feature.
+
+---
+
+# 8. Redesigned Tests / Impact view
+
+The Tests tab should explain the relationship between code changes and validation.
+
+Current test views show bottleneck averages/latest values and related history. ([GitHub][7]) That is useful, but the view should become a full “impact proof” screen:
+
+```text
+Changed files
+  src/cache_brain.rs
+  src/decision.rs
+
+Affected subsystems
+  cache trust policy      high confidence
+  merge gate              medium confidence
+
+Selected tests
+  cache_policy_tests      direct path match
+  merge_gate_tests        affected decision logic
+  integration_cache       sentinel required
+
+Skipped tests
+  release_e2e             no dependency path
+  docs                    unaffected
+
+Selector confidence
+  0.89
+
+Risk
+  medium: decision.rs affects merge policy
+```
+
+Add visual elements:
+
+```text
+subsystem heatmap
+test duration bars
+flake history sparkline
+selector miss counter
+confidence meter
+```
+
+Actions:
+
+```text
+run minimal proof
+run full validation
+run only affected subsystem
+mark selector miss
+quarantine flaky test
+show historical failures
+```
+
+---
+
+# 9. Redesigned Evidence view
+
+The Evidence tab should become the audit flight recorder.
+
+Current evidence view supports capsule list/detail and an audit-ledger alternate mode. ([GitHub][7]) Great start.
+
+Upgrade it into this:
+
+```text
+Timeline for MR !42
+
+14:01 agent requested write_branch capability
+14:02 capability granted by policy
+14:03 branch agent/fix-auth created
+14:04 patch committed
+14:05 pipeline #881 started
+14:08 job integration failed
+14:08 failure capsule created
+14:09 agent generated repair patch
+14:12 validation passed
+14:13 merge proof generated
+14:13 merge blocked: cache taint
+```
+
+Every event should be expandable:
+
+```text
+raw JSON
+human summary
+linked logs
+linked artifacts
+linked diff
+linked capability grant
+linked policy decision
+linked proof
+redaction status
+safe-to-share-with-agent status
+```
+
+This is especially important for autonomous coding because the TUI becomes the place where a human can audit the agent’s reasoning without reading raw CI logs.
+
+---
+
+# 10. Redesigned Cache / Resources view
+
+The Cache tab already shows useful cache health, gateway data, singleflight analytics, storage, and trust/taint boundaries. ([GitHub][7])
+
+Make it more actionable:
+
+```text
+Cache Health
+  hit rate             78%
+  denied rate          9%
+  tainted objects      3
+  trusted objects      91%
+  storage used         42 GB
+  reclaimable          11 GB
+
+Top Denial Reasons
+  trust namespace mismatch        14
+  tainted object                   3
+  stale epoch                      2
+  missing action key               1
+
+Promotion Candidates
+  object abc123   used by 7 green jobs   promote? [Preview]
+```
+
+Add a cache dependency graph:
+
+```text
+crate registry mirror → build artifact → test artifact → release candidate
+                         ▲ tainted here
+```
+
+Actions:
+
+```text
+explain cache denial
+quarantine object
+untaint with proof
+promote object
+reclaim storage
+rebuild clean
+```
+
+---
+
+# 11. Redesigned Release view
+
+The current release gate matrix is good. ([GitHub][7]) Make it more like an aircraft preflight checklist:
+
+```text
+Release main@a1b2c3
+
+Gate                         Status      Evidence
+Main branch green             PASS        pipeline #881
+Release identity              PASS        sha a1b2c3
+Release pipeline              PASS        pipeline #882
+SBOM                          PASS        sbom#91
+SLSA provenance               PASS        prov#91
+Secret audit                  WARN        1 lease expires soon
+Canary health                 PASS        30m stable
+E2E gate                      PENDING     3m remaining
+Rollback plan                 PASS        rollback#14
+Production promotion          BLOCKED     waiting approval
+```
+
+Add a simple readiness score:
+
+```text
+Release readiness: 87%
+Blocking reason: E2E gate pending
+Next action: wait or run fast prod smoke
+```
+
+Actions:
+
+```text
+explain release blocker
+open canary URL
+rerun e2e
+promote to prod
+rollback canary
+freeze release
+```
+
+---
+
+# 12. Redesigned Secrets / Security view
+
+The current Secrets tab shows secret audit events and a static Vault status panel. ([GitHub][7])
+
+For agent-first workflows, this should become a live lease/security view:
+
+```text
+Active Secret Leases
+  agent/fix-auth    staging-db-read     expires 12m
+  release-bot       canary-deploy       expires 4m
+
+High Risk Events
+  denied secret access by agent/race-17-c
+  honeypot token touched by sandbox xyz
+
+Security Posture
+  isolation strict      yes/no
+  egress broker         healthy
+  capability server     live
+  unsigned intents      0
+```
+
+Actions:
+
+```text
+revoke lease
+rotate secret
+show access timeline
+quarantine agent
+explain denied access
+```
+
+---
+
+# 13. World-class command palette
+
+The command palette should be rebuilt around the action registry.
+
+Current registry fields are excellent: risk tier, side-effect class, grant requirement, dry-run support, and surfaces. ([GitHub][4]) Make those visible every time.
+
+Example:
+
+```text
+> merge
+
+request_merge
+Risk: HIGH
+Side effect: Merge
+Requires: MergeApproval
+Dry run: available
+Status: disabled
+Reason: selected MR has active cache taint
+
+[Preview] [Explain blocker]
+```
+
+For production actions:
+
+```text
+> promote prod
+
+promote_production
+Risk: PRODUCTION
+Requires: ProductionApproval
+Dry run: available
+Will affect: prod environment
+Evidence required: release proof + canary proof + rollback proof
+
+Type main@a1b2c3 to confirm:
+```
+
+Every action should have:
+
+```text
+id
+label
+description
+risk
+side_effect_class
+required_grant
+enabled / disabled
+disabled_reason
+preview
+execute
+undo / rollback when possible
+evidence produced
+audit event produced
+```
+
+This turns the TUI from a dashboard into a controllable system.
+
+---
+
+# 14. API redesign needed to unlock this TUI
+
+The biggest API change I would make is to create a dedicated **read-model and action API**.
+
+## A. TUI snapshot API
+
+Add:
+
+```http
+GET /v1/tui/snapshot
+```
+
+Response shape:
+
+```json
+{
+  "schema_version": "1.0",
+  "revision": 18422,
+  "generated_at": "2026-04-27T12:00:00Z",
+  "freshness": {
+    "gitlab_ms": 410,
+    "db_ms": 12,
+    "cache_ms": 6,
+    "docker_ms": 80
+  },
+  "health": {},
+  "attention": [],
+  "agents": [],
+  "pipelines": [],
+  "release": {},
+  "runners": {},
+  "cache": {},
+  "security": {}
+}
+```
+
+The TUI should render this object instead of manually assembling state from everywhere.
+
+## B. Event stream API
+
+Add:
+
+```http
+GET /v1/events/stream
+```
+
+Use SSE, WebSocket, or Unix-socket streaming.
+
+Event shape:
+
+```json
+{
+  "seq": 18423,
+  "ts": "2026-04-27T12:00:02Z",
+  "kind": "cache.taint.detected",
+  "severity": "high",
+  "entity": {
+    "type": "cache_object",
+    "id": "abc123"
+  },
+  "actor": {
+    "type": "agent",
+    "id": "fix-auth"
+  },
+  "summary": "Cache object abc123 tainted and is blocking MR !42",
+  "refs": {
+    "mr": "!42",
+    "pipeline": "881",
+    "evidence": "capsule:991"
+  },
+  "payload": {}
+}
+```
+
+The TUI should subscribe once, then update incrementally.
+
+## C. Attention API
+
+Add:
+
+```http
+GET /v1/attention
+```
+
+Response:
+
+```json
+[
+  {
+    "id": "attn_001",
+    "severity": "p0",
+    "title": "MR !42 blocked by cache taint",
+    "entity": { "type": "merge_request", "id": "42" },
+    "why": "Merge proof denied because cache object abc123 is tainted.",
+    "owner": "human",
+    "next_action": "explain_cache_taint",
+    "confidence": 0.96,
+    "created_at": "2026-04-27T12:00:00Z"
+  }
+]
+```
+
+The Overview screen should be mostly powered by this.
+
+## D. Unified action API
+
+Add:
+
+```http
+GET  /v1/actions
+POST /v1/actions/{id}/preview
+POST /v1/actions/{id}/execute
+```
+
+Request:
+
+```json
+{
+  "entity": {
+    "type": "job",
+    "id": "991"
+  },
+  "parameters": {},
+  "dry_run": true,
+  "grant_id": "grant_123",
+  "idempotency_key": "..."
+}
+```
+
+Response:
+
+```json
+{
+  "accepted": true,
+  "status": "preview",
+  "summary": "Retry job 991 in clean cache namespace.",
+  "risk": "high",
+  "side_effects": ["ci_execution"],
+  "required_grants": ["agent_task"],
+  "evidence_expected": ["job_retry_event", "pipeline_update"],
+  "disabled_reason": null
+}
+```
+
+Then the TUI, CLI, and agents all use the same action contract.
+
+## E. Explain API
+
+Add:
+
+```http
+GET /v1/explain/{entity_type}/{entity_id}
+```
+
+Examples:
+
+```text
+/v1/explain/job/991
+/v1/explain/pipeline/881
+/v1/explain/merge_request/42
+/v1/explain/cache_object/abc123
+/v1/explain/agent/fix-auth
+/v1/explain/release/main-a1b2c3
+```
+
+Every explanation should include:
+
+```json
+{
+  "summary": "MR !42 cannot merge because cache object abc123 is tainted.",
+  "blockers": [],
+  "evidence": [],
+  "next_actions": [],
+  "confidence": 0.94
+}
+```
+
+## F. Flow graph API
+
+Add:
+
+```http
+GET /v1/pipelines/{id}/flow
+```
+
+Response should include real DAG edges, synthetic grouping edges, critical path, ETA, blockers, cache verdicts, runner info, artifacts, and evidence links.
+
+```json
+{
+  "pipeline_id": 881,
+  "critical_path": ["build", "integration", "e2e"],
+  "eta_seconds": 442,
+  "nodes": [],
+  "edges": [
+    {
+      "from": "build",
+      "to": "integration",
+      "kind": "gitlab_needs"
+    }
+  ]
+}
+```
+
+Right now the flow builder creates useful columns and heuristic edges. ([GitHub][9]) The API should make those distinctions explicit.
+
+## G. Agent / Work Contract API
+
+Add:
+
+```http
+GET /v1/agents
+GET /v1/agents/{id}
+GET /v1/work-contracts
+GET /v1/work-contracts/{id}
+POST /v1/work-contracts/{id}/actions/{action}
+```
+
+Agent shape:
+
+```json
+{
+  "id": "fix-auth",
+  "objective": "Repair failing auth integration tests",
+  "status": "validating",
+  "branch": "agent/fix-auth",
+  "mr": "!42",
+  "current_step": "validation_attempt_2",
+  "risk": "medium",
+  "budget": {
+    "time_used_seconds": 1080,
+    "time_limit_seconds": 2700,
+    "ci_minutes_used": 14,
+    "ci_minutes_limit": 40
+  },
+  "capabilities": [],
+  "last_evidence": [],
+  "next_actions": []
+}
+```
+
+Without this, the Agents tab cannot become world-class.
+
+---
+
+# 15. Concrete code-level TUI/API backlog
+
+## P0: make the action registry executable
+
+Create an `ActionDispatcher`.
+
+```rust
+pub struct ActionContext {
+    pub selected_entity: Option<EntityRef>,
+    pub actor: ActorRef,
+    pub grant_id: Option<String>,
+    pub dry_run: bool,
+}
+
+pub struct ActionPreview {
+    pub enabled: bool,
+    pub disabled_reason: Option<String>,
+    pub risk: RiskTier,
+    pub side_effects: Vec<SideEffectClass>,
+    pub summary: String,
+    pub evidence_expected: Vec<String>,
+}
+
+pub trait ActionHandler {
+    async fn preview(&self, ctx: ActionContext) -> Result<ActionPreview>;
+    async fn execute(&self, ctx: ActionContext) -> Result<ActionResult>;
+}
+```
+
+Then all hotkeys and command-palette actions go through it.
+
+## P0: add a TUI read model
+
+Create:
+
+```text
+src/api/read_model.rs
+src/api/snapshot.rs
+src/api/events.rs
+src/api/actions.rs
+```
+
+The TUI should render `TuiSnapshot`, not manually assemble all data.
+
+## P0: fix command palette behavior
+
+Make the palette execute real actions. Show:
+
+```text
+enabled/disabled
+risk
+required grant
+dry-run
+side effects
+evidence produced
+confirmation requirements
+```
+
+The current palette is too disconnected from the action registry. ([GitHub][5])
+
+## P0: implement real attention queue
+
+Add a backend function that computes:
+
+```text
+blocked releases
+failed required jobs
+stuck agents
+pending approvals
+cache taints
+security events
+stale pipelines
+runner bottlenecks
+selector misses
+```
+
+Show this on every screen.
+
+## P1: make Agents first-class
+
+Add real agent/work-contract state. Stop showing only agent pipelines/capability history. The Agents tab should show objectives, current state, branch, MR, capabilities, budget, evidence, and next action.
+
+## P1: upgrade flow graph to real DAG
+
+Use real GitLab dependency data when available. Keep heuristic columns as grouping only. Visually distinguish:
+
+```text
+real dependency
+artifact dependency
+synthetic visual grouping
+blocked edge
+optional edge
+```
+
+## P1: add streaming events
+
+Replace tight polling as the primary mode with:
+
+```text
+SSE/WebSocket/UDS event stream
+snapshot revision numbers
+delta updates
+reconnect from last seq
+```
+
+Polling can remain fallback mode.
+
+## P1: add theme system
+
+Create:
+
+```rust
+pub struct Theme {
+    pub success: Color,
+    pub active: Color,
+    pub focus: Color,
+    pub warning: Color,
+    pub risk: Color,
+    pub failure: Color,
+    pub security: Color,
+    pub stale: Color,
+}
+```
+
+Support:
+
+```text
+dark
+light
+high-contrast
+protanopia-safe
+deuteranopia-safe
+monochrome
+```
+
+## P1: add modal system
+
+The `events.rs` file is currently reserved for future modal/dialog handling, while event handling is embedded in `mod.rs`. ([GitHub][13]) Build that out.
+
+Needed modals:
+
+```text
+action preview
+confirmation
+grant capability
+filter/search
+entity details
+diff preview
+log search
+theme picker
+```
+
+## P1: fix selection state
+
+Use separate selection state for each domain:
+
+```rust
+selected_job_id
+selected_pipeline_id
+selected_agent_id
+selected_cache_object_id
+selected_evidence_id
+selected_secret_event_id
+selected_release_gate_id
+```
+
+Do not reuse job selection for unrelated tabs.
+
+## P2: add mouse interactions
+
+The TUI enables mouse capture, but the product should make mouse useful:
+
+```text
+click node to inspect
+click attention item
+click action
+drag splitter
+scroll tables
+hover-like focus through selection
+```
+
+## P2: add filters everywhere
+
+Global query language:
+
+```text
+status:failed
+agent:fix-auth
+risk:high
+branch:main
+pipeline:881
+cache:tainted
+kind:secret
+since:30m
+```
+
+Use it across jobs, events, evidence, agents, cache, and release.
+
+---
+
+# 16. Visual design upgrades
+
+## Use compact glyphs consistently
+
+```text
+✓ pass
+● running
+✗ failed
+○ pending
+⊘ skipped/canceled
+◇ manual/waiting
+⚠ warning
+◆ required
+★ critical path
+🔒 protected / secret / approval required
+```
+
+## Use badges
+
+```text
+[CRIT]
+[REQ]
+[CACHE HIT]
+[CACHE DENIED]
+[TAINT]
+[FLAKE?]
+[AGENT]
+[PROD]
+[HUMAN]
+```
+
+## Use sparklines
+
+For terminal graphics:
+
+```text
+runner load:      ▁▂▃▅▇█▇▅
+cache hit rate:   ▃▄▆▇▇▆█
+test duration:    ▁▁▂▅▇
+flake rate:       ▁▁▁▃▁▆
+```
+
+## Use progress bars
+
+```text
+integration_tests  ███████░░░  72%  ETA 2m14s
+release gate       █████░░░░░  5/9 gates
+agent budget       ██████░░░░  61%
+```
+
+## Use semantic panels
+
+Every panel should have one primary purpose:
+
+```text
+Health
+Attention
+Flow
+Inspector
+Evidence
+Actions
+Timeline
+```
+
+Avoid panels that are just miscellaneous data dumps.
+
+---
+
+# 17. The “world-class” TUI mockup
+
+```text
+┌ vgit OPS ─ stream LIVE ─ GitLab OK ─ runners 8/12 ─ cache 91% trusted ─ risk LOW ┐
+│ main@a1b2c3 · release candidate active · canary healthy · 3 items need attention │
+├─ Attention ───────────────┬─ Pipeline Flight Deck ─────────────────┬─ Inspector ─┤
+│ P0 MR !42 blocked         │ Commit → Impact → Build → Tests → Ship │ WHY BLOCKED │
+│    cache taint abc123     │                                        │ Cache object │
+│    [Explain] [Fix]        │ impact      ✓ 12s                     │ abc123 is    │
+│                           │ build       ✓ 1m03s  [HIT]            │ tainted and  │
+│ P1 agent/fix-auth stuck   │ unit        ✓ 44s                     │ used by req. │
+│    needs test grant       │ integ       ● 43% ETA 3m [CRIT]       │ job build.   │
+│    [Grant] [Open]         │ security    ○ waiting                  │              │
+│                           │ canary      ○ waiting                  │ NEXT ACTION  │
+│ P2 runners near capacity  │                                        │ Rerun build  │
+│    [Scale +2]             │ Critical path: build→integ→canary      │ clean cache  │
+├───────────────────────────┴────────────────────────────────────────┴──────────────┤
+│ Timeline: 14:04 cache denied · 14:05 agent repaired · 14:06 validation started    │
+│ Command: > explain mr 42                                                          │
+└───────────────────────────────────────────────────────────────────────────────────┘
+```
+
+This is what the current TUI should become: not just a dashboard, but an operational cockpit.
+
+---
+
+# 18. Highest-impact API changes for the TUI
+
+If I had to pick only ten API changes, I would do these:
+
+1. **`GET /v1/tui/snapshot`** — one typed state object for the whole TUI.
+2. **`GET /v1/events/stream`** — live event stream with sequence numbers.
+3. **`GET /v1/attention`** — backend-generated attention queue.
+4. **`GET /v1/actions`** — registry plus enabled/disabled state for current context.
+5. **`POST /v1/actions/{id}/preview`** — preview every action before execution.
+6. **`POST /v1/actions/{id}/execute`** — one execution path for TUI, CLI, and agents.
+7. **`GET /v1/explain/{entity}/{id}`** — universal explanation endpoint.
+8. **`GET /v1/pipelines/{id}/flow`** — real DAG, ETA, blockers, evidence.
+9. **`GET /v1/agents` and `/v1/work-contracts`** — real agent cockpit data.
+10. **`GET /v1/evidence?entity=...`** — linked evidence for every object.
+
+These APIs would let the TUI become simpler, faster, more reliable, and more actionable.
+
+---
+
+# Final recommendation
+
+Do not make the TUI prettier first. Make it **more truthful and more actionable** first.
+
+The current system already has good raw ingredients: a broad CLI, capability intents, action registry, TUI tabs, release gates, cache trust panels, evidence views, and pipeline flow modeling. ([GitHub][1])
+
+The next leap is architectural:
+
+> Build a unified read-model API, a real event stream, and an executable action API. Then redesign the TUI around attention, explanation, evidence, and safe action.
+
+That would move JeRyu from “cool terminal dashboard” to **agent-first Git operations cockpit**.
+
+[1]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/cli.rs "raw.githubusercontent.com"
+[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/engine.rs "raw.githubusercontent.com"
+[3]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/capability.rs "raw.githubusercontent.com"
+[4]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/src/tui/action_registry.rs "raw.githubusercontent.com"
+[5]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/src/tui/mod.rs "raw.githubusercontent.com"
+[6]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/src/tui/app.rs "raw.githubusercontent.com"
+[7]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/src/tui/ui.rs "raw.githubusercontent.com"
+[8]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/flow/model.rs "raw.githubusercontent.com"
+[9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/flow/builder.rs "raw.githubusercontent.com"
+[10]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/flow/widget.rs "raw.githubusercontent.com"
+[11]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/flow/eta.rs "raw.githubusercontent.com"
+[12]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/flow/inspector.rs "raw.githubusercontent.com"
+[13]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/tui/events.rs "JeRyu/src/tui/events.rs at main · jeppsontaylor/JeRyu · GitHub"
+
