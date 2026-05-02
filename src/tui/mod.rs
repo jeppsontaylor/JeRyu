@@ -694,6 +694,29 @@ async fn run_loop(
                         app::EvidenceViewMode::AuditLedger => app::EvidenceViewMode::Capsules,
                     };
                 }
+                // TUI v2 — Runner feed controls (Jobs tab)
+                KeyCode::Char('f') if app.active_tab == crate::tui::app::ActiveTab::Jobs => {
+                    app.feed_toggle_pin();
+                }
+                KeyCode::Char('n') if app.active_tab == crate::tui::app::ActiveTab::Jobs => {
+                    app.feed_next();
+                }
+                KeyCode::Char('N') if app.active_tab == crate::tui::app::ActiveTab::Jobs => {
+                    app.feed_prev();
+                }
+                KeyCode::Char('g') if app.active_tab == crate::tui::app::ActiveTab::Jobs && !app.maximize_logs => {
+                    app.feed_follow_toggle();
+                }
+                // TUI v2 — Interactive actions
+                KeyCode::Char('c') if app.active_tab == crate::tui::app::ActiveTab::Jobs => {
+                    app.cancel_selected_job().await?;
+                }
+                KeyCode::Char('?') => {
+                    app.help_overlay_open = !app.help_overlay_open;
+                }
+                KeyCode::F(5) => {
+                    app.force_refresh().await;
+                }
                 KeyCode::Char('p') => app.toggle_pool_paused().await?,
                 KeyCode::Char('d') | KeyCode::Delete => app.delete_selected_item().await?,
                 KeyCode::Char('r') => app.retry_selected_job().await?,

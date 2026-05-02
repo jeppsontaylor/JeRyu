@@ -12,6 +12,8 @@ use tokio::sync::mpsc;
 use tokio::sync::watch;
 
 const LIVE_LOG_MAX_BYTES: usize = 160_000;
+const FEED_MAX_LINES: usize = 80;
+const FEED_CYCLE_TICKS: u64 = 20;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ActiveTab {
@@ -102,6 +104,43 @@ pub struct LiveLogState {
     pub stale: bool,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct RunnerFeed {
+    pub runner_name: String,
+    pub job_id: i64,
+    pub job_name: String,
+    pub pipeline_id: i64,
+    pub status: String,
+    pub elapsed_secs: f64,
+    pub log_tail: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct StageProgress {
+    pub stage_name: String,
+    pub total_jobs: usize,
+    pub completed_jobs: usize,
+    pub running_jobs: usize,
+    pub failed_jobs: usize,
+    pub status: String,
+    pub avg_duration_secs: Option<f64>,
+    pub elapsed_secs: Option<f64>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PipelineProgressView {
+    pub pipeline_id: i64,
+    pub ref_name: String,
+    pub sha_short: String,
+    pub stages: Vec<StageProgress>,
+    pub overall_pct: u16,
+    pub eta_remaining_secs: Option<u64>,
+    pub eta_confidence: String,
+    pub wall_clock_secs: u64,
+    pub started_at: Option<String>,
+}
+
 #[derive(Default)]
 pub struct TuiStateSnapshot {
     pub pools: Vec<Pool>,
@@ -135,15 +174,23 @@ pub struct TuiStateSnapshot {
     pub release_status_generated_at: Option<String>,
     pub test_bottlenecks_avg: Vec<crate::state::TestBottleneck>,
     pub test_bottlenecks_latest: Vec<crate::state::TestBottleneck>,
-    // New in Phase 1:
+    // State sync:
     pub last_sync_at: Option<chrono::DateTime<chrono::Utc>>,
     pub inspector_capsule: Option<crate::capsule::FailureCapsule>,
     pub inspector_job_id: Option<i64>,
     pub recent_evidence: Vec<crate::state::EvidenceRecord>,
     pub secret_audit_events: Vec<crate::state::SecretAuditEvent>,
-    // Phase 5:
     pub agent_pipelines: Vec<crate::state::TrackedPipeline>,
     pub recent_audit_events: Vec<crate::state::EventLog>,
+    // TUI v2 — live runner feeds:
+    pub runner_feeds: Vec<RunnerFeed>,
+    pub active_feed_index: usize,
+    pub feed_cycle_tick: u64,
+    pub feed_auto_cycle: bool,
+    // TUI v2 — pipeline progress:
+    pub pipeline_progress_view: Option<PipelineProgressView>,
+    // TUI v2 — event ticker:
+    pub event_ticker_offset: usize,
 }
 
 pub struct App {
@@ -178,6 +225,15 @@ pub struct App {
     pub log_target: Option<LogTarget>,
     pub log_target_tx: watch::Sender<Option<LogTarget>>,
 
+    // TUI v2 — runner feed controls:
+    pub feed_scroll_offset: u16,
+    pub feed_follow_tail: bool,
+    pub feed_pinned: Option<usize>,
+    // TUI v2 — interactive:
+    pub search_active: bool,
+    pub search_query: String,
+    pub help_overlay_open: bool,
+
     sync_rx: mpsc::Receiver<TuiStateSnapshot>,
     sync_tx: mpsc::Sender<TuiStateSnapshot>,
 
@@ -186,6 +242,9 @@ pub struct App {
 
     flow_rx: mpsc::Receiver<crate::tui::flow::FlowSnapshot>,
     pub flow_tx: mpsc::Sender<crate::tui::flow::FlowSnapshot>,
+
+    feed_rx: mpsc::Receiver<Vec<RunnerFeed>>,
+    feed_tx: mpsc::Sender<Vec<RunnerFeed>>,
 }
 
 impl App {
@@ -193,6 +252,7 @@ impl App {
         let (sync_tx, sync_rx) = mpsc::channel(4);
         let (flow_tx, flow_rx) = mpsc::channel(4);
         let (log_tx, log_rx) = mpsc::channel(8);
+        let (feed_tx, feed_rx) = mpsc::channel(4);
         let (log_target_tx, _log_target_rx) = watch::channel(None);
         Self {
             db,
@@ -219,12 +279,20 @@ impl App {
             tick_count: 0,
             log_target: None,
             log_target_tx,
+            feed_scroll_offset: 0,
+            feed_follow_tail: true,
+            feed_pinned: None,
+            search_active: false,
+            search_query: String::new(),
+            help_overlay_open: false,
             sync_rx,
             sync_tx,
             log_rx,
             log_tx,
             flow_rx,
             flow_tx,
+            feed_rx,
+            feed_tx,
         }
     }
 
@@ -673,13 +741,91 @@ impl App {
                 crate::state::EventLog {
                     id: 503,
                     event_type: "merge_gate.blocked".into(),
-                    timestamp: now_str,
+                    timestamp: now_str.clone(),
                     project_id: Some(release::DEFAULT_RELEASE_PROJECT_ID),
                     job_id: Some(9_004),
                     actor: "gatekeeper".into(),
                     payload: "{\"reason\": \"security_gate_failed\"}".into(),
                 },
             ],
+            runner_feeds: vec![
+                RunnerFeed {
+                    runner_name: "trusted-01".into(),
+                    job_id: 9_002,
+                    job_name: "build-image".into(),
+                    pipeline_id: 8_013,
+                    status: "running".into(),
+                    elapsed_secs: 134.0,
+                    log_tail: "[2026-05-02 23:04:12] Compiling jeryu v3.0.1\n[2026-05-02 23:04:13] Compiling tokio v1.40\n[2026-05-02 23:04:14]   warning: unused import `std::io`\n[2026-05-02 23:04:15] Compiling sqlx v0.8\n[2026-05-02 23:04:16] Compiling ratatui v0.29\n[2026-05-02 23:04:17] Finished `release` profile in 2m14s".into(),
+                    updated_at: now_str.clone(),
+                },
+                RunnerFeed {
+                    runner_name: "trusted-02".into(),
+                    job_id: 9_005,
+                    job_name: "e2e-canary".into(),
+                    pipeline_id: 8_013,
+                    status: "running".into(),
+                    elapsed_secs: 87.0,
+                    log_tail: "[2026-05-02 23:04:30] Running e2e test suite...\n[2026-05-02 23:04:31] test canary::smoke_health ... ok\n[2026-05-02 23:04:32] test canary::telemetry_check ... FAILED\n[2026-05-02 23:04:33]   Error: telemetry endpoint returned 503\n[2026-05-02 23:04:34] test canary::rollback_gate ... ok".into(),
+                    updated_at: now_str.clone(),
+                },
+                RunnerFeed {
+                    runner_name: "security-01".into(),
+                    job_id: 9_004,
+                    job_name: "security-gate".into(),
+                    pipeline_id: 8_013,
+                    status: "failed".into(),
+                    elapsed_secs: 45.0,
+                    log_tail: "[2026-05-02 23:03:50] Running security scan...\n[2026-05-02 23:03:52] Checking artifact signatures...\n[2026-05-02 23:03:55] ERROR: Artifact verification timed out\n[2026-05-02 23:03:55] FATAL: security gate failed".into(),
+                    updated_at: now_str.clone(),
+                },
+            ],
+            active_feed_index: 0,
+            feed_cycle_tick: 0,
+            feed_auto_cycle: true,
+            pipeline_progress_view: Some(PipelineProgressView {
+                pipeline_id: 8_013,
+                ref_name: "main".into(),
+                sha_short: "9c3f2d4e".into(),
+                stages: vec![
+                    StageProgress {
+                        stage_name: "build".into(),
+                        total_jobs: 2, completed_jobs: 2, running_jobs: 0, failed_jobs: 0,
+                        status: "success".into(),
+                        avg_duration_secs: Some(180.0), elapsed_secs: Some(134.0),
+                    },
+                    StageProgress {
+                        stage_name: "test".into(),
+                        total_jobs: 3, completed_jobs: 1, running_jobs: 1, failed_jobs: 0,
+                        status: "running".into(),
+                        avg_duration_secs: Some(300.0), elapsed_secs: Some(87.0),
+                    },
+                    StageProgress {
+                        stage_name: "security".into(),
+                        total_jobs: 2, completed_jobs: 0, running_jobs: 0, failed_jobs: 1,
+                        status: "failed".into(),
+                        avg_duration_secs: Some(60.0), elapsed_secs: Some(45.0),
+                    },
+                    StageProgress {
+                        stage_name: "deploy".into(),
+                        total_jobs: 1, completed_jobs: 0, running_jobs: 0, failed_jobs: 0,
+                        status: "pending".into(),
+                        avg_duration_secs: Some(120.0), elapsed_secs: None,
+                    },
+                    StageProgress {
+                        stage_name: "e2e".into(),
+                        total_jobs: 2, completed_jobs: 0, running_jobs: 1, failed_jobs: 0,
+                        status: "running".into(),
+                        avg_duration_secs: Some(240.0), elapsed_secs: Some(87.0),
+                    },
+                ],
+                overall_pct: 47,
+                eta_remaining_secs: Some(492),
+                eta_confidence: "medium".into(),
+                wall_clock_secs: 862,
+                started_at: Some(now_str.clone()),
+            }),
+            event_ticker_offset: 0,
         };
 
         self.selected_job_index = 0;
@@ -782,6 +928,61 @@ impl App {
                 }
 
                 if log_tx.send(state.clone()).await.is_err() {
+                    break;
+                }
+            }
+        });
+
+        // TUI v2 — Live Runner Feed background sync
+        let db_feed = self.db.clone();
+        let gitlab_feed = self.gitlab.clone();
+        let feed_tx = self.feed_tx.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_millis(2000));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+            loop {
+                interval.tick().await;
+
+                // Find running jobs
+                let running_jobs = db_feed.recent_job_events(50).await
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|j| j.status == "running")
+                    .take(5)
+                    .collect::<Vec<_>>();
+
+                let mut feeds = Vec::new();
+                for job in &running_jobs {
+                    let log_tail = match gitlab_feed
+                        .job_trace(job.project_id, job.job_id)
+                        .await
+                    {
+                        Ok(trace) => {
+                            let lines: Vec<&str> = trace.lines().collect();
+                            let start = lines.len().saturating_sub(FEED_MAX_LINES);
+                            lines[start..].join("\n")
+                        }
+                        Err(_) => String::new(),
+                    };
+
+                    let elapsed = chrono::DateTime::parse_from_rfc3339(&job.received_at)
+                        .map(|t| chrono::Utc::now().signed_duration_since(t).num_seconds() as f64)
+                        .unwrap_or(0.0);
+
+                    feeds.push(RunnerFeed {
+                        runner_name: job.pool_name.clone().unwrap_or_else(|| "unknown".into()),
+                        job_id: job.job_id,
+                        job_name: job.job_name.clone().unwrap_or_else(|| format!("job-{}", job.job_id)),
+                        pipeline_id: job.pipeline_id.unwrap_or(0),
+                        status: job.status.clone(),
+                        elapsed_secs: elapsed,
+                        log_tail,
+                        updated_at: chrono::Utc::now().to_rfc3339(),
+                    });
+                }
+
+                if feed_tx.send(feeds).await.is_err() {
                     break;
                 }
             }
@@ -1074,6 +1275,13 @@ impl App {
             state.live_log = self.state.live_log.clone();
             state.inspector_capsule = self.state.inspector_capsule.clone();
             state.inspector_job_id = self.state.inspector_job_id;
+            // Preserve TUI v2 feed state
+            state.runner_feeds = self.state.runner_feeds.clone();
+            state.active_feed_index = self.state.active_feed_index;
+            state.feed_cycle_tick = self.state.feed_cycle_tick;
+            state.feed_auto_cycle = self.state.feed_auto_cycle;
+            state.pipeline_progress_view = self.state.pipeline_progress_view.clone();
+            state.event_ticker_offset = self.state.event_ticker_offset;
             self.state = state;
         }
 
@@ -1083,6 +1291,34 @@ impl App {
 
         while let Ok(log_state) = self.log_rx.try_recv() {
             self.state.live_log = log_state;
+        }
+
+        // TUI v2 — consume runner feed updates
+        while let Ok(feeds) = self.feed_rx.try_recv() {
+            self.state.runner_feeds = feeds;
+        }
+
+        // TUI v2 — auto-cycle runner feed every FEED_CYCLE_TICKS (5s at 250ms tick)
+        if !self.state.runner_feeds.is_empty() && self.feed_pinned.is_none() {
+            self.state.feed_cycle_tick = self.state.feed_cycle_tick.wrapping_add(1);
+            if self.state.feed_cycle_tick % FEED_CYCLE_TICKS == 0 {
+                self.state.active_feed_index =
+                    (self.state.active_feed_index + 1) % self.state.runner_feeds.len();
+                self.state.feed_auto_cycle = true;
+                self.feed_scroll_offset = 0;
+                self.feed_follow_tail = true;
+            }
+        }
+        if let Some(pinned) = self.feed_pinned {
+            self.state.active_feed_index = pinned.min(
+                self.state.runner_feeds.len().saturating_sub(1),
+            );
+            self.state.feed_auto_cycle = false;
+        }
+
+        // TUI v2 — advance event ticker
+        if self.tick_count % 2 == 0 {
+            self.state.event_ticker_offset = self.state.event_ticker_offset.wrapping_add(1);
         }
 
         // Clamp indices
@@ -1512,6 +1748,59 @@ impl App {
         {
             self.selected_test_history = Some(hist);
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // TUI v2 — Runner feed controls
+    // -----------------------------------------------------------------------
+
+    pub fn feed_next(&mut self) {
+        if !self.state.runner_feeds.is_empty() {
+            self.state.active_feed_index =
+                (self.state.active_feed_index + 1) % self.state.runner_feeds.len();
+            self.feed_scroll_offset = 0;
+            self.feed_follow_tail = true;
+        }
+    }
+
+    pub fn feed_prev(&mut self) {
+        if !self.state.runner_feeds.is_empty() {
+            if self.state.active_feed_index > 0 {
+                self.state.active_feed_index -= 1;
+            } else {
+                self.state.active_feed_index = self.state.runner_feeds.len() - 1;
+            }
+            self.feed_scroll_offset = 0;
+            self.feed_follow_tail = true;
+        }
+    }
+
+    pub fn feed_toggle_pin(&mut self) {
+        if self.feed_pinned.is_some() {
+            self.feed_pinned = None;
+        } else {
+            self.feed_pinned = Some(self.state.active_feed_index);
+        }
+    }
+
+    pub fn feed_follow_toggle(&mut self) {
+        self.feed_follow_tail = !self.feed_follow_tail;
+        if self.feed_follow_tail {
+            self.feed_scroll_offset = u16::MAX;
+        }
+    }
+
+    // TUI v2 — Interactive actions
+
+    pub async fn cancel_selected_job(&mut self) -> Result<()> {
+        if let Some(j) = self.state.recent_jobs.get(self.selected_job_index) {
+            self.gitlab.cancel_job(j.project_id, j.job_id).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn force_refresh(&mut self) {
+        self.refresh_now().await;
     }
 }
 

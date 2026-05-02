@@ -221,6 +221,9 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     if app.command_palette_open {
         draw_command_palette(f, app);
     }
+    if app.help_overlay_open {
+        draw_help_overlay(f, app);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -329,37 +332,57 @@ fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
 
 fn draw_event_console(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
-        .title(" Events — Ctrl-K: command palette ")
+        .title(" Events ── Ctrl-K: command palette  /: search  ?: help ")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::DarkGray));
 
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    // Show recent evidence events + any stale warning
-    let mut lines: Vec<Line> = Vec::new();
-    for rec in app.state.recent_evidence.iter().take(inner.height as usize) {
-        let ts = rec.created_at.get(..16).unwrap_or(&rec.created_at);
-        lines.push(Line::from(vec![
-            Span::styled(format!("{} ", ts), Style::default().fg(Color::DarkGray)),
-            Span::styled("[CAPSULE] ", Style::default().fg(Color::Red)),
-            Span::styled(
-                format!(
-                    "job#{} {} exit:{}",
-                    rec.job_id, rec.failure_kind, rec.exit_code
-                ),
-                Style::default().fg(Color::White),
-            ),
-        ]));
-    }
-    if lines.is_empty() {
-        lines.push(Line::from(Span::styled(
+    // Build ticker line from recent events (scrolling right-to-left)
+    let mut ticker_spans: Vec<Span> = Vec::new();
+    let _now = chrono::Utc::now();
+
+    // Collect event entries
+    let events: Vec<(&str, &str, Color, &str)> = app.state.recent_jobs.iter()
+        .take(20)
+        .map(|job| {
+            let ts = job.received_at.get(11..19).unwrap_or("--:--:--");
+            let (badge, color) = status_badge(&job.status);
+            let name = job.job_name.as_deref().unwrap_or("job");
+            (ts, badge, color, name)
+        })
+        .collect();
+
+    if events.is_empty() {
+        let p = Paragraph::new(Span::styled(
             "  No events yet. Events appear here as jobs run.",
             Style::default().fg(Color::DarkGray),
-        )));
+        ));
+        f.render_widget(p, inner);
+        return;
     }
 
-    let p = Paragraph::new(lines);
+    // Build a single scrolling line
+    for (ts, badge, color, name) in &events {
+        ticker_spans.push(Span::styled(
+            format!(" {ts} "),
+            Style::default().fg(Color::DarkGray),
+        ));
+        ticker_spans.push(Span::styled(
+            format!("[{badge}]"),
+            Style::default().fg(*color).add_modifier(Modifier::BOLD),
+        ));
+        ticker_spans.push(Span::styled(
+            format!(" {name}  │"),
+            Style::default().fg(Color::White),
+        ));
+    }
+
+    // Scroll offset drives the horizontal shift
+    let offset = (app.state.event_ticker_offset % (events.len() * 30 + 1)) as u16;
+
+    let p = Paragraph::new(Line::from(ticker_spans)).scroll((0, offset));
     f.render_widget(p, inner);
 }
 
@@ -370,8 +393,10 @@ fn draw_event_console(f: &mut Frame, app: &App, area: Rect) {
 fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
     let help = if app.maximize_logs {
         " Esc:minimize  ↑↓:scroll  PgUp/Dn:jump  Home:top  G/End:bottom  q:quit"
+    } else if app.active_tab == ActiveTab::Jobs {
+        " f:freeze  n/N:runner  g:follow  c:cancel  r:retry  d:del  Enter:logs  ?:help  q:quit"
     } else {
-        " ^K:palette  Tab:cycle  1-9:tab  ↑↓:select  Enter:logs  r:retry  d:delete  p:pause  q:quit"
+        " ^K:palette  Tab:cycle  1-9:tab  ↑↓:select  Enter:inspect  F5:refresh  ?:help  q:quit"
     };
     let p = Paragraph::new(help)
         .block(Block::default().borders(Borders::TOP))
@@ -399,10 +424,11 @@ fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
     let metric_cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(25),
-            Constraint::Percentage(25),
-            Constraint::Percentage(25),
-            Constraint::Percentage(25),
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
         ])
         .split(rows[1]);
     let body_cols = Layout::default()
@@ -631,6 +657,25 @@ fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
             Color::Green
         },
     );
+    // TUI v2 — Live Runners metric tile
+    let feed_count = app.state.runner_feeds.len();
+    let feed_running = app.state.runner_feeds.iter().filter(|f| f.status == "running").count();
+    let feed_failed = app.state.runner_feeds.iter().filter(|f| f.status == "failed").count();
+    draw_metric_tile(
+        f,
+        metric_cols[4],
+        "Live Runners",
+        &format!("{} active", feed_count),
+        &format!("{feed_running}▶ {feed_failed}✕"),
+        if feed_failed > 0 {
+            Color::Red
+        } else if feed_running > 0 {
+            Color::Cyan
+        } else {
+            Color::DarkGray
+        },
+    );
+
 
     draw_attention_queue(f, app, body_cols[0]);
     draw_proof_lanes(f, app, body_cols[1]);
@@ -1125,41 +1170,360 @@ fn draw_release_inspector(f: &mut Frame, app: &App, area: Rect) {
 // ---------------------------------------------------------------------------
 
 fn draw_jobs_tab(f: &mut Frame, app: &mut App, area: Rect) {
+    // TUI v2 — Split layout: Live Feed (60%) | Progress+Matrix (40%)
     let cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(22), // Left: pipeline list
-            Constraint::Min(40),    // Center: flow + jobs + logs
-            Constraint::Length(32), // Right: inspector
+            Constraint::Percentage(60), // Left: Live Runner Feed
+            Constraint::Percentage(40), // Right: Progress + Matrix + Inspector
         ])
         .split(area);
 
-    // Left nav: pipeline list
-    draw_pipeline_nav(f, app, cols[0]);
+    // Left column: Live Runner Feed
+    draw_live_runner_feed(f, app, cols[0]);
 
-    // Center: stacked flow board + jobs + logs
-    let center_rows = Layout::default()
+    // Right column: Pipeline Progress on top, Job Matrix below, Inspector at bottom
+    let right_rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(7),  // Release banner
-            Constraint::Min(10),    // Flow board
-            Constraint::Length(14), // Jobs + Logs
+            Constraint::Length(12), // Pipeline progress
+            Constraint::Min(8),    // Job matrix
+            Constraint::Length(10), // Inspector
         ])
         .split(cols[1]);
-    let jobs_logs = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
-        .split(center_rows[2]);
 
-    draw_release_banner(f, app, center_rows[0]);
-    draw_flow_board(f, app, center_rows[1]);
-    draw_jobs(f, app, jobs_logs[0]);
-    draw_logs(f, app, jobs_logs[1]);
-
-    // Right inspector
-    draw_job_inspector_panel(f, app, cols[2]);
+    draw_pipeline_progress(f, app, right_rows[0]);
+    draw_job_matrix(f, app, right_rows[1]);
+    draw_job_inspector_panel(f, app, right_rows[2]);
 }
 
+// ---------------------------------------------------------------------------
+// TUI v2 — Live Runner Feed
+// ---------------------------------------------------------------------------
+
+fn feed_line_color(line: &str) -> Color {
+    let lower = line.to_ascii_lowercase();
+    if lower.contains("error") || lower.contains("failed") || lower.contains("fatal") || lower.contains("panicked") {
+        Color::Red
+    } else if lower.contains("warning") || lower.contains("warn") {
+        Color::Yellow
+    } else if lower.contains("compiling") || lower.contains("running") || lower.contains("downloading") || lower.contains("fetching") {
+        Color::Cyan
+    } else if lower.contains("finished") || lower.contains("test result: ok") || lower.contains("passed") || lower.contains("... ok") {
+        Color::Green
+    } else if line.starts_with('[') && line.len() > 10 {
+        // Timestamp prefix — dim it
+        Color::DarkGray
+    } else {
+        Color::White
+    }
+}
+
+fn format_elapsed(secs: f64) -> String {
+    let total = secs as u64;
+    if total >= 3600 {
+        format!("{}h{}m{}s", total / 3600, (total % 3600) / 60, total % 60)
+    } else if total >= 60 {
+        format!("{}m{}s", total / 60, total % 60)
+    } else {
+        format!("{}s", total)
+    }
+}
+
+fn draw_live_runner_feed(f: &mut Frame, app: &App, area: Rect) {
+    let feeds = &app.state.runner_feeds;
+    let active_idx = app.state.active_feed_index;
+    let is_cycling = app.feed_pinned.is_none();
+
+    let cycle_label = if is_cycling { "⟳ cycling 5s" } else { "⏸ pinned" };
+    let runner_label = if feeds.is_empty() {
+        "no runners".to_string()
+    } else {
+        format!("runner {}/{}", active_idx + 1, feeds.len())
+    };
+
+    let block = Block::default()
+        .title(format!(" Live Runner Feed ── {} ── {} ", cycle_label, runner_label))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    if feeds.is_empty() {
+        f.render_widget(
+            Paragraph::new(vec![
+                Line::from(""),
+                Line::from(Span::styled(
+                    "  No active runners. Waiting for CI jobs...",
+                    Style::default().fg(Color::DarkGray),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "  Tip: Start a pipeline to see live logs here.",
+                    Style::default().fg(Color::DarkGray),
+                )),
+            ]),
+            inner,
+        );
+        return;
+    }
+
+    let feed = &feeds[active_idx.min(feeds.len().saturating_sub(1))];
+
+    // Split into header (2 lines) + logs area + indicator strip (1 line)
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2),  // Runner header
+            Constraint::Min(4),    // Log content
+            Constraint::Length(1), // Runner indicator strip
+        ])
+        .split(inner);
+
+    // Runner header
+    let feed_color = status_color(&feed.status);
+    let header_spans = vec![
+        Span::styled(
+            format!(" {} ", &feed.runner_name),
+            Style::default()
+                .fg(Color::Black)
+                .bg(feed_color)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!(" │ {} ", &feed.job_name),
+            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!("│ ⏱ {} ", format_elapsed(feed.elapsed_secs)),
+            Style::default().fg(Color::Cyan),
+        ),
+        Span::styled(
+            format!("│ job #{}", feed.job_id),
+            Style::default().fg(Color::DarkGray),
+        ),
+    ];
+    f.render_widget(
+        Paragraph::new(Line::from(header_spans)),
+        rows[0],
+    );
+
+    // Log content with color coding
+    let log_lines: Vec<Line> = feed.log_tail.lines().map(|line| {
+        let color = feed_line_color(line);
+        let style = if color == Color::Red || color == Color::Green {
+            Style::default().fg(color).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(color)
+        };
+        Line::from(Span::styled(line.to_string(), style))
+    }).collect();
+
+    let total_lines = log_lines.len() as u16;
+    let visible_height = rows[1].height;
+    let scroll_offset = if app.feed_follow_tail {
+        total_lines.saturating_sub(visible_height)
+    } else {
+        app.feed_scroll_offset.min(total_lines.saturating_sub(visible_height))
+    };
+
+    f.render_widget(
+        Paragraph::new(log_lines).scroll((scroll_offset, 0)),
+        rows[1],
+    );
+
+    // Runner indicator strip
+    let mut indicator_spans: Vec<Span> = vec![Span::raw(" ")];
+    for (i, f_entry) in feeds.iter().enumerate() {
+        let is_active = i == active_idx;
+        let dot_color = status_color(&f_entry.status);
+        let dot = if f_entry.status == "running" || f_entry.status == "pending" { "●" } else if f_entry.status == "failed" { "✕" } else { "○" };
+        let name = short_text(&f_entry.runner_name, 12);
+        if is_active {
+            indicator_spans.push(Span::styled(
+                format!("{dot} {name} "),
+                Style::default().fg(dot_color).add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+            ));
+        } else {
+            indicator_spans.push(Span::styled(
+                format!("{dot} {name} "),
+                Style::default().fg(dot_color),
+            ));
+        }
+        indicator_spans.push(Span::styled(" ", Style::default()));
+    }
+    f.render_widget(Paragraph::new(Line::from(indicator_spans)), rows[2]);
+}
+
+// ---------------------------------------------------------------------------
+// TUI v2 — Pipeline Progress
+// ---------------------------------------------------------------------------
+
+fn draw_pipeline_progress(f: &mut Frame, app: &App, area: Rect) {
+    let block = Block::default()
+        .title(" [ Pipeline Progress ] ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let Some(ref progress) = app.state.pipeline_progress_view else {
+        f.render_widget(
+            Paragraph::new("  No active pipeline"),
+            inner,
+        );
+        return;
+    };
+
+    let mut lines: Vec<Line> = Vec::new();
+
+    // Pipeline header
+    lines.push(Line::from(vec![
+        Span::styled(
+            format!("  #{} ", progress.pipeline_id),
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!("{}@{}", progress.ref_name, progress.sha_short),
+            Style::default().fg(Color::White),
+        ),
+    ]));
+
+    // Stage rows
+    let tick = app.tick_count;
+    for stage in &progress.stages {
+        let (icon, icon_color) = match stage.status.as_str() {
+            "success" => ("●", Color::Green),
+            "running" => {
+                // Animated indicator
+                if tick % 4 < 2 { ("◉", Color::Cyan) } else { ("◎", Color::Cyan) }
+            }
+            "failed" => {
+                if tick % 4 < 2 { ("✕", Color::Red) } else { ("✕", Color::LightRed) }
+            }
+            _ => ("○", Color::Yellow),
+        };
+
+        let bar_width = 16usize;
+        let fill = if stage.total_jobs > 0 {
+            (stage.completed_jobs * bar_width + stage.total_jobs / 2) / stage.total_jobs
+        } else {
+            0
+        };
+        let running_fill = if stage.total_jobs > 0 && stage.running_jobs > 0 {
+            1.max((stage.running_jobs * bar_width) / stage.total_jobs)
+        } else {
+            0
+        };
+        let bar = format!(
+            "{}{}{}",
+            "█".repeat(fill),
+            "▓".repeat(running_fill.min(bar_width - fill)),
+            "░".repeat(bar_width.saturating_sub(fill + running_fill)),
+        );
+
+        let count_label = format!(
+            "{}/{}",
+            stage.completed_jobs + stage.running_jobs,
+            stage.total_jobs
+        );
+
+        lines.push(Line::from(vec![
+            Span::styled(format!("  {icon} "), Style::default().fg(icon_color)),
+            Span::styled(
+                format!("{:<12}", short_text(&stage.stage_name, 12)),
+                Style::default().fg(Color::White),
+            ),
+            Span::styled(bar, Style::default().fg(icon_color)),
+            Span::styled(format!(" {:<5}", count_label), Style::default().fg(Color::DarkGray)),
+        ]));
+    }
+
+    // Overall progress bar
+    lines.push(Line::from(""));
+    let overall_bar = meter_bar(progress.overall_pct, 20);
+    let eta_label = progress.eta_remaining_secs.map(|secs| {
+        if secs >= 3600 {
+            format!("ETA ~{}h{}m ({})", secs / 3600, (secs % 3600) / 60, progress.eta_confidence)
+        } else if secs >= 60 {
+            format!("ETA ~{}m{}s ({})", secs / 60, secs % 60, progress.eta_confidence)
+        } else {
+            format!("ETA ~{}s ({})", secs, progress.eta_confidence)
+        }
+    }).unwrap_or_else(|| "ETA unknown".into());
+
+    lines.push(Line::from(vec![
+        Span::styled(format!("  {overall_bar}"), Style::default().fg(Color::Cyan)),
+        Span::styled(format!("  {eta_label}"), Style::default().fg(Color::DarkGray)),
+    ]));
+
+    f.render_widget(Paragraph::new(lines), inner);
+}
+
+// ---------------------------------------------------------------------------
+// TUI v2 — Job Matrix
+// ---------------------------------------------------------------------------
+
+fn draw_job_matrix(f: &mut Frame, app: &App, area: Rect) {
+    let block = Block::default()
+        .title(" [ Job Matrix ] ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::DarkGray));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    // Group jobs by stage/pool
+    let mut groups: Vec<(&str, Vec<&crate::state::JobEvent>)> = Vec::new();
+    let mut current_stage: Option<&str> = None;
+
+    for job in &app.state.recent_jobs {
+        let stage = job.pool_name.as_deref().unwrap_or("default");
+        if current_stage != Some(stage) {
+            groups.push((stage, vec![job]));
+            current_stage = Some(stage);
+        } else if let Some(last) = groups.last_mut() {
+            last.1.push(job);
+        }
+    }
+
+    let tick = app.tick_count;
+    let mut lines: Vec<Line> = Vec::new();
+    for (stage_name, jobs) in groups.iter().take(inner.height as usize) {
+        let mut spans: Vec<Span> = vec![
+            Span::styled(
+                format!("  {:<14}", short_text(stage_name, 14)),
+                Style::default().fg(Color::DarkGray),
+            ),
+        ];
+        for job in jobs.iter().take(20) {
+            let (dot, color) = match job.status.as_str() {
+                "success" => ("●", Color::Green),
+                "running" => {
+                    if tick % 4 < 2 { ("●", Color::Cyan) } else { ("◌", Color::Cyan) }
+                }
+                "failed" => {
+                    if tick % 6 < 3 { ("●", Color::Red) } else { ("●", Color::LightRed) }
+                }
+                "pending" | "created" => ("○", Color::Yellow),
+                "canceled" => ("○", Color::DarkGray),
+                _ => ("○", Color::Gray),
+            };
+            spans.push(Span::styled(format!("{dot} "), Style::default().fg(color)));
+        }
+        lines.push(Line::from(spans));
+    }
+
+    if lines.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "  No jobs tracked",
+            Style::default().fg(Color::DarkGray),
+        )));
+    }
+
+    f.render_widget(Paragraph::new(lines), inner);
+}
+
+#[allow(dead_code)]
 fn draw_pipeline_nav(f: &mut Frame, app: &App, area: Rect) {
     let items: Vec<ListItem> = app
         .state
@@ -2227,6 +2591,7 @@ fn draw_secrets_tab(f: &mut Frame, app: &App, area: Rect) {
 // Shared renderers (preserved from previous version)
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 fn draw_release_banner(f: &mut Frame, app: &App, area: Rect) {
     let body = if let Some(ref release) = app.state.release_status {
         let attempt = &release.attempt;
@@ -2264,6 +2629,7 @@ fn draw_release_banner(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(panel, area);
 }
 
+#[allow(dead_code)]
 fn draw_flow_board(f: &mut Frame, app: &App, area: Rect) {
     let (stale_age, stale_color, _stale_label) = stale_indicator(app);
     let flow_stale = app.state.flow.stale;
@@ -2319,6 +2685,7 @@ fn draw_flow_board(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
+#[allow(dead_code)]
 fn draw_jobs(f: &mut Frame, app: &App, area: Rect) {
     let active = app.active_pane == ActivePane::Jobs;
     let now = chrono::Utc::now();
@@ -2671,6 +3038,7 @@ fn short_text(input: &str, max_chars: usize) -> String {
     }
 }
 
+#[allow(dead_code)]
 fn format_duration(secs: i64) -> String {
     if secs >= 3600 {
         format!("{}h{}m", secs / 3600, (secs % 3600) / 60)
@@ -2943,4 +3311,101 @@ fn action_enabled_reason(app: &App, action_id: &str) -> Option<String> {
         ),
         _ => None,
     }
+}
+
+// ---------------------------------------------------------------------------
+// TUI v2 — Help overlay
+// ---------------------------------------------------------------------------
+
+fn draw_help_overlay(f: &mut Frame, app: &App) {
+    let area = f.area();
+    let popup_w = 60u16.min(area.width.saturating_sub(4));
+    let popup_h = 22u16.min(area.height.saturating_sub(4));
+    let x = area.x + (area.width.saturating_sub(popup_w)) / 2;
+    let y = area.y + (area.height.saturating_sub(popup_h)) / 2;
+    let popup = Rect::new(x, y, popup_w, popup_h);
+
+    f.render_widget(Clear, popup);
+
+    let tab_name = match app.active_tab {
+        ActiveTab::Mission => "Mission",
+        ActiveTab::Release => "Release",
+        ActiveTab::Jobs => "Jobs",
+        ActiveTab::Agents => "Agents",
+        ActiveTab::Tests => "Tests",
+        ActiveTab::Pools => "Pools",
+        ActiveTab::Cache => "Cache",
+        ActiveTab::Evidence => "Evidence",
+        ActiveTab::Secrets => "Secrets",
+    };
+
+    let mut lines: Vec<Line> = vec![
+        Line::from(Span::styled(
+            format!(" Keyboard Shortcuts — {tab_name} Tab"),
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        help_row("1-9", "Switch to tab N"),
+        help_row("Tab", "Cycle to next tab"),
+        help_row("Ctrl-K", "Open command palette"),
+        help_row("?", "Toggle this help overlay"),
+        help_row("F5", "Force refresh all data"),
+        help_row("q / Esc", "Quit TUI"),
+        Line::from(""),
+    ];
+
+    // Tab-specific bindings
+    match app.active_tab {
+        ActiveTab::Jobs => {
+            lines.push(Line::from(Span::styled(
+                " ── Runner Feed ──",
+                Style::default().fg(Color::Cyan),
+            )));
+            lines.push(help_row("f", "Freeze/unfreeze auto-cycle"));
+            lines.push(help_row("n", "Next runner"));
+            lines.push(help_row("N", "Previous runner"));
+            lines.push(help_row("g", "Toggle follow-tail mode"));
+            lines.push(help_row("Enter", "Open full-screen log view"));
+            lines.push(help_row("c", "Cancel selected job"));
+            lines.push(help_row("r", "Retry failed job"));
+            lines.push(help_row("d", "Delete job record"));
+        }
+        ActiveTab::Tests => {
+            lines.push(help_row("v / t", "Toggle average/latest view"));
+            lines.push(help_row("Enter", "Show test history"));
+            lines.push(help_row("↑↓", "Select test"));
+        }
+        ActiveTab::Pools => {
+            lines.push(help_row("p", "Pause/resume selected pool"));
+        }
+        ActiveTab::Evidence => {
+            lines.push(help_row("a", "Toggle capsules/audit ledger"));
+        }
+        _ => {
+            lines.push(help_row("↑↓", "Navigate items"));
+            lines.push(help_row("Enter", "Inspect selected item"));
+        }
+    }
+
+    let block = Block::default()
+        .title(" [ Help ] ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan));
+
+    f.render_widget(
+        Paragraph::new(lines)
+            .block(block)
+            .wrap(Wrap { trim: false }),
+        popup,
+    );
+}
+
+fn help_row(key: &str, desc: &str) -> Line<'static> {
+    Line::from(vec![
+        Span::styled(
+            format!("  {key:<12}"),
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(desc.to_string(), Style::default().fg(Color::White)),
+    ])
 }
