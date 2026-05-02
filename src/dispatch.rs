@@ -14,7 +14,7 @@ use jeryu::*;
 // Helpers
 
 /// Load secrets from jeryu.env and build a GitlabClient.
-fn load_client() -> Result<(gitlab_client::GitlabClient, String)> {
+pub fn load_client() -> Result<(gitlab_client::GitlabClient, String)> {
     let env_path = config::env_file();
     dotenvy::from_path(&env_path).ok();
 
@@ -188,299 +188,24 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
             }
         }
 
-        // ---- Git Passthrough ---------------------------------------------
-        Commands::Git { args } => {
-            // Find system git but avoid infinite recursion if aliased.
-            let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
-            
-            // Auto-Shadow: Intercept push command
-            let is_push = args.first().map(|s| s.as_str()) == Some("push");
-            
-            let status = std::process::Command::new(&git_path)
-                .args(&args)
-                .status()?;
-                
-            if is_push && status.success() {
-                // Determine if 'shadow' remote exists
-                let remotes = std::process::Command::new(&git_path)
-                    .args(["remote"])
-                    .output();
-                    
-                if let Ok(out) = remotes {
-                    let remote_str = String::from_utf8_lossy(&out.stdout);
-                    if remote_str.lines().any(|l| l.trim() == "shadow") {
-                        println!("🪄 JeRyu: Automatically pushing to local shadow pipeline...");
-                        let _ = std::process::Command::new(&git_path)
-                            .args(["push", "shadow", "HEAD"])
-                            .status();
-                    }
-                }
-            }
-                
-            std::process::exit(status.code().unwrap_or(1));
-        }
-
-        // ---- Save --------------------------------------------------------
-        Commands::Save { message } => {
-            println!("Saving work...");
-            let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
-            std::process::Command::new(&git_path).args(["add", "."]).status()?;
-            let status = std::process::Command::new(&git_path).args(["commit", "-m", &message]).status()?;
-            if !status.success() {
-                println!("Failed to save changes.");
-            } else {
-                println!("✅ Work saved locally.");
-            }
-        }
-
-        // ---- Sync --------------------------------------------------------
-        Commands::Sync => {
-            println!("Syncing with remote...");
-            let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
-            let pull_status = std::process::Command::new(&git_path).args(["pull", "--rebase"]).status()?;
-            if pull_status.success() {
-                let push_status = std::process::Command::new(&git_path).args(["push"]).status()?;
-                if push_status.success() {
-                    println!("✅ Synced successfully.");
-                }
-            }
-        }
-
-        // ---- Undo --------------------------------------------------------
-        Commands::Undo => {
-            println!("Undoing last save...");
-            let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
-            let status = std::process::Command::new(&git_path).args(["reset", "HEAD~1", "--soft"]).status()?;
-            if status.success() {
-                println!("✅ Last commit undone (changes kept in staging).");
-            }
-        }
-
-        // ---- Ship --------------------------------------------------------
-        Commands::Ship => {
-            println!("Shipping code...");
-            let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
-            
-            // Push to remote
-            println!("Pushing to origin...");
-            std::process::Command::new(&git_path).args(["push", "origin", "HEAD"]).status()?;
-            
-            // Push to local shadow
-            println!("Promoting to local shadow runner...");
-            let shadow_status = std::process::Command::new(&git_path)
-                .args(["push", "shadow", "HEAD"])
-                .status();
-                
-            match shadow_status {
-                Ok(s) if s.success() => println!("✅ Shipped to remote and local shadow."),
-                _ => println!("✅ Shipped to remote (local shadow skip/fail)."),
-            }
-        }
+        // ---- Git Operations ----------------------------------------------
+        Commands::Git { args } => crate::commands::git::execute_git_passthrough(&args)?,
+        Commands::Save { message } => crate::commands::git::execute_save(&message)?,
+        Commands::Sync => crate::commands::git::execute_sync()?,
+        Commands::Undo => crate::commands::git::execute_undo()?,
+        Commands::Ship => crate::commands::git::execute_ship()?,
 
         // ---- Down --------------------------------------------------------
-        Commands::Down => {
-            let (client, _) = load_client()?;
-            let db = state::Db::open().await?;
-            let docker_ctl = docker::DockerCtl::connect()?;
-
-            println!("Draining all pools...");
-            let pools = db.list_pools().await?;
-            for p in &pools {
-                pool::drain_pool(&db, &docker_ctl, &client, &p.name)
-                    .await
-                    .ok();
-                println!("  ✅ Pool '{}' drained", p.name);
-            }
-
-            println!("Stopping GitLab...");
-            docker_ctl.compose_down().await?;
-            println!("✅ Everything stopped.");
-        }
+        Commands::Down => crate::commands::system::execute_down().await?,
 
         // ---- Status (Native wrapper) -------------------------------------
-        Commands::Status => {
-            println!("━━━ JeRyu Status ━━━\n");
-            let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
-            std::process::Command::new(&git_path).args(["status"]).status()?;
-        }
+        Commands::Status => crate::commands::system::execute_status()?,
 
         // ---- System (formerly Status) ------------------------------------
-        Commands::System => {
-            let db = state::Db::open().await?;
-            let docker_ctl = docker::DockerCtl::connect()?;
-
-            // Check GitLab health
-            let url = format!("http://localhost:{}", config::GITLAB_HTTP_PORT);
-            let client = gitlab_client::GitlabClient::new(&url, None);
-            let gitlab_ready = client.is_ready().await;
-
-            println!("━━━ JeRyu system status ━━━\n");
-            println!(
-                "  GitLab:  {} ({})",
-                if gitlab_ready {
-                    "✅ running"
-                } else {
-                    "❌ not ready"
-                },
-                url,
-            );
-            match secrets::vault_status(Some(&db)).await {
-                Ok(vault) => println!(
-                    "  Vault:   {} ({})",
-                    if vault.healthy {
-                        "✅ ready"
-                    } else if vault.sealed {
-                        "⚠ sealed"
-                    } else {
-                        "❌ unavailable"
-                    },
-                    vault.addr
-                ),
-                Err(err) => println!("  Vault:   ❌ error ({err})"),
-            }
-
-            let pools = db.list_pools().await?;
-            println!("  Pools:   {}", pools.len());
-
-            for p in &pools {
-                let active = db.count_active_managers(&p.name).await.unwrap_or(0);
-                let running = pool::count_running_managers(&db, &docker_ctl, &p.name)
-                    .await
-                    .unwrap_or(0);
-                let state_str = if p.paused { "⏸ paused" } else { "▶ active" };
-                let manager_status = format!("{running}/{active}/{}", p.max_managers);
-                println!(
-                    "    {:<15} {} | managers: {} | runner_id: {}",
-                    p.name, state_str, manager_status, p.gitlab_runner_id
-                );
-            }
-
-            let managed = docker_ctl
-                .list_managed_containers()
-                .await
-                .unwrap_or_default();
-            println!("\n  Docker containers (jeryu-managed): {}", managed.len());
-            for c in &managed {
-                let name = c
-                    .names
-                    .as_ref()
-                    .and_then(|n| n.first())
-                    .map(|s| s.as_str())
-                    .unwrap_or("?");
-                let state = c.state.as_deref().unwrap_or("?");
-                println!("    {} [{}]", name, state);
-            }
-
-            let events = db.recent_job_events(5).await.unwrap_or_default();
-            if !events.is_empty() {
-                println!("\n  Recent job events:");
-                for e in &events {
-                    println!(
-                        "    job={:<6} project={:<4} status={:<10} {}",
-                        e.job_id, e.project_id, e.status, e.received_at
-                    );
-                }
-            }
-
-            if let Ok(report) = release::build_release_status_report(
-                &db,
-                release::ReleaseStatusQuery {
-                    project_id: Some(release::DEFAULT_RELEASE_PROJECT_ID),
-                    ref_name: Some("main".into()),
-                    sha: None,
-                    limit: 1,
-                },
-            )
-            .await
-            {
-                println!("\n  Latest release:");
-                if let Some(latest) = report.latest {
-                    println!("    {}", release::summarize_release_attempt(&latest));
-                } else {
-                    println!("    (none)");
-                }
-            }
-
-            if let Ok(Some(secret_set)) = db.latest_release_secret_set(&crate::cli::infer_repo_name()).await {
-                println!("\n  Latest release secret set:");
-                println!(
-                    "    {} {} [{}] {}",
-                    secret_set.version,
-                    secret_set.target,
-                    secret_set.status,
-                    secret_set.authority_name
-                );
-            }
-
-            println!();
-        }
+        Commands::System => crate::commands::system::execute_system_status().await?,
 
         // ---- Pool --------------------------------------------------------
-        Commands::Pool(subcmd) => {
-            let (client, _) = load_client()?;
-            let db = state::Db::open().await?;
-            let docker_ctl = docker::DockerCtl::connect()?;
-
-            match subcmd {
-                PoolCommands::List => {
-                    let pools = db.list_pools().await?;
-                    println!(
-                        "{:<15} {:<8} {:<10} {:<8} {:<12} {:<8}",
-                        "NAME", "PAUSED", "EXECUTOR", "WARM", "LIVE/DB/MAX", "RUNNER"
-                    );
-                    for p in &pools {
-                        let active = db.count_active_managers(&p.name).await.unwrap_or(0);
-                        let running = pool::count_running_managers(&db, &docker_ctl, &p.name)
-                            .await
-                            .unwrap_or(0);
-                        let manager_status = format!("{running}/{active}/{}", p.max_managers);
-                        println!(
-                            "{:<15} {:<8} {:<10} {:<8} {:<12} {:<8}",
-                            p.name,
-                            if p.paused { "yes" } else { "no" },
-                            p.executor,
-                            p.min_warm,
-                            manager_status,
-                            p.gitlab_runner_id,
-                        );
-                    }
-                }
-                PoolCommands::Scale { name, count } => {
-                    let started =
-                        pool::scale_pool_to(&db, &docker_ctl, &client, &name, count).await?;
-                    println!(
-                        "✅ Pool '{}' scaled to {} (started {} new)",
-                        name, count, started
-                    );
-                }
-                PoolCommands::Pause { name } => {
-                    pool::pause_pool(&db, &client, &name).await?;
-                    println!("⏸  Pool '{}' paused", name);
-                }
-                PoolCommands::Resume { name } => {
-                    pool::resume_pool(&db, &client, &name).await?;
-                    println!("▶  Pool '{}' resumed", name);
-                }
-                PoolCommands::Drain { name } => {
-                    pool::drain_pool(&db, &docker_ctl, &client, &name).await?;
-                    println!("✅ Pool '{}' drained", name);
-                }
-                PoolCommands::Delete { name } => {
-                    pool::delete_pool(&db, &docker_ctl, &client, &name).await?;
-                    println!("✅ Pool '{}' deleted", name);
-                }
-                PoolCommands::RotateToken { name } => {
-                    let new_token =
-                        pool::rotate_pool_token(&db, &docker_ctl, &client, &name).await?;
-                    println!(
-                        "🔑 Pool '{}' token rotated: {}...{}",
-                        name,
-                        &new_token[..8],
-                        &new_token[new_token.len() - 4..]
-                    );
-                }
-            }
-        }
+        Commands::Pool(subcmd) => crate::commands::pool::execute_pool_commands(subcmd).await?,
 
         // ---- Job ---------------------------------------------------------
         Commands::Job(subcmd) => {
@@ -1813,94 +1538,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
         },
 
         // ---- Secrets ----------------------------------------------------
-        Commands::Secrets(subcmd) => {
-            let db = state::Db::open().await?;
-            match subcmd {
-                SecretsCommands::Init => {
-                    let report = secrets::run_secrets_init(Some(&db)).await?;
-                    println!(
-                        "Vault initialized at {} (mount={}, prefix={})",
-                        report.addr, report.mount, report.prefix
-                    );
-                }
-                SecretsCommands::Status { json } => {
-                    let report = secrets::vault_status(Some(&db)).await?;
-                    if json {
-                        println!("{}", serde_json::to_string_pretty(&report)?);
-                    } else {
-                        println!("━━━ jeryu secrets status ━━━");
-                        println!("  Vault:       {}", report.addr);
-                        println!("  Initialized: {}", report.initialized);
-                        println!("  Sealed:      {}", report.sealed);
-                        println!("  Healthy:     {}", report.healthy);
-                        println!("  Token:       {}", report.token_present);
-                        println!("  Mount:       {}", report.mount);
-                        println!("  Prefix:      {}", report.prefix);
-                        println!("  Bootstrap:   {}", report.bootstrap_file);
-                        println!("  Env file:    {}", report.env_file);
-                        if let Some(secret_set) = db.latest_release_secret_set(&crate::cli::infer_repo_name()).await? {
-                            println!("\n  Latest release secret set:");
-                            println!("    Version:   {}", secret_set.version);
-                            println!("    Target:    {}", secret_set.target);
-                            println!("    Status:    {}", secret_set.status);
-                            println!("    Runtime:   {}", secret_set.rendered_runtime_env_path);
-                            if let Some(report_path) = secret_set.report_path {
-                                println!("    Report:    {}", report_path);
-                            }
-                        }
-                    }
-                }
-                SecretsCommands::Rotate {
-                    repo,
-                    version,
-                    target,
-                } => {
-                    let target = target.parse::<secrets::SecretTarget>()?;
-                    let (repo_root, deploy_env, runtime_env) = secrets::default_release_paths();
-                    let outcome = secrets::rotate_release_secrets(
-                        &db,
-                        &repo_root,
-                        &repo,
-                        &version,
-                        target,
-                        &deploy_env,
-                        &runtime_env,
-                    )
-                    .await?;
-                    println!("{}", serde_json::to_string_pretty(&outcome)?);
-                }
-                SecretsCommands::Finalize {
-                    repo,
-                    version,
-                    target,
-                } => {
-                    let target = target.parse::<secrets::SecretTarget>()?;
-                    let (repo_root, deploy_env, runtime_env) = secrets::default_release_paths();
-                    let path = secrets::finalize_release_secrets(
-                        &db,
-                        &repo_root,
-                        &repo,
-                        &version,
-                        target,
-                        &deploy_env,
-                        &runtime_env,
-                    )
-                    .await?;
-                    println!("Finalized runtime env: {}", path.display());
-                }
-                SecretsCommands::Report { repo, version } => {
-                    let (repo_root, _, _) = secrets::default_release_paths();
-                    let path =
-                        secrets::build_release_secret_report(&db, &repo_root, &repo, &version)
-                            .await?;
-                    println!("Release report: {}", path.display());
-                }
-                SecretsCommands::Recover { repo, version } => {
-                    let (repo_root, _, _) = secrets::default_release_paths();
-                    secrets::recover_release_secrets(&db, &repo_root, &repo, &version).await?;
-                }
-            }
-        }
+        Commands::Secrets(subcmd) => crate::commands::secrets::execute_secrets_commands(subcmd).await?,
 
         // ---- Progress ---------------------------------------------------
         Commands::Progress {
@@ -1930,35 +1568,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
         },
 
         // ---- Host --------------------------------------------------------
-        Commands::Host(subcmd) => match subcmd {
-            HostCommands::StorageAudit => {
-                reclaim::run_storage_audit().await?;
-            }
-            HostCommands::Doctor { json } => {
-                let report = cache::SmartCache::new(state::Db::open().await?)
-                    .host_doctor_report()
-                    .await?;
-                if json {
-                    println!("{}", serde_json::to_string_pretty(&report)?);
-                } else {
-                    cache::print_host_doctor_report(&report);
-                }
-                if !report.ok {
-                    anyhow::bail!("host doctor found unhealthy CI host state");
-                }
-            }
-            HostCommands::Reclaim { mode, plan, apply } => {
-                if mode != "aggressive" {
-                    anyhow::bail!(
-                        "Only --mode aggressive is currently supported for host reclaim."
-                    );
-                }
-                if !plan && !apply {
-                    anyhow::bail!("You must specify either --plan or --apply.");
-                }
-                reclaim::run_aggressive_reclaim(apply).await?;
-            }
-        },
+        Commands::Host(subcmd) => crate::commands::host::execute_host_commands(subcmd).await?,
 
         // ---- Exec --------------------------------------------------------
         Commands::Exec(subcmd) => match subcmd {
