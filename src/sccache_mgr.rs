@@ -1,5 +1,5 @@
 //! Owner: sccache Management subsystem
-//! Proof: `cargo nextest run -p vgit -- sccache_mgr`
+//! Proof: `cargo nextest run -p jeryu -- sccache_mgr`
 //! Invariants: Cache workers stay isolated by manager namespace and report health before reuse.
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};

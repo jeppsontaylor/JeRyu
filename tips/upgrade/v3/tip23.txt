@@ -4,7 +4,7 @@ I reviewed the repository’s GitHub tree, README/docs, and key source files dir
 
 ## Bottom-line verdict
 
-JeRyu / `vgit` has a genuinely exciting foundation: it is **not really a GitLab fork yet**, but rather a Rust “agent hypervisor” around a local GitLab CE + GitLab Runner + Docker/Vault/cache stack. That is actually a strong architectural direction, because it can turn existing GitLab into an agent-operable delivery substrate without reimplementing all of GitLab. The README describes it as a single-binary Rust control plane for local GitLab with runner orchestration, APFS/OverlayFS-style sandboxing claims, ephemeral bot users, a custom executor, semantic CI, cache controls, release gates, and a Ratatui TUI. ([GitHub][1])
+JeRyu / `jeryu` has a genuinely exciting foundation: it is **not really a GitLab fork yet**, but rather a Rust “agent hypervisor” around a local GitLab CE + GitLab Runner + Docker/Vault/cache stack. That is actually a strong architectural direction, because it can turn existing GitLab into an agent-operable delivery substrate without reimplementing all of GitLab. The README describes it as a single-binary Rust control plane for local GitLab with runner orchestration, APFS/OverlayFS-style sandboxing claims, ephemeral bot users, a custom executor, semantic CI, cache controls, release gates, and a Ratatui TUI. ([GitHub][1])
 
 My honest take: **this is a strong prototype of an agent-first GitLab control plane, but it is not yet close to production-grade “world’s #1 autonomous coding + release system.”** The biggest gap is that several of the most important agent/security claims are conceptual or partially implemented: the sandbox is not actually doing strict isolation, the agent loop is skeletal, merge gates can use placeholder evidence in the capability path, TUI insights are still shallow, and a lot of critical safety guarantees need to become cryptographic, enforced, and auditable.
 
@@ -14,7 +14,7 @@ My honest take: **this is a strong prototype of an agent-first GitLab control pl
 
 ## 1. The product vision is excellent
 
-The repo is aiming at the right prize: not “another Git UI,” but an **agent-native delivery system** where agents can create branches, propose changes, run tests, inspect blockers, cache work, trigger releases, and operate through machine-readable surfaces. The docs explicitly frame `vgit` as a system that owns runner state, webhook reconciliation, custom executor behavior, release/canary/prod tracking, SmartCache, test intelligence, Vault secrets, failure evidence, action registry, settings, and a Ratatui TUI. ([GitHub][2])
+The repo is aiming at the right prize: not “another Git UI,” but an **agent-native delivery system** where agents can create branches, propose changes, run tests, inspect blockers, cache work, trigger releases, and operate through machine-readable surfaces. The docs explicitly frame `jeryu` as a system that owns runner state, webhook reconciliation, custom executor behavior, release/canary/prod tracking, SmartCache, test intelligence, Vault secrets, failure evidence, action registry, settings, and a Ratatui TUI. ([GitHub][2])
 
 That is exactly the right framing for agent-first Git: agents do not need prettier merge-request pages; they need **fast APIs, deterministic evidence, constrained powers, reproducible sandboxes, and first-class “why am I blocked?” answers.**
 
@@ -100,7 +100,7 @@ The sandbox module’s metadata/invariant claims strict isolation through `unsha
 
 This is the most important fix in the entire repo.
 
-For untrusted agent-written code, “sets `VGIT_SANDBOXED=1` and injects proxy env vars” is not a sandbox. An agent can run arbitrary scripts, package managers, test binaries, build scripts, procfs reads, filesystem scans, DNS lookups, network calls, and toolchain hooks. If this is going to be the best agent-first Git system in the world, sandboxing must become real, enforced, measured, and testable.
+For untrusted agent-written code, “sets `JERYU_SANDBOXED=1` and injects proxy env vars” is not a sandbox. An agent can run arbitrary scripts, package managers, test binaries, build scripts, procfs reads, filesystem scans, DNS lookups, network calls, and toolchain hooks. If this is going to be the best agent-first Git system in the world, sandboxing must become real, enforced, measured, and testable.
 
 ## 3. The autonomous agent implementation is still skeletal
 
@@ -142,7 +142,7 @@ Anything less lets an agent get an “allow” result that does not correspond t
 
 ## 5. Admission control is promising but too weak
 
-The admission hook installs a global Gitaly hook and classifies “agent” refs by branch namespace patterns such as `refs/heads/agent/`, `vgit/`, or `agents/`. It can audit or deny based on enforcement settings and active grants. ([GitHub][11])
+The admission hook installs a global Gitaly hook and classifies “agent” refs by branch namespace patterns such as `refs/heads/agent/`, `jeryu/`, or `agents/`. It can audit or deny based on enforcement settings and active grants. ([GitHub][11])
 
 That is a good start, but it should be much stricter. Branch naming is not identity. The hook should verify signed grants, commit signatures, actor identity, path allowlists, diff size budgets, protected file policies, task IDs, capability IDs, head SHA, and expiration. Enforcement should be on by default for agent namespaces.
 
@@ -799,7 +799,7 @@ If those land, JeRyu could become less like “GitLab with agents bolted on” a
 [9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/gateway/singleflight.rs "raw.githubusercontent.com"
 [10]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/exec.rs "raw.githubusercontent.com"
 [11]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/admission.rs "raw.githubusercontent.com"
-[12]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[12]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [13]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/sandbox.rs "raw.githubusercontent.com"
 [14]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/agent.rs "raw.githubusercontent.com"
 [15]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/capability.rs "raw.githubusercontent.com"

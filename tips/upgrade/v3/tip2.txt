@@ -1,6 +1,6 @@
 ## Bottom line
 
-JeRyu / `vgit` is **not really a GitLab fork** in the normal sense. It is much more interesting than that: it is a Rust control plane that sits on top of local GitLab, GitLab Runner, Docker, Vault, Postgres/SQLite state, cache systems, Git hooks, and a Ratatui TUI. The README calls it a “single-binary Rust control plane” for turning local GitLab into an orchestration engine for autonomous agents, with runner control, sandboxing, ephemeral identities, custom executor hooks, semantic CI, and a headless GitLab setup. ([GitHub][1])
+JeRyu / `jeryu` is **not really a GitLab fork** in the normal sense. It is much more interesting than that: it is a Rust control plane that sits on top of local GitLab, GitLab Runner, Docker, Vault, Postgres/SQLite state, cache systems, Git hooks, and a Ratatui TUI. The README calls it a “single-binary Rust control plane” for turning local GitLab into an orchestration engine for autonomous agents, with runner control, sandboxing, ephemeral identities, custom executor hooks, semantic CI, and a headless GitLab setup. ([GitHub][1])
 
 I could not literally clone the repo in the execution container because DNS resolution for GitHub failed. I therefore reviewed it through GitHub’s web and raw source views. I did not compile or run tests. The review below is source-level and architecture-level, based on the repository docs and the key Rust modules I inspected.
 
@@ -14,7 +14,7 @@ The biggest opportunity is to turn it from **agent-compatible GitLab automation*
 
 ### 1. The architectural thesis is excellent
 
-The repo is organized around a serious control-plane model: interface plane, control plane, state plane, execution plane, and intelligence plane. The architecture doc explicitly describes `vgit` as owning runner fleet state, webhook reconciliation, custom executor policy, release/canary/prod automation, SmartCache, VTI smart test selection, Vault-backed secrets, failure evidence, action registry, settings, and a Ratatui supervisory TUI. ([GitHub][3])
+The repo is organized around a serious control-plane model: interface plane, control plane, state plane, execution plane, and intelligence plane. The architecture doc explicitly describes `jeryu` as owning runner fleet state, webhook reconciliation, custom executor policy, release/canary/prod automation, SmartCache, VTI smart test selection, Vault-backed secrets, failure evidence, action registry, settings, and a Ratatui supervisory TUI. ([GitHub][3])
 
 That is the correct shape for an agent-first Git system. GitHub/GitLab are still mostly human-first workflow products; this project is trying to make the orchestration layer programmable, typed, observable, and agent-operable.
 
@@ -68,7 +68,7 @@ This is a high-leverage area. If done safely, it lets the system turn CI from �
 
 The README says the system has “0-latency sandboxing,” “semantic CI/CD” that dynamically mutates pipelines based on AST intelligence, and tightly constrained Docker containers for each agent task. ([GitHub][1])
 
-The code and internal docs are more nuanced. The mission doc says the semantic execution flow exists as a hook/prototype and is not the finished product promise. ([GitHub][2]) The sandbox implementation also does not currently perform real `unshare`/`bwrap` network isolation; strict mode sets `VGIT_SANDBOXED=1` and then runs `bash`, while comments say full network namespace isolation would require additional setup. ([GitHub][11])
+The code and internal docs are more nuanced. The mission doc says the semantic execution flow exists as a hook/prototype and is not the finished product promise. ([GitHub][2]) The sandbox implementation also does not currently perform real `unshare`/`bwrap` network isolation; strict mode sets `JERYU_SANDBOXED=1` and then runs `bash`, while comments say full network namespace isolation would require additional setup. ([GitHub][11])
 
 That mismatch matters. For an agent-first platform, “claimed security” and “actual enforcement” must be painfully aligned.
 
@@ -80,7 +80,7 @@ That should be treated as a P0 issue. An agent-facing merge gate must inspect th
 
 ### 3. “Strict sandbox” is not strict yet
 
-`AGENTS.md` says `sandbox.rs` strict network isolation uses `unshare/bwrap` and should not be bypassed. ([GitHub][7]) But `sandbox.rs` currently runs `bash`, sets `VGIT_SANDBOXED=1`, and comments that full network namespace isolation via `bwrap/unshare` would need more setup. ([GitHub][11])
+`AGENTS.md` says `sandbox.rs` strict network isolation uses `unshare/bwrap` and should not be bypassed. ([GitHub][7]) But `sandbox.rs` currently runs `bash`, sets `JERYU_SANDBOXED=1`, and comments that full network namespace isolation via `bwrap/unshare` would need more setup. ([GitHub][11])
 
 That is a classic dangerous gap: comments and invariants describe a security boundary that implementation does not enforce. For autonomous coding, this is especially important because agents will eventually run untrusted dependency installers, build scripts, generated tests, web fetches, and package managers.
 
@@ -100,7 +100,7 @@ But the current logic appears much more heuristic than intelligent: keyword-base
 
 The VTI docs are strong: changed files map to subsystem tests, unmapped files fall back to full, docs-only can skip, global invalidators force full, and nightly oracle detects selector misses. ([GitHub][6])
 
-The hard missing piece is making VTI compatible with required checks and branch protection in a way GitLab/GitHub will trust. The system needs a stable `vgit/merge-gate` check that says, machine-readably: “these tests were selected, these tests were skipped, here is why, here is the confidence, here are the invalidators, here is the evidence, here is the selector-miss risk, and here is the policy version.”
+The hard missing piece is making VTI compatible with required checks and branch protection in a way GitLab/GitHub will trust. The system needs a stable `jeryu/merge-gate` check that says, machine-readably: “these tests were selected, these tests were skipped, here is why, here is the confidence, here are the invalidators, here is the evidence, here is the selector-miss risk, and here is the policy version.”
 
 ### 7. Webhook handling is useful but not yet a full event brain
 
@@ -157,7 +157,7 @@ Strict sandbox mode should do one of these:
 
 Until then, call the current mode “marked sandbox” or “tripwire sandbox,” not strict isolation.
 
-### 3. Build a stable `vgit/merge-gate` status check
+### 3. Build a stable `jeryu/merge-gate` status check
 
 This is the bridge between agent intelligence and GitLab’s merge model. It should be the single required check that answers:
 
@@ -290,7 +290,7 @@ For agent-led coding, the system should generate a validation plan before the ag
 * What release risk class is expected?
 * What previous failures should be avoided?
 
-This turns `vgit` into a coding mission planner, not just a CI observer.
+This turns `jeryu` into a coding mission planner, not just a CI observer.
 
 ### 6. Add a repo “world model”
 
@@ -378,20 +378,20 @@ Track which agent/model/tool performs best by task type:
 * Docs.
 * Performance optimization.
 
-Record success rate, number of repair loops, token cost, CI cost, time to merge, revert rate, and human intervention rate. Then `vgit` can route tasks to the best agent/tool automatically.
+Record success rate, number of repair loops, token cost, CI cost, time to merge, revert rate, and human intervention rate. Then `jeryu` can route tasks to the best agent/tool automatically.
 
 ### 5. Agent-readable “why” API everywhere
 
 Every status should support:
 
 ```text
-vgit why merge !123
-vgit why job 456 failed
-vgit why test foo was skipped
-vgit why pipeline 789 was canceled
-vgit why agent abc cannot deploy
-vgit why cache object xyz is tainted
-vgit why release is blocked
+jeryu why merge !123
+jeryu why job 456 failed
+jeryu why test foo was skipped
+jeryu why pipeline 789 was canceled
+jeryu why agent abc cannot deploy
+jeryu why cache object xyz is tainted
+jeryu why release is blocked
 ```
 
 Return both human text and JSON. This is where GitHub/GitLab are still weak: they show status, but not causal reasoning.
@@ -420,7 +420,7 @@ Suggested layout:
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ vgit Agent OS | GitLab ONLINE | Runners 7/12 | Risk: MED | Cost saved 38m │
+│ jeryu Agent OS | GitLab ONLINE | Runners 7/12 | Risk: MED | Cost saved 38m │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ Active Missions                                                            │
 │  #42 fix auth race      agent-a   validating   confidence 0.91  ETA 2m     │
@@ -690,22 +690,22 @@ The pre-receive hook is a great idea. ([GitHub][14]) Make it enforce the agent c
 Add a formal API layer with endpoints/commands like:
 
 ```text
-vgit agent mission create
-vgit agent mission status
-vgit agent mission explain
-vgit agent patch propose
-vgit agent patch race
-vgit agent validate plan
-vgit agent validate run
-vgit agent repair suggest
-vgit gate merge explain
-vgit gate merge request
-vgit evidence get
-vgit evidence replay
-vgit capability grant
-vgit capability revoke
-vgit release promote
-vgit release rollback
+jeryu agent mission create
+jeryu agent mission status
+jeryu agent mission explain
+jeryu agent patch propose
+jeryu agent patch race
+jeryu agent validate plan
+jeryu agent validate run
+jeryu agent repair suggest
+jeryu gate merge explain
+jeryu gate merge request
+jeryu evidence get
+jeryu evidence replay
+jeryu capability grant
+jeryu capability revoke
+jeryu release promote
+jeryu release rollback
 ```
 
 Also expose JSON-RPC / MCP / gRPC / SSE so agents do not have to screen-scrape CLI text.
@@ -782,7 +782,7 @@ Track:
 Every merged agent change should be replayable:
 
 ```text
-vgit replay evidence <merge-proof-id>
+jeryu replay evidence <merge-proof-id>
 ```
 
 It should recreate the exact validation environment or explain why exact replay is impossible.
@@ -795,7 +795,7 @@ It should recreate the exact validation environment or explain why exact replay 
 
 2. **P0: Rename or implement strict sandboxing.** Either add real namespace/container isolation or stop calling it strict.
 
-3. **P0: Add `vgit/merge-gate` commit status.** It should publish JSON and human explanation for each MR head SHA.
+3. **P0: Add `jeryu/merge-gate` commit status.** It should publish JSON and human explanation for each MR head SHA.
 
 4. **P0: Bind capability grants to actor, action, branch, SHA, path globs, expiry, and policy version.**
 
@@ -827,7 +827,7 @@ It should recreate the exact validation environment or explain why exact replay 
 
 This repo has the bones of something genuinely exciting. The best ideas are already visible: Rust control plane, local GitLab substrate, disposable bot identities, typed agent intents, proof lanes, smart test selection, event ledger, evidence capsules, cache intelligence, admission hooks, release gates, and a serious TUI.
 
-The main thing holding it back is that the **control plane is ahead of the decision plane**. To become the world’s best agent-first Git option, `vgit` needs to make every autonomous action:
+The main thing holding it back is that the **control plane is ahead of the decision plane**. To become the world’s best agent-first Git option, `jeryu` needs to make every autonomous action:
 
 **intent-bound, grant-bound, SHA-bound, evidence-bound, policy-bound, explainable, replayable, and revocable.**
 
@@ -840,7 +840,7 @@ That is the difference between “agents can use GitLab faster” and “this is
 [5]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/src/capability.rs "raw.githubusercontent.com"
 [6]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/docs/VTI.md "raw.githubusercontent.com"
 [7]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/AGENTS.md "raw.githubusercontent.com"
-[8]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[8]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [9]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/src/state.rs "raw.githubusercontent.com"
 [10]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/src/exec.rs "raw.githubusercontent.com"
 [11]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/src/sandbox.rs "raw.githubusercontent.com"

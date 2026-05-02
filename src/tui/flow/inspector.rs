@@ -1,5 +1,5 @@
 //! Owner: Interactive TUI subsystem — flow inspector pane
-//! Proof: `cargo nextest run -p vgit -- tui::flow`
+//! Proof: `cargo nextest run -p jeryu -- tui::flow`
 //! Invariants: Inspector output is read-only and redacts sensitive trace material.
 
 use super::model::FlowNode;

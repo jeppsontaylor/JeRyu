@@ -1,6 +1,6 @@
 ## Overall read
 
-This is a genuinely strong control-plane design. The best part is that `vgit` is not pretending to be a CLI wrapper; it is already a stateful orchestrator with release gates, typed decisions, runner pools, evidence capsules, VTI, Vault handoff, cache policy, and a supervisory UI. That is the right foundation.
+This is a genuinely strong control-plane design. The best part is that `jeryu` is not pretending to be a CLI wrapper; it is already a stateful orchestrator with release gates, typed decisions, runner pools, evidence capsules, VTI, Vault handoff, cache policy, and a supervisory UI. That is the right foundation.
 
 The biggest opportunity is that the system has more intelligence than the TUI and agent surfaces currently expose. The core should evolve from “many useful commands plus a dashboard” into a **typed real-time command console** where every entity, blocker, gate, action, risk, ETA, and audit event is visible, explainable, and safely actionable.
 
@@ -67,14 +67,14 @@ to something closer to:
   "status": "not_implemented",
   "intent": "RequestMerge",
   "message": "Intent is recognized but not currently executable.",
-  "recommended_surface": "vgit agent merge"
+  "recommended_surface": "jeryu agent merge"
 }
 ```
 
 Better still, add:
 
 ```bash
-vgit capability describe
+jeryu capability describe
 ```
 
 or a socket intent such as:
@@ -106,10 +106,10 @@ FetchCapsule(job_id)
 The CLI test runner uses scratch branches like:
 
 ```text
-vgit-test-*
+jeryu-test-*
 ```
 
-The push hook explicitly skips branches starting with `vgit-test-*`.
+The push hook explicitly skips branches starting with `jeryu-test-*`.
 
 But capability `RunTests` creates:
 
@@ -128,7 +128,7 @@ That likely avoids release promotion because it is not exactly `main`, but it do
 I would make all ephemeral test branches follow one convention:
 
 ```text
-vgit-test-cap-<target-ref>-<timestamp>
+jeryu-test-cap-<target-ref>-<timestamp>
 ```
 
 Then clean them up or run a periodic scratch-branch reaper.
@@ -395,15 +395,15 @@ At minimum, the TUI/host doctor should warn if the engine is bound broadly with 
 A command named:
 
 ```bash
-vgit shadow sync-now
+jeryu shadow sync-now
 ```
 
-that only tells the user to ensure `vgit serve` is running is surprising.
+that only tells the user to ensure `jeryu serve` is running is surprising.
 
 Either implement it, rename it, or make it explicitly:
 
 ```bash
-vgit shadow request-sync
+jeryu shadow request-sync
 ```
 
 with a clear event recorded in SQLite.
@@ -463,12 +463,12 @@ An ideal agent should be able to ask:
 This suggests a unified inspect API:
 
 ```bash
-vgit inspect system --json
-vgit inspect pipeline <id> --project-id 2 --json
-vgit inspect job <id> --project-id 2 --json
-vgit inspect release --project-id 2 --ref-name main --json
-vgit inspect pool <name> --json
-vgit inspect agent-work <project-id> --json
+jeryu inspect system --json
+jeryu inspect pipeline <id> --project-id 2 --json
+jeryu inspect job <id> --project-id 2 --json
+jeryu inspect release --project-id 2 --ref-name main --json
+jeryu inspect pool <name> --json
+jeryu inspect agent-work <project-id> --json
 ```
 
 ## Planning capabilities an agent would want
@@ -476,13 +476,13 @@ vgit inspect agent-work <project-id> --json
 The agent should be able to plan without mutating:
 
 ```bash
-vgit action list --entity pipeline:530 --json
-vgit action explain retry-job:14445 --json
-vgit action preflight promote-prod --project-id 2 --ref-name main --json
-vgit test select --json
-vgit pipeline explain --json
-vgit pipeline doctor --json
-vgit release status --json
+jeryu action list --entity pipeline:530 --json
+jeryu action explain retry-job:14445 --json
+jeryu action preflight promote-prod --project-id 2 --ref-name main --json
+jeryu test select --json
+jeryu pipeline explain --json
+jeryu pipeline doctor --json
+jeryu release status --json
 ```
 
 The key is that every available action should include:
@@ -537,10 +537,10 @@ The ideal pattern is:
 
 ```text
 agent asks for capability
-vgit evaluates policy/preconditions
-vgit shows/records action
-vgit executes through domain module
-vgit appends audit event
+jeryu evaluates policy/preconditions
+jeryu shows/records action
+jeryu executes through domain module
+jeryu appends audit event
 agent receives structured result
 ```
 
@@ -574,7 +574,7 @@ A dream implementation:
 }
 ```
 
-`vgit` would:
+`jeryu` would:
 
 1. Create isolated branches.
 2. Apply each patch.
@@ -601,7 +601,7 @@ I would redesign it around this principle:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ VGIT GOD MODE  GitLab:ONLINE  Engine:OK  Vault:OK  Cache:OK  Disk:71%  main │
+│ JERYU GOD MODE  GitLab:ONLINE  Engine:OK  Vault:OK  Cache:OK  Disk:71%  main │
 │ SHA fa51a52  Release ci-fa51a52  Canary:RUNNING  Prod:LOCKED  ETA: 7m ±2m  │
 ├───────────────┬───────────────────────────────────────────────┬──────────────┤
 │ NAV / QUEUES  │ DELIVERY FLOW                                 │ INSPECTOR    │
@@ -1074,11 +1074,11 @@ struct ActionDescriptor {
 Example commands:
 
 ```bash
-vgit action list --json
-vgit action list --entity job:14445 --json
-vgit action explain retry-job:14445 --json
-vgit action run retry-job:14445 --dry-run
-vgit action run retry-job:14445 --apply
+jeryu action list --json
+jeryu action list --entity job:14445 --json
+jeryu action explain retry-job:14445 --json
+jeryu action run retry-job:14445 --dry-run
+jeryu action run retry-job:14445 --apply
 ```
 
 The TUI command palette and capability API can both use this.
@@ -1086,12 +1086,12 @@ The TUI command palette and capability API can both use this.
 ## 2. Entity inspector API
 
 ```bash
-vgit inspect job 14445 --project-id 2 --json
-vgit inspect pipeline 530 --project-id 2 --json
-vgit inspect release --project-id 2 --ref-name main --json
-vgit inspect pool build --json
-vgit inspect cache --json
-vgit inspect agent 42 --project-id 2 --json
+jeryu inspect job 14445 --project-id 2 --json
+jeryu inspect pipeline 530 --project-id 2 --json
+jeryu inspect release --project-id 2 --ref-name main --json
+jeryu inspect pool build --json
+jeryu inspect cache --json
+jeryu inspect agent 42 --project-id 2 --json
 ```
 
 Each should return:
@@ -1107,8 +1107,8 @@ Each should return:
 ## 3. Event stream
 
 ```bash
-vgit events stream --json
-vgit events list --since 1h --entity pipeline:530 --json
+jeryu events stream --json
+jeryu events list --since 1h --entity pipeline:530 --json
 ```
 
 The TUI should consume this rather than relying only on periodic polling.
@@ -1116,7 +1116,7 @@ The TUI should consume this rather than relying only on periodic polling.
 A good event schema:
 
 ```rust
-struct VgitEvent {
+struct JeryuEvent {
     id: i64,
     timestamp: String,
     severity: Severity,
@@ -1132,7 +1132,7 @@ struct VgitEvent {
 ## 4. Release gate API
 
 ```bash
-vgit release gates --project-id 2 --ref-name main --json
+jeryu release gates --project-id 2 --ref-name main --json
 ```
 
 This should return a typed gate matrix, not only a rendered status report.
@@ -1140,7 +1140,7 @@ This should return a typed gate matrix, not only a rendered status report.
 ## 5. Pipeline graph API
 
 ```bash
-vgit pipeline graph <pipeline_id> --project-id 2 --json
+jeryu pipeline graph <pipeline_id> --project-id 2 --json
 ```
 
 Return nodes, edges, stages, critical path, ETAs, blockers, and downstream pipelines.
@@ -1164,7 +1164,7 @@ Return:
   "implemented": ["FetchCapsule", "RunTests"],
   "deferred": ["ProposePatch", "RacePatches", "RequestMerge"],
   "recommended_cli_fallbacks": {
-    "RequestMerge": "vgit agent merge"
+    "RequestMerge": "jeryu agent merge"
   }
 }
 ```
@@ -1193,7 +1193,7 @@ Do these first:
 
 1. Make deferred capability intents explicit non-success or `not_implemented`.
 2. Make `FetchCapsule` use `evidence_capsules`.
-3. Align capability `RunTests` branch naming with `vgit-test-*` and add cleanup.
+3. Align capability `RunTests` branch naming with `jeryu-test-*` and add cleanup.
 4. Prevent invisible TUI pane actions or make their targets visible.
 5. Add clearer labels for local-only delete.
 6. Add auth or binding controls for unauthenticated operational endpoints.
@@ -1239,7 +1239,7 @@ Do these first:
 
 # The dream end state
 
-The dream version of `vgit tui` is not just a dashboard. It is a **safe delivery command center**.
+The dream version of `jeryu tui` is not just a dashboard. It is a **safe delivery command center**.
 
 A power user should be able to open it and instantly answer:
 

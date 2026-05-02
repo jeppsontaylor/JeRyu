@@ -1,7 +1,7 @@
 //! Owner: Docker Control Plane subsystem
-//! Proof: `cargo nextest run -p vgit -- docker`
+//! Proof: `cargo nextest run -p jeryu -- docker`
 //! Invariants: Docker calls preserve container ownership labels and surface runtime errors to callers.
-//! Docker runtime control for vgit.
+//! Docker runtime control for jeryu.
 //!
 //! Wraps bollard to manage runner-manager containers.
 
@@ -72,7 +72,7 @@ for _ in 1 2 3 4 5; do
   sleep 1
 done
 [ -S /var/run/docker.sock ] || {{
-  echo "vgit custom executor bootstrap: docker socket is missing" >&2
+  echo "jeryu custom executor bootstrap: docker socket is missing" >&2
   rm -f /usr/sbin/policy-rc.d
   exit 1
 }}
@@ -81,7 +81,7 @@ for _ in 1 2 3 4 5; do
   sleep 1
 done
 docker info >/dev/null 2>&1 || {{
-  echo "vgit custom executor bootstrap: docker info failed against mounted socket" >&2
+  echo "jeryu custom executor bootstrap: docker info failed against mounted socket" >&2
   rm -f /usr/sbin/policy-rc.d
   exit 1
 }}
@@ -118,7 +118,7 @@ impl DockerCtl {
         executor: &str,
         docker_socket: Option<&str>,
     ) -> Result<String> {
-        let container_name = format!("vgit-runner-{}", manager_id);
+        let container_name = format!("jeryu-runner-{}", manager_id);
         let socket = docker_socket.unwrap_or("/var/run/docker.sock");
         let bootstrap_cmd_owned = match executor {
             "custom" => runner_bootstrap_cmd_custom(),
@@ -142,10 +142,10 @@ impl DockerCtl {
                 ..Default::default()
             },
             Mount {
-                target: Some("/usr/local/bin/vgit".to_string()),
+                target: Some("/usr/local/bin/jeryu".to_string()),
                 source: Some(
                     std::env::current_exe()
-                        .unwrap_or_else(|_| std::path::PathBuf::from("/usr/local/bin/vgit"))
+                        .unwrap_or_else(|_| std::path::PathBuf::from("/usr/local/bin/jeryu"))
                         .to_string_lossy()
                         .to_string(),
                 ),
@@ -182,8 +182,8 @@ impl DockerCtl {
             cmd: Some(vec![bootstrap_cmd.to_string()]),
             host_config: Some(host_config),
             labels: Some(HashMap::from([
-                ("vgit.managed".to_string(), "true".to_string()),
-                ("vgit.manager_id".to_string(), manager_id.to_string()),
+                ("jeryu.managed".to_string(), "true".to_string()),
+                ("jeryu.manager_id".to_string(), manager_id.to_string()),
             ])),
             ..Default::default()
         };
@@ -295,10 +295,10 @@ impl DockerCtl {
         Ok(lines)
     }
 
-    /// List all vgit-managed containers.
+    /// List all jeryu-managed containers.
     pub async fn list_managed_containers(&self) -> Result<Vec<ContainerSummary>> {
         let mut filters = HashMap::new();
-        filters.insert("label".to_string(), vec!["vgit.managed=true".to_string()]);
+        filters.insert("label".to_string(), vec!["jeryu.managed=true".to_string()]);
 
         let opts = ListContainersOptions {
             all: true,
@@ -314,7 +314,7 @@ impl DockerCtl {
         Ok(containers)
     }
 
-    /// Return full Docker IDs for vgit-managed runner containers that are actually running.
+    /// Return full Docker IDs for jeryu-managed runner containers that are actually running.
     pub async fn running_managed_container_ids(&self) -> Result<BTreeSet<String>> {
         let ids = self
             .list_managed_containers()

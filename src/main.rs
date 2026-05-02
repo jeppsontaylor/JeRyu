@@ -1,7 +1,7 @@
 //! Owner: CLI dispatcher — no business logic
-//! Proof: `cargo check -p vgit --message-format=json`
+//! Proof: `cargo check -p jeryu --message-format=json`
 //! Invariants: Main only initializes runtime state and delegates behavior to dispatch/modules.
-//! vgit — Headless GitLab with Rust god-mode control.
+//! jeryu — Headless GitLab with Rust god-mode control.
 //!
 //! A single binary to bootstrap, operate, and extend a local GitLab
 //! instance with full programmatic control over runners, CI/CD,
@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
             purpose: "LRU manager cache GC and eviction".into(),
             owned_paths: vec!["src/cache.rs".into(), "src/cache_brain.rs".into(), "src/cache_proxy.rs".into()],
             invariants: vec!["active manager caches only evicted when keep_active_managers=false".into()],
-            local_commands: vec!["cargo nextest run -p vgit --lib -E 'test(/cache/)'".into()],
+            local_commands: vec!["cargo nextest run -p jeryu --lib -E 'test(/cache/)'".into()],
             escalate_commands: vec![],
             hints: vec![],
         },
@@ -50,7 +50,7 @@ async fn main() -> Result<()> {
             purpose: "Health loop and GC orchestration".into(),
             owned_paths: vec!["src/engine.rs".into()],
             invariants: vec!["emergency tier triggers above 93% disk usage, pass limit is 20 with stall detection".into()],
-            local_commands: vec!["cargo nextest run -p vgit --lib -E 'test(/engine/)'".into()],
+            local_commands: vec!["cargo nextest run -p jeryu --lib -E 'test(/engine/)'".into()],
             escalate_commands: vec![],
             hints: vec![],
         },
@@ -59,7 +59,7 @@ async fn main() -> Result<()> {
             purpose: "Artifact and Docker volume cleanup".into(),
             owned_paths: vec!["src/reclaim.rs".into()],
             invariants: vec!["is_emergency forces 30m artifact age threshold".into()],
-            local_commands: vec!["cargo nextest run -p vgit --lib -E 'test(/reclaim/)'".into()],
+            local_commands: vec!["cargo nextest run -p jeryu --lib -E 'test(/reclaim/)'".into()],
             escalate_commands: vec![],
             hints: vec![],
         },
@@ -68,7 +68,7 @@ async fn main() -> Result<()> {
             purpose: "Postgres-primary state schema and accessor boundary".into(),
             owned_paths: vec!["src/state.rs".into()],
             invariants: vec!["all mutations go through state::Db methods or backend-neutral state helpers".into()],
-            local_commands: vec!["cargo nextest run -p vgit --lib -E 'test(/state/)'".into()],
+            local_commands: vec!["cargo nextest run -p jeryu --lib -E 'test(/state/)'".into()],
             escalate_commands: vec![],
             hints: vec![],
         },
@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
             purpose: "Tag negotiation, artifact publication, and rollback".into(),
             owned_paths: vec!["src/release.rs".into()],
             invariants: vec!["release pipeline is a transaction — partial completion triggers rollback".into()],
-            local_commands: vec!["cargo nextest run -p vgit --lib -E 'test(/release/)'".into()],
+            local_commands: vec!["cargo nextest run -p jeryu --lib -E 'test(/release/)'".into()],
             escalate_commands: vec![],
             hints: vec![],
         },
@@ -86,15 +86,15 @@ async fn main() -> Result<()> {
             purpose: "Smart test selection (VTI)".into(),
             owned_paths: vec!["src/test_intel/".into()],
             invariants: vec!["TestPlan selected_tests with kind=unit_filter contain full nextest -E command strings".into()],
-            local_commands: vec!["cargo nextest run -p vgit --lib -E 'test(/test_intel/)'".into()],
+            local_commands: vec!["cargo nextest run -p jeryu --lib -E 'test(/test_intel/)'".into()],
             escalate_commands: vec![],
             hints: vec![],
         },
     ]);
     witness_rt::install_panic_hook(witness_rt::HookConfig::new("."));
 
-    // Load ~/.vgit/settings.json (creates with defaults on first run).
-    vgit::settings::init()?;
+    // Load ~/.jeryu/settings.json (creates with defaults on first run).
+    jeryu::settings::init()?;
 
     dispatch::run(cli).await
 }

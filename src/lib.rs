@@ -1,7 +1,7 @@
-//! Owner: vgit crate root (see module map below)
-//! Proof: `cargo check -p vgit --message-format=json`
+//! Owner: jeryu crate root (see module map below)
+//! Proof: `cargo check -p jeryu --message-format=json`
 //! Invariants: Public module exports remain explicit and aligned with AGENTS.md ownership routing.
-//! # vgit — CI/CD Control Plane
+//! # jeryu — CI/CD Control Plane
 //!
 //! Single-binary orchestrator for GitLab-based pipelines. Consumes CI semantics
 //! from `dougx/apps/veox-testctl/src/ci.rs`; owns scheduling, reconciliation,

@@ -1,4 +1,4 @@
-# deny.toml — supply-chain policy for vgit
+# deny.toml — supply-chain policy for jeryu
 # Run: cargo deny check
 
 [graph]

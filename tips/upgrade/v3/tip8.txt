@@ -2,7 +2,7 @@ I reviewed it as a static code/product review. One limitation: `git clone` faile
 
 ## Top-line verdict
 
-**JeRyu is not currently a fork of GitLab.** It is a Rust control plane called `vgit` that sits on top of a local GitLab CE + GitLab Runner + Docker + Vault + Postgres/SQLite stack. The README describes it as a “single-binary Rust control plane” that turns local GitLab into an orchestration engine for autonomous agents, and the architecture doc says it owns runners, webhooks, executor policy, release automation, SmartCache, VTI smart tests, secrets, failure evidence, action registry, settings, and a Ratatui TUI. ([GitHub][1])
+**JeRyu is not currently a fork of GitLab.** It is a Rust control plane called `jeryu` that sits on top of a local GitLab CE + GitLab Runner + Docker + Vault + Postgres/SQLite stack. The README describes it as a “single-binary Rust control plane” that turns local GitLab into an orchestration engine for autonomous agents, and the architecture doc says it owns runners, webhooks, executor policy, release automation, SmartCache, VTI smart tests, secrets, failure evidence, action registry, settings, and a Ratatui TUI. ([GitHub][1])
 
 That is a good direction. The strongest idea in the repo is: **don’t make agents click GitLab/GitHub UIs or scrape CI logs; give them a typed operating system for code change, proof, merge, release, rollback, and explanation.** The repo has meaningful pieces of that. It is not yet “the world’s #1 agent-first Git option,” but it has a credible skeleton.
 
@@ -72,7 +72,7 @@ The code already starts this: it creates hypothesis branches, commits patches, t
 
 ## 5. VTI smart test planning is one of the repo’s strongest product ideas
 
-The `test_intel/` subsystem is very promising. The VTI docs describe smart test selection that maps changed source files to the minimal required tests, with internal subsystem mapping and external `.vgit/testmap.toml` support. It also includes a nightly oracle to detect selector misses: cases where VTI would have skipped a test that actually failed. ([GitHub][3])
+The `test_intel/` subsystem is very promising. The VTI docs describe smart test selection that maps changed source files to the minimal required tests, with internal subsystem mapping and external `.jeryu/testmap.toml` support. It also includes a nightly oracle to detect selector misses: cases where VTI would have skipped a test that actually failed. ([GitHub][3])
 
 The source backs this up:
 
@@ -160,7 +160,7 @@ Examples from the code:
 * `src/tui/flow/eta.rs` says real ETA should query DB bottlenecks, but currently uses rough fallbacks.
 * `src/tui/app.rs` says storage metrics are heavy and in a real app would be cached every 60 seconds rather than updated in the tight loop.
 * `src/test_intel/cache.rs` has strong cache-key design, but parts are still described as production lookup logic rather than fully wired durable cache verdict usage.
-* `src/sandbox.rs` says strict mode sets `VGIT_SANDBOXED=1`, while full network namespace isolation via `bwrap`/`unshare` would require more production setup.
+* `src/sandbox.rs` says strict mode sets `JERYU_SANDBOXED=1`, while full network namespace isolation via `bwrap`/`unshare` would require more production setup.
 
 This is not a criticism of ambition. It just means the next phase should focus on finishing the core loops before adding more surfaces.
 
@@ -176,7 +176,7 @@ A two-day `api` token is far too long-lived for an autonomous agent. Aim for min
 
 ## 4. Admission control is good but too narrow
 
-`src/admission.rs` evaluates pre-receive lines and classifies refs under `refs/heads/agent/`, `refs/heads/vgit/`, and `refs/heads/agents/` as agent refs. With DB-backed evaluation, it allows an agent write if it matches an active capability grant.
+`src/admission.rs` evaluates pre-receive lines and classifies refs under `refs/heads/agent/`, `refs/heads/jeryu/`, and `refs/heads/agents/` as agent refs. With DB-backed evaluation, it allows an agent write if it matches an active capability grant.
 
 That is a strong primitive. But it needs more:
 
@@ -411,7 +411,7 @@ For each skipped job/test:
 
 Then create a required check like:
 
-`vgit-vti-proof: passed`
+`jeryu-vti-proof: passed`
 
 That check should pass only if skipped tests are justified. If confidence is low, selector misses exist, or global invalidators are touched, it escalates to full CI.
 
@@ -926,16 +926,16 @@ No action should be mysterious.
 
 # Product features that would make this “epic”
 
-## 1. `vgit why`
+## 1. `jeryu why`
 
 The single most important command:
 
 ```bash
-vgit why merge !42
-vgit why job 9182
-vgit why skipped test-rust-nextest-4
-vgit why release blocked
-vgit why cache missed abc123
+jeryu why merge !42
+jeryu why job 9182
+jeryu why skipped test-rust-nextest-4
+jeryu why release blocked
+jeryu why cache missed abc123
 ```
 
 Every answer should include:
@@ -945,7 +945,7 @@ Every answer should include:
 * policy,
 * next action.
 
-## 2. `vgit next`
+## 2. `jeryu next`
 
 A ranked next-action recommender:
 
@@ -1000,7 +1000,7 @@ Agents and humans can review the same artifact.
 When main breaks:
 
 ```text
-vgit repair main
+jeryu repair main
 ```
 
 System:

@@ -1,5 +1,5 @@
 //! Owner: MCP adapter for external coding agents
-//! Proof: `cargo check -p vgit --message-format=json` and `cargo test -p vgit --lib mcp`
+//! Proof: `cargo check -p jeryu --message-format=json` and `cargo test -p jeryu --lib mcp`
 //! Invariants: The MCP tool catalog must stay in sync with the capability-surface registry
 //!             and must map directly onto existing capability intents.
 

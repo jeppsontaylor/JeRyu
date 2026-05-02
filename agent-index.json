@@ -7,8 +7,8 @@
       "id": "admission",
       "path": "src/admission.rs",
       "owner": "Git Hook Admission Control",
-      "proof": "`cargo check -p vgit` (install is side-effectful; verify with `vgit server-hook pre-receive`)",
-      "invariants": "Hook runs before GitLab finalizes push objects; install is idempotent; hook path is relative to vgit data dir",
+      "proof": "`cargo check -p jeryu` (install is side-effectful; verify with `jeryu server-hook pre-receive`)",
+      "invariants": "Hook runs before GitLab finalizes push objects; install is idempotent; hook path is relative to jeryu data dir",
       "default_change_type": "security-relevant",
       "proof_lanes": [
         "check",
@@ -17,10 +17,10 @@
         "security"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1",
-        "cargo test -p vgit -- secrets exec honeypot admission"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo test -p jeryu -- secrets exec honeypot admission"
       ],
       "widening_rules": [
         "security-relevant modules widen to security proof lanes"
@@ -30,7 +30,7 @@
       "id": "agent",
       "path": "src/agent.rs",
       "owner": "Autonomous Agent System",
-      "proof": "`cargo test -p vgit -- agent`",
+      "proof": "`cargo test -p jeryu -- agent`",
       "invariants": "Agents always create a GitLab issue before branching; race hypotheses are independent branches; pipeline check (check_agent_pipeline) is mandatory before merge",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -38,8 +38,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -47,7 +47,7 @@
       "id": "agent_surface",
       "path": "src/agent_surface.rs",
       "owner": "Agent Surface",
-      "proof": "`cargo check -p vgit && cargo test -p vgit agent_surface`",
+      "proof": "`cargo check -p jeryu && cargo test -p jeryu agent_surface`",
       "invariants": "Generated routing index is derived from repo truth; audit fails on missing hard surfaces and stale generated output.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -55,8 +55,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -64,7 +64,7 @@
       "id": "bootstrap",
       "path": "src/bootstrap.rs",
       "owner": "Bootstrap subsystem",
-      "proof": "`cargo nextest run -p vgit -- bootstrap`",
+      "proof": "`cargo nextest run -p jeryu -- bootstrap`",
       "invariants": "Bootstrap remains non-interactive and records generated credentials only in local env files.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -72,8 +72,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -81,7 +81,7 @@
       "id": "buildkit",
       "path": "src/buildkit.rs",
       "owner": "BuildKit Configuration (Per-Trust-Namespace Rootless Builders)",
-      "proof": "`cargo test -p vgit -- buildkit`",
+      "proof": "`cargo test -p jeryu -- buildkit`",
       "invariants": "Each trust namespace has its own BuildKit instance to prevent cache poisoning; namespace is injected into all generated configs; never share builder state across namespaces",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -89,8 +89,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -98,7 +98,7 @@
       "id": "cache",
       "path": "src/cache.rs",
       "owner": "SmartCache & Disk Management",
-      "proof": "`cargo test -p vgit -- cache`",
+      "proof": "`cargo test -p jeryu -- cache`",
       "invariants": "LRU GC every 30 min; active-manager caches never collected; CAS atomic store",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -106,8 +106,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -115,7 +115,7 @@
       "id": "cache_brain",
       "path": "src/cache_brain.rs",
       "owner": "Cache Decision Brain (Trust + Taint + Epoch Integration)",
-      "proof": "`cargo test -p vgit -- cache_brain`",
+      "proof": "`cargo test -p jeryu -- cache_brain`",
       "invariants": "Cache hits require matching trust tier; tainted objects never produce hits; epoch mismatch forces miss; all three checks must pass before a hit is returned",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -123,8 +123,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -132,7 +132,7 @@
       "id": "cache_proxy",
       "path": "src/cache_proxy.rs",
       "owner": "Cache Proxy (sccache TCP Proxy)",
-      "proof": "`cargo test -p vgit -- cache_proxy`",
+      "proof": "`cargo test -p jeryu -- cache_proxy`",
       "invariants": "Proxy forwards to sccache; authentication failures are logged and traffic is dropped, not forwarded; proxy lifecycle is tied to the executor session",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -140,8 +140,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -149,7 +149,7 @@
       "id": "capability",
       "path": "src/capability.rs",
       "owner": "Capability API (Structured AgentIntent Payloads)",
-      "proof": "`cargo check -p vgit` (type-checked surface)",
+      "proof": "`cargo check -p jeryu` (type-checked surface)",
       "invariants": "All external agent payloads deserialize through AgentIntent or AgentActionRequest",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -157,8 +157,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -166,7 +166,7 @@
       "id": "capsule",
       "path": "src/capsule.rs",
       "owner": "Failure Capsule subsystem",
-      "proof": "`cargo nextest run -p vgit -- capsule`",
+      "proof": "`cargo nextest run -p jeryu -- capsule`",
       "invariants": "Capsules stay structured, redacted, and sufficient to reproduce a failed job.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -174,8 +174,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -183,7 +183,7 @@
       "id": "cli",
       "path": "src/cli.rs",
       "owner": "CLI Definitions",
-      "proof": "`cargo check -p vgit`",
+      "proof": "`cargo check -p jeryu`",
       "invariants": "All types are pub(crate); main.rs is the only consumer",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -191,8 +191,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -200,7 +200,7 @@
       "id": "config",
       "path": "src/config.rs",
       "owner": "Configuration & Templates subsystem",
-      "proof": "`cargo nextest run -p vgit -- config`",
+      "proof": "`cargo nextest run -p jeryu -- config`",
       "invariants": "Defaults and templates remain deterministic, local, and safe for unattended bootstrap.",
       "default_change_type": "cross-module",
       "proof_lanes": [
@@ -210,10 +210,10 @@
         "full"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1",
-        "cargo nextest run -p vgit"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo nextest run -p jeryu"
       ],
       "widening_rules": [
         "cross-module changes widen to the full integration ring"
@@ -223,7 +223,7 @@
       "id": "decision",
       "path": "src/decision.rs",
       "owner": "Agent Decision Engine (Risk Gates, Supersedence, Impact Classification)",
-      "proof": "`cargo test -p vgit -- decision`",
+      "proof": "`cargo test -p jeryu -- decision`",
       "invariants": "All agent outcomes flow through evaluate_risk_gate; supersedence and impact are typed enums, never raw strings; RiskGateDecision must be checked before any merge or promotion",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -231,8 +231,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -240,7 +240,7 @@
       "id": "dispatch",
       "path": "src/dispatch.rs",
       "owner": "CLI Dispatch",
-      "proof": "`cargo check -p vgit`",
+      "proof": "`cargo check -p jeryu`",
       "invariants": "All logic dispatches to domain modules; no business logic here",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -248,8 +248,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -257,7 +257,7 @@
       "id": "docker",
       "path": "src/docker.rs",
       "owner": "Docker Control Plane subsystem",
-      "proof": "`cargo nextest run -p vgit -- docker`",
+      "proof": "`cargo nextest run -p jeryu -- docker`",
       "invariants": "Docker calls preserve container ownership labels and surface runtime errors to callers.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -265,8 +265,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -274,7 +274,7 @@
       "id": "engine",
       "path": "src/engine.rs",
       "owner": "Engine Core (Webhook + Reconciliation)",
-      "proof": "`cargo test -p vgit -- engine`",
+      "proof": "`cargo test -p jeryu -- engine`",
       "invariants": "5-min recon cycle; Docker crash recovery via event stream; supersedence on newer SHA",
       "default_change_type": "api-change",
       "proof_lanes": [
@@ -283,9 +283,9 @@
         "integration"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": []
     },
@@ -293,7 +293,7 @@
       "id": "epoch",
       "path": "src/epoch.rs",
       "owner": "Epoch-Based Cache Invalidation",
-      "proof": "`cargo test -p vgit -- epoch`",
+      "proof": "`cargo test -p jeryu -- epoch`",
       "invariants": "Epoch bumps are recorded with author_job_id and reason; is_valid fails closed (returns false) on lookup failure; epochs are per-scope and never shared across scopes",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -301,8 +301,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -310,7 +310,7 @@
       "id": "exec",
       "path": "src/exec.rs",
       "owner": "Custom Executor & Sandbox Isolation",
-      "proof": "`cargo test -p vgit -- exec`",
+      "proof": "`cargo test -p jeryu -- exec`",
       "invariants": "Quarantine-on-tripwire; capsule capture on failure; CAS exact-hit skip",
       "default_change_type": "security-relevant",
       "proof_lanes": [
@@ -320,10 +320,10 @@
         "security"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1",
-        "cargo test -p vgit -- secrets exec honeypot admission"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo test -p jeryu -- secrets exec honeypot admission"
       ],
       "widening_rules": [
         "security-relevant modules widen to security proof lanes"
@@ -333,7 +333,7 @@
       "id": "explain",
       "path": "src/explain.rs",
       "owner": "Pipeline Explain subsystem",
-      "proof": "`cargo nextest run -p vgit -- explain`",
+      "proof": "`cargo nextest run -p jeryu -- explain`",
       "invariants": "Explanations are derived from recorded state and do not mutate control-plane data.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -341,8 +341,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -350,7 +350,7 @@
       "id": "gateway::cargo",
       "path": "src/gateway/cargo.rs",
       "owner": "Cache Gateway subsystem — Cargo registry proxy",
-      "proof": "`cargo nextest run -p vgit -- gateway::cargo`",
+      "proof": "`cargo nextest run -p jeryu -- gateway::cargo`",
       "invariants": "Cargo registry caching never crosses trust namespaces or serves unverified content as trusted.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -358,8 +358,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -367,7 +367,7 @@
       "id": "gateway::git",
       "path": "src/gateway/git.rs",
       "owner": "Cache Gateway subsystem — Git objects proxy",
-      "proof": "`cargo nextest run -p vgit -- gateway::git`",
+      "proof": "`cargo nextest run -p jeryu -- gateway::git`",
       "invariants": "Git object reuse remains content-addressed and scoped to the requesting namespace.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -375,8 +375,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -384,7 +384,7 @@
       "id": "gateway::mod",
       "path": "src/gateway/mod.rs",
       "owner": "Cache Gateway subsystem (module root)",
-      "proof": "`cargo nextest run -p vgit -- gateway`",
+      "proof": "`cargo nextest run -p jeryu -- gateway`",
       "invariants": "Gateway modules preserve namespace isolation, singleflight behavior, and upstream fallback semantics.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -392,8 +392,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -401,7 +401,7 @@
       "id": "gateway::npm",
       "path": "src/gateway/npm.rs",
       "owner": "Cache Gateway subsystem — npm registry proxy",
-      "proof": "`cargo nextest run -p vgit -- gateway::npm`",
+      "proof": "`cargo nextest run -p jeryu -- gateway::npm`",
       "invariants": "npm package cache entries preserve integrity metadata and namespace trust boundaries.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -409,8 +409,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -418,7 +418,7 @@
       "id": "gateway::oci",
       "path": "src/gateway/oci.rs",
       "owner": "Cache Gateway subsystem — OCI image proxy",
-      "proof": "`cargo nextest run -p vgit -- gateway::oci`",
+      "proof": "`cargo nextest run -p jeryu -- gateway::oci`",
       "invariants": "OCI cache decisions keep digest identity and trust namespace separation intact.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -426,8 +426,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -435,7 +435,7 @@
       "id": "gateway::singleflight",
       "path": "src/gateway/singleflight.rs",
       "owner": "Cache Gateway subsystem — singleflight deduplication",
-      "proof": "`cargo nextest run -p vgit -- gateway::singleflight`",
+      "proof": "`cargo nextest run -p jeryu -- gateway::singleflight`",
       "invariants": "Equivalent in-flight requests coalesce without widening authority or hiding failed producers.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -443,8 +443,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -452,7 +452,7 @@
       "id": "gitlab_client",
       "path": "src/gitlab_client.rs",
       "owner": "GitLab REST Client subsystem",
-      "proof": "`cargo nextest run -p vgit -- gitlab_client`",
+      "proof": "`cargo nextest run -p jeryu -- gitlab_client`",
       "invariants": "HTTP calls preserve GitLab semantics, redact tokens, and surface status-specific failures.",
       "default_change_type": "api-change",
       "proof_lanes": [
@@ -461,9 +461,9 @@
         "integration"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": []
     },
@@ -471,7 +471,7 @@
       "id": "honeypot",
       "path": "src/honeypot.rs",
       "owner": "Supply-Chain Detonation / Honey Token Detection",
-      "proof": "`cargo test -p vgit -- honeypot`",
+      "proof": "`cargo test -p jeryu -- honeypot`",
       "invariants": "Honey tokens are seeded before untrusted workload starts; Tripwire kills the target process on any touch; never remove paths from the watch list without an AER",
       "default_change_type": "security-relevant",
       "proof_lanes": [
@@ -481,10 +481,10 @@
         "security"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1",
-        "cargo test -p vgit -- secrets exec honeypot admission"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo test -p jeryu -- secrets exec honeypot admission"
       ],
       "widening_rules": [
         "security-relevant modules widen to security proof lanes"
@@ -494,7 +494,7 @@
       "id": "impact",
       "path": "src/impact.rs",
       "owner": "Change Impact Analysis",
-      "proof": "`cargo test -p vgit -- impact`",
+      "proof": "`cargo test -p jeryu -- impact`",
       "invariants": "Conservative fallback on empty diff or broad config change; docs-only skips heavy validation",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -502,8 +502,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": [
         "test intelligence changes widen to planner and release validation"
@@ -512,8 +512,8 @@
     {
       "id": "lib",
       "path": "src/lib.rs",
-      "owner": "vgit crate root (see module map below)",
-      "proof": "`cargo check -p vgit --message-format=json`",
+      "owner": "jeryu crate root (see module map below)",
+      "proof": "`cargo check -p jeryu --message-format=json`",
       "invariants": "Public module exports remain explicit and aligned with AGENTS.md ownership routing.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -521,8 +521,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -530,7 +530,7 @@
       "id": "logs",
       "path": "src/logs.rs",
       "owner": "Logging & Observability subsystem",
-      "proof": "`cargo nextest run -p vgit -- logs`",
+      "proof": "`cargo nextest run -p jeryu -- logs`",
       "invariants": "Log collection remains bounded, non-secret, and attributable to the owning job or component.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -538,8 +538,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -547,7 +547,7 @@
       "id": "main",
       "path": "src/main.rs",
       "owner": "CLI dispatcher — no business logic",
-      "proof": "`cargo check -p vgit --message-format=json`",
+      "proof": "`cargo check -p jeryu --message-format=json`",
       "invariants": "Main only initializes runtime state and delegates behavior to dispatch/modules.",
       "default_change_type": "api-change",
       "proof_lanes": [
@@ -556,9 +556,9 @@
         "integration"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": []
     },
@@ -566,7 +566,7 @@
       "id": "policy",
       "path": "src/policy.rs",
       "owner": "Trust Policy (TrustTier, Cache Promotion Gates)",
-      "proof": "`cargo test -p vgit -- policy`",
+      "proof": "`cargo test -p jeryu -- policy`",
       "invariants": "PolicyEngine::can_consume is the single gate for cache promotion across trust boundaries; higher-trust tier may not consume lower-trust output without explicit approval",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -574,8 +574,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -583,7 +583,7 @@
       "id": "pool",
       "path": "src/pool.rs",
       "owner": "Runner Fleet / Pool Management",
-      "proof": "`cargo test -p vgit -- pool`",
+      "proof": "`cargo test -p jeryu -- pool`",
       "invariants": "Pool→Manager is 1:N; SIGQUIT for graceful drain; SIGHUP for token hot-reload",
       "default_change_type": "api-change",
       "proof_lanes": [
@@ -592,9 +592,9 @@
         "integration"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": []
     },
@@ -602,7 +602,7 @@
       "id": "reclaim",
       "path": "src/reclaim.rs",
       "owner": "Storage Audit & GC",
-      "proof": "`cargo test -p vgit -- reclaim`",
+      "proof": "`cargo test -p jeryu -- reclaim`",
       "invariants": "GC never removes objects referenced by active managers; AutoGcReport is produced before any deletions; audit runs do not block the reconciliation loop",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -610,8 +610,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -619,7 +619,7 @@
       "id": "release",
       "path": "src/release.rs",
       "owner": "Release Pipeline",
-      "proof": "`cargo test -p vgit -- release`",
+      "proof": "`cargo test -p jeryu -- release`",
       "invariants": "Exact-SHA evidence matching, canary gate ladder, immutable evidence dirs",
       "default_change_type": "release-change",
       "proof_lanes": [
@@ -628,9 +628,9 @@
         "integration"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": []
     },
@@ -638,7 +638,7 @@
       "id": "sandbox",
       "path": "src/sandbox.rs",
       "owner": "Workload Sandbox (Network-Namespace Isolation)",
-      "proof": "`cargo test -p vgit -- sandbox`",
+      "proof": "`cargo test -p jeryu -- sandbox`",
       "invariants": "strict_network_isolation fails closed unless an isolation backend is available;",
       "default_change_type": "security-relevant",
       "proof_lanes": [
@@ -648,10 +648,10 @@
         "security"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1",
-        "cargo test -p vgit -- secrets exec honeypot admission"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo test -p jeryu -- secrets exec honeypot admission"
       ],
       "widening_rules": [
         "security-relevant modules widen to security proof lanes"
@@ -661,7 +661,7 @@
       "id": "sccache_mgr",
       "path": "src/sccache_mgr.rs",
       "owner": "sccache Management subsystem",
-      "proof": "`cargo nextest run -p vgit -- sccache_mgr`",
+      "proof": "`cargo nextest run -p jeryu -- sccache_mgr`",
       "invariants": "Cache workers stay isolated by manager namespace and report health before reuse.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -669,8 +669,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -678,7 +678,7 @@
       "id": "secrets",
       "path": "src/secrets.rs",
       "owner": "Secrets & Vault Lifecycle",
-      "proof": "`cargo test -p vgit -- secrets`",
+      "proof": "`cargo test -p jeryu -- secrets`",
       "invariants": "Rotation is current/previous pair; never raw plaintext; 0600 perms on all secret files",
       "default_change_type": "security-relevant",
       "proof_lanes": [
@@ -688,10 +688,10 @@
         "security"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1",
-        "cargo test -p vgit -- secrets exec honeypot admission"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo test -p jeryu -- secrets exec honeypot admission"
       ],
       "widening_rules": [
         "security-relevant modules widen to security proof lanes"
@@ -701,7 +701,7 @@
       "id": "settings",
       "path": "src/settings.rs",
       "owner": "User settings subsystem",
-      "proof": "`cargo nextest run -p vgit -- settings`",
+      "proof": "`cargo nextest run -p jeryu -- settings`",
       "invariants": "Settings merges are deterministic and never silently discard explicit user configuration.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -709,8 +709,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -718,7 +718,7 @@
       "id": "shadow",
       "path": "src/shadow.rs",
       "owner": "Shadow Remote Mirroring",
-      "proof": "`cargo test -p vgit -- shadow`",
+      "proof": "`cargo test -p jeryu -- shadow`",
       "invariants": "Mirror operations are idempotent; push failures do not block the primary pipeline; git2 errors are always surfaced via anyhow context",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -726,8 +726,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -735,7 +735,7 @@
       "id": "state",
       "path": "src/state.rs",
       "owner": "State Store (Postgres primary, SQLite fallback)",
-      "proof": "`cargo test -p vgit -- state`",
+      "proof": "`cargo test -p jeryu -- state`",
       "invariants": "append-only event log; manager state machine (starting→online→draining→stopped)",
       "default_change_type": "state-change",
       "proof_lanes": [
@@ -744,9 +744,9 @@
         "integration"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": []
     },
@@ -754,7 +754,7 @@
       "id": "taint",
       "path": "src/taint.rs",
       "owner": "Taint Tracking (Detonation Lane)",
-      "proof": "`cargo test -p vgit -- taint`",
+      "proof": "`cargo test -p jeryu -- taint`",
       "invariants": "Taint graph is append-only; purges are recorded events, not deletes; cross-pipeline taint propagation requires a valid plan_id",
       "default_change_type": "security-relevant",
       "proof_lanes": [
@@ -764,10 +764,10 @@
         "security"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1",
-        "cargo test -p vgit -- secrets exec honeypot admission"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo test -p jeryu -- secrets exec honeypot admission"
       ],
       "widening_rules": [
         "security-relevant modules widen to security proof lanes"
@@ -777,7 +777,7 @@
       "id": "telemetry",
       "path": "src/telemetry.rs",
       "owner": "Runner Telemetry subsystem",
-      "proof": "`cargo nextest run -p vgit -- telemetry`",
+      "proof": "`cargo nextest run -p jeryu -- telemetry`",
       "invariants": "Telemetry is append-friendly, non-secret, and stable enough for agent reasoning.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -785,8 +785,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -794,7 +794,7 @@
       "id": "test_intel::cache",
       "path": "src/test_intel/cache.rs",
       "owner": "VTI Test Intelligence subsystem — plan cache",
-      "proof": "`cargo nextest run -p vgit -- test_intel::cache`",
+      "proof": "`cargo nextest run -p jeryu -- test_intel::cache`",
       "invariants": "Cached plans are keyed by inputs that affect test selection and expire on stale evidence.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -802,8 +802,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": [
         "test intelligence changes widen to planner and release validation"
@@ -813,7 +813,7 @@
       "id": "test_intel::ci_gen",
       "path": "src/test_intel/ci_gen.rs",
       "owner": "VTI Test Intelligence subsystem — CI pipeline generation",
-      "proof": "`cargo nextest run -p vgit -- test_intel::ci_gen`",
+      "proof": "`cargo nextest run -p jeryu -- test_intel::ci_gen`",
       "invariants": "Generated CI preserves required lanes and never removes mandatory proof gates.",
       "default_change_type": "api-change",
       "proof_lanes": [
@@ -822,9 +822,9 @@
         "integration"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": [
         "test intelligence changes widen to planner and release validation"
@@ -834,7 +834,7 @@
       "id": "test_intel::explain",
       "path": "src/test_intel/explain.rs",
       "owner": "VTI Test Intelligence subsystem — plan explanation",
-      "proof": "`cargo nextest run -p vgit -- test_intel::explain`",
+      "proof": "`cargo nextest run -p jeryu -- test_intel::explain`",
       "invariants": "Explanations cite concrete map, dependency, or history evidence for every selected test.",
       "default_change_type": "api-change",
       "proof_lanes": [
@@ -843,9 +843,9 @@
         "integration"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": [
         "test intelligence changes widen to planner and release validation"
@@ -855,7 +855,7 @@
       "id": "test_intel::mod",
       "path": "src/test_intel/mod.rs",
       "owner": "VTI Test Intelligence subsystem (module root)",
-      "proof": "`cargo nextest run -p vgit -- test_intel`",
+      "proof": "`cargo nextest run -p jeryu -- test_intel`",
       "invariants": "VTI routing remains explainable, deterministic, and conservative when evidence is incomplete.",
       "default_change_type": "api-change",
       "proof_lanes": [
@@ -864,9 +864,9 @@
         "integration"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": [
         "test intelligence changes widen to planner and release validation"
@@ -876,7 +876,7 @@
       "id": "test_intel::nightly",
       "path": "src/test_intel/nightly.rs",
       "owner": "VTI Test Intelligence subsystem — nightly oracle",
-      "proof": "`cargo nextest run -p vgit -- test_intel::nightly`",
+      "proof": "`cargo nextest run -p jeryu -- test_intel::nightly`",
       "invariants": "Nightly comparisons preserve full-suite evidence for calibrating skip safety.",
       "default_change_type": "api-change",
       "proof_lanes": [
@@ -885,9 +885,9 @@
         "integration"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": [
         "test intelligence changes widen to planner and release validation"
@@ -897,7 +897,7 @@
       "id": "test_intel::planner",
       "path": "src/test_intel/planner.rs",
       "owner": "VTI Test Intelligence subsystem — test plan algorithm",
-      "proof": "`cargo nextest run -p vgit -- test_intel::planner`",
+      "proof": "`cargo nextest run -p jeryu -- test_intel::planner`",
       "invariants": "The planner may skip only when ownership, dependency, and history evidence agree.",
       "default_change_type": "api-change",
       "proof_lanes": [
@@ -906,9 +906,9 @@
         "integration"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": [
         "test intelligence changes widen to planner and release validation"
@@ -918,7 +918,7 @@
       "id": "test_intel::subsystem",
       "path": "src/test_intel/subsystem.rs",
       "owner": "VTI Test Intelligence subsystem — subsystem ownership graph",
-      "proof": "`cargo nextest run -p vgit -- test_intel::subsystem`",
+      "proof": "`cargo nextest run -p jeryu -- test_intel::subsystem`",
       "invariants": "Subsystem mappings stay deterministic and reflect the shared VTI contract.",
       "default_change_type": "api-change",
       "proof_lanes": [
@@ -927,9 +927,9 @@
         "integration"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": [
         "test intelligence changes widen to planner and release validation"
@@ -939,7 +939,7 @@
       "id": "test_intel::testmap",
       "path": "src/test_intel/testmap.rs",
       "owner": "VTI Test Intelligence subsystem — testmap.toml parser",
-      "proof": "`cargo nextest run -p vgit -- test_intel::testmap`",
+      "proof": "`cargo nextest run -p jeryu -- test_intel::testmap`",
       "invariants": "Parsed test maps preserve lane semantics and reject ambiguous ownership where possible.",
       "default_change_type": "api-change",
       "proof_lanes": [
@@ -948,9 +948,9 @@
         "integration"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib",
-        "cargo test -p vgit --test '*' -- --test-threads=1"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": [
         "test intelligence changes widen to planner and release validation"
@@ -960,7 +960,7 @@
       "id": "test_runner",
       "path": "src/test_runner.rs",
       "owner": "CI Test Runner subsystem",
-      "proof": "`cargo nextest run -p vgit -- test_runner`",
+      "proof": "`cargo nextest run -p jeryu -- test_runner`",
       "invariants": "Test execution preserves lane semantics and reports enough structure for VTI feedback.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -968,8 +968,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -977,7 +977,7 @@
       "id": "tui::action_registry",
       "path": "src/tui/action_registry.rs",
       "owner": "TUI action surface and capability action contract.",
-      "proof": "`cargo test -p vgit -- action_registry`.",
+      "proof": "`cargo test -p jeryu -- action_registry`.",
       "invariants": "action IDs are unique; mutating actions declare grants; capability JSON is generated from this registry.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -985,8 +985,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -994,7 +994,7 @@
       "id": "tui::app",
       "path": "src/tui/app.rs",
       "owner": "Interactive TUI subsystem — application state and refresh loop",
-      "proof": "`cargo nextest run -p vgit -- tui::app`",
+      "proof": "`cargo nextest run -p jeryu -- tui::app`",
       "invariants": "UI state refreshes are bounded, non-blocking, and derived from durable control-plane state.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -1002,8 +1002,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -1011,7 +1011,7 @@
       "id": "tui::events",
       "path": "src/tui/events.rs",
       "owner": "Interactive TUI subsystem — event handling stubs",
-      "proof": "`cargo nextest run -p vgit -- tui::events`",
+      "proof": "`cargo nextest run -p jeryu -- tui::events`",
       "invariants": "Input handling maps keys to registered actions without bypassing capability policy.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -1019,8 +1019,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -1028,7 +1028,7 @@
       "id": "tui::flow::builder",
       "path": "src/tui/flow/builder.rs",
       "owner": "Interactive TUI subsystem — flow graph builder",
-      "proof": "`cargo nextest run -p vgit -- tui::flow`",
+      "proof": "`cargo nextest run -p jeryu -- tui::flow`",
       "invariants": "Flow graphs are derived from job events and preserve lane/column classification deterministically.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -1036,8 +1036,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -1045,7 +1045,7 @@
       "id": "tui::flow::collector",
       "path": "src/tui/flow/collector.rs",
       "owner": "Interactive TUI subsystem — flow snapshot collector",
-      "proof": "`cargo nextest run -p vgit -- tui::flow`",
+      "proof": "`cargo nextest run -p jeryu -- tui::flow`",
       "invariants": "Collection is best-effort, bounded, and never blocks the TUI render loop on remote state.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -1053,8 +1053,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -1062,7 +1062,7 @@
       "id": "tui::flow::eta",
       "path": "src/tui/flow/eta.rs",
       "owner": "Interactive TUI subsystem — flow ETA estimation",
-      "proof": "`cargo nextest run -p vgit -- tui::flow`",
+      "proof": "`cargo nextest run -p jeryu -- tui::flow`",
       "invariants": "ETA estimates remain advisory and never affect scheduling or release decisions.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -1070,8 +1070,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -1079,7 +1079,7 @@
       "id": "tui::flow::inspector",
       "path": "src/tui/flow/inspector.rs",
       "owner": "Interactive TUI subsystem — flow inspector pane",
-      "proof": "`cargo nextest run -p vgit -- tui::flow`",
+      "proof": "`cargo nextest run -p jeryu -- tui::flow`",
       "invariants": "Inspector output is read-only and redacts sensitive trace material.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -1087,8 +1087,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -1096,7 +1096,7 @@
       "id": "tui::flow::mod",
       "path": "src/tui/flow/mod.rs",
       "owner": "Interactive TUI subsystem — CI flow view",
-      "proof": "`cargo nextest run -p vgit -- tui::flow`",
+      "proof": "`cargo nextest run -p jeryu -- tui::flow`",
       "invariants": "Flow view modules expose read-only pipeline state and policy-gated actions.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -1104,8 +1104,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -1113,7 +1113,7 @@
       "id": "tui::flow::model",
       "path": "src/tui/flow/model.rs",
       "owner": "Interactive TUI subsystem — flow data model",
-      "proof": "`cargo nextest run -p vgit -- tui::flow`",
+      "proof": "`cargo nextest run -p jeryu -- tui::flow`",
       "invariants": "Flow model types remain serializable, cloneable snapshots of observed control-plane state.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -1121,8 +1121,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -1130,7 +1130,7 @@
       "id": "tui::flow::widget",
       "path": "src/tui/flow/widget.rs",
       "owner": "Interactive TUI subsystem — flow graph widget",
-      "proof": "`cargo nextest run -p vgit -- tui::flow`",
+      "proof": "`cargo nextest run -p jeryu -- tui::flow`",
       "invariants": "Widget rendering is pure over the supplied graph and selected node.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -1138,8 +1138,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -1147,7 +1147,7 @@
       "id": "tui::graph",
       "path": "src/tui/graph.rs",
       "owner": "Interactive TUI subsystem — pipeline graph rendering",
-      "proof": "`cargo nextest run -p vgit -- tui::graph`",
+      "proof": "`cargo nextest run -p jeryu -- tui::graph`",
       "invariants": "Graph rendering is deterministic and never mutates pipeline or release state.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -1155,8 +1155,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -1164,7 +1164,7 @@
       "id": "tui::mod",
       "path": "src/tui/mod.rs",
       "owner": "Interactive TUI subsystem (module root)",
-      "proof": "`cargo nextest run -p vgit -- tui`",
+      "proof": "`cargo nextest run -p jeryu -- tui`",
       "invariants": "TUI entry points preserve terminal cleanup and keep operational actions policy-gated.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -1172,8 +1172,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -1181,7 +1181,7 @@
       "id": "tui::ui",
       "path": "src/tui/ui.rs",
       "owner": "Interactive TUI subsystem — rendering logic",
-      "proof": "`cargo nextest run -p vgit -- tui::ui`",
+      "proof": "`cargo nextest run -p jeryu -- tui::ui`",
       "invariants": "Rendering redacts sensitive text and does not perform control-plane mutations directly.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -1189,8 +1189,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -1198,7 +1198,7 @@
       "id": "witness",
       "path": "src/witness.rs",
       "owner": "Build Witness (Cacheability Classification)",
-      "proof": "`cargo test -p vgit -- witness`",
+      "proof": "`cargo test -p jeryu -- witness`",
       "invariants": "is_cacheable=false when Cargo.lock is missing; uncacheable_reasons is always populated when is_cacheable=false; Docker and integration witnesses are never cacheable",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
@@ -1206,8 +1206,8 @@
         "unit"
       ],
       "proof_commands": [
-        "cargo check -p vgit --message-format=json",
-        "cargo nextest run -p vgit --lib"
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     }

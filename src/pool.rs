@@ -1,5 +1,5 @@
 //! Owner: Runner Fleet / Pool Management
-//! Proof: `cargo test -p vgit -- pool`
+//! Proof: `cargo test -p jeryu -- pool`
 //! Invariants: Pool→Manager is 1:N; SIGQUIT for graceful drain; SIGHUP for token hot-reload
 //!
 //! A pool is a logical runner configuration in GitLab backed by
@@ -387,7 +387,7 @@ pub async fn delete_pool(
 /// 1. Calls GitLab to reset the runner's auth token
 /// 2. Rewrites all manager config.toml files with the new token
 /// 3. Sends SIGHUP to all running managers for hot-reload
-/// 4. Updates the database and vgit.env
+/// 4. Updates the database and jeryu.env
 pub async fn rotate_pool_token(
     db: &Db,
     docker: &DockerCtl,

@@ -18,7 +18,7 @@ authors = []
 rust-version = "1.85"
 
 # Shared deps used by the proof-scoped control plane crates.
-# vgit uses its own explicit declarations below.
+# jeryu uses its own explicit declarations below.
 [workspace.dependencies]
 anyhow = "1"
 cargo_metadata = "0"
@@ -46,18 +46,18 @@ validation_order = [
     "cargo run -p cargo-aer -- scan --output aer-findings.json",
 ]
 ci_profiles = [
-    { name = "inner-loop", commands = ["cargo check --workspace", "cargo nextest run -p vgit --lib"] },
-    { name = "pull-request", commands = ["cargo check --workspace", "cargo nextest run -p vgit --lib", "cargo run -p cargo-witness -- build", "cargo run -p cargo-vrc -- map --output-dir .", "cargo run -p cargo-aer -- scan --output aer-findings.json"] },
-    { name = "release-blocking", commands = ["cargo nextest run -p vgit", "cargo deny check", "cargo run -p arc-bench -- run psd-mechanics"] },
+    { name = "inner-loop", commands = ["cargo check --workspace", "cargo nextest run -p jeryu --lib"] },
+    { name = "pull-request", commands = ["cargo check --workspace", "cargo nextest run -p jeryu --lib", "cargo run -p cargo-witness -- build", "cargo run -p cargo-vrc -- map --output-dir .", "cargo run -p cargo-aer -- scan --output aer-findings.json"] },
+    { name = "release-blocking", commands = ["cargo nextest run -p jeryu", "cargo deny check", "cargo run -p arc-bench -- run psd-mechanics"] },
     { name = "scheduled-hardening", commands = ["cargo semver-checks check-release", "cargo run -p cargo-aer -- scan --output aer-findings.json"] },
 ]
 
 # -------------------------------------------------------------------
-# vgit package
+# jeryu package
 # -------------------------------------------------------------------
 
 [package]
-name = "vgit"
+name = "jeryu"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -144,15 +144,15 @@ invariants = [
     "main.rs is CLI dispatcher only — no business logic",
 ]
 local_validate = [
-    "cargo check -p vgit --message-format=json",
-    "cargo nextest run -p vgit --lib",
+    "cargo check -p jeryu --message-format=json",
+    "cargo nextest run -p jeryu --lib",
 ]
 exceptions = [
-    "mega-file.vgit",
-    "mega-function.vgit",
+    "mega-file.jeryu",
+    "mega-function.jeryu",
 ]
 ci_profiles = [
-    { name = "inner-loop",       commands = ["cargo check -p vgit --message-format=json", "cargo nextest run -p vgit --lib"] },
-    { name = "pull-request",     commands = ["cargo check -p vgit --message-format=json", "cargo nextest run -p vgit --lib", "cargo test -p vgit --test '*' -- --test-threads=1"] },
-    { name = "release-blocking", commands = ["cargo nextest run -p vgit", "cargo deny check"] },
+    { name = "inner-loop",       commands = ["cargo check -p jeryu --message-format=json", "cargo nextest run -p jeryu --lib"] },
+    { name = "pull-request",     commands = ["cargo check -p jeryu --message-format=json", "cargo nextest run -p jeryu --lib", "cargo test -p jeryu --test '*' -- --test-threads=1"] },
+    { name = "release-blocking", commands = ["cargo nextest run -p jeryu", "cargo deny check"] },
 ]

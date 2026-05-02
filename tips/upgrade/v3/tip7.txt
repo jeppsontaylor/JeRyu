@@ -1,6 +1,6 @@
 ## Review scope
 
-I attempted to clone the repo locally, but the sandbox could not resolve `github.com`, so I could not run the code or tests. I reviewed the live GitHub repository, raw source/docs, module maps, CLI definitions, architecture docs, and official GitHub/GitLab API docs. My read is: **JeRyu/vgit is an impressive Rust control plane around a local GitLab instance, not yet a true GitLab fork.** The README positions it as a “Headless GitLab & Autonomous Agent Hypervisor,” a single-binary Rust control plane for local GitLab orchestration, CI/CD, sandboxes, semantic test planning, runner pools, cache control, and agent operations. ([GitHub][1])
+I attempted to clone the repo locally, but the sandbox could not resolve `github.com`, so I could not run the code or tests. I reviewed the live GitHub repository, raw source/docs, module maps, CLI definitions, architecture docs, and official GitHub/GitLab API docs. My read is: **JeRyu/jeryu is an impressive Rust control plane around a local GitLab instance, not yet a true GitLab fork.** The README positions it as a “Headless GitLab & Autonomous Agent Hypervisor,” a single-binary Rust control plane for local GitLab orchestration, CI/CD, sandboxes, semantic test planning, runner pools, cache control, and agent operations. ([GitHub][1])
 
 ## Executive verdict
 
@@ -26,7 +26,7 @@ But the current code appears to be **foundation plus scaffolding**, not yet the 
 
 **7. Admission control is the right safety primitive.** The pre-receive hook design records admission decisions and can require agent refs to match active capability grants. That is exactly the kind of ledger-backed guardrail an autonomous coding platform should have. ([GitHub][7])
 
-**8. VTI/test intelligence is one of the most valuable subsystems.** The docs describe subsystem-aware smart test selection, docs-only skipping, full-test fallbacks for invalidators, external `.vgit/testmap.toml` support, child pipeline YAML emission, selector-miss auditing, and a nightly oracle that records cases where VTI would have skipped a failing test. This is a real differentiator versus ordinary GitHub/GitLab CI, because agents need fast, explainable validation. ([GitHub][8])
+**8. VTI/test intelligence is one of the most valuable subsystems.** The docs describe subsystem-aware smart test selection, docs-only skipping, full-test fallbacks for invalidators, external `.jeryu/testmap.toml` support, child pipeline YAML emission, selector-miss auditing, and a nightly oracle that records cases where VTI would have skipped a failing test. This is a real differentiator versus ordinary GitHub/GitLab CI, because agents need fast, explainable validation. ([GitHub][8])
 
 **9. The cache/security story is headed in the right direction.** There is a SmartCache layer with Docker registry mirror/proxy concepts, cache GC, disk reporting, CAS mismatch errors, and manager cache tracking; there are trust tiers, cache promotion rules, witness generation for Rust/Docker cacheability, and taint propagation across dependent cache objects. ([GitHub][9])
 
@@ -42,13 +42,13 @@ But the current code appears to be **foundation plus scaffolding**, not yet the 
 
 **3. Merge evidence is not yet trustworthy enough.** In `capability.rs`, `RequestMerge` checks selector misses and cache taints, but the proof object uses `successful_jobs: 1`, `failed_jobs: 0`, `pending_jobs: 0`, and a policy with evidence requirements disabled. That is a high-severity issue if agents are meant to request or perform merges. The action registry describes request merge as “pipeline green, no selector misses, no taint,” but the implementation needs to actually prove those conditions from GitLab and state. ([GitHub][6])
 
-**4. Admission enforcement defaults are too soft.** The API docs say agent refs without a matching capability grant are audit-only by default unless `VGIT_ADMISSION_ENFORCE=1` is set. For an agent-first system, the default should be deny-by-default for ungranted agent write paths, with explicit development-mode override. ([GitHub][12])
+**4. Admission enforcement defaults are too soft.** The API docs say agent refs without a matching capability grant are audit-only by default unless `JERYU_ADMISSION_ENFORCE=1` is set. For an agent-first system, the default should be deny-by-default for ungranted agent write paths, with explicit development-mode override. ([GitHub][12])
 
 **5. TLS safety needs a production/dev split.** `GitlabClient::new` uses `danger_accept_invalid_certs(true)`. That can be acceptable for a local self-signed GitLab dev stack, but it must be gated behind a “local insecure dev” setting and loudly forbidden for production/remote GitLab. ([GitHub][13])
 
 **6. The GitLab client needs pagination, rate-limit handling, and backoff.** The code uses many list-style GitLab endpoints. GitLab’s own docs note that list endpoints are paginated, default to 20 items, max `per_page` is 100, and keyset pagination is recommended for large collections where available. A world-class agent platform cannot silently miss jobs/MRs/projects after page 1. ([GitHub][13])
 
-**7. Dynamic CI generation needs hardening.** The test runner creates ephemeral branches and writes `.gitlab-ci.yml` for arbitrary commands. That is powerful, but commands should be represented as structured argv arrays or allowlisted templates, not interpolated text. Agents will eventually pass weird strings; command/YAML injection must be impossible by construction. The API docs explicitly expose `vgit test run --command ...` and dynamic `.gitlab-ci.yml` behavior. ([GitHub][12])
+**7. Dynamic CI generation needs hardening.** The test runner creates ephemeral branches and writes `.gitlab-ci.yml` for arbitrary commands. That is powerful, but commands should be represented as structured argv arrays or allowlisted templates, not interpolated text. Agents will eventually pass weird strings; command/YAML injection must be impossible by construction. The API docs explicitly expose `jeryu test run --command ...` and dynamic `.gitlab-ci.yml` behavior. ([GitHub][12])
 
 **8. The impact/VTI path is promising but still heuristic.** Internal VTI maps changed paths to subsystems using hardcoded ownership and glob-like patterns, then selects unit filters/integration tests, with conservative full fallback for empty diff, global invalidators, or unmapped files. That is good, but the next level requires coverage data, dependency graphs, historical flake/miss data, language-specific build graphs, and confidence calibration. ([GitHub][8])
 
@@ -78,7 +78,7 @@ But the current code appears to be **foundation plus scaffolding**, not yet the 
 
 ### P0: harden API/security fundamentals
 
-1. **Remove unconditional invalid-cert acceptance.** Support local self-signed GitLab by installing/pinning a local CA or requiring `VGIT_INSECURE_LOCAL_TLS=1`.
+1. **Remove unconditional invalid-cert acceptance.** Support local self-signed GitLab by installing/pinning a local CA or requiring `JERYU_INSECURE_LOCAL_TLS=1`.
 
 2. **Implement pagination everywhere.** Any GitLab list endpoint should return a `Paged<T>` stream internally and follow next-page/keyset cursors until complete or policy-limited.
 
@@ -238,7 +238,7 @@ The TUI should feel less like “CI dashboard” and more like **mission control
 [7]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/admission.rs "raw.githubusercontent.com"
 [8]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/VTI.md "raw.githubusercontent.com"
 [9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/cache.rs "raw.githubusercontent.com"
-[10]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[10]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [11]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/src/agent.rs "raw.githubusercontent.com"
 [12]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/API.md "raw.githubusercontent.com"
 [13]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/gitlab_client.rs "raw.githubusercontent.com"

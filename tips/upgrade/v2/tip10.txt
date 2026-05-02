@@ -2,7 +2,7 @@ I attempted a literal local `git clone`, but this environment could not resolve 
 
 ## My overall read
 
-This repo has a **very strong product thesis**: make GitLab, GitLab Runner, CI, sandboxing, test selection, failure evidence, and release gates directly operable by agents. That is exactly the right direction. The README frames `vgit` as a single-binary Rust control plane for turning a local GitLab instance into an autonomous-agent orchestration engine, and the architecture doc says it owns runner fleet state, webhook reconciliation, custom executor policy, release/canary/prod automation, SmartCache, VTI, secrets, failure evidence, action registry, settings, and a Ratatui TUI. ([GitHub][1])
+This repo has a **very strong product thesis**: make GitLab, GitLab Runner, CI, sandboxing, test selection, failure evidence, and release gates directly operable by agents. That is exactly the right direction. The README frames `jeryu` as a single-binary Rust control plane for turning a local GitLab instance into an autonomous-agent orchestration engine, and the architecture doc says it owns runner fleet state, webhook reconciliation, custom executor policy, release/canary/prod automation, SmartCache, VTI, secrets, failure evidence, action registry, settings, and a Ratatui TUI. ([GitHub][1])
 
 But today I would classify it as an **ambitious prototype/control-plane skeleton with some excellent concepts and several high-severity correctness, security, and contract-drift problems**. The biggest risk is not the ambition; the ambition is good. The risk is that the repo currently promises “agent-safe autonomous GitLab management,” while some of the enforcement surfaces are either incomplete, inconsistent with docs, or not yet secure enough to be trusted by real agents.
 
@@ -24,7 +24,7 @@ VTI is the most strategically important piece here. The docs define it as subsys
 
 The VTI design has several good properties:
 
-* It distinguishes internal JeRyu planning from external repo planning via `.vgit/testmap.toml`.
+* It distinguishes internal JeRyu planning from external repo planning via `.jeryu/testmap.toml`.
 * It has global invalidators for risky files.
 * It has conservative full-test fallback for unmapped files and planning failures.
 * It records selector misses and learning suggestions.
@@ -47,7 +47,7 @@ This is important. An agent-first repo manager needs to understand that not all 
 
 ### 5. The custom executor direction is powerful
 
-The custom executor flow is a good idea: `vgit exec config`, `prepare`, `run`, and `cleanup` allow the tool to insert policy, sandbox prep, cache-brain decisions, honeypots, witness computation, failure-capsule capture, and taint tracking directly into the CI execution path. ([GitHub][2])
+The custom executor flow is a good idea: `jeryu exec config`, `prepare`, `run`, and `cleanup` allow the tool to insert policy, sandbox prep, cache-brain decisions, honeypots, witness computation, failure-capsule capture, and taint tracking directly into the CI execution path. ([GitHub][2])
 
 This is the right place to intercept the build. Agents need their CI environment to be observable, reproducible, and policy-mediated.
 
@@ -129,9 +129,9 @@ That is far too narrow for a real merge gate. It should also verify:
 
 There is an `agent.rs` merge path that uses a `RiskGateDecision` and can call `accept_merge_request`, but the capability merge route and the agent merge route need to converge into one authoritative merge-gate engine. ([GitHub][9])
 
-### 5. `RunTests` capability is weaker than `vgit test run`
+### 5. `RunTests` capability is weaker than `jeryu test run`
 
-The docs define `vgit test run` as a first-class test runner using ephemeral GitLab CI branches, dynamic `.gitlab-ci.yml`, result reporting, retry, failed-job views, impact, VTI selection, audit, and cache status commands. ([GitHub][6])
+The docs define `jeryu test run` as a first-class test runner using ephemeral GitLab CI branches, dynamic `.gitlab-ci.yml`, result reporting, retry, failed-job views, impact, VTI selection, audit, and cache status commands. ([GitHub][6])
 
 But the capability `RunTests` path appears to create a branch, update `.gitlab-ci.yml`, trigger a pipeline, and return the branch/scope. ([GitHub][7])
 
@@ -156,7 +156,7 @@ The CLI and capability path should use the same internal validation engine. Do n
 
 ### 6. Webhook behavior appears internally inconsistent
 
-The API docs say a `Push Hook` normalizes refs, skips `vgit-test-*`, cancels superseded pipelines, runs impact analysis, and records VTI plans. ([GitHub][8])
+The API docs say a `Push Hook` normalizes refs, skips `jeryu-test-*`, cancels superseded pipelines, runs impact analysis, and records VTI plans. ([GitHub][8])
 
 The engine source does contain a `Push Hook` handler and also says `Merge Request Hook` events are logged but not acted on. ([GitHub][10])
 
@@ -184,10 +184,10 @@ The API docs show several defaults and hard-coded assumptions around `project-id
 
 That is fine for an internal dogfood prototype, but it blocks becoming a world-class open-source repo manager. The core should not know about one downstream workspace except through configuration.
 
-Concrete fix: move repo-specific policy into `.vgit/`:
+Concrete fix: move repo-specific policy into `.jeryu/`:
 
 ```text
-.vgit/
+.jeryu/
   repo.toml
   testmap.toml
   agents.toml
@@ -218,7 +218,7 @@ Right now the repo has CLI commands, TUI actions, capability intents, webhooks, 
 I would define a first-class `Action` trait:
 
 ```rust
-trait VgitAction {
+trait JeryuAction {
     type Request;
     type Response;
 
@@ -559,7 +559,7 @@ Agents need logs, but raw logs are expensive. Add a log service that returns:
 Every failed job should emit:
 
 ```bash
-vgit repro run <capsule-id>
+jeryu repro run <capsule-id>
 ```
 
 That should recreate the job environment as closely as possible.
@@ -631,7 +631,7 @@ Before agents use it seriously:
 
 ### Priority 3: unify all test-running paths
 
-`vgit test run`, capability `RunTests`, VTI selection, CI-generated YAML, and failure capsules should be one internal engine. Agents should get the same robust behavior as the CLI.
+`jeryu test run`, capability `RunTests`, VTI selection, CI-generated YAML, and failure capsules should be one internal engine. Agents should get the same robust behavior as the CLI.
 
 ### Priority 4: implement a real merge gate
 
@@ -693,7 +693,7 @@ What is still missing or not mature enough:
 * Safe merge gate.
 
 12. **Public compatibility contract**
-    Version the capability protocol, VTI plan schema, event schema, `.vgit/testmap.toml`, and failure capsule schema.
+    Version the capability protocol, VTI plan schema, event schema, `.jeryu/testmap.toml`, and failure capsule schema.
 
 ---
 

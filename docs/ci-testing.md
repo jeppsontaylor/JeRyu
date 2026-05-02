@@ -1,16 +1,16 @@
-# Vgit CI Testing & Evaluation Framework
+# Jeryu CI Testing & Evaluation Framework
 
-This document outlines the Continuous Integration (CI) and testing methodologies for the **Vgit** project (located in the `JeRyu` repository). It provides a full specification for external agents and developers on how we organize, run, and validate our tests, runners, and integrations.
+This document outlines the Continuous Integration (CI) and testing methodologies for the **Jeryu** project (located in the `JeRyu` repository). It provides a full specification for external agents and developers on how we organize, run, and validate our tests, runners, and integrations.
 
 ## 1. Overview of the Test Suites
 
-The `vgit` codebase uses a comprehensive testing strategy combining unit tests, integration tests, and full End-to-End (E2E) environment simulations using the robust Rust `tokio::test` framework.
+The `jeryu` codebase uses a comprehensive testing strategy combining unit tests, integration tests, and full End-to-End (E2E) environment simulations using the robust Rust `tokio::test` framework.
 
 The tests are located primarily in the `tests/` directory:
 - **`tests/e2e.rs`**: Full lifecycle tests. Protests the system by spinning up ephemeral GitLab runners, dynamically creating projects, committing test `.gitlab-ci.yml` files, scaling runner pools, and validating log trace outputs to ensure runners correctly pick up and execute jobs.
-- **`tests/agent_tests.rs`**: Tests the Autonomous Agent flow. Verifies that `vgit` can spawn an AI agent task, create a separate branch, commit code, and open a Merge Request back to `main`.
+- **`tests/agent_tests.rs`**: Tests the Autonomous Agent flow. Verifies that `jeryu` can spawn an AI agent task, create a separate branch, commit code, and open a Merge Request back to `main`.
 - **`tests/pool_tests.rs`** & **`tests/job_tests.rs`**: Validates runner pool limits, ephemeral pool teardowns, and job specific queue logic.
-- **`tests/cache_integration_test.rs`**: Tests the `Vgit SmartCache` mechanics to ensure pipeline data is correctly tracked and cached locally using SQLite and Docker.
+- **`tests/cache_integration_test.rs`**: Tests the `Jeryu SmartCache` mechanics to ensure pipeline data is correctly tracked and cached locally using SQLite and Docker.
 
 ### Local Execution Strategy
 To run these environments locally, the following commands are used:
@@ -118,21 +118,21 @@ jobs:
 
 ## 3. E2E Environment & System Resilience
 
-Since `vgit` manages Docker containers and interacts with GitLab, the Integration tests interact heavily with actual systems.
+Since `jeryu` manages Docker containers and interacts with GitLab, the Integration tests interact heavily with actual systems.
 
 A full E2E test requires a bootstrapped GitLab environment. The test infrastructure provides utilities located in `tests/common/` that:
-- Ensure the `vgit` `.env` bindings map to the correct local GitLab configuration (`GITLAB_HTTP_PORT`, `GITLAB_PAT`).
+- Ensure the `jeryu` `.env` bindings map to the correct local GitLab configuration (`GITLAB_HTTP_PORT`, `GITLAB_PAT`).
 - Bootstrap isolated generic repositories uniquely hashed per test (e.g. `e2e-test-<uuid>`).
 - Safely allocate and then tear down Ephemeral Runner Pools directly through the Docker Controller.
 
 ### Garbage Collection & Diagnostics
 
-Due to the ephemeral and dynamic nature of test runner generation, stray Docker volumes or detached containers can accumulate, significantly impacting space. `vgit` ships with an autonomous system-level garbage collector deployed to servers running the CI logic:
+Due to the ephemeral and dynamic nature of test runner generation, stray Docker volumes or detached containers can accumulate, significantly impacting space. `jeryu` ships with an autonomous system-level garbage collector deployed to servers running the CI logic:
 
-**`ops/ci/vgit-gc.timer`** executes every 6 hours with a randomized delay to prevent thundering herds across multiple instances:
+**`ops/ci/jeryu-gc.timer`** executes every 6 hours with a randomized delay to prevent thundering herds across multiple instances:
 ```ini
 [Unit]
-Description=Run Vgit SmartCache GC every 6 hours
+Description=Run Jeryu SmartCache GC every 6 hours
 
 [Timer]
 OnBootSec=15min
@@ -144,21 +144,21 @@ Persistent=true
 WantedBy=timers.target
 ```
 
-**`ops/ci/vgit-gc.service`** maps cleanly to the `vgit gc` CLI tool, tearing down lost assets while logging metrics to `journald`:
+**`ops/ci/jeryu-gc.service`** maps cleanly to the `jeryu gc` CLI tool, tearing down lost assets while logging metrics to `journald`:
 ```ini
 [Unit]
-Description=Vgit SmartCache Garbage Collection
+Description=Jeryu SmartCache Garbage Collection
 Documentation=https://github.com/jeppsontaylor/JeRyu
 After=network.target docker.service
 
 [Service]
 Type=oneshot
 User=ubuntu
-ExecStart=/home/ubuntu/.local/bin/vgit gc
+ExecStart=/home/ubuntu/.local/bin/jeryu gc
 TimeoutStartSec=600
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=vgit-gc
+SyslogIdentifier=jeryu-gc
 RemainAfterExit=no
 ```
 

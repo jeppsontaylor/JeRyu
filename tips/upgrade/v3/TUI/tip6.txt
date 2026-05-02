@@ -1096,9 +1096,9 @@ The API can map this to structured filters. It does not need an LLM to be useful
 The TUI already supports capture targets. ([GitHub][2]) Expand this into report generation:
 
 ```bash
-vgit tui --report mission --format markdown
-vgit tui --report release --format json
-vgit tui --report evidence --pipeline 123
+jeryu tui --report mission --format markdown
+jeryu tui --report release --format json
+jeryu tui --report evidence --pipeline 123
 ```
 
 This is useful for humans, agents, and incident review.
@@ -1107,7 +1107,7 @@ This is useful for humans, agents, and incident review.
 
 # Fast API changes that would immediately improve the TUI
 
-1. **Add `/v1/tui/snapshot` or `vgit tui snapshot --json`.**
+1. **Add `/v1/tui/snapshot` or `jeryu tui snapshot --json`.**
    Stop making the TUI compose its first paint from scattered calls.
 
 2. **Add event sequence numbers everywhere.**
@@ -1265,7 +1265,7 @@ To make it world class, I would redesign around five principles:
 That combination would make JeRyu feel dramatically more intuitive, more agent-native, more trustworthy, and much more powerful than GitHub/GitLab’s current CI/CD interfaces.
 
 [1]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/API.md "raw.githubusercontent.com"
-[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [3]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/tui/ui.rs "JeRyu/src/tui/ui.rs at main · jeppsontaylor/JeRyu · GitHub"
 [4]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/tui/app.rs "JeRyu/src/tui/app.rs at main · jeppsontaylor/JeRyu · GitHub"
 [5]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/tui/action_registry.rs "JeRyu/src/tui/action_registry.rs at main · jeppsontaylor/JeRyu · GitHub"

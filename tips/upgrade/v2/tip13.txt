@@ -30,7 +30,7 @@ The raw `src/engine.rs` I inspected contains `Some(¬e)` inside a call to `finis
 
 ### 3. Dynamic CI generation has command-injection risk
 
-`vgit test run` builds `.gitlab-ci.yml` by interpolating the requested command directly into YAML under `script: - {command}`. It also creates the test branch from `main`, not from the requested commit SHA, and then searches pipelines by branch after the commit. This creates both security and correctness problems: a malicious or malformed command can affect YAML structure, and an agent may test code different from the code it thinks it is testing. ([GitHub][8])
+`jeryu test run` builds `.gitlab-ci.yml` by interpolating the requested command directly into YAML under `script: - {command}`. It also creates the test branch from `main`, not from the requested commit SHA, and then searches pipelines by branch after the commit. This creates both security and correctness problems: a malicious or malformed command can affect YAML structure, and an agent may test code different from the code it thinks it is testing. ([GitHub][8])
 
 **Fix:** Never interpolate raw agent-provided command strings into CI YAML. Build YAML using a serializer, restrict commands to allowlisted validation actions, write the command into a quoted script file or encoded variable, and pin the branch to the exact target SHA/ref. Also use a `try/finally`-style cleanup path so scratch branches are deleted even when pipeline discovery or waiting fails.
 
@@ -42,11 +42,11 @@ The capability server exposes intents such as `ProposePatch`, `RacePatches`, `Ru
 
 ### 5. Docs and source disagree in several important places
 
-The API doc says some capability intents are deferred, while the source includes active handling for a broader set of intents. The API doc says `GET /cache/summary` has no auth, while the source requires `X-Vgit-Token`. ([GitHub][2])
+The API doc says some capability intents are deferred, while the source includes active handling for a broader set of intents. The API doc says `GET /cache/summary` has no auth, while the source requires `X-Jeryu-Token`. ([GitHub][2])
 
 The VTI doc’s external `testmap.toml` example uses `[metadata]`, `[global]`, `invalidators`, `docs_patterns`, `name`, and `jobs`, but the source parser expects `[policy]`, `[global_invalidators]`, optional `docs`, `id`, and `ci_jobs`. That is a serious problem for agents, because agents will follow docs literally. ([GitHub][3])
 
-**Fix:** Generate docs from schemas/code wherever possible. Add `vgit repo audit-api-surface --check` and make CI fail if docs, schema, CLI, and source drift.
+**Fix:** Generate docs from schemas/code wherever possible. Add `jeryu repo audit-api-surface --check` and make CI fail if docs, schema, CLI, and source drift.
 
 ### 6. VTI is safe-ish, but not yet powerful enough
 
@@ -241,7 +241,7 @@ This could be Rego/Cedar-like, or a Rust-native policy DSL, but it needs to be v
 1. **Make main compile and prove it in CI.** Fix the `Some(¬e)` issue and add visible GitHub Actions or GitLab CI gates.
 2. **Close the security holes before adding more power.** Harden capability API, dynamic CI generation, agent bot scopes, and admission control.
 3. **Turn docs into contracts.** Generate schemas for CLI/capability/VTI plans and fail CI when docs drift from code.
-4. **Replace hardcoded project assumptions.** `dougx`, project ID `2`, repo roots, specific jobs, and hardcoded Rust images should move into `.vgit/project.toml`.
+4. **Replace hardcoded project assumptions.** `dougx`, project ID `2`, repo roots, specific jobs, and hardcoded Rust images should move into `.jeryu/project.toml`.
 5. **Make VTI generic and evidence-driven.** Keep conservative fallback, but add coverage/history/flakes and a selector-miss feedback loop.
 6. **Implement the real agent lifecycle.** Agents need persistent state, patch attempts, validation attempts, repair loops, MR state, and cleanup.
 7. **Make MR handling central.** MR webhooks should drive validation, merge queue, blocker explanation, and agent dashboards.
@@ -262,7 +262,7 @@ For world-class OSS, I would add:
 * architecture diagrams that render cleanly,
 * threat model,
 * “local lab” versus “production” setup docs,
-* sample repo and sample `.vgit/testmap.toml`,
+* sample repo and sample `.jeryu/testmap.toml`,
 * full API schemas,
 * CLI reference generated from Clap,
 * TUI screenshots/GIFs,

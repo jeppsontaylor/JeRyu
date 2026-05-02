@@ -1,5 +1,5 @@
 name: Bug Report
-description: Create a report to help us improve the vgit hypersor
+description: Create a report to help us improve the jeryu hypersor
 title: "[BUG] "
 labels: ["bug", "triage"]
 body:
@@ -20,7 +20,7 @@ body:
       label: Steps To Reproduce
       description: Please list the exact steps required to reproduce the issue.
       placeholder: |
-        1. Run `vgit init`
+        1. Run `jeryu init`
         2. Wait for GitLab to boot
         3. ...
     validations:

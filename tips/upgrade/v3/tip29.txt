@@ -1,4 +1,4 @@
-I reviewed it closely. The exciting part is that **JeRyu/vgit is already aimed at exactly the right missing layer**: not “AI writes YAML,” but an agent-governed delivery system that decides what work matters, proves why, and gives agents bounded authority. One important framing correction: this is **not really a GitLab fork yet** in the normal sense. It is a **Rust control plane around a local GitLab substrate**: GitLab CE, GitLab Runner, Docker, Vault, Postgres/SQLite, custom executor hooks, a TUI, cache intelligence, VTI test selection, and agent capability APIs. The README calls it a single-binary Rust control plane for local GitLab, and the architecture doc says GitLab is one part of a broader agent-operable delivery system. ([GitHub][1])
+I reviewed it closely. The exciting part is that **JeRyu/jeryu is already aimed at exactly the right missing layer**: not “AI writes YAML,” but an agent-governed delivery system that decides what work matters, proves why, and gives agents bounded authority. One important framing correction: this is **not really a GitLab fork yet** in the normal sense. It is a **Rust control plane around a local GitLab substrate**: GitLab CE, GitLab Runner, Docker, Vault, Postgres/SQLite, custom executor hooks, a TUI, cache intelligence, VTI test selection, and agent capability APIs. The README calls it a single-binary Rust control plane for local GitLab, and the architecture doc says GitLab is one part of a broader agent-operable delivery system. ([GitHub][1])
 
 I could not complete a normal `git clone` from the execution container because DNS resolution for GitHub failed in that environment. I did, however, inspect the repo through GitHub and raw source views, including the README, architecture/API docs, mission doc, TUI doc, `AGENTS.md`, `Cargo.toml`, and key source modules such as `agent.rs`, `admission.rs`, `engine.rs`, and `gitlab_client.rs`.
 
@@ -35,7 +35,7 @@ The agent code provisions project bot identities with scoped permissions, create
 `AGENTS.md` defines proof routing, validation lanes, module ownership, witness tooling, VRC mapping, AER structural scans, and required proof commands. That is excellent. Most repos force agents to infer validation strategy from tribal knowledge; this repo is trying to make validation machine-readable. ([GitHub][6])
 
 **9. VTI/test intelligence is the right strategic battlefield.**
-The architecture includes VTI smart test selection, subsystem-based planning, `.vgit/testmap.toml`, CI child-pipeline YAML generation, deterministic test cache keys, nightly selector audit, learning, and selector-miss persistence. Selective testing is one of the places where autonomous coding lives or dies, so this is a great area to keep pushing. ([GitHub][3])
+The architecture includes VTI smart test selection, subsystem-based planning, `.jeryu/testmap.toml`, CI child-pipeline YAML generation, deterministic test cache keys, nightly selector audit, learning, and selector-miss persistence. Selective testing is one of the places where autonomous coding lives or dies, so this is a great area to keep pushing. ([GitHub][3])
 
 **10. The TUI foundation is strong.**
 The TUI already has mission, release, jobs, agents, tests, pools, cache, evidence, and secrets tabs; a flow board; live jobs; log preview; screenshot capture; background workers; live log polling; and state hydration. This is exactly the right interface for supervising autonomous systems: a command center, not a CRUD dashboard. ([GitHub][7])
@@ -52,7 +52,7 @@ In the release failure path, the code creates a `note` string and then calls `fi
 `GitlabClient::new` builds a reqwest client with `.danger_accept_invalid_certs(true)`. That may be acceptable for a disposable local GitLab dev stack, but it should be impossible in production unless an explicit local/dev setting is enabled. This matters a lot for an agent-control plane because agents will be moving code, secrets, release gates, and tokens through this client. ([GitHub][9])
 
 **4. Admission control is too permissive by default for a world-class agent system.**
-The docs say agent refs without matching ledger proof are audit-only by default, and `VGIT_ADMISSION_ENFORCE=1` is required to deny them. For local experimentation that is friendly; for agent-first production, the default should be the opposite: deny unproven agent writes unless a repo is explicitly in learning/audit mode. ([GitHub][4])
+The docs say agent refs without matching ledger proof are audit-only by default, and `JERYU_ADMISSION_ENFORCE=1` is required to deny them. For local experimentation that is friendly; for agent-first production, the default should be the opposite: deny unproven agent writes unless a repo is explicitly in learning/audit mode. ([GitHub][4])
 
 **5. Merge Request webhooks are logged but not acted on.**
 That is a huge missing area. In an agent-first Git system, MR events should be central: review, proof freshness, required evidence, risk gates, stale branch detection, human comments, agent rebuttals, patch suggestions, approval policy, and merge readiness. The API docs currently say MR hooks are logged with no active behavior yet. ([GitHub][4])
@@ -79,10 +79,10 @@ A Unix socket with one JSON payload per response is a start, but serious autonom
 1. **Fix the `Some(¬e)` engine typo immediately**, then run `cargo check --workspace --message-format=json`, `cargo nextest`, and release-path integration tests.
 
 2. **Make TLS behavior environment-aware.**
-   Default to strict TLS. Allow invalid certs only when `settings.gitlab.allow_invalid_certs = true` or `VGIT_DEV_INSECURE_TLS=1`, and show a giant TUI warning when enabled.
+   Default to strict TLS. Allow invalid certs only when `settings.gitlab.allow_invalid_certs = true` or `JERYU_DEV_INSECURE_TLS=1`, and show a giant TUI warning when enabled.
 
 3. **Flip admission defaults for production.**
-   Make audit-only mode explicit: `VGIT_ADMISSION_MODE=audit`. Default should be `deny` for agent refs without a matching unexpired grant tied to exact ref and SHA.
+   Make audit-only mode explicit: `JERYU_ADMISSION_MODE=audit`. Default should be `deny` for agent refs without a matching unexpired grant tied to exact ref and SHA.
 
 4. **Set `sandbox.strict_network_isolation` to true by default.**
    Provide explicit network profiles: `no-network`, `package-readonly`, `gitlab-only`, `release-egress`, and `debug-open`.
@@ -122,7 +122,7 @@ This should be queryable from CLI, TUI, and API. The agent should never merely �
 
 GitHub and GitLab give you many little green checks. JeRyu should give you one canonical object:
 
-**`vgit/merge-proof`**
+**`jeryu/merge-proof`**
 
 It should answer:
 
@@ -255,7 +255,7 @@ If a result is reused, the merge proof should say exactly why reuse was safe.
 Instead of trying to satisfy branch protection with many noisy checks, JeRyu should publish a single final check:
 
 ```text
-vgit/merge-proof: PASS
+jeryu/merge-proof: PASS
 - Unit: reused 812, ran 42, skipped 0 unsafe
 - Integration: ran 11 impacted, skipped 97 with proof
 - Security: required, passed
@@ -311,7 +311,7 @@ can_merge = false
 network = "package-readonly"
 
 [agent.tiers.trusted]
-can_write_refs = ["refs/heads/agent/*", "refs/heads/vgit/*"]
+can_write_refs = ["refs/heads/agent/*", "refs/heads/jeryu/*"]
 can_run_tests = ["unit", "integration", "e2e"]
 can_merge = "low_risk_only"
 requires_human_for = ["prod", "secrets", "schema", "auth"]
@@ -372,7 +372,7 @@ The TUI should become **Mission Control for autonomous software delivery**.
 ### Top bar: system truth in one glance
 
 ```text
-VGIT ONLINE | GitLab OK | Vault OK | 7 agents | 18 jobs | 3 blocked | 82% cache hit | $1.42 today | Prod safe
+JERYU ONLINE | GitLab OK | Vault OK | 7 agents | 18 jobs | 3 blocked | 82% cache hit | $1.42 today | Prod safe
 ```
 
 Click/keyboard into any field for details.
@@ -582,7 +582,7 @@ Read-only answers should execute immediately. Mutating commands should show the 
    Cache impact graph results by diff base/head, toolchain, package graph, and test map version.
 
 6. **Expose “CI minutes saved” as a first-class metric.**
-   Users will love seeing: “vgit saved 42 CPU-hours today by canceling superseded jobs and reusing safe evidence.”
+   Users will love seeing: “jeryu saved 42 CPU-hours today by canceling superseded jobs and reusing safe evidence.”
 
 ## Security upgrades
 
@@ -611,7 +611,7 @@ Read-only answers should execute immediately. Mutating commands should show the 
 
 I would position this as:
 
-> **vgit is the agent-native Git/CI control plane: a local-first Rust system that turns GitLab into a bounded, explainable, autonomous software delivery substrate.**
+> **jeryu is the agent-native Git/CI control plane: a local-first Rust system that turns GitLab into a bounded, explainable, autonomous software delivery substrate.**
 
 Not “better GitLab UI.” Not “AI CI wrapper.” Not “agent writes YAML.” The killer promise is:
 
@@ -668,7 +668,7 @@ The magic sentence should be:
 [4]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/API.md "raw.githubusercontent.com"
 [5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/agent.rs "raw.githubusercontent.com"
 [6]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/AGENTS.md "raw.githubusercontent.com"
-[7]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[7]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [8]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/engine.rs "raw.githubusercontent.com"
 [9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/gitlab_client.rs "raw.githubusercontent.com"
 

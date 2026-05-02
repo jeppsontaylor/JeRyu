@@ -1,10 +1,10 @@
 What you have now is **runner-centric**: it tells you that jobs exist and pools are alive. What you want is a **delivery-flow cockpit**: a left-to-right map of how code moves from commit → admission → pipeline → parallel validation → release gates → production, with active jobs stacked visually, clear ETA, and drill-down controls.
 
-Below is a build-ready spec for an “incredible” vgit TUI flow view.
+Below is a build-ready spec for an “incredible” jeryu TUI flow view.
 
 ---
 
-# vgit TUI Flow View: “Release Flow Cockpit”
+# jeryu TUI Flow View: “Release Flow Cockpit”
 
 ## 1. Product goal
 
@@ -32,7 +32,7 @@ Runner pools, cache, logs, and storage become supporting panels and drill-downs.
 Target an ideal terminal size of **160×48** or larger, but degrade gracefully down to **100×30**.
 
 ```text
-┌ vgit God Mode ───────────────────────────────────────────────────────────────────────────────┐
+┌ jeryu God Mode ───────────────────────────────────────────────────────────────────────────────┐
 │ GitLab ● ONLINE | Release ci-54c658ad9c3 | Ref main | State: STALE | Current blocker: test… │
 │ ETA to green: 08m 40s ± med | ETA to canary: blocked | Queue: default 6/8, build 0/4        │
 ├ Active Pipelines ────────────────────────────────────────────────────────────────────────────┤
@@ -473,7 +473,7 @@ db.append_event(
 
 # 9. Data sources
 
-The flow view should combine **GitLab live truth** with **vgit’s ledger**.
+The flow view should combine **GitLab live truth** with **jeryu’s ledger**.
 
 ## 9.1 Primary sources
 
@@ -602,7 +602,7 @@ Use standard widgets around the custom graph:
 
 # 12. Core data model
 
-Use serializable structs so the same model can power `vgit tui`, `vgit flow --json`, and tests.
+Use serializable structs so the same model can power `jeryu tui`, `jeryu flow --json`, and tests.
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1282,7 +1282,7 @@ The collector can work without these tables, but ETA confidence will often be lo
 Add:
 
 ```bash
-vgit flow snapshot --project-id 2 --ref-name main --json
+jeryu flow snapshot --project-id 2 --ref-name main --json
 ```
 
 This should emit the exact `FlowSnapshot` used by the TUI.
@@ -1291,14 +1291,14 @@ Benefits:
 
 * agents can inspect delivery state without parsing the TUI
 * snapshot can be golden-tested
-* `vgit tui --once` can render deterministic fixtures
+* `jeryu tui --once` can render deterministic fixtures
 * flow logic is reusable outside the terminal
 
 Suggested CLI:
 
 ```bash
-vgit flow snapshot [--project-id <ID>] [--ref-name <REF>] [--pipeline-id <ID>] [--json]
-vgit flow explain <PIPELINE_ID> [--project-id <ID>] [--json]
+jeryu flow snapshot [--project-id <ID>] [--ref-name <REF>] [--pipeline-id <ID>] [--json]
+jeryu flow explain <PIPELINE_ID> [--project-id <ID>] [--json]
 ```
 
 ---
@@ -1599,7 +1599,7 @@ Build:
 * selected job details
 * basic ETA with fallback durations
 * `Enter`, arrows, `Esc`, `l`
-* `vgit tui --once` support
+* `jeryu tui --once` support
 
 Do not add DB tables yet. Use live GitLab jobs and existing DB.
 
@@ -1670,7 +1670,7 @@ safe actions
 # 33. Implementation ticket to give an agent
 
 ```text
-Implement vgit TUI Release Flow Cockpit.
+Implement jeryu TUI Release Flow Cockpit.
 
 Goal:
 Replace the default runner-centric dashboard with a left-to-right delivery-flow view showing:
@@ -1678,7 +1678,7 @@ Commit → Admission → Impact Plan → Pipeline → Build → Parallel Tests �
 
 Requirements:
 1. Add src/tui/flow/ module with model, collector, builder, eta, layout, widget, details, actions, keymap.
-2. Build a serializable FlowSnapshot model used by both TUI and a new `vgit flow snapshot --json` command.
+2. Build a serializable FlowSnapshot model used by both TUI and a new `jeryu flow snapshot --json` command.
 3. Collector must gather active pipelines, jobs, release attempts, pools, managers, cache metrics, and failure capsules using existing GitLabClient and Db APIs.
 4. Renderer must use Ratatui Buffer-based custom widget, not Canvas, for selectable flow nodes.
 5. Parallel jobs must be stacked by lane: Unit, Integration, Security, Build, Extended, Research, ReleaseExecution.
@@ -1704,5 +1704,5 @@ Requirements:
 13. Keep existing Storage and Cache tabs, but make Flow the default tab.
 ```
 
-This turns vgit from “a dashboard that reports jobs” into “a cockpit that explains software delivery in motion.”
+This turns jeryu from “a dashboard that reports jobs” into “a cockpit that explains software delivery in motion.”
 

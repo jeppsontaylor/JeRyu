@@ -1,16 +1,16 @@
 [Unit]
-Description=Vgit SmartCache Garbage Collection
+Description=Jeryu SmartCache Garbage Collection
 Documentation=https://github.com/jeppsontaylor/JeRyu
 After=network.target docker.service
 
 [Service]
 Type=oneshot
 User=ubuntu
-ExecStart=/home/ubuntu/.local/bin/vgit gc
+ExecStart=/home/ubuntu/.local/bin/jeryu gc
 TimeoutStartSec=600
 # Log output to journal for observability
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=vgit-gc
+SyslogIdentifier=jeryu-gc
 # Don't pollute the process table with failed runs
 RemainAfterExit=no

@@ -2,7 +2,7 @@ I attempted a direct clone/download in the sandbox, but DNS resolution to GitHub
 
 ## Executive verdict
 
-JeRyu / `vgit` is a **very promising agent-first GitLab control plane**, but based on the code and docs I reviewed, it is **not really a GitLab fork yet**. It is closer to a Rust “hypervisor” around a local GitLab CE + GitLab Runner + Docker/Vault/Postgres/SQLite stack. The README describes it as a single-binary Rust control plane for a local GitLab instance with “God Mode” CI control, sandboxing, custom executor, ephemeral bot users, semantic CI/CD, and memory tuning. ([GitHub][1]) The architecture docs say it turns local GitLab/Runner/Docker/Vault/Postgres/SQLite into an agent-operable delivery system with runner state, webhooks, custom executor, release automation, SmartCache, VTI test intelligence, Vault release secrets, evidence, action registry, settings, and a Ratatui TUI. ([GitHub][2])
+JeRyu / `jeryu` is a **very promising agent-first GitLab control plane**, but based on the code and docs I reviewed, it is **not really a GitLab fork yet**. It is closer to a Rust “hypervisor” around a local GitLab CE + GitLab Runner + Docker/Vault/Postgres/SQLite stack. The README describes it as a single-binary Rust control plane for a local GitLab instance with “God Mode” CI control, sandboxing, custom executor, ephemeral bot users, semantic CI/CD, and memory tuning. ([GitHub][1]) The architecture docs say it turns local GitLab/Runner/Docker/Vault/Postgres/SQLite into an agent-operable delivery system with runner state, webhooks, custom executor, release automation, SmartCache, VTI test intelligence, Vault release secrets, evidence, action registry, settings, and a Ratatui TUI. ([GitHub][2])
 
 The big win: the repo is thinking about the **right primitives** for autonomous coding: capability-gated agent actions, ephemeral bot identities, proof lanes, failure capsules, test intelligence, race-style parallel hypotheses, cache tainting, release gates, and a TUI. That is already much more agent-native than “GitHub Actions plus a chatbot.”
 
@@ -155,7 +155,7 @@ Without that, it is an excellent toolkit, but not yet a fully autonomous coding 
 
 This is the most serious gap I found.
 
-`AGENTS.md` says strict network isolation uses `unshare`/`bwrap`. ([GitHub][3]) But `sandbox.rs` shows that strict mode currently launches `bash`, sets `VGIT_SANDBOXED=1`, and notes that production Docker executor isolation is expected elsewhere. ([GitHub][15])
+`AGENTS.md` says strict network isolation uses `unshare`/`bwrap`. ([GitHub][3]) But `sandbox.rs` shows that strict mode currently launches `bash`, sets `JERYU_SANDBOXED=1`, and notes that production Docker executor isolation is expected elsewhere. ([GitHub][15])
 
 That mismatch is dangerous. For an agent-first system, sandbox claims need to be brutally accurate. If an agent can run arbitrary code, isolation is not optional.
 
@@ -272,7 +272,7 @@ Better:
 
 ### 8. Dynamic CI generation needs stronger escaping and policy
 
-The test runner creates temporary `vgit-test-*` branches from `main`, writes `.gitlab-ci.yml`, triggers pipelines, polls, and deletes branches. ([GitHub][18]) The runner logic infers test tags heuristically and handles retries/results. ([GitHub][18])
+The test runner creates temporary `jeryu-test-*` branches from `main`, writes `.gitlab-ci.yml`, triggers pipelines, polls, and deletes branches. ([GitHub][18]) The runner logic infers test tags heuristically and handles retries/results. ([GitHub][18])
 
 This is useful, but dynamic CI is high-risk. Agent-supplied commands must not become raw YAML/shell injection.
 
@@ -494,7 +494,7 @@ Add:
 * Coverage-aware test selection.
 * Mutation testing samples.
 * Risk escalation when selector misses increase.
-* Automatic `.vgit/testmap.toml` repair suggestions.
+* Automatic `.jeryu/testmap.toml` repair suggestions.
 * Per-subsystem validation contracts.
 * “Cheap / normal / exhaustive / release” validation modes.
 * Agent-facing explanation: “You changed X, therefore you must run Y.”
@@ -869,7 +869,7 @@ Agents should never need to read 20,000 lines of raw logs unless they ask.
 
 ### 6. Policy-as-code with agent-readable explanations
 
-Add `.vgit/policy.toml`:
+Add `.jeryu/policy.toml`:
 
 ```toml
 [paths."src/secrets/**"]
@@ -914,7 +914,7 @@ That is much better than simple FIFO merge queues.
 Every agent attempt should be replayable:
 
 ```bash
-vgit replay attempt att_123
+jeryu replay attempt att_123
 ```
 
 It should restore:
@@ -1066,7 +1066,7 @@ The repo already has many of the right ingredients. The next leap is to make the
 [10]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/capability.rs "raw.githubusercontent.com"
 [11]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/admission.rs "raw.githubusercontent.com"
 [12]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/release.rs "raw.githubusercontent.com"
-[13]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[13]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [14]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/src/agent.rs "raw.githubusercontent.com"
 [15]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/sandbox.rs "raw.githubusercontent.com"
 [16]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/decision.rs "raw.githubusercontent.com"

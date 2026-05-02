@@ -2,7 +2,7 @@ I tried to clone it locally, but the execution sandbox could not resolve GitHub 
 
 ## Executive verdict
 
-**JeRyu / `vgit` has a very strong product thesis:** a Rust control plane that makes local GitLab, runners, logs, test selection, caches, releases, sandboxes, and agent actions programmable without touching the GitLab UI. The README frames it exactly that way: a “single-binary Rust control plane” for turning local GitLab into an orchestration engine for AI agents, with commands for runners, release state, shadow remotes, agent spawning, test impact, test runs, batch tests, and release automation. ([GitHub][1])
+**JeRyu / `jeryu` has a very strong product thesis:** a Rust control plane that makes local GitLab, runners, logs, test selection, caches, releases, sandboxes, and agent actions programmable without touching the GitLab UI. The README frames it exactly that way: a “single-binary Rust control plane” for turning local GitLab into an orchestration engine for AI agents, with commands for runners, release state, shadow remotes, agent spawning, test impact, test runs, batch tests, and release automation. ([GitHub][1])
 
 The **best parts are the architecture and ambition**: the docs separate interface/control/state/execution/intelligence planes, define agent-facing action registries, include VTI/test selection, release gates, evidence capsules, cache intelligence, custom executor hooks, and TUI surfaces. ([GitHub][2])
 
@@ -28,7 +28,7 @@ That is the right design principle. For agent-first development, **shell is the 
 
 ### 3. VTI is the right kind of idea
 
-The VTI design has the right safety posture: hardcoded internal subsystem mapping, external `.vgit/testmap.toml`, global invalidators, docs-only mode, selected/full modes, emitted plan JSON, generated GitLab child YAML, selector-miss auditing, learning suggestions, and full-run fallback on failure. ([GitHub][4])
+The VTI design has the right safety posture: hardcoded internal subsystem mapping, external `.jeryu/testmap.toml`, global invalidators, docs-only mode, selected/full modes, emitted plan JSON, generated GitLab child YAML, selector-miss auditing, learning suggestions, and full-run fallback on failure. ([GitHub][4])
 
 That is directionally strong. Agents desperately need “what tests should I run?” and “why?” answers. VTI is a good start because it gives agents a plan, a reason, and an audit trail.
 
@@ -87,7 +87,7 @@ That is not safe enough for “agents can operate my repo.” A serious agent-fi
 
 ### P0: The merge gate is not yet a real merge gate
 
-The API docs say the action registry has `request_merge` as a production-level action and that `vgit agent merge` goes through a risk gate. The GitLab client surface includes `accept_merge_request`, and the decision API includes `evaluate_risk_gate`. ([GitHub][3])
+The API docs say the action registry has `request_merge` as a production-level action and that `jeryu agent merge` goes through a risk gate. The GitLab client surface includes `accept_merge_request`, and the decision API includes `evaluate_risk_gate`. ([GitHub][3])
 
 But the capability implementation only returns an allow/deny decision based on recent selector misses and cache taints. It does not verify:
 
@@ -136,12 +136,12 @@ The CLI `test_runner` is closer because it waits and fetches log snippets. But t
 
 ### P1: The repo is still too local/single-project/single-environment
 
-Defaults and docs show a lot of local assumptions: default GitLab project ID `2`, local GitLab/Vault ports, local settings under `~/.vgit/settings.json`, default release project ID, and secret commands limited to `dougx`. ([GitHub][3])
+Defaults and docs show a lot of local assumptions: default GitLab project ID `2`, local GitLab/Vault ports, local settings under `~/.jeryu/settings.json`, default release project ID, and secret commands limited to `dougx`. ([GitHub][3])
 
 That is okay for a prototype, but not for “world’s most powerful agent-first GitLab fork/manager.” It needs a first-class project registry and repo config model:
 
 ```toml
-# .vgit/repo.toml
+# .jeryu/repo.toml
 [repo]
 id = "backend-api"
 default_branch = "main"
@@ -179,7 +179,7 @@ Create a versioned, schema-defined capability protocol:
 
 ```json
 {
-  "protocol": "vgit.capability.v1",
+  "protocol": "jeryu.capability.v1",
   "request_id": "uuid",
   "agent_id": "agent/foo",
   "intent": "RunTests",
@@ -528,7 +528,7 @@ The repo has the basic OSS files, but to look world-class it needs:
    * devcontainer;
    * air-gapped/local-only mode.
 
-7. **Generic repo onboarding.** Remove `dougx` assumptions from user-facing paths and make `.vgit/repo.toml` the normal entry point. The docs currently call out `dougx`-specific secret support. ([GitHub][3])
+7. **Generic repo onboarding.** Remove `dougx` assumptions from user-facing paths and make `.jeryu/repo.toml` the normal entry point. The docs currently call out `dougx`-specific secret support. ([GitHub][3])
 
 8. **Machine-readable API schemas.** Add JSON Schema/OpenAPI/MCP manifests for every `AgentIntent`, response, event, and operation handle.
 
@@ -595,7 +595,7 @@ Goal: become the repo an agent-first developer actually lives in.
 * Patch racing with winner selection and cleanup.
 * Flake intelligence.
 * Multi-agent leases.
-* `.vgit/repo.toml`.
+* `.jeryu/repo.toml`.
 * Multi-repo registry.
 * Secure sandbox profiles.
 * Supply-chain/provenance layer.

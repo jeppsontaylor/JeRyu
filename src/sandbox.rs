@@ -1,5 +1,5 @@
 //! Owner: Workload Sandbox (Network-Namespace Isolation)
-//! Proof: `cargo test -p vgit -- sandbox`
+//! Proof: `cargo test -p jeryu -- sandbox`
 //! Invariants: strict_network_isolation fails closed unless an isolation backend is available;
 //!             all env vars flow through SandboxConfig, never shell-escaped; do not weaken isolation without an AER
 
@@ -62,13 +62,13 @@ impl ExecutorSandbox {
                     .arg("--chdir")
                     .arg(&self.config.bind_workspace)
                     .arg("bash");
-                c.env("VGIT_SANDBOXED", "strict:bwrap");
+                c.env("JERYU_SANDBOXED", "strict:bwrap");
                 c
             }
             SandboxBackend::Unshare => {
                 let mut c = Command::new("unshare");
                 c.arg("--net").arg("--").arg("bash");
-                c.env("VGIT_SANDBOXED", "strict:unshare");
+                c.env("JERYU_SANDBOXED", "strict:unshare");
                 c
             }
             SandboxBackend::Unavailable => {
@@ -172,7 +172,7 @@ mod tests {
         let sandbox = ExecutorSandbox::new(config);
 
         let mut script_file = tempfile::NamedTempFile::new().unwrap();
-        script_file.write_all(b"echo $VGIT_SANDBOXED").unwrap();
+        script_file.write_all(b"echo $JERYU_SANDBOXED").unwrap();
 
         match sandbox.selected_backend() {
             SandboxBackend::Unavailable => {

@@ -384,7 +384,7 @@ Desired layout:
 ├─ Selected node ───────────────┬─ Live log / capsule ────────────────────┤
 │ integration/cache             │ ERROR: expected clean taint graph         │
 │ Status: failed                │ Suspected cause: stale fixture            │
-│ Required: merge + release     │ Repro: vgit test run cache-taint          │
+│ Required: merge + release     │ Repro: jeryu test run cache-taint          │
 │ Attempts: 2                   │ Actions: retry / spawn fix / ignore       │
 └───────────────────────────────┴──────────────────────────────────────────┘
 ```
@@ -1117,7 +1117,7 @@ That is the path from “good Rust CI dashboard” to **world-class agent-first 
 
 [1]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/API.md "raw.githubusercontent.com"
 [2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/cli.rs "raw.githubusercontent.com"
-[3]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[3]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [4]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/tui/ui.rs "JeRyu/src/tui/ui.rs at main · jeppsontaylor/JeRyu · GitHub"
 [5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/action_registry.rs "raw.githubusercontent.com"
 

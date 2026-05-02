@@ -2,7 +2,7 @@ I attempted a direct `git clone`, but the execution container could not resolve 
 
 ## Executive verdict
 
-**The concept is excellent.** JeRyu/vgit is pointed in the right direction: a Rust control plane that wraps a local GitLab/GitLab Runner/Docker/Vault/Postgres setup and exposes agent-friendly CI, release, sandbox, cache, evidence, and TUI surfaces. The README describes it as a “single-binary Rust control plane” that turns local GitLab into an autonomous-agent orchestration engine, and the architecture doc is even clearer: this is a control system over GitLab CE, GitLab Runner, Docker, Vault, Postgres/SQLite, CI semantics, release gates, SmartCache, VTI, and a Ratatui TUI. That is powerful, but it is **not currently a GitLab fork** in the normal sense; it is an agent-first hypervisor/control plane around GitLab. ([GitHub][1])
+**The concept is excellent.** JeRyu/jeryu is pointed in the right direction: a Rust control plane that wraps a local GitLab/GitLab Runner/Docker/Vault/Postgres setup and exposes agent-friendly CI, release, sandbox, cache, evidence, and TUI surfaces. The README describes it as a “single-binary Rust control plane” that turns local GitLab into an autonomous-agent orchestration engine, and the architecture doc is even clearer: this is a control system over GitLab CE, GitLab Runner, Docker, Vault, Postgres/SQLite, CI semantics, release gates, SmartCache, VTI, and a Ratatui TUI. That is powerful, but it is **not currently a GitLab fork** in the normal sense; it is an agent-first hypervisor/control plane around GitLab. ([GitHub][1])
 
 My overall rating: **huge ambition, strong agent-native architecture instincts, but still prototype-stage for “world’s #1 agent-first Git.”** The strongest parts are the agent routing/proof model, VTI smart test selection, release-gate thinking, state/evidence ledgers, TUI direction, and capability/action registry concept. The weakest parts are security isolation, real autonomous agent closure, incomplete/stubbed capability behavior, GitLab-only coupling, partial TUI wiring, cache trust enforcement, and some likely code quality/compile hazards.
 
@@ -24,7 +24,7 @@ The action registry concept is especially good. Actions have risk tiers, surface
 
 ### 3. VTI smart test selection is a standout direction
 
-VTI is one of the most promising pieces. It maps changed files to minimal test plans, emits JSON and GitLab YAML, supports external workspaces through `.vgit/testmap.toml`, and includes a nightly oracle to catch selector misses. The safety fallback philosophy is good: unmapped files, missing artifacts, parse failures, or global invalidators fall back to full execution rather than silently skipping tests. ([GitHub][5])
+VTI is one of the most promising pieces. It maps changed files to minimal test plans, emits JSON and GitLab YAML, supports external workspaces through `.jeryu/testmap.toml`, and includes a nightly oracle to catch selector misses. The safety fallback philosophy is good: unmapped files, missing artifacts, parse failures, or global invalidators fall back to full execution rather than silently skipping tests. ([GitHub][5])
 
 The dream agent platform needs exactly this: not “run all tests every time” and not “YOLO skip tests,” but **explainable test selection with a miss ledger, confidence score, cache key, and automatic learning loop**.
 
@@ -61,7 +61,7 @@ The capability server is a Unix-domain-socket JSON API with a 64 KiB single-read
 **Improvement:** replace the one-shot socket with an agent RPC protocol:
 
 ```text
-vgit agent-rpc
+jeryu agent-rpc
   AuthenticateAgent
   OpenTaskLease
   FetchRepoCapsule
@@ -78,7 +78,7 @@ Each request should include `agent_id`, `task_id`, `lease_id`, `idempotency_key`
 
 ### 3. Security isolation is not strong enough for untrusted autonomous agents
 
-This is the most important gap. The README claims tightly constrained Docker containers and least-privilege token rotation, while `AGENTS.md` says strict network isolation uses unshare/bwrap and should not be bypassed. But the actual `sandbox.rs` implementation shown does not appear to run `unshare` or `bwrap`; in strict mode it runs `bash`, sets `VGIT_SANDBOXED=1`, and relies on detonation/proxy controls. The settings schema also defaults `"sandbox": { "strict_network_isolation": false }`. ([GitHub][1])
+This is the most important gap. The README claims tightly constrained Docker containers and least-privilege token rotation, while `AGENTS.md` says strict network isolation uses unshare/bwrap and should not be bypassed. But the actual `sandbox.rs` implementation shown does not appear to run `unshare` or `bwrap`; in strict mode it runs `bash`, sets `JERYU_SANDBOXED=1`, and relies on detonation/proxy controls. The settings schema also defaults `"sandbox": { "strict_network_isolation": false }`. ([GitHub][1])
 
 The runner-manager container mounts `/var/run/docker.sock` read-write and runs as root. The bootstrap path also downloads `sccache` with `curl | tar` and installs packages at runtime. For an agent-first system running arbitrary generated code, a read-write Docker socket is effectively host-root access. ([GitHub][9])
 
@@ -113,7 +113,7 @@ cargo fmt --check
 cargo check --workspace --message-format=json
 cargo nextest run --workspace
 cargo deny check
-cargo run -p vgit -- repo audit-agent-surface --json
+cargo run -p jeryu -- repo audit-agent-surface --json
 ```
 
 Then expose the current build truth in the TUI and agent API. Agents should never need to guess whether the control plane itself compiles.
@@ -292,11 +292,11 @@ GitHub and GitLab are weak at semantic repo understanding. Build the missing lay
 Then expose it to agents:
 
 ```bash
-vgit repo why src/foo.rs
-vgit repo affected --symbol Foo::bar
-vgit repo tests-for src/foo.rs
-vgit repo owners --change diff.patch
-vgit repo blast-radius --json
+jeryu repo why src/foo.rs
+jeryu repo affected --symbol Foo::bar
+jeryu repo tests-for src/foo.rs
+jeryu repo owners --change diff.patch
+jeryu repo blast-radius --json
 ```
 
 This pairs perfectly with `cargo-witness`/`cargo-vrc`.
@@ -311,19 +311,19 @@ When CI fails, the system should not merely show logs. It should create a repair
   "owner_module": "src/engine.rs",
   "span": "line 412",
   "probable_cause": "typo in variable name",
-  "minimal_repro": "cargo check -p vgit --message-format=json",
+  "minimal_repro": "cargo check -p jeryu --message-format=json",
   "suggested_patch": "...",
   "safe_to_auto_apply": true,
-  "required_proof": ["cargo check -p vgit"]
+  "required_proof": ["cargo check -p jeryu"]
 }
 ```
 
 Then allow:
 
 ```bash
-vgit repair apply --capsule <id>
-vgit repair race --capsule <id> --hypotheses 5
-vgit repair explain --capsule <id>
+jeryu repair apply --capsule <id>
+jeryu repair race --capsule <id> --hypotheses 5
+jeryu repair explain --capsule <id>
 ```
 
 ### 5. Merge queue designed for agents
@@ -346,10 +346,10 @@ GitHub/GitLab merge queues are human-centric. An agent-first merge queue should 
 Agents should be able to ask:
 
 ```bash
-vgit merge queue --json
-vgit merge simulate !42
-vgit merge rebase-plan !42
-vgit merge request !42 --auto --max-risk low
+jeryu merge queue --json
+jeryu merge simulate !42
+jeryu merge rebase-plan !42
+jeryu merge request !42 --auto --max-risk low
 ```
 
 ### 6. Multi-agent hypothesis racing
@@ -360,8 +360,8 @@ Dream behavior:
 
 ```text
 1. Failure occurs.
-2. vgit classifies it.
-3. vgit spawns 3–10 hypothesis agents.
+2. jeryu classifies it.
+3. jeryu spawns 3–10 hypothesis agents.
 4. Each agent gets a narrow capability grant.
 5. Each agent proposes a patch.
 6. VTI selects tests per hypothesis.
@@ -443,7 +443,7 @@ The TUI should feel like **mission control for an autonomous engineering org**.
 Always show:
 
 ```text
-VGIT GOD MODE
+JERYU GOD MODE
 GitLab: ONLINE | Agents: 7 active | Queue: 12 jobs | Cache: 87% hit | Risk: medium
 Release: main@abc123 → canary green → prod blocked: missing validation artifact
 Next safest action: retry job #1445 or apply repair capsule #88
@@ -555,8 +555,8 @@ Reasons:
   - cache taint active
   - release-impacting change requires integration lane
 Suggested:
-  vgit test select --full
-  vgit cache taint explain <id>
+  jeryu test select --full
+  jeryu cache taint explain <id>
 ```
 
 ---
@@ -569,7 +569,7 @@ Suggested:
 2. Require a non-empty webhook secret and compare tokens safely.
 3. Remove read-write Docker socket from untrusted paths.
 4. Make strict sandbox actually strict or rename it honestly.
-5. Enforce `VGIT_ADMISSION_ENFORCE=1` by default for agent refs.
+5. Enforce `JERYU_ADMISSION_ENFORCE=1` by default for agent refs.
 6. Add peer-credential auth and request IDs to the capability socket.
 7. Make `cargo check --workspace` and `cargo nextest run --workspace` green.
 8. Fail closed on cache taints and selector misses for merge/release.
@@ -628,7 +628,7 @@ That is a much more compelling wedge than “GitLab but Rust.” GitLab already 
 [3]: https://github.com/jeppsontaylor/JeRyu/blob/main/Cargo.toml "JeRyu/Cargo.toml at main · jeppsontaylor/JeRyu · GitHub"
 [4]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/API.md "raw.githubusercontent.com"
 [5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VTI.md "raw.githubusercontent.com"
-[6]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[6]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [7]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/agent.rs "raw.githubusercontent.com"
 [8]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/capability.rs "raw.githubusercontent.com"
 [9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/docker.rs "raw.githubusercontent.com"

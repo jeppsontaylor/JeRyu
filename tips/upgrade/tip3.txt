@@ -1,4 +1,4 @@
-Based on the three documents, my strongest read is: **vgit is already much more than a CLI/TUI wrapper; it is a local delivery-control plane.** The architecture is exciting because it has the raw ingredients for something rare: agent-operable CI/CD with typed gates, failure evidence, release automation, cache intelligence, and a supervisory terminal interface.
+Based on the three documents, my strongest read is: **jeryu is already much more than a CLI/TUI wrapper; it is a local delivery-control plane.** The architecture is exciting because it has the raw ingredients for something rare: agent-operable CI/CD with typed gates, failure evidence, release automation, cache intelligence, and a supervisory terminal interface.
 
 The biggest opportunity is to make the system’s **intent, safety gates, blockers, evidence, and available actions visible in one place**. Right now, a lot of power exists, but much of it is scattered across CLI commands, hidden executor surfaces, SQLite state, release logic, and partially wired TUI panes.
 
@@ -40,7 +40,7 @@ That is dangerous for agents. An agent may interpret `success: true` as “the p
   "data": {
     "state": "deferred",
     "implemented": false,
-    "recommended_surface": "vgit agent spawn"
+    "recommended_surface": "jeryu agent spawn"
   }
 }
 ```
@@ -71,9 +71,9 @@ I would strongly prefer `FetchCapsule` query the dedicated evidence table first,
 
 This matters because failure capsules are not just logs. They are agent evidence.
 
-## C. Capability `RunTests` duplicates the safer `vgit test run` path
+## C. Capability `RunTests` duplicates the safer `jeryu test run` path
 
-The CLI `vgit test run` is richer than the capability `RunTests` path. It infers tags/risk/timeout, checks cache, creates scratch branches, records test execution, waits for completion, fetches trace tails, and cleans up branches when possible.
+The CLI `jeryu test run` is richer than the capability `RunTests` path. It infers tags/risk/timeout, checks cache, creates scratch branches, records test execution, waits for completion, fetches trace tails, and cleans up branches when possible.
 
 The capability `RunTests` flow appears simpler:
 
@@ -81,7 +81,7 @@ The capability `RunTests` flow appears simpler:
 2. Generate `.gitlab-ci.yml`.
 3. Trigger pipeline.
 
-That creates divergence. Agents should probably call into the same planning/execution machinery as `vgit test run`, or at least return a full structured test handle:
+That creates divergence. Agents should probably call into the same planning/execution machinery as `jeryu test run`, or at least return a full structured test handle:
 
 ```json
 {
@@ -314,7 +314,7 @@ The secrets model is promising. But a dream operations UI should show secret lif
 
 ```text
 Vault: healthy
-Authority: vgit-managed
+Authority: jeryu-managed
 Latest secret set: v1.2.3 / canary
 Rotated: 12m ago
 Finalized: no
@@ -333,7 +333,7 @@ The docs clearly say it is a placeholder, but the command name implies action. F
 ```text
 shadow sync-now is not implemented as a direct trigger.
 No sync was performed.
-Run `vgit serve` to allow the background sync loop to process this source.
+Run `jeryu serve` to allow the background sync loop to process this source.
 ```
 
 ## O. Project/ref are too hardcoded in the TUI
@@ -537,7 +537,7 @@ The system would:
 * archive losing branches
 * preserve evidence
 
-This would make vgit feel genuinely agent-native.
+This would make jeryu feel genuinely agent-native.
 
 ### 7. Request merge with transparent gate output
 
@@ -569,7 +569,7 @@ Returns:
 }
 ```
 
-This should be the agent version of `vgit agent merge`.
+This should be the agent version of `jeryu agent merge`.
 
 ### 8. Run validation plan, not just tests
 
@@ -577,7 +577,7 @@ Agents do not merely want to run `cargo test`. They want the system to say:
 
 ```text
 For this change, the minimal safe validation is:
-- cargo check -p vgit
+- cargo check -p jeryu
 - release::tests
 - state::tests::test_production_pipeline_tracking
 - repo audit-agent-surface
@@ -677,7 +677,7 @@ The current TUI is a dashboard. The dream TUI should be a **command console**.
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ VGIT COMMAND CENTER  Project dougx/#2  Ref main  GitLab ONLINE  Vault OK    │
+│ JERYU COMMAND CENTER  Project dougx/#2  Ref main  GitLab ONLINE  Vault OK    │
 │ Release ci-fa51a52a  Canary RUNNING  Prod LOCKED  Disk 68%  Cache 82% hit   │
 ├───────────────┬──────────────────────────────────────────────┬───────────────┤
 │ NAVIGATOR     │ FLOW THEATER                                 │ INSPECTOR     │
@@ -882,7 +882,7 @@ Changed:
   src/state.rs
 
 Selected validation:
-✓ cargo check -p vgit
+✓ cargo check -p jeryu
 ✓ release::tests
 ✓ state::tests::test_production_pipeline_tracking
 ✓ repo audit-agent-surface
@@ -983,7 +983,7 @@ Secrets
 
 Selecting any event opens the evidence inspector.
 
-This would make vgit feel trustworthy.
+This would make jeryu feel trustworthy.
 
 ---
 
@@ -1121,7 +1121,7 @@ I would use a dark, high-contrast, color-rich terminal style, but never rely on 
 ## Example top bar
 
 ```text
-VGIT COMMAND CENTER │ GitLab ✓ ONLINE │ Vault ✓ OK │ Docker ✓ OK │ Hook ✓ ON │ Disk ⚠ 81%
+JERYU COMMAND CENTER │ GitLab ✓ ONLINE │ Vault ✓ OK │ Docker ✓ OK │ Hook ✓ ON │ Disk ⚠ 81%
 Release ci-fa51a52 │ Canary ● RUN 8m │ Prod 🔒 LOCKED: e2e evidence missing │ Cache ✓ 82% hit
 ```
 
@@ -1396,7 +1396,7 @@ The current architecture is right to make production promotion pipeline-driven a
 
 The north star should be:
 
-> **vgit should become a real-time, evidence-driven CI/CD command center where every action is gated, explainable, and agent-operable.**
+> **jeryu should become a real-time, evidence-driven CI/CD command center where every action is gated, explainable, and agent-operable.**
 
 The TUI should not merely show state. It should show:
 

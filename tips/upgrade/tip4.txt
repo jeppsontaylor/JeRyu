@@ -2,7 +2,7 @@ Absolutely — this is a genuinely exciting system. The architecture already has
 
 My strongest feedback is this:
 
-**JeRyu / `vgit` is close to becoming an agent-native delivery operating system, but today it still feels split between “rich orchestration exists internally” and “humans/agents can only see or operate parts of it.”** The biggest opportunity is to turn all the hidden intelligence — release gates, risk decisions, cache decisions, runner pressure, VTI plans, failure capsules, retries, secret state, agent tasks — into one coherent real-time command console.
+**JeRyu / `jeryu` is close to becoming an agent-native delivery operating system, but today it still feels split between “rich orchestration exists internally” and “humans/agents can only see or operate parts of it.”** The biggest opportunity is to turn all the hidden intelligence — release gates, risk decisions, cache decisions, runner pressure, VTI plans, failure capsules, retries, secret state, agent tasks — into one coherent real-time command console.
 
 Below is my best assessment.
 
@@ -308,18 +308,18 @@ A stronger design would allow CI jobs to declare metadata:
 
 ```yaml
 variables:
-  VGIT_LANE: "release-execution"
-  VGIT_COLUMN: "canary"
-  VGIT_REQUIRED: "true"
-  VGIT_CRITICAL_PATH: "true"
-  VGIT_RISK: "high"
+  JERYU_LANE: "release-execution"
+  JERYU_COLUMN: "canary"
+  JERYU_REQUIRED: "true"
+  JERYU_CRITICAL_PATH: "true"
+  JERYU_RISK: "high"
 ```
 
 Or through artifacts:
 
 ```json
 {
-  "vgit": {
+  "jeryu": {
     "lane": "integration",
     "column": "tests",
     "required": true,
@@ -333,17 +333,17 @@ Keep name inference as a fallback, but let important jobs self-identify.
 
 ---
 
-## P1: Capability `RunTests` branch naming conflicts with `vgit test run`
+## P1: Capability `RunTests` branch naming conflicts with `jeryu test run`
 
 This is a subtle but important issue.
 
-`vgit test run` creates scratch branches named:
+`jeryu test run` creates scratch branches named:
 
 ```text
-vgit-test-*
+jeryu-test-*
 ```
 
-The Push Hook intentionally skips branches starting with `vgit-test-*`.
+The Push Hook intentionally skips branches starting with `jeryu-test-*`.
 
 But Capability API `RunTests` creates branches like:
 
@@ -358,21 +358,21 @@ I would align these immediately.
 Use one scratch branch naming policy:
 
 ```text
-vgit-test-<target-ref>-<timestamp>
+jeryu-test-<target-ref>-<timestamp>
 ```
 
 or:
 
 ```text
-vgit-agent-test-<task-id>-<timestamp>
+jeryu-agent-test-<task-id>-<timestamp>
 ```
 
 Then make the Push Hook skip all known ephemeral prefixes:
 
 ```text
-vgit-test-*
-vgit-agent-test-*
-vgit-ci-scratch-*
+jeryu-test-*
+jeryu-agent-test-*
+jeryu-ci-scratch-*
 ```
 
 Also add scratch branch TTL cleanup.
@@ -578,20 +578,20 @@ A production-grade console should show:
 * canary rollback status
 * post-rollback validation
 
-Even if rollback is implemented in `dougx`, `vgit` should be able to surface and mediate it.
+Even if rollback is implemented in `dougx`, `jeryu` should be able to surface and mediate it.
 
 ---
 
 ## P2: Scratch branch lifecycle needs cleanup visibility
 
-`vgit test run` cleans up scratch branches “when possible.” Capability tests create ephemeral branches too. Agents may create many branches.
+`jeryu test run` cleans up scratch branches “when possible.” Capability tests create ephemeral branches too. Agents may create many branches.
 
 Add:
 
 ```text
-vgit test scratch-list
-vgit test scratch-gc --older-than 24h
-vgit agent cleanup
+jeryu test scratch-list
+jeryu test scratch-gc --older-than 24h
+jeryu agent cleanup
 ```
 
 And TUI panel:
@@ -636,7 +636,7 @@ The dream agent loop is:
 Observe -> Explain -> Plan -> Act -> Verify -> Learn -> Report
 ```
 
-Today, `vgit` has many pieces of that loop. The opportunity is to make it explicit.
+Today, `jeryu` has many pieces of that loop. The opportunity is to make it explicit.
 
 ---
 
@@ -755,10 +755,10 @@ Agents need cheap planning tools before spending CI resources.
 
 Current tools are good:
 
-* `vgit test plan`
-* `vgit test select`
-* `vgit test select-external`
-* `vgit test impact`
+* `jeryu test plan`
+* `jeryu test select`
+* `jeryu test select-external`
+* `jeryu test impact`
 * `cargo-vrc plan`
 * `cargo-witness diff`
 
@@ -784,9 +784,9 @@ Output:
 {
   "lanes": ["state", "release", "agent-surface"],
   "commands": [
-    "rtk cargo check -p vgit --message-format=json",
-    "rtk cargo test -p vgit -- state::tests::test_production_pipeline_tracking release::tests -- --nocapture",
-    "rtk cargo run -p vgit -- repo audit-agent-surface --json"
+    "rtk cargo check -p jeryu --message-format=json",
+    "rtk cargo test -p jeryu -- state::tests::test_production_pipeline_tracking release::tests -- --nocapture",
+    "rtk cargo run -p jeryu -- repo audit-agent-surface --json"
   ],
   "estimated_duration_secs": 420,
   "runner_tags": ["trusted", "rust", "test"],
@@ -927,13 +927,13 @@ This system already has enough data to produce serious insights:
 I would add:
 
 ```text
-vgit insights
-vgit insights flaky-tests
-vgit insights ci-waste
-vgit insights release-blockers
-vgit insights runner-pressure
-vgit insights cache-roi
-vgit insights agent-outcomes
+jeryu insights
+jeryu insights flaky-tests
+jeryu insights ci-waste
+jeryu insights release-blockers
+jeryu insights runner-pressure
+jeryu insights cache-roi
+jeryu insights agent-outcomes
 ```
 
 And capability:
@@ -952,20 +952,20 @@ Here is a sharper list of specific issues I would investigate.
 
 ## API / architecture consistency issues
 
-### 1. `vgit init` docs are slightly inconsistent around Vault
+### 1. `jeryu init` docs are slightly inconsistent around Vault
 
-The API lifecycle section says `vgit init` starts GitLab, but the architecture says it starts GitLab CE and Vault containers.
+The API lifecycle section says `jeryu init` starts GitLab, but the architecture says it starts GitLab CE and Vault containers.
 
 This should be reconciled. Since Vault is central to secrets, the lifecycle docs should be precise.
 
 ### 2. `shadow sync-now` is a placeholder
 
-The command exists but tells users to ensure `vgit serve` is running. That is surprising for a command named `sync-now`.
+The command exists but tells users to ensure `jeryu serve` is running. That is surprising for a command named `sync-now`.
 
 Either implement it or rename it to something like:
 
 ```text
-vgit shadow request-sync
+jeryu shadow request-sync
 ```
 
 Better: add a DB-backed sync request queue that the daemon consumes.
@@ -1007,7 +1007,7 @@ Every machine-facing JSON output should include:
 
 ```json
 {
-  "schema_version": "vgit.release.status.v1",
+  "schema_version": "jeryu.release.status.v1",
   "generated_at": "...",
   "data": {}
 }
@@ -1251,7 +1251,7 @@ Direct database write
 Direct Docker socket access
 ```
 
-This is exactly the kind of safety model `vgit` seems built for.
+This is exactly the kind of safety model `jeryu` seems built for.
 
 ---
 
@@ -1283,7 +1283,7 @@ Something like this:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────────────────────┐
-│ vgit GOD MODE  ONLINE  GitLab✓ Vault✓ Docker✓ Cache✓  main@fa51a52  Release ci-fa51a52       │
+│ jeryu GOD MODE  ONLINE  GitLab✓ Vault✓ Docker✓ Cache✓  main@fa51a52  Release ci-fa51a52       │
 │ Prod: BLOCKED  Reason: missing canary E2E evidence   ETA: unknown   Runners: 5/10  Disk 68%  │
 ├──────────────────────────────────────────────┬───────────────────────────────────────────────┤
 │ RELEASE / PIPELINE FLOW                      │ CONTEXT INSPECTOR                            │
@@ -1335,7 +1335,7 @@ The header should be a real operational status strip.
 Example:
 
 ```text
-vgit GOD MODE | GitLab ✓  Vault ✓  Docker ✓  Cache ✓  Webhooks 2s ago | main@abc123 | Prod BLOCKED
+jeryu GOD MODE | GitLab ✓  Vault ✓  Docker ✓  Cache ✓  Webhooks 2s ago | main@abc123 | Prod BLOCKED
 ```
 
 Use high-contrast color:
@@ -1445,7 +1445,7 @@ Shows:
 * pending approvals
 * suggested next actions
 
-This tab would make `vgit agent` visible and operational.
+This tab would make `jeryu agent` visible and operational.
 
 ## 3. Release
 
@@ -2376,7 +2376,7 @@ Highest-value near-term fixes:
 3. Make Audit tab show real event ledger rows.
 4. Show release “blocked reason” explicitly.
 5. Add production promotion gate explanation.
-6. Align Capability `RunTests` branch naming with `vgit-test-*`.
+6. Align Capability `RunTests` branch naming with `jeryu-test-*`.
 7. Add scratch branch TTL cleanup.
 8. Show log truncation when the 160 KB cap is hit.
 9. Add freshness timestamps to panels.
@@ -2400,10 +2400,10 @@ policy_decisions
 Expose through:
 
 ```text
-vgit release explain
-vgit release gates --json
-vgit pipeline explain --json
-vgit progress --json
+jeryu release explain
+jeryu release gates --json
+jeryu pipeline explain --json
+jeryu progress --json
 ```
 
 Then update the TUI to show:
@@ -2589,7 +2589,7 @@ A palette changes the feel of the TUI immediately.
 
 # 28. My ideal final form
 
-The dream version of `vgit tui` is not just a TUI.
+The dream version of `jeryu tui` is not just a TUI.
 
 It is a **live operational cockpit for a local autonomous delivery system**.
 

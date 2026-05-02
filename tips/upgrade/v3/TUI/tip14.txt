@@ -404,7 +404,7 @@ Reason: active capability grant matched branch and SHA
 Right now the TUI is effectively a client plus backend combined. I would split it:
 
 ```text
-vgit serve
+jeryu serve
   ├─ event ingestion
   ├─ state database
   ├─ GitLab/Docker/cache/release clients
@@ -412,7 +412,7 @@ vgit serve
   ├─ evidence engine
   └─ TUI API
 
-vgit tui
+jeryu tui
   └─ thin terminal client
 ```
 
@@ -1037,7 +1037,7 @@ This event model powers the bottom console, audit ledger, notification toasts, a
 
 # 8. Dream TUI flow
 
-A user opens `vgit tui` and sees:
+A user opens `jeryu tui` and sees:
 
 ```text
 Top blocker: integration-cache #14445 failed
@@ -1098,7 +1098,7 @@ The missing world-class layer is a **typed, real-time, entity/action/proof API**
 
 That shift would turn JeRyu from a capable terminal dashboard into an actual agent-first command center.
 
-[1]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[1]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/API.md "raw.githubusercontent.com"
 [3]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/app.rs "raw.githubusercontent.com"
 [4]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/capability.rs "JeRyu/src/capability.rs at main · jeppsontaylor/JeRyu · GitHub"

@@ -5,28 +5,28 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="${1:-$ROOT_DIR/paper/assets}"
 DEBUG_DIR="$ROOT_DIR/target/tui-capture"
 
-COLS="${VGIT_TUI_CAPTURE_COLS:-160}"
-ROWS="${VGIT_TUI_CAPTURE_ROWS:-48}"
-FONT_PATH="${VGIT_TUI_CAPTURE_FONT:-/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf}"
-FONT_SIZE="${VGIT_TUI_CAPTURE_FONT_SIZE:-19}"
-CELL_W="${VGIT_TUI_CAPTURE_CELL_W:-12}"
-CELL_H="${VGIT_TUI_CAPTURE_CELL_H:-23}"
-BG="${VGIT_TUI_CAPTURE_BG:-#17212b}"
-FG="${VGIT_TUI_CAPTURE_FG:-#f4fbff}"
-BRIGHTEN="${VGIT_TUI_CAPTURE_BRIGHTEN:-1.35}"
-MAX_WAIT_MS="${VGIT_TUI_CAPTURE_MAX_WAIT_MS:-8000}"
-MIN_WAIT_MS="${VGIT_TUI_CAPTURE_MIN_WAIT_MS:-1200}"
-QUIET_MS="${VGIT_TUI_CAPTURE_QUIET_MS:-300}"
+COLS="${JERYU_TUI_CAPTURE_COLS:-160}"
+ROWS="${JERYU_TUI_CAPTURE_ROWS:-48}"
+FONT_PATH="${JERYU_TUI_CAPTURE_FONT:-/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf}"
+FONT_SIZE="${JERYU_TUI_CAPTURE_FONT_SIZE:-19}"
+CELL_W="${JERYU_TUI_CAPTURE_CELL_W:-12}"
+CELL_H="${JERYU_TUI_CAPTURE_CELL_H:-23}"
+BG="${JERYU_TUI_CAPTURE_BG:-#17212b}"
+FG="${JERYU_TUI_CAPTURE_FG:-#f4fbff}"
+BRIGHTEN="${JERYU_TUI_CAPTURE_BRIGHTEN:-1.35}"
+MAX_WAIT_MS="${JERYU_TUI_CAPTURE_MAX_WAIT_MS:-8000}"
+MIN_WAIT_MS="${JERYU_TUI_CAPTURE_MIN_WAIT_MS:-1200}"
+QUIET_MS="${JERYU_TUI_CAPTURE_QUIET_MS:-300}"
 
 mkdir -p "$OUTPUT_DIR" "$DEBUG_DIR"
 
 if [ ! -f "$FONT_PATH" ]; then
   echo "missing screenshot font: $FONT_PATH" >&2
-  echo "install fonts-dejavu-core or set VGIT_TUI_CAPTURE_FONT" >&2
+  echo "install fonts-dejavu-core or set JERYU_TUI_CAPTURE_FONT" >&2
   exit 1
 fi
 
-cargo build --release -p vgit -p tui-capture
+cargo build --release -p jeryu -p tui-capture
 
 run_once() {
   local tab="$1"
@@ -51,7 +51,7 @@ run_once() {
     --quiet-ms "$QUIET_MS" \
     --ready-file "$ready_file" \
     --dump-text "$DEBUG_DIR/${tab}.txt" \
-    -- "$ROOT_DIR/target/release/vgit" tui --screenshot --tab "$tab" --screenshot-hold-ms 10000
+    -- "$ROOT_DIR/target/release/jeryu" tui --screenshot --tab "$tab" --screenshot-hold-ms 10000
 
   if [ ! -s "$ready_file" ]; then
     echo "TUI did not signal readiness for tab: $tab" >&2
@@ -64,12 +64,12 @@ run_once() {
 }
 
 declare -a shots=(
-  "mission:$OUTPUT_DIR/vgit-tui-mission.png"
-  "jobs:$OUTPUT_DIR/vgit-tui-jobs-flow.png"
-  "agents:$OUTPUT_DIR/vgit-tui-agents.png"
-  "tests:$OUTPUT_DIR/vgit-tui-tests-vti.png"
-  "evidence:$OUTPUT_DIR/vgit-tui-evidence.png"
-  "release:$OUTPUT_DIR/vgit-tui-release.png"
+  "mission:$OUTPUT_DIR/jeryu-tui-mission.png"
+  "jobs:$OUTPUT_DIR/jeryu-tui-jobs-flow.png"
+  "agents:$OUTPUT_DIR/jeryu-tui-agents.png"
+  "tests:$OUTPUT_DIR/jeryu-tui-tests-vti.png"
+  "evidence:$OUTPUT_DIR/jeryu-tui-evidence.png"
+  "release:$OUTPUT_DIR/jeryu-tui-release.png"
 )
 
 for shot in "${shots[@]}"; do

@@ -32,7 +32,7 @@ The capability server is a Unix domain socket that deserializes external payload
 
 ### 5. Admission control is one of the most promising pieces
 
-The global pre-receive hook concept is exactly what an agent-first Git system needs. Agents should not be allowed to push arbitrary refs unless a durable capability grant proves why the write is allowed. The code has `Allow`, `Audit`, and `Deny` verdicts, logs admission decisions, checks agent refs, and can enforce via `VGIT_ADMISSION_ENFORCE=1`. ([GitHub][6])
+The global pre-receive hook concept is exactly what an agent-first Git system needs. Agents should not be allowed to push arbitrary refs unless a durable capability grant proves why the write is allowed. The code has `Allow`, `Audit`, and `Deny` verdicts, logs admission decisions, checks agent refs, and can enforce via `JERYU_ADMISSION_ENFORCE=1`. ([GitHub][6])
 
 That is a huge differentiator versus normal GitHub/GitLab automation, where API tokens often become giant ambient-authority keys.
 
@@ -92,7 +92,7 @@ That should be fixed immediately: all merge paths should converge on one strict 
 
 ### 6. Sandbox isolation is weaker than the comments imply
 
-`sandbox.rs` says strict isolation uses `unshare/bwrap`, but the implementation path I saw sets `VGIT_SANDBOXED=1` and runs `bash`; comments say full network namespace isolation would require extra veth/proxy setup, with Docker executor pools providing production isolation. That is honest in-code, but it means the sandbox claim needs to be reframed or implemented for real. ([GitHub][13])
+`sandbox.rs` says strict isolation uses `unshare/bwrap`, but the implementation path I saw sets `JERYU_SANDBOXED=1` and runs `bash`; comments say full network namespace isolation would require extra veth/proxy setup, with Docker executor pools providing production isolation. That is honest in-code, but it means the sandbox claim needs to be reframed or implemented for real. ([GitHub][13])
 
 For untrusted autonomous agents, this is a serious area: rootless isolation, egress policy, filesystem scopes, seccomp/AppArmor, and no ambient Docker socket.
 
@@ -227,7 +227,7 @@ For trusted local agents, Docker may be enough. For untrusted agents, use a dedi
 * package-manager proxy only
 * automatic taint propagation from untrusted outputs
 
-The current `VGIT_SANDBOXED=1` marker is not enough for high-autonomy untrusted execution. ([GitHub][13])
+The current `JERYU_SANDBOXED=1` marker is not enough for high-autonomy untrusted execution. ([GitHub][13])
 
 ### P0: fix active agent visibility
 
@@ -309,7 +309,7 @@ The VTI/test intelligence idea is promising. Push it much further:
 * “why this test was selected”
 * “why this test was skipped”
 * nightly oracle that compares selected vs full-suite results
-* per-repo `.vgit/testmap.toml`
+* per-repo `.jeryu/testmap.toml`
 * automatic learning from missed failures
 
 The TUI should make this brutally transparent: agents and humans must trust test skipping.
@@ -520,7 +520,7 @@ Keyboard-first matters. Suggested keys: `/` search, `e` explain, `r` retry, `p` 
 * **Agent leaderboard:** not vanity—track rollback rate, repair success, test miss rate, average time to green.
 * **Autonomous rollback recipes:** every release must include “how to revert safely” generated and tested before prod.
 * **Human steering mode:** type “avoid touching auth,” “prefer minimal diff,” “try a migration-free fix,” and the agent task state updates.
-* **Policy-as-code:** `.vgit/agent.toml` controls allowed autonomy, paths, tests, merge gates, sandboxing, and release rules.
+* **Policy-as-code:** `.jeryu/agent.toml` controls allowed autonomy, paths, tests, merge gates, sandboxing, and release rules.
 * **Repo memory:** persistent symbol graph, flaky-test memory, incident memory, ownership map, and previous-fix embeddings.
 * **Agent-native MR format:** plan, diff summary, proof, risks, skipped tests, rollback, and open questions—structured, not prose-only.
 

@@ -10,7 +10,7 @@ Everything else should serve that.
 
 ## 1. Current API/TUI state, as implemented
 
-The repo exposes many control surfaces: CLI, TUI, webhook HTTP server, Unix-socket capability API, server hook, custom executor, action registry, state API, GitLab REST wrapper, release controls, secrets controls, and settings. The API docs position the TUI as `vgit tui`, the capability API as a Unix-domain-socket JSON surface, and the action registry as the shared source of truth for CLI/TUI/capability actions. ([GitHub][1])
+The repo exposes many control surfaces: CLI, TUI, webhook HTTP server, Unix-socket capability API, server hook, custom executor, action registry, state API, GitLab REST wrapper, release controls, secrets controls, and settings. The API docs position the TUI as `jeryu tui`, the capability API as a Unix-domain-socket JSON surface, and the action registry as the shared source of truth for CLI/TUI/capability actions. ([GitHub][1])
 
 The current documented capability API is **one JSON request → one JSON response**, over Unix socket, capped at **64 KiB**, with intents such as `ProposePatch`, `RacePatches`, `RunTests`, `FetchCapsule`, `RequestMerge`, `ExplainBlockers`, `GetSystemSnapshot`, `ListAllowedActions`, and `PlanValidation`. ([GitHub][1])
 
@@ -150,7 +150,7 @@ Create a unified append-only event stream that the TUI and agents can subscribe 
 
 ```json
 {
-  "api_version": "vgit.events.v1",
+  "api_version": "jeryu.events.v1",
   "seq": 1849201,
   "timestamp": "2026-04-27T18:42:11Z",
   "kind": "job.failed",
@@ -172,10 +172,10 @@ Create a unified append-only event stream that the TUI and agents can subscribe 
 Transports:
 
 ```text
-UDS: /tmp/vgit/events.sock
+UDS: /tmp/jeryu/events.sock
 HTTP SSE: GET /v1/events/stream
 WebSocket: /v1/events/ws
-CLI: vgit events tail --json
+CLI: jeryu events tail --json
 ```
 
 The TUI should never poll ten systems directly when the daemon can stream a normalized truth feed.
@@ -220,7 +220,7 @@ Replace “key calls method” with a universal action contract.
 
 ```json
 {
-  "api_version": "vgit.actions.v1",
+  "api_version": "jeryu.actions.v1",
   "request_id": "req_123",
   "idempotency_key": "retry-job-14445-clean",
   "actor": {
@@ -566,12 +566,12 @@ The generated screenshots show many border glyphs rendering as box/tofu-like cha
 Add:
 
 ```bash
-vgit tui --ascii
-vgit tui --unicode
-vgit tui --theme dark
-vgit tui --theme high-contrast
-vgit tui --theme no-border
-vgit tui --capture --font-safe
+jeryu tui --ascii
+jeryu tui --unicode
+jeryu tui --theme dark
+jeryu tui --theme high-contrast
+jeryu tui --theme no-border
+jeryu tui --capture --font-safe
 ```
 
 Runtime detection:
@@ -713,7 +713,7 @@ Why blocked?
 Safe next action:
   Retry once on clean runner.
 Command:
-  vgit job retry 14445 --clean-runner
+  jeryu job retry 14445 --clean-runner
 ```
 
 ## 7.2 Make every action previewable
@@ -894,7 +894,7 @@ test
 }
 ```
 
-This should back both `vgit explain-blocker` and TUI `x`.
+This should back both `jeryu explain-blocker` and TUI `x`.
 
 ## 8.5 Add log streaming with offsets
 
@@ -1235,7 +1235,7 @@ Press Enter to preview.
 That is the leap from “dashboard” to **agent command center**.
 
 [1]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/API.md "raw.githubusercontent.com"
-[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [3]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/ui.rs "raw.githubusercontent.com"
 [4]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/tui/ui.rs "JeRyu/src/tui/ui.rs at main · jeppsontaylor/JeRyu · GitHub"
 [5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/flow/model.rs "raw.githubusercontent.com"

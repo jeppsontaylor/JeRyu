@@ -1,16 +1,16 @@
-# ARCHITECTURE.md — JeRyu / vgit System Architecture
+# ARCHITECTURE.md — JeRyu / jeryu System Architecture
 
 > Version: 5.0.0
 > Last updated: 2026-04-26
 > Scope: `/home/ubuntu/JeRyu` single-binary Rust control plane plus workspace crates.
 > Audience: External agents, reviewers, and contributors requiring full system context.
 
-`vgit` is a Rust control plane that turns a local GitLab instance, GitLab Runner, Docker, Vault, Postgres/SQLite state, and repo-local CI semantics into an agent-operable delivery system. It owns runner fleet state, webhook reconciliation, custom executor policy, release/canary/prod automation, SmartCache, VTI smart test selection, Vault-backed release secrets, failure evidence, action registry, settings management, and a Ratatui supervisory TUI.
+`jeryu` is a Rust control plane that turns a local GitLab instance, GitLab Runner, Docker, Vault, Postgres/SQLite state, and repo-local CI semantics into an agent-operable delivery system. It owns runner fleet state, webhook reconciliation, custom executor policy, release/canary/prod automation, SmartCache, VTI smart test selection, Vault-backed release secrets, failure evidence, action registry, settings management, and a Ratatui supervisory TUI.
 
 Companion references:
 - **API surface**: `docs/API.md`
 - **VTI smart test system**: `docs/VTI.md`
-- **TUI details**: `docs/VGIT_TUI.md`
+- **TUI details**: `docs/JERYU_TUI.md`
 - **CI testing**: `docs/ci-testing.md`
 - **RTK shell helper**: `docs/RTK.md`
 
@@ -32,20 +32,30 @@ Agents are expected to operate through typed commands, GitLab MRs/pipelines, cap
 
 ---
 
-## 2. System Topology
+## 2. Git Compatibility Layer & Dual-Use Pipeline
+
+JeRyu introduces a phased migration model from standard Git to AI-driven version control:
+
+1. **Passthrough Layer (`jeryu git <args>`)**: JeRyu wraps the system Git binary seamlessly. This allows users to alias `git="jeryu git"` without breaking muscle memory or tooling.
+2. **Native Wrappers (`jeryu status`, `jeryu save`, `jeryu undo`)**: Higher-level CLI commands that combine multiple Git operations or add AI context (e.g. `save` runs `add` + `commit`).
+3. **Dual-Use Remote Sync (`jeryu ship`)**: Designed for environments operating both locally (shadow pipeline) and remotely (e.g. GitHub/GitLab LAN). `jeryu ship` pushes the commit to the primary `origin` remote, then also promotes the commit to a repo-local headless `shadow` remote, triggering instant CI validation locally while preserving the remote state.
+
+---
+
+## 3. System Topology
 
 ```mermaid
 graph TB
     subgraph Users["Consumers"]
         Human["Human Operator"]
         Agent["AI Agent"]
-        TUI["vgit TUI"]
+        TUI["jeryu TUI"]
     end
 
-    subgraph Vgit["vgit Binary"]
+    subgraph Jeryu["jeryu Binary"]
         CLI["CLI / dispatch.rs"]
         Engine["engine.rs<br/>HTTP :9777"]
-        Settings["settings.rs<br/>~/.vgit/settings.json"]
+        Settings["settings.rs<br/>~/.jeryu/settings.json"]
         State["state.rs<br/>Postgres primary<br/>SQLite fallback"]
         GL_Client["gitlab_client.rs"]
         Docker_Mod["docker.rs"]
@@ -99,7 +109,7 @@ graph TB
 The workspace is defined in `Cargo.toml` with members:
 
 ```
-.                   # vgit (main binary)
+.                   # jeryu (main binary)
 crates/cargo-witness
 crates/witness-rt
 crates/cargo-vrc
@@ -107,7 +117,7 @@ crates/cargo-aer
 crates/arc-bench
 ```
 
-### 3.1 vgit Module Map
+### 3.1 jeryu Module Map
 
 The crate root (`src/lib.rs`) exports these modules:
 
@@ -142,7 +152,7 @@ The crate root (`src/lib.rs`) exports these modules:
 | `sandbox` | Strict executor sandbox configuration. |
 | `sccache_mgr` | sccache management for CI jobs. |
 | `secrets` | Vault init/status, release secret rotation/finalization/recovery. |
-| `settings` | User-facing `~/.vgit/settings.json` — all tunables in a typed schema. |
+| `settings` | User-facing `~/.jeryu/settings.json` — all tunables in a typed schema. |
 | `shadow` | Shadow sync loop and repo-local shadow remote controls. |
 | `state` | Postgres-primary schema, migrations, query API, SQLite fallback. |
 | `taint` | Cache taint/quarantine manager. |
@@ -173,7 +183,7 @@ The crate root (`src/lib.rs`) exports these modules:
 | `mod.rs` | TUI entry point, run loop, keyboard handling |
 | `app.rs` | Application state, background data sync, snapshot hydration |
 | `ui.rs` | All rendering code — tabs, layouts, widgets |
-| `action_registry.rs` | Single source of truth for all vgit actions with risk tiers |
+| `action_registry.rs` | Single source of truth for all jeryu actions with risk tiers |
 | `graph.rs` | DAG graph layout utilities for flow visualization |
 | `events.rs` | Terminal event types |
 | `flow/` | Flow Board pipeline visualization subsystem |
@@ -194,12 +204,12 @@ The crate root (`src/lib.rs`) exports these modules:
 
 ### 3.5 Test Intel Submodules
 
-`src/test_intel/` implements the VTI (Vgit Test Intelligence) system:
+`src/test_intel/` implements the VTI (Jeryu Test Intelligence) system:
 
 | Submodule | Purpose |
 | --- | --- |
 | `planner.rs` | Internal planner — subsystem-based test selection for JeRyu |
-| `testmap.rs` | External planner — `.vgit/testmap.toml` based selection for dougx |
+| `testmap.rs` | External planner — `.jeryu/testmap.toml` based selection for dougx |
 | `subsystem.rs` | Subsystem ownership graph, glob matching, global invalidators |
 | `ci_gen.rs` | GitLab child pipeline YAML emission |
 | `explain.rs` | Human-readable plan explanation rendering |
@@ -222,7 +232,7 @@ Full VTI documentation: `docs/VTI.md`
 
 ## 4. Settings Architecture
 
-`settings.rs` manages `~/.vgit/settings.json` — a typed, forward/backward-compatible configuration file. Creates with defaults on first run. Unknown keys are ignored; missing keys use defaults.
+`settings.rs` manages `~/.jeryu/settings.json` — a typed, forward/backward-compatible configuration file. Creates with defaults on first run. Unknown keys are ignored; missing keys use defaults.
 
 | Section | Key fields |
 | --- | --- |
@@ -242,9 +252,9 @@ The settings are loaded once at startup via `settings::init()` and accessible pr
 
 ## 5. Bootstrapping Lifecycle
 
-`vgit init` is the expected first-run path. It builds a self-contained local system:
+`jeryu init` is the expected first-run path. It builds a self-contained local system:
 
-1. Generate or preserve vgit secrets (`vgit.env`).
+1. Generate or preserve jeryu secrets (`jeryu.env`).
 2. Render `docker-compose.yml` from templates.
 3. Start GitLab CE and Vault containers.
 4. Wait for GitLab readiness.
@@ -254,13 +264,13 @@ The settings are loaded once at startup via `settings::init()` and accessible pr
 8. Render runner configs.
 9. Start smoke project/pipeline.
 
-The bootstrap output becomes the basis for `vgit serve`.
+The bootstrap output becomes the basis for `jeryu serve`.
 
 ---
 
 ## 6. Serve Lifecycle
 
-`vgit serve` starts the long-running control plane:
+`jeryu serve` starts the long-running control plane:
 
 ```mermaid
 flowchart LR
@@ -299,7 +309,7 @@ The engine itself starts concurrently:
 
 ### 7.1 Webhook Authentication
 
-GitLab webhooks must include `X-Gitlab-Token: <VGIT_WEBHOOK_SECRET>`. Invalid tokens return HTTP 401.
+GitLab webhooks must include `X-Gitlab-Token: <JERYU_WEBHOOK_SECRET>`. Invalid tokens return HTTP 401.
 
 ### 7.2 Webhook Event Flow
 
@@ -311,7 +321,7 @@ flowchart TD
 
     EventType -->|Job Hook| JobFlow["parse job fields<br/>→ upsert job_events<br/>→ if failed: maybe_retry<br/>→ if pending: check_scale_up"]
     EventType -->|Pipeline Hook| PipeFlow["upsert tracked_pipelines<br/>→ if main+success: canary/release/prod<br/>→ if failed: update release status"]
-    EventType -->|Push Hook| PushFlow["normalize ref<br/>→ skip vgit-test-*<br/>→ cancel superseded pipelines<br/>→ impact analysis<br/>→ VTI plan"]
+    EventType -->|Push Hook| PushFlow["normalize ref<br/>→ skip jeryu-test-*<br/>→ cancel superseded pipelines<br/>→ impact analysis<br/>→ VTI plan"]
     EventType -->|MR Hook| LogOnly["Logged only"]
     EventType -->|Other| LogUnhandled["Logged as unhandled"]
 ```
@@ -344,7 +354,7 @@ Every 300 seconds:
 
 ### 7.5 Docker Event Loop
 
-Watches container events. If a vgit-managed manager container dies or OOMs, immediately runs reconciliation to replace capacity.
+Watches container events. If a jeryu-managed manager container dies or OOMs, immediately runs reconciliation to replace capacity.
 
 ### 7.6 Disk Pressure Sentinel
 
@@ -363,7 +373,7 @@ Loops toward a 70% target watermark and records `disk_pressure_gc`, `disk_pressu
 
 ## 8. State Architecture
 
-Postgres is the primary durable coordination layer for concurrent agent-first operation. `Db::open()` loads `~/.vgit/vgit.env`, selects `VGIT_DATABASE_URL` when present, runs migrations, and exposes typed query methods over a backend-neutral `sqlx::AnyPool`. Fresh bootstrap writes a local Postgres URL and Docker Compose includes a `vgit-postgres` service on `127.0.0.1:15432`; SQLite remains the embedded fallback when no database URL is configured. State SQL passes through a backend placeholder normalizer for Postgres-bound operations so the same typed methods can run in either mode. The schema is append-friendly and stores both operational state and audit state.
+Postgres is the primary durable coordination layer for concurrent agent-first operation. `Db::open()` loads `~/.jeryu/jeryu.env`, selects `JERYU_DATABASE_URL` when present, runs migrations, and exposes typed query methods over a backend-neutral `sqlx::AnyPool`. Fresh bootstrap writes a local Postgres URL and Docker Compose includes a `jeryu-postgres` service on `127.0.0.1:15432`; SQLite remains the embedded fallback when no database URL is configured. State SQL passes through a backend placeholder normalizer for Postgres-bound operations so the same typed methods can run in either mode. The schema is append-friendly and stores both operational state and audit state.
 
 For proof, `just postgres-state-proof` launches a disposable local Postgres container and runs the core state smoke against pools, managers, job/event tracking, VTI plan records, cache verdicts, action-cache writes, epoch bumps, taint propagation, CacheBrain hit/deny decisions, capability grants, and admission decisions.
 
@@ -415,10 +425,10 @@ Managers are Docker containers running `gitlab-runner`. `pool.rs` owns: `scale_p
 The `untrusted` pool uses the custom executor path. GitLab Runner invokes:
 
 ```
-vgit exec config       → driver config JSON
-vgit exec prepare      → fast clone/reflink sandbox + honeypot seeding
-vgit exec run <script> <stage> → stage execution with cache brain
-vgit exec cleanup      → cleanup sandbox state
+jeryu exec config       → driver config JSON
+jeryu exec prepare      → fast clone/reflink sandbox + honeypot seeding
+jeryu exec run <script> <stage> → stage execution with cache brain
+jeryu exec cleanup      → cleanup sandbox state
 ```
 
 Execution responsibilities:
@@ -439,7 +449,7 @@ The executor is a GitLab Runner protocol implementation, not a generic shell API
 
 ## 11. Admission Control
 
-`admission.rs` installs and runs a Git server pre-receive hook (`vgit server-hook pre-receive`). The hook reads standard pre-receive input and evaluates each ref update into a versioned `allow`, `audit`, or `deny` record. Human/system refs are allowed when syntactically valid. Agent refs (`refs/heads/agent/*`, `refs/heads/agents/*`, `refs/heads/vgit/*`) are allowed when the update matches an active capability grant in the state ledger; otherwise they are audit-only by default. `VGIT_ADMISSION_ENFORCE=1` turns missing-ledger agent writes into hook denials. The hook persists decisions in `admission_decisions` when the database is available. `vgit serve` installs the global hook at startup. Admission control is part of the security boundary for agent-proposed changes.
+`admission.rs` installs and runs a Git server pre-receive hook (`jeryu server-hook pre-receive`). The hook reads standard pre-receive input and evaluates each ref update into a versioned `allow`, `audit`, or `deny` record. Human/system refs are allowed when syntactically valid. Agent refs (`refs/heads/agent/*`, `refs/heads/agents/*`, `refs/heads/jeryu/*`) are allowed when the update matches an active capability grant in the state ledger; otherwise they are audit-only by default. `JERYU_ADMISSION_ENFORCE=1` turns missing-ledger agent writes into hook denials. The hook persists decisions in `admission_decisions` when the database is available. `jeryu serve` installs the global hook at startup. Admission control is part of the security boundary for agent-proposed changes.
 
 ---
 
@@ -448,7 +458,7 @@ The executor is a GitLab Runner protocol implementation, not a generic shell API
 ```mermaid
 flowchart LR
     subgraph Surfaces
-        CLI["CLI: vgit agent spawn/list/merge"]
+        CLI["CLI: jeryu agent spawn/list/merge"]
         GL["GitLab MR/Issue workflow"]
         Cap["Capability socket: AgentIntent"]
         Actions["Action registry"]
@@ -473,7 +483,7 @@ The agent system has three layers:
 
 | Layer | Surface |
 | --- | --- |
-| Human/agent CLI | `vgit agent spawn/list/merge` |
+| Human/agent CLI | `jeryu agent spawn/list/merge` |
 | GitLab workflow | branches, issues, MRs, labels, pipelines |
 | Capability socket | typed `AgentIntent` payloads |
 
@@ -483,7 +493,7 @@ Merge is guarded by `decision::evaluate_risk_gate`: untrusted tier requires esca
 
 ## 13. Action Registry
 
-`tui/action_registry.rs` is the single source of truth for all vgit actions. Each entry has:
+`tui/action_registry.rs` is the single source of truth for all jeryu actions. Each entry has:
 - `id`, `label`, `key_hint`
 - `risk_tier`: `ReadOnly`, `Low`, `High`, `Production`
 - `side_effect_class`: `read_only`, `local_state`, `git_write`, `ci_execution`, `merge`, `production`
@@ -492,7 +502,7 @@ Merge is guarded by `decision::evaluate_risk_gate`: untrusted tier requires esca
 - `dry_run` flag
 - `description`
 
-The registry is consumed by the TUI command palette, `vgit action list [--json]`, and the capability API.
+The registry is consumed by the TUI command palette, `jeryu action list [--json]`, and the capability API.
 
 Key registered actions:
 
@@ -557,7 +567,7 @@ Risk gate: failed jobs deny; pending/running escalate; zero successful evidence 
 
 ## 16. Failure Capsules
 
-Failure capsules (`capsule.rs`) are structured evidence records for failed jobs. They feed: `vgit job explain`, `vgit explain-blocker job`, capability `FetchCapsule`, retry decision logic, and event/audit ledgers. Fields: job_id, pipeline_id, stage, ref_name, commit_sha, failure_kind, classification, exit_code, summary, log_snippet, repro_script, superseded_by_sha.
+Failure capsules (`capsule.rs`) are structured evidence records for failed jobs. They feed: `jeryu job explain`, `jeryu explain-blocker job`, capability `FetchCapsule`, retry decision logic, and event/audit ledgers. Fields: job_id, pipeline_id, stage, ref_name, commit_sha, failure_kind, classification, exit_code, summary, log_snippet, repro_script, superseded_by_sha.
 
 ---
 
@@ -569,7 +579,7 @@ Failure capsules (`capsule.rs`) are structured evidence records for failed jobs.
 flowchart LR
     Plan["plan_test_run:<br/>infer risk/tags/timeout"] --> CacheCheck{"Local test<br/>cache hit?"}
     CacheCheck -->|Hit & !force| Skip["Return cached success"]
-    CacheCheck -->|Miss or force| Branch["Create vgit-test-* branch"]
+    CacheCheck -->|Miss or force| Branch["Create jeryu-test-* branch"]
     Branch --> Commit["Commit minimal .gitlab-ci.yml"]
     Commit --> Trigger["Trigger pipeline"]
     Trigger --> Wait["Wait for result"]
@@ -578,7 +588,7 @@ flowchart LR
     Record --> Cleanup["Cleanup branch"]
 ```
 
-Batch mode runs several commands concurrently with a semaphore-limited `JoinSet`. The engine push hook intentionally ignores `vgit-test-*` branches to avoid supersedence canceling scratch test pipelines.
+Batch mode runs several commands concurrently with a semaphore-limited `JoinSet`. The engine push hook intentionally ignores `jeryu-test-*` branches to avoid supersedence canceling scratch test pipelines.
 
 ---
 
@@ -586,9 +596,9 @@ Batch mode runs several commands concurrently with a semaphore-limited `JoinSet`
 
 `test_intel/` implements VTI — see `docs/VTI.md` for the comprehensive reference.
 
-Summary: subsystem matching → global invalidator detection → docs-only detection → minimal test plan generation → explanation rendering → GitLab child pipeline generation → external `.vgit/testmap.toml` support → selector audit → learning suggestions → cache key computation.
+Summary: subsystem matching → global invalidator detection → docs-only detection → minimal test plan generation → explanation rendering → GitLab child pipeline generation → external `.jeryu/testmap.toml` support → selector audit → learning suggestions → cache key computation.
 
-The built-in planner operates on changed paths within JeRyu. The external planner consumes `.vgit/testmap.toml` from another workspace (currently `/home/ubuntu/dougx`). Push hooks record VTI plans into the state database for later auditing.
+The built-in planner operates on changed paths within JeRyu. The external planner consumes `.jeryu/testmap.toml` from another workspace (currently `/home/ubuntu/dougx`). Push hooks record VTI plans into the state database for later auditing.
 
 ---
 
@@ -615,11 +625,11 @@ flowchart TD
 
 ### 19.2 Canary Path
 
-Release-execution pipeline variables: `CI_PIPELINE_PRODUCT=release-execution`, `VGIT_CANARY_APPROVED=1`, `VGIT_UPSTREAM_PIPELINE_ID`, `VGIT_RELEASE_SHA`, `VGIT_RELEASE_VERSION`, optional `VGIT_UPSTREAM_BUILD_JOB_ID`, optional `VEOX_PUBLISH_ENCLAVE_REF`.
+Release-execution pipeline variables: `CI_PIPELINE_PRODUCT=release-execution`, `JERYU_CANARY_APPROVED=1`, `JERYU_UPSTREAM_PIPELINE_ID`, `JERYU_RELEASE_SHA`, `JERYU_RELEASE_VERSION`, optional `JERYU_UPSTREAM_BUILD_JOB_ID`, optional `VEOX_PUBLISH_ENCLAVE_REF`.
 
 ### 19.3 Production Path
 
-Production variables: `CI_PIPELINE_PRODUCT=production-promotion`, `VGIT_PROD_APPROVED=1`, `VGIT_RELEASE_SHA`, `VGIT_RELEASE_VERSION`. Production is pipeline-driven — ad hoc production shell commands are explicitly discouraged.
+Production variables: `CI_PIPELINE_PRODUCT=production-promotion`, `JERYU_PROD_APPROVED=1`, `JERYU_RELEASE_SHA`, `JERYU_RELEASE_VERSION`. Production is pipeline-driven — ad hoc production shell commands are explicitly discouraged.
 
 ### 19.4 Release Preflight and Doctor
 
@@ -642,7 +652,7 @@ Production variables: `CI_PIPELINE_PRODUCT=production-promotion`, `VGIT_PROD_APP
 - Build release reports
 - Recover release bundles
 
-Repo support is focused on `dougx`. Default release repo root: `/home/ubuntu/dougx`, overrideable with `VGIT_RELEASE_REPO_ROOT` or `settings.release.repo_root`.
+Repo support is focused on `dougx`. Default release repo root: `/home/ubuntu/dougx`, overrideable with `JERYU_RELEASE_REPO_ROOT` or `settings.release.repo_root`.
 
 Principles: track authority metadata in the state ledger; keep runtime/recovery paths in release secret-set records; write handoff reports without exposing long-lived tokens; finalize after promotion.
 
@@ -658,8 +668,8 @@ The cache brain combines: build unit type, input signature, environment signatur
 
 Cargo build reuse is split by trust boundary:
 
-- Local agent runs use `~/.vgit/cache/local-cargo/targets/<repo-key>/<rustc-key>/<host-triple>/target` and `~/.vgit/cache/local-cargo/sccache`.
-- Runner pools use `~/.vgit/cache/pools/<pool>/cargo-targets/<project-slug>/<rustc-key>/<host-triple>/target` and `~/.vgit/cache/pools/<pool>/sccache`.
+- Local agent runs use `~/.jeryu/cache/local-cargo/targets/<repo-key>/<rustc-key>/<host-triple>/target` and `~/.jeryu/cache/local-cargo/sccache`.
+- Runner pools use `~/.jeryu/cache/pools/<pool>/cargo-targets/<project-slug>/<rustc-key>/<host-triple>/target` and `~/.jeryu/cache/pools/<pool>/sccache`.
 - Docker and custom executors mount pool cache roots separately so untrusted, default, and build pools do not share compiled `target/` directories.
 - `sccache` remains the shared reuse layer for compiler outputs; `target/` reuse is treated as a local optimization inside one repo/toolchain/host triple scope.
 - GC skips active leases, which is why target directories carry a lease file alongside the build output.
@@ -720,19 +730,19 @@ Background workers: general snapshot sync (~1500ms), flow collector (~1500ms), s
 
 The Flow Board uses a builder → model → widget pipeline: the `collector` polls GitLab, the `builder` converts raw data into a `FlowGraph`, and the `widget` renders a left-to-right DAG visualization with job status, ETA estimates, and critical path highlighting. It retains last non-empty flow snapshots and marks them stale instead of blinking to empty state.
 
-See `docs/VGIT_TUI.md` for full behavior.
+See `docs/JERYU_TUI.md` for full behavior.
 
 ---
 
 ## 25. Next-Action and Explain-Blocker
 
-`vgit next` recommends the highest-priority action for the current branch by checking (in priority order):
-1. Recent job failures → suggests `vgit job explain`
+`jeryu next` recommends the highest-priority action for the current branch by checking (in priority order):
+1. Recent job failures → suggests `jeryu job explain`
 2. Active pipelines → shows status
 3. Release gate state → shows release status
-4. Selector misses → suggests `vgit test audit`
+4. Selector misses → suggests `jeryu test audit`
 
-`vgit explain-blocker <entity_type> <entity_id>` diagnoses specific blockages:
+`jeryu explain-blocker <entity_type> <entity_id>` diagnoses specific blockages:
 - `job`: shows failure capsule (kind, classification, retry advice, log snippet, supersedence)
 - `release`: shows attempt state (upstream, canary, release pipeline, production pipeline, blockers)
 - `merge`: shows selector miss count, pipeline/approval guidance
@@ -753,7 +763,7 @@ See `docs/VGIT_TUI.md` for full behavior.
 
 ## 28. Host Reclaim Architecture
 
-`reclaim.rs` provides: storage audit, aggressive reclaim, automatic GC called by the engine under disk pressure. The engine escalates reclaim behavior based on root disk usage thresholds. Systemd timer (`ops/ci/vgit-gc.timer`) runs GC every 6 hours.
+`reclaim.rs` provides: storage audit, aggressive reclaim, automatic GC called by the engine under disk pressure. The engine escalates reclaim behavior based on root disk usage thresholds. Systemd timer (`ops/ci/jeryu-gc.timer`) runs GC every 6 hours.
 
 ---
 
@@ -802,7 +812,7 @@ Job Hook failed → job_events upsert → latest evidence capsule lookup
 ### 31.3 Agent Runs a Focused Test
 
 ```
-agent calls vgit test run → plan_test_run infers tags/risk
+agent calls jeryu test run → plan_test_run infers tags/risk
 → successful test cache checked → scratch branch created
 → minimal CI YAML committed → GitLab pipeline triggered
 → job result and trace tail collected → test_executions updated
@@ -842,10 +852,10 @@ Defined in `.cross-repo.toml`:
 | Surface | Owner | Consumer |
 | --- | --- | --- |
 | CI lane semantics | `dougx` (`apps/veox-testctl/src/ci.rs`) | JeRyu (`engine.rs`, `release.rs`) |
-| VTI subsystem map | `dougx` (`.vgit/testmap.toml`) | JeRyu (`test_intel/`) |
+| VTI subsystem map | `dougx` (`.jeryu/testmap.toml`) | JeRyu (`test_intel/`) |
 | Release evidence schema | `dougx` (`ops/releases/<version>/`) | JeRyu (`release.rs`) |
 
-JeRyu reads but never writes these shared surfaces. If the consumed surface schema changes in dougx, validate locally with `cargo check -p vgit` and `cargo test -p vgit -- test_intel`.
+JeRyu reads but never writes these shared surfaces. If the consumed surface schema changes in dougx, validate locally with `cargo check -p jeryu` and `cargo test -p jeryu -- test_intel`.
 
 ---
 
@@ -857,7 +867,7 @@ JeRyu reads but never writes these shared surfaces. If the consumed surface sche
 - **Validation order**: check → nextest → witness build → vrc map → aer scan
 - **Risk level**: `high`
 - **Invariants**: errors use anyhow, state through Db methods, security modules require proof lane
-- **Local validation**: `cargo check -p vgit --message-format=json`, `cargo nextest run -p vgit --lib`
+- **Local validation**: `cargo check -p jeryu --message-format=json`, `cargo nextest run -p jeryu --lib`
 
 ---
 
@@ -881,7 +891,7 @@ JeRyu reads but never writes these shared surfaces. If the consumed surface sche
 | New agent capability | Add `AgentIntent` variant, implement routing in `capability.rs`. |
 | New release gate | Add state fields in `state.rs`, evaluation in `release.rs`, display in TUI/API docs. |
 | New executor security control | Implement in `exec.rs` or security module, record evidence in `state.rs`. |
-| New VTI rule | Update `test_intel/`, add audit coverage, update `.vgit/testmap.toml` if external. |
+| New VTI rule | Update `test_intel/`, add audit coverage, update `.jeryu/testmap.toml` if external. |
 | New TUI pane | Add state to `TuiStateSnapshot`, hydrate in `app.rs`, render in `ui.rs`, add smoke tests. |
 | New action | Add entry to `REGISTRY` in `action_registry.rs`. |
 | New setting | Add field to appropriate section in `settings.rs` with default. |
@@ -893,11 +903,11 @@ JeRyu reads but never writes these shared surfaces. If the consumed surface sche
 Module comments and `AGENTS.md` map change types to proof lanes. Common commands:
 
 ```bash
-cargo check -p vgit --message-format=json
-cargo test -p vgit -- state -- --nocapture
-cargo test -p vgit -- release::tests -- --nocapture
-cargo test -p vgit -- tui -- --nocapture
-cargo run -p vgit -- repo audit-agent-surface --json
+cargo check -p jeryu --message-format=json
+cargo test -p jeryu -- state -- --nocapture
+cargo test -p jeryu -- release::tests -- --nocapture
+cargo test -p jeryu -- tui -- --nocapture
+cargo run -p jeryu -- repo audit-agent-surface --json
 ```
 
 For workspace-level structural changes:

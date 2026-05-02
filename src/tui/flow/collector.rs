@@ -1,5 +1,5 @@
 //! Owner: Interactive TUI subsystem — flow snapshot collector
-//! Proof: `cargo nextest run -p vgit -- tui::flow`
+//! Proof: `cargo nextest run -p jeryu -- tui::flow`
 //! Invariants: Collection is best-effort, bounded, and never blocks the TUI render loop on remote state.
 
 use super::model::{FlowGraph, FlowSnapshot, PipelineFlow};

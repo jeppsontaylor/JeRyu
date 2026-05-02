@@ -618,14 +618,14 @@ mod tests {
     }
 
     #[test]
-    fn current_workspace_root_paths_select_vgit_only() {
+    fn current_workspace_root_paths_select_jeryu_only() {
         let snapshot = load_workspace(Some(&current_manifest())).expect("load current workspace");
 
         let plan = build_vrc_plan(&snapshot, &[PathBuf::from("src/admission.rs")])
             .expect("root source plan");
         assert!(
-            plan.selected_arcs.iter().any(|arc| arc.name == "vgit"),
-            "root src changes should select vgit"
+            plan.selected_arcs.iter().any(|arc| arc.name == "jeryu"),
+            "root src changes should select jeryu"
         );
         assert!(
             !plan.selected_arcs.iter().any(|arc| arc.name == "cargo-vrc"),

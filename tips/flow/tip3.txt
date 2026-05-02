@@ -1,4 +1,4 @@
-Below is a concrete build spec for turning `vgit tui` into a **Mission Control flow board**: a left-to-right, drillable, CEO-readable view of Git flow, CI flow, parallel tests, release gates, ETA, blockers, and live runner activity.
+Below is a concrete build spec for turning `jeryu tui` into a **Mission Control flow board**: a left-to-right, drillable, CEO-readable view of Git flow, CI flow, parallel tests, release gates, ETA, blockers, and live runner activity.
 
 The key idea: **the TUI should render a live DAG, not a list.** Every pipeline becomes a flow graph:
 
@@ -40,7 +40,7 @@ Use a four-zone layout:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ vgit God Mode │ GitLab ● ONLINE │ Containers: 10 │ Release: main ci-54c658ad9c3 [stale] │ View: Flow Board │
+│ jeryu God Mode │ GitLab ● ONLINE │ Containers: 10 │ Release: main ci-54c658ad9c3 [stale] │ View: Flow Board │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ MAIN c58ad9c3 │ Critical 17/22 │ Running 3 │ Pending 7 │ Failed 0 │ ETA 08:41 ±02:10 │ Blocker: build... │
 ├──────────────────────┬──────────────────────────────────────────────────────────────┬────────────────────────┤
@@ -334,7 +334,7 @@ Prod
 └─◆ promote-prod waiting
 ```
 
-Use `release_attempts` and `vgit release status` logic.
+Use `release_attempts` and `jeryu release status` logic.
 
 ---
 
@@ -380,7 +380,7 @@ agent/add...   running     38%
 
 ## 5.3 Pipeline Doctor
 
-Drillable job diagnostics, equivalent to `vgit pipeline doctor`, but live.
+Drillable job diagnostics, equivalent to `jeryu pipeline doctor`, but live.
 
 Show:
 
@@ -1133,7 +1133,7 @@ Current blocker:
   Status: running 99%
   Why it matters: critical path
   ETA: 00:54
-  Runner: build / vgit-runner-a1b2
+  Runner: build / jeryu-runner-a1b2
   Last trace update: 3s ago
 ```
 
@@ -1556,7 +1556,7 @@ Use ASCII fallback:
 Expose a flag:
 
 ```bash
-vgit tui --ascii
+jeryu tui --ascii
 ```
 
 ## 13.7 Theme
@@ -1710,7 +1710,7 @@ Use `ansi-to-tui` to preserve colored test output.
 ```text
 ┌ Logs: build-enclave-server #12345 ───────────────────────────────────────┐
 │ $ cargo build --release                                                  │
-│ Compiling vgit v3.0.0                                                     │
+│ Compiling jeryu v3.0.0                                                     │
 │ Finished release [optimized] target(s) in 11m 42s                         │
 │                                                                           │
 │ Last updated: 3s ago                                                      │
@@ -1894,14 +1894,14 @@ Use `events` table and job status transitions.
 Add explicit TUI options:
 
 ```bash
-vgit tui
-vgit tui --view flow
-vgit tui --view release
-vgit tui --project-id 2 --ref-name main
-vgit tui --pipeline-id 407
-vgit tui --once
-vgit tui --ascii
-vgit tui --no-color
+jeryu tui
+jeryu tui --view flow
+jeryu tui --view release
+jeryu tui --project-id 2 --ref-name main
+jeryu tui --pipeline-id 407
+jeryu tui --once
+jeryu tui --ascii
+jeryu tui --no-color
 ```
 
 Suggested enum:
@@ -2039,7 +2039,7 @@ Selected: build-enclave-server
 Status: running 99%
 Elapsed: 11m20s
 ETA: 00:54
-Runner: build / vgit-runner-5a6f67c
+Runner: build / jeryu-runner-5a6f67c
 Trace: fresh, 3s ago
 Critical path: yes
 Why this matters: integration and release gates wait on this artifact

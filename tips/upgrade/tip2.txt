@@ -1,6 +1,6 @@
 Absolutely — this is a **very serious, very exciting control plane**. The architecture already has the bones of something much more powerful than a CI dashboard: it is part GitLab control plane, part agent operations center, part release commander, part secure execution runtime, and part production flight deck.
 
-My highest-level read: **vgit is already architecturally close to a “developer command center,” but the TUI and capability API are not yet exposing the full intelligence of the system.** The strongest opportunity is to turn the existing state, release gates, evidence capsules, VTI plans, runner health, cache intelligence, and agent workflows into a unified, real-time, action-oriented cockpit.
+My highest-level read: **jeryu is already architecturally close to a “developer command center,” but the TUI and capability API are not yet exposing the full intelligence of the system.** The strongest opportunity is to turn the existing state, release gates, evidence capsules, VTI plans, runner health, cache intelligence, and agent workflows into a unified, real-time, action-oriented cockpit.
 
 Below is my best feedback, organized by gaps, agent dreams, risks, and a dream TUI redesign.
 
@@ -16,7 +16,7 @@ The system is strong because it has three things many internal developer platfor
 
 The biggest current gap is not lack of power. The gap is **visibility and operational synthesis**.
 
-Right now, vgit has a lot of truth, but the user has to infer too much:
+Right now, jeryu has a lot of truth, but the user has to infer too much:
 
 * Why is this pipeline waiting?
 * Is this failure infra, regression, flaky, tainted, or capacity-related?
@@ -51,7 +51,7 @@ This should be preserved aggressively.
 
 ## 2.2 The state model is unusually valuable
 
-The SQLite state model gives vgit a memory of:
+The SQLite state model gives jeryu a memory of:
 
 * runner pools
 * job events
@@ -65,7 +65,7 @@ The SQLite state model gives vgit a memory of:
 * secret rotations
 * audit events
 
-That means vgit can become much smarter than GitLab’s normal UI. GitLab shows you what happened. vgit can explain **why it happened**, **what it means**, and **what to do next**.
+That means jeryu can become much smarter than GitLab’s normal UI. GitLab shows you what happened. jeryu can explain **why it happened**, **what it means**, and **what to do next**.
 
 ## 2.3 The agent model is promising
 
@@ -115,7 +115,7 @@ to something like:
   "message": "Intent deserialized but no active routing exists.",
   "data": {
     "implemented": false,
-    "recommended_surface": "vgit agent spawn / GitLab MR workflow"
+    "recommended_surface": "jeryu agent spawn / GitLab MR workflow"
   }
 }
 ```
@@ -263,7 +263,7 @@ Or:
 {
   "intent": "ProposePatch",
   "payload": {
-    "bundle_id": "artifact://vgit/agent/task-123/patch"
+    "bundle_id": "artifact://jeryu/agent/task-123/patch"
   }
 }
 ```
@@ -312,7 +312,7 @@ Prefer a tombstone model over hard deletion. The TUI should make clear:
 
 ```text
 This does not cancel the GitLab job.
-This only hides the local vgit record.
+This only hides the local jeryu record.
 ```
 
 For serious systems, I would avoid destructive local deletion from the TUI unless it writes an audit event.
@@ -321,7 +321,7 @@ For serious systems, I would avoid destructive local deletion from the TUI unles
 
 ## 3.8 The Audit tab should not be a placeholder
 
-Given how much event data vgit already records, the Audit tab should be one of the most important surfaces.
+Given how much event data jeryu already records, the Audit tab should be one of the most important surfaces.
 
 It should show:
 
@@ -476,7 +476,7 @@ Classification: Regression
 Retry: DoNotRetry
 Likely owner: release.rs
 Changed files: src/release.rs, src/state.rs
-Suggested validation: cargo test -p vgit -- release::tests
+Suggested validation: cargo test -p jeryu -- release::tests
 ```
 
 That is the difference between “log viewer” and “developer dream console.”
@@ -534,7 +534,7 @@ This would make the TUI feel powerful without feeling dangerous.
 
 # 4. What an agent would dream to be able to do
 
-An agent would dream of vgit becoming a **typed, least-privilege DevOps operating system**.
+An agent would dream of jeryu becoming a **typed, least-privilege DevOps operating system**.
 
 Right now, agents can do useful things through CLI and a thin capability API. But the dream agent interface would expose the whole system as a structured action graph.
 
@@ -545,7 +545,7 @@ Agents should not have to scrape CLI output or infer system state from many call
 Add:
 
 ```text
-vgit agent context --project-id 2 --ref main --json
+jeryu agent context --project-id 2 --ref main --json
 ```
 
 Or capability intent:
@@ -686,7 +686,7 @@ Example:
 
 The system would create branches, run targeted tests, compare outcomes, and present the winning branch.
 
-This is exactly where vgit could become extraordinary.
+This is exactly where jeryu could become extraordinary.
 
 ---
 
@@ -744,8 +744,8 @@ The current capability API is request/response. That is fine for simple actions,
 Possible surfaces:
 
 ```text
-vgit events stream --json
-vgit capability stream /tmp/vgit-events.sock
+jeryu events stream --json
+jeryu capability stream /tmp/jeryu-events.sock
 GET /events/stream
 ```
 
@@ -889,7 +889,7 @@ Every action should be traceable across:
 
 ---
 
-# 6. Dream TUI redesign: the vgit Developer Command Console
+# 6. Dream TUI redesign: the jeryu Developer Command Console
 
 I would redesign the TUI as a **real-time command cockpit**.
 
@@ -931,7 +931,7 @@ A power user should be able to answer in five seconds:
 At the very top:
 
 ```text
-VGIT COMMAND CENTER  GitLab ● ONLINE  Runners 7/10  Queue 3  Cache 82% hit  Disk 68%  Release BLOCKED  Prod SAFE
+JERYU COMMAND CENTER  GitLab ● ONLINE  Runners 7/10  Queue 3  Cache 82% hit  Disk 68%  Release BLOCKED  Prod SAFE
 ```
 
 Use compact colored status pills:
@@ -1834,7 +1834,7 @@ If I had to sequence the TUI work, I would do it like this.
 I would redesign the default screen like this:
 
 ```text
-┌ VGIT COMMAND CENTER ─ GitLab ONLINE ─ Runners 7/10 ─ Queue 3 ─ Release BLOCKED ─ Disk 68% ┐
+┌ JERYU COMMAND CENTER ─ GitLab ONLINE ─ Runners 7/10 ─ Queue 3 ─ Release BLOCKED ─ Disk 68% ┐
 │ 1 Flow  2 Release  3 Pipes  4 Jobs  5 Agents  6 Runners  7 Tests  8 Cache  9 Audit       │
 ├────────────────────────────────────────────────────────────────────────────────────────────┤
 │ Release: ci-fa51a52a  Canary E2E PASSED  Prod BLOCKED: validation artifact missing         │
@@ -1907,7 +1907,7 @@ This is the kind of clarity release operators need.
 
 # 15. Specific design: Agent Operations tab
 
-The Agents tab could become one of the most distinctive parts of vgit.
+The Agents tab could become one of the most distinctive parts of jeryu.
 
 ```text
 AGENT OPERATIONS
@@ -2004,7 +2004,7 @@ Actions
 [l] logs
 ```
 
-This would make vgit feel operationally intelligent.
+This would make jeryu feel operationally intelligent.
 
 ---
 
@@ -2096,10 +2096,10 @@ That pattern should spread.
 Examples:
 
 ```text
-vgit pool scale build 4 --plan
-vgit release promote-prod --plan
-vgit secrets rotate --plan
-vgit pipeline cancel 530 --plan
+jeryu pool scale build 4 --plan
+jeryu release promote-prod --plan
+jeryu secrets rotate --plan
+jeryu pipeline cancel 530 --plan
 ```
 
 The TUI can call the plan first and render it before applying.
@@ -2204,7 +2204,7 @@ This pattern should apply to:
 * merge gate escalation
 * agent blockers
 
-That would make vgit feel brilliant.
+That would make jeryu feel brilliant.
 
 ---
 
@@ -2229,7 +2229,7 @@ Those changes would dramatically raise the perceived power and trustworthiness o
 
 # 23. Final take
 
-vgit is already much more than a CI helper. The architecture is pointing toward a **local autonomous delivery control plane**. The missing piece is a UI and capability layer that fully exposes the intelligence already present in the system.
+jeryu is already much more than a CI helper. The architecture is pointing toward a **local autonomous delivery control plane**. The missing piece is a UI and capability layer that fully exposes the intelligence already present in the system.
 
 The dream version is a terminal-native **developer operations cockpit** where a power user can see:
 

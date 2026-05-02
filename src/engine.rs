@@ -1,5 +1,5 @@
 //! Owner: Engine Core (Webhook + Reconciliation)
-//! Proof: `cargo test -p vgit -- engine`
+//! Proof: `cargo test -p jeryu -- engine`
 //! Invariants: 5-min recon cycle; Docker crash recovery via event stream; supersedence on newer SHA
 //!
 //! The engine is the real-time brain. It runs two concurrent tasks:
@@ -171,7 +171,7 @@ async fn handle_push_event(state: SharedState, payload: PushHookPayload) {
     // These branches experience out-of-order push hooks (branch-create hook
     // can arrive after the commit hook) which causes the supersedence logic
     // to incorrectly cancel the test pipeline.
-    if ref_name.starts_with("vgit-test-") {
+    if ref_name.starts_with("jeryu-test-") {
         debug!(
             project_id = payload.project_id,
             ref_name = %ref_name,
@@ -1053,7 +1053,7 @@ pub async fn run_engine(
     });
 
     let addr = crate::settings::get().webhook.bind.clone();
-    info!(addr = %addr, "starting vgit engine");
+    info!(addr = %addr, "starting jeryu engine");
 
     // Start background health sentinel loop
     let health_state = state.clone();
@@ -1072,11 +1072,11 @@ async fn cache_summary(
     headers: HeaderMap,
 ) -> Result<axum::Json<serde_json::Value>, StatusCode> {
     let token = headers
-        .get("X-Vgit-Token")
+        .get("X-Jeryu-Token")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
     if token != state.webhook_secret {
-        warn!("cache_summary rejected: missing or invalid X-Vgit-Token");
+        warn!("cache_summary rejected: missing or invalid X-Jeryu-Token");
         return Err(StatusCode::UNAUTHORIZED);
     }
     let metrics = state.db.get_cache_metrics().await.unwrap_or_default();
@@ -1108,11 +1108,11 @@ async fn docker_event_loop(state: SharedState) {
             if (action == "die" || action == "oom")
                 && let Some(actor) = event.actor
                 && let Some(attrs) = actor.attributes
-                && attrs.get("vgit.managed").map(|s| s.as_str()) == Some("true")
+                && attrs.get("jeryu.managed").map(|s| s.as_str()) == Some("true")
             {
                 let name = attrs.get("name").cloned().unwrap_or_default();
-                warn!(%name, action, "vgit manager container terminated unexpectedly");
-                if let Some(manager_id) = attrs.get("vgit.manager_id")
+                warn!(%name, action, "jeryu manager container terminated unexpectedly");
+                if let Some(manager_id) = attrs.get("jeryu.manager_id")
                     && let Err(error) = state.db.update_manager_state(manager_id, "stopped").await
                 {
                     error!(%manager_id, %error, "failed to mark dead runner manager stopped");

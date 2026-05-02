@@ -17,7 +17,7 @@ Parallel work should stack vertically inside each stage. The current critical pa
 A good first frame should look closer to this:
 
 ```text
-vgit God Mode | GitLab ● ONLINE | Containers 10 | Release ci-54c658aac9c3 | main
+jeryu God Mode | GitLab ● ONLINE | Containers 10 | Release ci-54c658aac9c3 | main
 ETA 06m 20s p80 | Critical path: build-enclave-server → integration-api → remote-gate
 Current blocker: build-enclave-server running 99%, canary not yet eligible
 
@@ -60,7 +60,7 @@ The visual priority should be:
 Keep the current top bar, but upgrade it into a release cockpit:
 
 ```text
-vgit God Mode | GitLab ● ONLINE | Containers 10 | Cache HIT 84% | Runner pressure 5/8
+jeryu God Mode | GitLab ● ONLINE | Containers 10 | Cache HIT 84% | Runner pressure 5/8
 Release ci-54c658aac9c3 | main | Pipeline #407 RUNNING | 83% | ETA 06m20s p80
 Blocker: build-enclave-server running 99% | Pending: 7 jobs | Failed: 0 | Superseded: 2
 ```
@@ -198,7 +198,7 @@ src/tui/flow/
 ├── layout.rs         # Deterministic virtual graph layout
 ├── widget.rs         # Ratatui StatefulWidget renderer
 ├── inspector.rs      # Right-side selected-node panel
-├── commands.rs       # TUI actions mapped to vgit APIs
+├── commands.rs       # TUI actions mapped to jeryu APIs
 └── palette.rs        # Semantic status styles and glyphs
 ```
 
@@ -1165,16 +1165,16 @@ pipeline_id + sha + job_id/status/version list hash
 
 ## 21. New CLI flags
 
-Extend `vgit tui`:
+Extend `jeryu tui`:
 
 ```bash
-vgit tui
-vgit tui --view flow
-vgit tui --view flow --project-id 2 --ref-name main
-vgit tui --view flow --pipeline-id 407
-vgit tui --view flow --once
-vgit tui --view flow --ascii
-vgit tui --view flow --no-mouse
+jeryu tui
+jeryu tui --view flow
+jeryu tui --view flow --project-id 2 --ref-name main
+jeryu tui --view flow --pipeline-id 407
+jeryu tui --view flow --once
+jeryu tui --view flow --ascii
+jeryu tui --view flow --no-mouse
 ```
 
 Defaults:
@@ -1190,7 +1190,7 @@ Defaults:
 
 The implementation is done when these are true:
 
-1. Opening `vgit tui` defaults to the Flow view.
+1. Opening `jeryu tui` defaults to the Flow view.
 2. The latest active pipeline is selected automatically.
 3. The graph shows Git → admission → pipeline → stage/test → release gates left-to-right.
 4. Parallel jobs in the same stage are stacked vertically.

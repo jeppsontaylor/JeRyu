@@ -4,7 +4,7 @@ I reviewed the current source with the scope narrowed to **API surfaces + TUI**.
 
 JeRyu currently exposes four main “API” surfaces:
 
-1. **CLI API** through `vgit` subcommands.
+1. **CLI API** through `jeryu` subcommands.
 2. **Engine HTTP API** for webhooks/health/cache summary.
 3. **Capability Unix socket API** for structured agent intents.
 4. **Action registry** that partially unifies CLI/TUI/capability actions.
@@ -15,11 +15,11 @@ The test CLI is one of the more agent-relevant areas: it supports single test ru
 
 The release/secrets/host/repo CLI surface is also fairly rich: release status/watch/reconcile/promote/preflight/doctor, Vault-backed secret init/status/rotate/finalize/report/recover, host storage/doctor/reclaim, and repo agent-surface/index commands. ([GitHub][1])
 
-The engine HTTP API is much smaller. The router currently exposes `/health`, `/hooks`, and `/cache/summary`; `/hooks` handles GitLab webhook events, while `/cache/summary` requires `X-Vgit-Token` and returns bytes served, hits, object count, and health status. ([GitHub][2])
+The engine HTTP API is much smaller. The router currently exposes `/health`, `/hooks`, and `/cache/summary`; `/hooks` handles GitLab webhook events, while `/cache/summary` requires `X-Jeryu-Token` and returns bytes served, hits, object count, and health status. ([GitHub][2])
 
 The capability API is a Unix domain socket server that accepts a tagged JSON `AgentIntent`. Supported intents include `ProposePatch`, `RacePatches`, `RunTests`, `FetchCapsule`, `RequestMerge`, `ExplainBlockers`, `GetSystemSnapshot`, `ListAllowedActions`, and `PlanValidation`. The server reads one request into a fixed 65,536-byte buffer and returns a `CapabilityResponse { success, message, data }`. ([GitHub][3])
 
-The action registry is one of the best current pieces. It defines risk tiers, surfaces, side-effect classes, grant requirements, action metadata, dry-run flags, descriptions, and JSON contracts. It is explicitly consumed by the TUI command palette, `vgit action list`, and capability `ListAllowedActions`. Registered actions include open logs, retry job, delete local record, pause pool, explain blockers, system snapshot, propose patch, race patches, request merge, plan validation, run tests, next action, tab navigation, audit toggle, and quit. ([GitHub][4])
+The action registry is one of the best current pieces. It defines risk tiers, surfaces, side-effect classes, grant requirements, action metadata, dry-run flags, descriptions, and JSON contracts. It is explicitly consumed by the TUI command palette, `jeryu action list`, and capability `ListAllowedActions`. Registered actions include open logs, retry job, delete local record, pause pool, explain blockers, system snapshot, propose patch, race patches, request merge, plan validation, run tests, next action, tab navigation, audit toggle, and quit. ([GitHub][4])
 
 ## Current TUI, as implemented
 
@@ -769,7 +769,7 @@ Cache taints: 0
 Secret access: none
 Network: crates.io only
 Sandbox: container/seccomp
-Policy: vgit-policy@789
+Policy: jeryu-policy@789
 Decision: ALLOW / DENY / NEEDS HUMAN
 ```
 
@@ -1379,9 +1379,9 @@ Since 12:04:
 The TUI already supports PNG capture. Use that as a product feature:
 
 ```text
-vgit tui --capture --tab merge-proof
-vgit tui --capture --tab agent --entity agent-7
-vgit tui --capture --tab release --theme presentation
+jeryu tui --capture --tab merge-proof
+jeryu tui --capture --tab agent --entity agent-7
+jeryu tui --capture --tab release --theme presentation
 ```
 
 This is great for demos, incident reports, and release artifacts.

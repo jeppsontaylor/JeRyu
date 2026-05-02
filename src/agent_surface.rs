@@ -1,5 +1,5 @@
 //! Owner: Agent Surface
-//! Proof: `cargo check -p vgit && cargo test -p vgit agent_surface`
+//! Proof: `cargo check -p jeryu && cargo test -p jeryu agent_surface`
 //! Invariants: Generated routing index is derived from repo truth; audit fails on missing hard surfaces and stale generated output.
 
 use anyhow::{Context, Result, bail};
@@ -92,7 +92,7 @@ pub fn render_agent_index(check: bool) -> Result<()> {
         let json_current = fs::read_to_string(&json_path).unwrap_or_default();
         let markdown_current = fs::read_to_string(&markdown_path).unwrap_or_default();
         if !compare_generated_index(&json_current, &json_text, &markdown_current, &markdown_text) {
-            bail!("agent index drift detected; run `cargo run -p vgit -- repo render-agent-index`");
+            bail!("agent index drift detected; run `cargo run -p jeryu -- repo render-agent-index`");
         }
         return Ok(());
     }

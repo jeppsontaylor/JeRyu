@@ -1,6 +1,6 @@
 # RTK - Rust Token Killer
 
-RTK is the default shell entrypoint for `vgit` work. Use it to reduce terminal noise while keeping the failure boundary, job identifiers, and raw evidence recoverable.
+RTK is the default shell entrypoint for `jeryu` work. Use it to reduce terminal noise while keeping the failure boundary, job identifiers, and raw evidence recoverable.
 
 ## Default Rule
 
@@ -8,9 +8,9 @@ Prefix routine shell commands with `rtk`.
 
 ```bash
 rtk git status
-rtk cargo check -p vgit --message-format=json
-rtk cargo test -p vgit --lib
-rtk cargo run -p vgit -- progress --json
+rtk cargo check -p jeryu --message-format=json
+rtk cargo test -p jeryu --lib
+rtk cargo run -p jeryu -- progress --json
 ```
 
 ## When To Use `rtk proxy`
@@ -33,14 +33,14 @@ RTK output must preserve:
 - decisive output tail
 - raw log path if output is spooled
 - GitLab job IDs and pipeline IDs when present
-- evidence file paths under `.vgit/`, release reports, or local ledgers
+- evidence file paths under `.jeryu/`, release reports, or local ledgers
 
 For CI and release investigation, prefer structured commands:
 
 ```bash
-rtk cargo check -p vgit --message-format=json
-rtk cargo run -p vgit -- pipeline jobs --json --pipeline-id <id>
-rtk cargo run -p vgit -- progress --json
+rtk cargo check -p jeryu --message-format=json
+rtk cargo run -p jeryu -- pipeline jobs --json --pipeline-id <id>
+rtk cargo run -p jeryu -- progress --json
 ```
 
 ## Recovery
@@ -48,7 +48,7 @@ rtk cargo run -p vgit -- progress --json
 If RTK compresses too aggressively:
 
 1. Re-run with `rtk proxy <cmd>`.
-2. Pull the structured source of truth first: `vgit progress --json`, `vgit pipeline jobs --json`, `agent-index.json`.
+2. Pull the structured source of truth first: `jeryu progress --json`, `jeryu pipeline jobs --json`, `agent-index.json`.
 3. Open raw logs only after you have the failing job or phase identified.
 
 ## Meta Commands

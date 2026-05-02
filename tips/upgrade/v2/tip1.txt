@@ -46,7 +46,7 @@ That means the single most important trust boundary is not closed. For an agent-
 
 ### 2. The sandbox story is much weaker than the docs imply
 
-The sandbox module says strict isolation uses mechanisms like `unshare`/`bwrap`, but the implementation comment says strict mode currently just executes `bash` with `VGIT_SANDBOXED=1`. The custom executor also depends on the Docker socket and installs packages with `apt-get`, which is high-risk for untrusted agent workloads. ([GitHub][9])
+The sandbox module says strict isolation uses mechanisms like `unshare`/`bwrap`, but the implementation comment says strict mode currently just executes `bash` with `JERYU_SANDBOXED=1`. The custom executor also depends on the Docker socket and installs packages with `apt-get`, which is high-risk for untrusted agent workloads. ([GitHub][9])
 
 For an agent-first system, untrusted code and untrusted agents are the normal case. The sandbox cannot be aspirational. It needs to be the core product.
 
@@ -98,7 +98,7 @@ The architecture doc’s push-hook flow records a VTI plan, but the deeper produ
 
 There are several meaningful mismatches:
 
-The API doc says `/cache/summary` has no auth, but the engine requires `X-Vgit-Token` matching the webhook secret. ([GitHub][3])
+The API doc says `/cache/summary` has no auth, but the engine requires `X-Jeryu-Token` matching the webhook secret. ([GitHub][3])
 
 The API doc says some capability intents are deferred, while the source implements several of them. ([GitHub][3])
 

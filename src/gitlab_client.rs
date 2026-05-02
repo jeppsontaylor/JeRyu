@@ -1,7 +1,7 @@
 //! Owner: GitLab REST Client subsystem
-//! Proof: `cargo nextest run -p vgit -- gitlab_client`
+//! Proof: `cargo nextest run -p jeryu -- gitlab_client`
 //! Invariants: HTTP calls preserve GitLab semantics, redact tokens, and surface status-specific failures.
-//! GitLab REST API client for vgit.
+//! GitLab REST API client for jeryu.
 //!
 //! Thin, purpose-built wrapper around reqwest. Every method maps to
 //! one GitLab REST endpoint. No magic.
@@ -275,7 +275,7 @@ impl GitlabClient {
     fn pat_value(&self) -> Result<String> {
         self.pat
             .clone()
-            .ok_or_else(|| anyhow::anyhow!("no PAT configured — run `vgit bootstrap` first"))
+            .ok_or_else(|| anyhow::anyhow!("no PAT configured — run `jeryu bootstrap` first"))
     }
 
     pub fn pat_value_for_clone(&self) -> Option<String> {
@@ -1118,7 +1118,7 @@ impl GitlabClient {
 }
 
 fn insecure_tls_enabled_from_env() -> bool {
-    std::env::var("VGIT_GITLAB_INSECURE_TLS")
+    std::env::var("JERYU_GITLAB_INSECURE_TLS")
         .ok()
         .is_some_and(|value| insecure_tls_enabled_from_value(&value))
 }

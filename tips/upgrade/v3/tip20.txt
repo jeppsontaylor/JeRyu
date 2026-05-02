@@ -4,7 +4,7 @@ I tried to clone the repo normally, but the sandbox DNS could not resolve GitHub
 
 ## Executive verdict
 
-This is a **very cool foundation**. The best way to describe it today is not “a GitLab fork” yet, but **a Rust agent-control plane wrapped around local GitLab CE, GitLab Runner, Docker, Vault, Postgres/SQLite, smart test selection, cache control, release gates, and a supervisory TUI**. The docs themselves frame `vgit` as a Rust control plane that turns a local GitLab instance plus runner/cache/secrets/release systems into an agent-operable delivery system. ([GitHub][1])
+This is a **very cool foundation**. The best way to describe it today is not “a GitLab fork” yet, but **a Rust agent-control plane wrapped around local GitLab CE, GitLab Runner, Docker, Vault, Postgres/SQLite, smart test selection, cache control, release gates, and a supervisory TUI**. The docs themselves frame `jeryu` as a Rust control plane that turns a local GitLab instance plus runner/cache/secrets/release systems into an agent-operable delivery system. ([GitHub][1])
 
 The strongest idea is that it treats agents as first-class operators instead of just “bots using CI.” It has proof lanes, file/module ownership, a generated agent index, evidence capsules, action registry concepts, capability intents, smart test selection, cache tainting, release gates, and a TUI that exposes operational state. That is exactly the right direction for the world’s best agent-first Git platform. ([GitHub][2])
 
@@ -26,7 +26,7 @@ The generated `agent-index` idea is also strong. A serious autonomous coding pla
 
 ### 3. VTI smart test selection is the right kind of performance feature
 
-The VTI docs describe a subsystem-aware test selection system that maps changed files to minimal required tests, emits plans/artifacts, supports external `.vgit/testmap.toml`, and uses nightly audit/learning to reduce selector misses. That is a huge unlock for agent coding because agents are bottlenecked by validation latency. ([GitHub][5])
+The VTI docs describe a subsystem-aware test selection system that maps changed files to minimal required tests, emits plans/artifacts, supports external `.jeryu/testmap.toml`, and uses nightly audit/learning to reduce selector misses. That is a huge unlock for agent coding because agents are bottlenecked by validation latency. ([GitHub][5])
 
 The best part is the self-auditing idea: smart test selection is dangerous unless the system continuously checks whether skipped tests would have failed. A nightly oracle plus selector-miss history is exactly the right safety mechanism.
 
@@ -70,7 +70,7 @@ Both are valid. The current repo is clearly closer to Path B. The product langua
 
 ### 2. The sandbox isolation claim is not implemented strongly enough
 
-This is the most urgent security gap. `sandbox.rs` declares an invariant that strict network isolation uses `unshare`/`bwrap`, but the actual strict path creates a `bash` command and sets `VGIT_SANDBOXED=1`; comments acknowledge that full namespace isolation would require more setup and that the custom executor relies on honeypots/proxy controls. ([GitHub][9])
+This is the most urgent security gap. `sandbox.rs` declares an invariant that strict network isolation uses `unshare`/`bwrap`, but the actual strict path creates a `bash` command and sets `JERYU_SANDBOXED=1`; comments acknowledge that full namespace isolation would require more setup and that the custom executor relies on honeypots/proxy controls. ([GitHub][9])
 
 For untrusted autonomous agents, this is not enough. Honeypots and env flags are useful detection layers, not isolation boundaries. The world’s best agent-first Git system needs real containment: rootless containers, gVisor/Kata/Firecracker/bubblewrap, seccomp/AppArmor, read-only source mounts, no Docker socket, egress policy, process-tree killing, filesystem allowlists, and per-job identity.
 
@@ -88,7 +88,7 @@ That is risky. It can cache `.git`, secrets, temporary files, generated credenti
 
 ### 5. Admission control is promising but too weak by default
 
-Admission control installs a GitLab Gitaly pre-receive hook and reads `VGIT_ADMISSION_ENFORCE`; if enforcement is not enabled, agent refs are audited rather than denied. Agent identity is inferred from branch namespaces like `refs/heads/agent/`, `refs/heads/vgit/`, and `refs/heads/agents/`. ([GitHub][11])
+Admission control installs a GitLab Gitaly pre-receive hook and reads `JERYU_ADMISSION_ENFORCE`; if enforcement is not enabled, agent refs are audited rather than denied. Agent identity is inferred from branch namespaces like `refs/heads/agent/`, `refs/heads/jeryu/`, and `refs/heads/agents/`. ([GitHub][11])
 
 That is a good start, but a serious agent platform should not rely primarily on branch naming. It should authenticate the actor, require signed commits or SSH/OIDC certs, bind writes to exact capability grants, enforce protected-branch policy, and reject agent-originated writes outside approved refs. The default should be “deny unless granted,” especially for autonomous agents.
 
@@ -151,7 +151,7 @@ Every autonomous action should produce and consume a typed contract:
     "forbidden_paths": ["secrets/**", ".gitlab-ci.yml"]
   },
   "proof_obligations": [
-    "cargo check -p vgit",
+    "cargo check -p jeryu",
     "vti selected tests",
     "security scan if touching exec/sandbox/secrets"
   ],
@@ -213,7 +213,7 @@ This could be a killer feature. Every failure should produce a compact capsule:
   "kind": "compile_error",
   "root_cause_guess": "missing trait bound",
   "first_bad_span": "src/foo.rs:42:17",
-  "minimal_repro": "cargo test -p vgit foo::bar",
+  "minimal_repro": "cargo test -p jeryu foo::bar",
   "changed_files": ["src/foo.rs"],
   "related_commits": [],
   "suggested_repairs": [
@@ -539,9 +539,9 @@ Every command palette action should map to the same action registry entry agents
 Do not make agents scrape ANSI. The TUI should be backed by a JSON snapshot:
 
 ```bash
-vgit tui snapshot --json
-vgit action list --json
-vgit action invoke retry_job --json '{...}'
+jeryu tui snapshot --json
+jeryu action list --json
+jeryu action invoke retry_job --json '{...}'
 ```
 
 The human TUI and agent API should be two views of the same state/action system.
@@ -555,7 +555,7 @@ The human TUI and agent API should be two views of the same state/action system.
 * Cache pipeline/job snapshots with version counters.
 * Add SQLite WAL defaults and explicit DB read/write separation.
 * Split giant state queries by tab so the TUI only fetches what it renders.
-* Make `vgit status`, `progress`, `pipeline explain`, and `next` all sub-100ms when using local DB state.
+* Make `jeryu status`, `progress`, `pipeline explain`, and `next` all sub-100ms when using local DB state.
 
 ### Medium-term
 
@@ -655,7 +655,7 @@ This is where JeRyu can win:
 * Split `state.rs` and `dispatch.rs`.
 * Implement `agent list`.
 * Add event stream skeleton.
-* Add `vgit doctor --security`.
+* Add `jeryu doctor --security`.
 
 ### Phase 2: Make agents dramatically faster
 
@@ -695,7 +695,7 @@ The next level is to make the system **less aspirational and more enforceable**:
 [3]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/API.md "raw.githubusercontent.com"
 [4]: https://github.com/jeppsontaylor/JeRyu/blob/main/Cargo.toml "JeRyu/Cargo.toml at main · jeppsontaylor/JeRyu · GitHub"
 [5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VTI.md "raw.githubusercontent.com"
-[6]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[6]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [7]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/tui/action_registry.rs "JeRyu/src/tui/action_registry.rs at main · jeppsontaylor/JeRyu · GitHub"
 [8]: https://github.com/jeppsontaylor/JeRyu/blob/main/README.md "JeRyu/README.md at main · jeppsontaylor/JeRyu · GitHub"
 [9]: https://github.com/jeppsontaylor/JeRyu/blob/master/src/sandbox.rs "JeRyu/src/sandbox.rs at main · jeppsontaylor/JeRyu · GitHub"

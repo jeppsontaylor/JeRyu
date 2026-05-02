@@ -4,7 +4,7 @@ I tried to download/clone the repo directly, but the execution environment could
 
 ## Executive take
 
-JeRyu is **not a literal GitLab fork** in the normal sense. It looks much more like an ambitious Rust “agent control plane” that sits around GitLab pipelines, runners, release workflows, cache, evidence, TUI, and agent-facing APIs. The README describes `vgit` as a “single-binary Rust control plane” for local GitLab autonomous agents, and Cargo metadata describes it as a CI/CD control plane for GitLab-based pipelines rather than a replacement GitLab codebase. The workspace includes `vgit` plus proof/agent helper crates such as `cargo-witness`, `cargo-vrc`, `cargo-aer`, `witness-rt`, and `arc-bench`. ([GitHub][1])
+JeRyu is **not a literal GitLab fork** in the normal sense. It looks much more like an ambitious Rust “agent control plane” that sits around GitLab pipelines, runners, release workflows, cache, evidence, TUI, and agent-facing APIs. The README describes `jeryu` as a “single-binary Rust control plane” for local GitLab autonomous agents, and Cargo metadata describes it as a CI/CD control plane for GitLab-based pipelines rather than a replacement GitLab codebase. The workspace includes `jeryu` plus proof/agent helper crates such as `cargo-witness`, `cargo-vrc`, `cargo-aer`, `witness-rt`, and `arc-bench`. ([GitHub][1])
 
 My blunt verdict: **the concept is excellent and unusually agent-aware, but the implementation currently looks more like a powerful prototype/control-plane than the world’s #1 agent-first Git option.** The strongest parts are the proof-routing discipline, action registry, TUI ambition, evidence/capsule thinking, cache/taint model, and release/canary scaffolding. The biggest blockers are sandbox hardening, capability authorization, portability, incomplete autonomous merge/race workflows, hardcoded project assumptions, and several mega-files that will slow long-term evolution.
 
@@ -84,7 +84,7 @@ From the files I reviewed, this is not a fork of GitLab’s Rails/Gitaly/Workhor
 
 ## 2. The sandbox claim is ahead of the implementation
 
-The sandbox module’s invariant says strict network isolation uses `unshare`/`bwrap`, but the implementation currently sets `VGIT_SANDBOXED=1` and comments that real unshare/bwrap setup would require additional host preparation. The executor also says Docker-level isolation is handled by Docker executor pools, while the custom executor relies on host-level isolation, honeypots, and optional strict namespace logic. ([GitHub][11])
+The sandbox module’s invariant says strict network isolation uses `unshare`/`bwrap`, but the implementation currently sets `JERYU_SANDBOXED=1` and comments that real unshare/bwrap setup would require additional host preparation. The executor also says Docker-level isolation is handled by Docker executor pools, while the custom executor relies on host-level isolation, honeypots, and optional strict namespace logic. ([GitHub][11])
 
 This is the single biggest gap for an autonomous-agent system. Agents will run arbitrary build scripts, tests, dependency installers, generated code, and possibly untrusted code from branches. A flag is not a sandbox.
 
@@ -198,7 +198,7 @@ The release module contains hardcoded defaults like `/home/ubuntu/dougx` and pro
 * Artifact directories.
 * Evidence retention policy.
 
-Then add config validation and a `vgit doctor portability` command.
+Then add config validation and a `jeryu doctor portability` command.
 
 ## 10. Several files are too large for fast agent work
 
@@ -278,12 +278,12 @@ This becomes the core control loop. Instead of an agent randomly calling APIs, i
 Dream commands:
 
 ```bash
-vgit task create --goal "Fix flaky checkout test" --risk low
-vgit task status <id>
-vgit task explain <id>
-vgit task authorize <id> --grant branch-write --paths src/test_intel/**
-vgit task replay <id>
-vgit task archive <id>
+jeryu task create --goal "Fix flaky checkout test" --risk low
+jeryu task status <id>
+jeryu task explain <id>
+jeryu task authorize <id> --grant branch-write --paths src/test_intel/**
+jeryu task replay <id>
+jeryu task archive <id>
 ```
 
 ## 2. Build a repo intelligence graph
@@ -372,11 +372,11 @@ The `RacePatches` intent is a fantastic idea, but it needs a complete lifecycle.
 A dream flow:
 
 ```bash
-vgit race start --task T123 --strategies 5
-vgit race status T123
-vgit race explain-winner T123
-vgit race cleanup-losers T123
-vgit race promote T123 --to-mr
+jeryu race start --task T123 --strategies 5
+jeryu race status T123
+jeryu race explain-winner T123
+jeryu race cleanup-losers T123
+jeryu race promote T123 --to-mr
 ```
 
 The system should compare patches by:
@@ -473,9 +473,9 @@ It should include:
 Then expose:
 
 ```bash
-vgit mr readiness <mr>
-vgit mr explain-blockers <mr>
-vgit mr fix-next-blocker <mr>
+jeryu mr readiness <mr>
+jeryu mr explain-blockers <mr>
+jeryu mr fix-next-blocker <mr>
 ```
 
 ## 9. Create an autonomous release conductor
@@ -636,7 +636,7 @@ GitHub/GitLab expose conflicts but do not make them agent-operable enough.
 For every state, expose one ranked answer:
 
 ```bash
-vgit next
+jeryu next
 ```
 
 Example output:

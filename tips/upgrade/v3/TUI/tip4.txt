@@ -1,4 +1,4 @@
-I reviewed the current `docs/API.md`, `docs/VGIT_TUI.md`, and the TUI/capability source files. I did **not** run the TUI locally; my earlier attempt to clone the repo inside the container failed with DNS resolution for GitHub, so this is a source-level review from the current GitHub/raw files.
+I reviewed the current `docs/API.md`, `docs/JERYU_TUI.md`, and the TUI/capability source files. I did **not** run the TUI locally; my earlier attempt to clone the repo inside the container failed with DNS resolution for GitHub, so this is a source-level review from the current GitHub/raw files.
 
 # Bottom line
 
@@ -34,7 +34,7 @@ The TUI uses three background workers: a general snapshot worker, a flow collect
 
 The current UI source renders a top header, tab content, an event console, a footer, and an optional command palette. It switches over the nine tabs and has a maximized logs mode. ([GitHub][3])
 
-The header shows `vgit`, GitLab readiness, container count, pool count, release short SHA/canary state, stale status, and numbered tab labels from 1 through 9. ([GitHub][3])
+The header shows `jeryu`, GitLab readiness, container count, pool count, release short SHA/canary state, stale status, and numbered tab labels from 1 through 9. ([GitHub][3])
 
 The Flow model has useful concepts: columns such as Commit, Admission, Impact, Pipeline, Build, Tests, Security, Package, Release Gates, Canary, Production, and Other; lanes such as Unit, Integration, Security, Extended, Research, Release Critical, and Release Execution; nodes, edges, ETA, progress, and bottleneck metadata. ([GitHub][4])
 
@@ -297,7 +297,7 @@ The screen layout should be consistent across tabs:
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ vgit Mission Control  GitLab OK  Agents 7  Risk MED  Release CANARY PASS  │
+│ jeryu Mission Control  GitLab OK  Agents 7  Risk MED  Release CANARY PASS  │
 ├───────────────┬─────────────────────────────────────────┬────────────────┤
 │ Work/Objects  │ Main visualization                      │ Inspector      │
 │ tasks/agents  │ flow graph, tests, evidence, release    │ why / next     │
@@ -1124,7 +1124,7 @@ Then the UI should offer the next safe action.
 That is what GitHub/GitLab do not do well. JeRyu can win by becoming the first terminal-native forge/control-plane that tells humans and agents not just **what happened**, but **what to do next and why it is safe**.
 
 [1]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/API.md "raw.githubusercontent.com"
-[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [3]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/tui/ui.rs "JeRyu/src/tui/ui.rs at main · jeppsontaylor/JeRyu · GitHub"
 [4]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/flow/model.rs "raw.githubusercontent.com"
 [5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/flow/builder.rs "raw.githubusercontent.com"

@@ -1,5 +1,5 @@
 //! Owner: VTI Test Intelligence subsystem — test plan algorithm
-//! Proof: `cargo nextest run -p vgit -- test_intel::planner`
+//! Proof: `cargo nextest run -p jeryu -- test_intel::planner`
 //! Invariants: The planner may skip only when ownership, dependency, and history evidence agree.
 //! Test plan selection algorithm.
 //!

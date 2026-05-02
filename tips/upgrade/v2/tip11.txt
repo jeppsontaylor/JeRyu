@@ -12,13 +12,13 @@ The biggest gap is that the repo currently reads like a powerful prototype/contr
 
 ### 1. The architecture points at the right primitive: an agent-native control plane
 
-The architecture doc frames `vgit` as a Rust control plane over local GitLab, Runner, Docker, Vault, SQLite, CI semantics, VTI, failure evidence, action registry, settings, and TUI. It also splits the system into interface, control, state, execution, and intelligence planes, which is exactly how I would structure an agent-first Git/testing manager. ([GitHub][1])
+The architecture doc frames `jeryu` as a Rust control plane over local GitLab, Runner, Docker, Vault, SQLite, CI semantics, VTI, failure evidence, action registry, settings, and TUI. It also splits the system into interface, control, state, execution, and intelligence planes, which is exactly how I would structure an agent-first Git/testing manager. ([GitHub][1])
 
 That separation matters. Agents need different surfaces from humans: typed intents, logs, failure capsules, “why blocked” explanations, safe patching, reproducible runners, and merge gates. The repo already has the beginnings of that: CLI/TUI, GitLab webhooks, capability intents, runner pools, custom executor, SmartCache, failure capsules, release tracking, and VTI. ([GitHub][1])
 
 ### 2. VTI is the strongest idea in the repo
 
-The VTI doc describes a subsystem-aware smart test selector that maps changed files to minimal test plans, emits plan JSON and child-pipeline YAML, supports external `.vgit/testmap.toml`, records executions, and includes a nightly oracle for selector misses. That is a very good foundation for agent-first development because agents need fast feedback loops but also need proof that skipped tests were safe. ([GitHub][2])
+The VTI doc describes a subsystem-aware smart test selector that maps changed files to minimal test plans, emits plan JSON and child-pipeline YAML, supports external `.jeryu/testmap.toml`, records executions, and includes a nightly oracle for selector misses. That is a very good foundation for agent-first development because agents need fast feedback loops but also need proof that skipped tests were safe. ([GitHub][2])
 
 The best VTI design choice is that the documented failure modes default to full test execution. Plan failure, unmapped files, missing dependencies, unparsable plans, and global invalidators all fall back to full runs, so the intended design is “optimize when confident, fail closed when uncertain.” ([GitHub][2])
 
@@ -163,7 +163,7 @@ Racing patches is one of the most powerful agent-first ideas in the repo. But to
 
 ### 8. VTI is promising but not general enough yet
 
-The VTI doc says the internal planner is hardcoded in `subsystem.rs`, while the external planner is currently oriented around `dougx` via `.vgit/testmap.toml`. It also uses a lightweight custom glob matcher. ([GitHub][2])
+The VTI doc says the internal planner is hardcoded in `subsystem.rs`, while the external planner is currently oriented around `dougx` via `.jeryu/testmap.toml`. It also uses a lightweight custom glob matcher. ([GitHub][2])
 
 That is fine for a focused prototype, but not enough for a world-class open-source tool. VTI needs to become a general, schema-versioned, repo-portable test intelligence layer.
 
@@ -306,7 +306,7 @@ This is uniquely agent-first; humans rarely want to do this manually, but agents
 
 ### 6. Policy-as-code
 
-Add `.vgit/policy.toml` or `.vgit/policy.yaml` with optional OPA/Rego or Cedar support.
+Add `.jeryu/policy.toml` or `.jeryu/policy.yaml` with optional OPA/Rego or Cedar support.
 
 Policy should cover:
 
@@ -397,7 +397,7 @@ VTI is the most important subsystem to mature.
 
 I would evolve it in this order:
 
-1. **Schema-version `.vgit/testmap.toml`**
+1. **Schema-version `.jeryu/testmap.toml`**
    Add strict validation, examples, test fixtures, and migration rules.
 
 2. **Move from path-only selection to evidence-based selection**
@@ -459,7 +459,7 @@ Add a tiny sample project with:
 
 * One passing test.
 * One failing test.
-* A `.vgit/testmap.toml`.
+* A `.jeryu/testmap.toml`.
 * A VTI-selected run.
 * A full fallback run.
 * A failure capsule.

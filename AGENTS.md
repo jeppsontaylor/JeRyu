@@ -1,4 +1,4 @@
-# vgit Agent Workspace
+# jeryu Agent Workspace
 
 Single-binary Rust CI/CD control plane, now part of a multi-crate workspace that includes the Proof-Scoped Control Plane tools.
 
@@ -39,8 +39,8 @@ Five crates in `crates/` provide agent-efficiency tooling for this workspace. Ru
 ## Proof Commands
 
 1. `cargo check --workspace --message-format=json`
-2. `cargo nextest run -p vgit --lib --profile ci`
-3. `cargo test -p vgit --test '*' -- --test-threads=1` (for state-dependent integration tests)
+2. `cargo nextest run -p jeryu --lib --profile ci`
+3. `cargo test -p jeryu --test '*' -- --test-threads=1` (for state-dependent integration tests)
 4. `just postgres-state-proof` (for Postgres-backed state changes; uses a disposable local container)
 
 ## Module Ownership
@@ -81,7 +81,7 @@ Each `src/*.rs` file has `//! Owner:`, `//! Proof:`, `//! Invariants:` at the to
 
 - `dougx` defines CI job meaning and lane semantics (`apps/veox-testctl/src/ci.rs`)
 - `JeRyu` consumes that meaning for scheduling, reconciliation, and release execution
-- `dougx/.vgit/testmap.toml` is the shared VTI subsystem map; JeRyu reads but never writes it
+- `dougx/.jeryu/testmap.toml` is the shared VTI subsystem map; JeRyu reads but never writes it
 
 ## Guardrails
 
@@ -107,8 +107,8 @@ Security-relevant modules: `secrets.rs`, `exec.rs`, `honeypot.rs`, `admission.rs
 - After compile failures, parse `reason: "compiler-message"` lines from `--message-format=json` output for structured spans.
 - Module-level doc comments in `src/*.rs` include `//! Proof:` and `//! Invariants:` lines — read them before editing.
 - For state bugs, check `state::Db` for the relevant query method before looking elsewhere.
-- Run `cargo run -p vgit -- repo render-agent-index` after changing proof lanes, root routing docs, or module ownership comments.
-- Run `cargo run -p vgit -- repo audit-agent-surface --json` to verify token budget, generated indexes, and routing surfaces.
+- Run `cargo run -p jeryu -- repo render-agent-index` after changing proof lanes, root routing docs, or module ownership comments.
+- Run `cargo run -p jeryu -- repo audit-agent-surface --json` to verify token budget, generated indexes, and routing surfaces.
 
 ## Build Speed
 
@@ -120,7 +120,7 @@ Security-relevant modules: `secrets.rs`, `exec.rs`, `honeypot.rs`, `admission.rs
 
 - Use `cargo check --message-format=json` for structured compiler output.
 - Use `cargo test -- --format=json --report-time -Z unstable-options` when available.
-- Prefer targeted `cargo test -p vgit -- <test_name>` over full suite when the change is local.
+- Prefer targeted `cargo test -p jeryu -- <test_name>` over full suite when the change is local.
 - See `tips/flow/` and `tips/smart_test/` for additional speed patterns.
 
 @docs/VTI.md

@@ -28,7 +28,7 @@ The action registry is a very good idea: actions have IDs, labels, risk tiers, k
 
 The current TUI source defines nine tabs: `Mission`, `Release`, `Jobs`, `Agents`, `Tests`, `Pools`, `Cache`, `Evidence`, and `Secrets`. The docs also describe nine top-level tabs, though there is some drift because another section still mentions older labels like Flow/Storage/Cache/Audit/Tests. ([GitHub][2])
 
-The TUI uses Ratatui/crossterm, raw mode, alternate screen, mouse capture, a 250 ms draw/input/tick loop, background workers, and deterministic `--capture` PNG output. The CLI supports `vgit tui --once` and `vgit tui --capture --tab ... --output ... --width ... --height ...`. ([GitHub][2])
+The TUI uses Ratatui/crossterm, raw mode, alternate screen, mouse capture, a 250 ms draw/input/tick loop, background workers, and deterministic `--capture` PNG output. The CLI supports `jeryu tui --once` and `jeryu tui --capture --tab ... --output ... --width ... --height ...`. ([GitHub][2])
 
 The TUI app state is broad: pools, GitLab readiness, containers, jobs, pipelines, flow snapshot, live logs, shadow summary, cache metrics, taints, detonation breaches, storage, release status, test bottlenecks, evidence, secret audit events, agent pipelines, audit events, selections, log target, command palette state, and async channels. ([GitHub][3])
 
@@ -312,7 +312,7 @@ Agent-first means security needs to be first-class, not scattered.
 
 # Ground-up redesign: API first
 
-## 1. Introduce `vgitd`: a local TUI/agent service API
+## 1. Introduce `jeryud`: a local TUI/agent service API
 
 Make the TUI a client of a local service. That service can still be in the same binary, but architecturally it should expose a stable internal API over Unix socket, HTTP, gRPC, or JSON-RPC.
 
@@ -572,7 +572,7 @@ This better matches an agent-first platform. “Cache,” “Pools,” and “Se
 The top line should be a compact status bar, not a dense banner:
 
 ```text
-vgit  repo:dougx  ref:main  rel:ci-58dc blocked  agents:3  jobs:7  risk:med  fresh:1.2s
+jeryu  repo:dougx  ref:main  rel:ci-58dc blocked  agents:3  jobs:7  risk:med  fresh:1.2s
 ```
 
 The footer should show context-sensitive keys:
@@ -836,7 +836,7 @@ Causal chain:
   commit 58dc → build artifact path changed → release gate failed
 
 Reproduce:
-  vgit replay job 812 --sandbox
+  jeryu replay job 812 --sandbox
 
 Related:
   previous similar failure cap-771
@@ -1038,7 +1038,7 @@ a  actions
 ?  help
 ```
 
-The repo already has `vgit next` and `vgit explain-blocker` concepts. Those need to be integrated directly into the TUI. ([GitHub][1])
+The repo already has `jeryu next` and `jeryu explain-blocker` concepts. Those need to be integrated directly into the TUI. ([GitHub][1])
 
 ## Make mouse support real
 
@@ -1204,7 +1204,7 @@ GET /v1/merge/{mr_iid}/proof
 
 ## P0 quick wins
 
-1. Fix docs/source naming drift and update `VGIT_TUI.md` to match the current nine-tab UI.
+1. Fix docs/source naming drift and update `JERYU_TUI.md` to match the current nine-tab UI.
 2. Add ASCII/minimal glyph mode for screenshots.
 3. Reduce border density in screenshots.
 4. Make empty states actionable.
@@ -1268,7 +1268,7 @@ That is the leap: not a dashboard, but a **real-time autonomous engineering cock
 The repo already has the raw ingredients: action registry, flow model, evidence, release gates, agents, tests, cache, secrets, and capture mode. The next level is to unify them behind a streaming API and redesign the TUI around **why, next, proof, and safe action**.
 
 [1]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/API.md "raw.githubusercontent.com"
-[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [3]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/app.rs "raw.githubusercontent.com"
 [4]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/flow/model.rs "raw.githubusercontent.com"
 [5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/action_registry.rs "raw.githubusercontent.com"

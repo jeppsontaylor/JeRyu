@@ -2,7 +2,7 @@
 
 This is already an unusually strong agent-operable delivery system. The best parts are the **typed control surfaces**, the **release/prod separation**, the **SQLite evidence layer**, the **trust-tiered runner pools**, the **failure capsule/retry model**, and the TUI’s current anti-blanking/log-follow behavior. The system has the right philosophy: agents should operate through **audited, typed, policy-mediated controls**, not by grabbing a PAT and shelling around.
 
-The biggest opportunity is to turn `vgit` from a powerful control plane with a useful dashboard into a **real-time command center**: one place where a developer can see every active pipeline, release gate, agent task, test selector decision, runner bottleneck, cache verdict, security tripwire, and allowed action, with “why” explanations and safe execution previews.
+The biggest opportunity is to turn `jeryu` from a powerful control plane with a useful dashboard into a **real-time command center**: one place where a developer can see every active pipeline, release gate, agent task, test selector decision, runner bottleneck, cache verdict, security tripwire, and allowed action, with “why” explanations and safe execution previews.
 
 The most important missing abstraction is an **object-action graph**:
 
@@ -25,7 +25,7 @@ That abstraction would make both the TUI and agent API dramatically more powerfu
 
 ## The architecture is agent-friendly in the right way
 
-The system already avoids the worst pattern: giving agents raw shell or raw GitLab credentials and hoping policy happens elsewhere. `vgit` centralizes runner state, GitLab access, release promotion, secrets, VTI, failure capsules, and merge gating. That is exactly the right direction.
+The system already avoids the worst pattern: giving agents raw shell or raw GitLab credentials and hoping policy happens elsewhere. `jeryu` centralizes runner state, GitLab access, release promotion, secrets, VTI, failure capsules, and merge gating. That is exactly the right direction.
 
 The strongest pieces are:
 
@@ -173,7 +173,7 @@ main upstream pipeline
 release-execution pipeline
 production-promotion pipeline
 agent/MR pipelines
-scratch vgit-test-* pipelines
+scratch jeryu-test-* pipelines
 superseded/canceled pipelines
 downstream bridges
 ```
@@ -281,7 +281,7 @@ A great Audit tab would answer:
 
 ```text
 Who/what changed state?
-What actions did vgit take automatically?
+What actions did jeryu take automatically?
 Which actions did an agent request?
 Which were denied/escalated?
 Which release gates passed?
@@ -333,10 +333,10 @@ Even if the data is not secret, it is operational intelligence.
 The docs correctly say agents should not call:
 
 ```text
-vgit exec config
-vgit exec prepare
-vgit exec run
-vgit exec cleanup
+jeryu exec config
+jeryu exec prepare
+jeryu exec run
+jeryu exec cleanup
 ```
 
 as generic shell wrappers. But if these commands are callable by any local process, documentation alone is not a hard guardrail.
@@ -406,7 +406,7 @@ repo = dougx
 release repo root = /home/ubuntu/dougx
 ```
 
-That is fine for the current deployment, but the architecture is powerful enough to become multi-project. The more `vgit` grows, the more these should become explicit profiles:
+That is fine for the current deployment, but the architecture is powerful enough to become multi-project. The more `jeryu` grows, the more these should become explicit profiles:
 
 ```toml
 [profiles.dougx]
@@ -640,9 +640,9 @@ ActionDescriptor {
 Then implement:
 
 ```text
-vgit action list <object>
-vgit action dry-run <object> <action>
-vgit action run <object> <action>
+jeryu action list <object>
+jeryu action dry-run <object> <action>
+jeryu action run <object> <action>
 ```
 
 The TUI can consume the same registry.
@@ -734,7 +734,7 @@ The current TUI is a dashboard. The dream version is a **mission control console
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────────────────────┐
-│ vgit GOD MODE  GitLab●  DB●  Vault●  Runners●  Cache●  Disk 71%  Webhook●  Shadow▲  Prod⏳ │
+│ jeryu GOD MODE  GitLab●  DB●  Vault●  Runners●  Cache●  Disk 71%  Webhook●  Shadow▲  Prod⏳ │
 │ Profile: dougx/main  SHA fa51a52  Version ci-fa51a52  Release: Canary E2E running  ETA 3m  │
 ├───────────────┬──────────────────────────────────────────────────────────────┬───────────────┤
 │ NAV / OBJECTS │                         FLOW GRAPH                            │ INSPECTOR     │
@@ -1352,7 +1352,7 @@ Examples:
 : promote prod --dry-run
 : rotate secrets --version ci-fa51a52 --target canary --dry-run
 : quarantine cache object abc123 --reason "tripwire"
-: run tests "cargo test -p vgit -- release::tests"
+: run tests "cargo test -p jeryu -- release::tests"
 : spawn agent "fix failing release gate"
 ```
 
@@ -1497,7 +1497,7 @@ TuiEvent
 Then the TUI can subscribe with a cursor:
 
 ```text
-vgit capability/event-stream
+jeryu capability/event-stream
 or local Unix socket stream
 or internal async broadcast channel
 ```
@@ -1957,7 +1957,7 @@ approval queue
 agent next-action suggestions
 ```
 
-This turns `vgit` into a supervised agent operations platform.
+This turns `jeryu` into a supervised agent operations platform.
 
 ---
 
@@ -1980,7 +1980,7 @@ Polling can remain as reconciliation, but the UI should feel live.
 
 # 22. The dream north star
 
-The dream version of `vgit tui` is not merely a terminal dashboard. It is a **developer flight deck**.
+The dream version of `jeryu tui` is not merely a terminal dashboard. It is a **developer flight deck**.
 
 It should let a power user look at one screen and know:
 

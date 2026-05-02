@@ -1,5 +1,5 @@
 //! Owner: Change Impact Analysis
-//! Proof: `cargo test -p vgit -- impact`
+//! Proof: `cargo test -p jeryu -- impact`
 //! Invariants: Conservative fallback on empty diff or broad config change; docs-only skips heavy validation
 
 use anyhow::{Context, Result};
@@ -155,7 +155,7 @@ async fn changed_paths_from_repo(
     after: &str,
 ) -> Result<Vec<String>> {
     let project = client.get_project(project_id).await?;
-    let clone_dir = std::env::temp_dir().join(format!("vgit-impact-{}", uuid::Uuid::new_v4()));
+    let clone_dir = std::env::temp_dir().join(format!("jeryu-impact-{}", uuid::Uuid::new_v4()));
     let repo = clone_project(client, &project.web_url, &clone_dir)
         .with_context(|| format!("cloning project {} for impact analysis", project.web_url))?;
 

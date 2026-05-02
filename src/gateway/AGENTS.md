@@ -8,8 +8,8 @@
 ## Proof Commands
 
 ```bash
-cargo check -p vgit --message-format=json
-cargo test -p vgit -- gateway
+cargo check -p jeryu --message-format=json
+cargo test -p jeryu -- gateway
 ```
 
 Change type: `leaf-bugfix`. Promote to `api-change` if proxy endpoint config changes.

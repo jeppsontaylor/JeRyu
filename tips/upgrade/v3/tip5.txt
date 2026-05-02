@@ -4,7 +4,7 @@ I attempted a direct `git clone`, but the container could not resolve `github.co
 
 The most important framing: **this does not currently look like a fork of GitLab itself.** It is better described as a **Rust agent-control plane / hypervisor around GitLab**: local GitLab as substrate, custom runners, action registry, capability API, TUI, SmartCache, VTI, secrets, release, admission, and evidence plumbing. That is actually a strong direction, but the product language should be precise: “agent-first GitLab control plane” or “agent-native Git forge layer,” not “GitLab fork,” unless the repo later actually vendors/forks GitLab Rails/Gitaly/etc. The repo itself says the mission is a single-binary Rust control plane and that GitLab is the substrate rather than the product. ([GitHub][1])
 
-My bottom-line take: **JeRyu/vgit is already pointed at the right problem, but the world-class version needs a stronger decision layer, a real security kernel, a causal CI engine, and a much more agent-native TUI/API contract.** The current repo has many impressive primitives, but several are still advisory, heuristic, partially wired, or local-project-specific.
+My bottom-line take: **JeRyu/jeryu is already pointed at the right problem, but the world-class version needs a stronger decision layer, a real security kernel, a causal CI engine, and a much more agent-native TUI/API contract.** The current repo has many impressive primitives, but several are still advisory, heuristic, partially wired, or local-project-specific.
 
 ---
 
@@ -24,7 +24,7 @@ That breadth matters. Agents need both low-level programmatic access and high-le
 
 ### 3. The proof-scoped workspace idea is strong
 
-The `AGENTS.md` structure is excellent: routing work through proof-scoped crates like `vgit-cargo-witness`, `vgit-vrc`, `vgit-aer`, `vgit-policy`, and `vgit-witness-rt`. That is a very agent-native architecture. It pushes the repo toward small, auditable proof lanes rather than one giant “agent do everything” blob. ([GitHub][4])
+The `AGENTS.md` structure is excellent: routing work through proof-scoped crates like `jeryu-cargo-witness`, `jeryu-vrc`, `jeryu-aer`, `jeryu-policy`, and `jeryu-witness-rt`. That is a very agent-native architecture. It pushes the repo toward small, auditable proof lanes rather than one giant “agent do everything” blob. ([GitHub][4])
 
 This is one of the most important differentiators. A great agent-first forge should not only run tests; it should tell an agent **which proof lane owns this change** and what evidence is acceptable.
 
@@ -36,7 +36,7 @@ This is a foundational primitive for an agent-first Git system. The best version
 
 ### 5. Admission control is a major strength
 
-The repo has Git admission concepts: global pre-receive hook installation, capability-grant lookup, decision recording, and enforcement behavior via `VGIT_ADMISSION_ENFORCE=1`. Agent refs are treated differently from normal refs, and pushes can be allowed/denied based on grant state. ([GitHub][6])
+The repo has Git admission concepts: global pre-receive hook installation, capability-grant lookup, decision recording, and enforcement behavior via `JERYU_ADMISSION_ENFORCE=1`. Agent refs are treated differently from normal refs, and pushes can be allowed/denied based on grant state. ([GitHub][6])
 
 That is exactly the right kind of primitive. GitHub/GitLab today mostly trust tokens and branch protection. Agent-first Git needs **intent-aware admission**: who/what agent is acting, what grant authorized it, what paths are in scope, what base SHA it was allowed to modify, what evidence is required, and whether this exact push is still valid.
 
@@ -80,7 +80,7 @@ For the world-class version, merge readiness should be one of the strongest proo
 
 ### 3. The sandbox story is not yet strong enough
 
-The `sandbox.rs` source says strict isolation is supposed to use `unshare`/`bwrap`, but the actual implementation visible in the raw source launches `bash` with environment variables and a `VGIT_SANDBOXED=1` marker. ([GitHub][9])
+The `sandbox.rs` source says strict isolation is supposed to use `unshare`/`bwrap`, but the actual implementation visible in the raw source launches `bash` with environment variables and a `JERYU_SANDBOXED=1` marker. ([GitHub][9])
 
 That is a serious gap. For an agent-first system, “strict mode” must not be an env var. It needs real containment: namespaces, seccomp, cgroups, filesystem isolation, no-new-privileges, controlled egress, controlled mounts, and verifiable canaries that prove the sandbox is actually active.
 
@@ -274,10 +274,10 @@ The system can still allow raw shell, but raw shell should be `High` or `Product
 
 Make the repo usable on any GitLab project with:
 
-* `vgit init --gitlab-url ... --project ...`;
+* `jeryu init --gitlab-url ... --project ...`;
 * auto-discovery of project ID;
-* repo-local `.vgit/config.toml`;
-* global `~/.config/vgit/config.toml`;
+* repo-local `.jeryu/config.toml`;
+* global `~/.config/jeryu/config.toml`;
 * environment overrides;
 * no hard-coded repo names;
 * no hard-coded `/home/ubuntu/dougx`;
@@ -381,7 +381,7 @@ This should be queryable by agent and rendered in the TUI.
 A major “epicness” feature: every failure should have a one-command replay.
 
 ```bash
-vgit replay evidence <capsule-id>
+jeryu replay evidence <capsule-id>
 ```
 
 That should reconstruct the environment as closely as possible, fetch the same artifacts, apply the same patch, and rerun the same proof.
@@ -489,7 +489,7 @@ A coding agent should never need to scrape logs or guess what to do next.
 The `next` command already exists. Make it the main product:
 
 ```bash
-vgit next --agent <id> --task <task-id>
+jeryu next --agent <id> --task <task-id>
 ```
 
 It should return:
@@ -665,7 +665,7 @@ The TUI should make it obvious whether an agent can autonomously release or must
 A fun but useful idea: every TUI screen should have a machine-readable snapshot.
 
 ```bash
-vgit tui snapshot --json
+jeryu tui snapshot --json
 ```
 
 Agents should be able to consume the same state humans see. No hidden UI-only knowledge.
@@ -696,7 +696,7 @@ This is the area where the repo most needs to become stricter. “Agent-first”
 Let the user say:
 
 ```bash
-vgit race "fix failing auth tests" --agents 5 --budget 30m
+jeryu race "fix failing auth tests" --agents 5 --budget 30m
 ```
 
 The system creates five scoped agents, grants each a branch, runs proof, ranks results, explains winner, deletes losers, and opens/merges the best candidate if policy allows.
@@ -776,18 +776,18 @@ Especially:
 Suggested module split:
 
 ```text
-vgit-core
-vgit-state
-vgit-policy
-vgit-capability
-vgit-admission
-vgit-runner
-vgit-cache
-vgit-evidence
-vgit-impact
-vgit-release
-vgit-tui
-vgit-api
+jeryu-core
+jeryu-state
+jeryu-policy
+jeryu-capability
+jeryu-admission
+jeryu-runner
+jeryu-cache
+jeryu-evidence
+jeryu-impact
+jeryu-release
+jeryu-tui
+jeryu-api
 ```
 
 Within TUI:

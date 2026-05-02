@@ -1,6 +1,6 @@
 //! Owner: Local agent command wrappers
-//! Proof: `cargo test -p vgit -- local`
-//! Invariants: Local Cargo commands reuse vgit-owned caches by default and never leave stale leases on the happy path.
+//! Proof: `cargo test -p jeryu -- local`
+//! Invariants: Local Cargo commands reuse jeryu-owned caches by default and never leave stale leases on the happy path.
 
 use anyhow::{Context, Result};
 use std::path::PathBuf;
@@ -9,7 +9,7 @@ use tokio::process::Command;
 use crate::cargo_cache;
 
 fn cargo_cache_enabled() -> bool {
-    std::env::var("VGIT_CARGO_CACHE")
+    std::env::var("JERYU_CARGO_CACHE")
         .ok()
         .map(|value| value.trim() != "0")
         .unwrap_or(true)

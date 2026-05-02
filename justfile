@@ -2,23 +2,23 @@ default:
     @just --list
 
 agent-index:
-    cargo run -p vgit -- repo render-agent-index
+    cargo run -p jeryu -- repo render-agent-index
 
 agent-audit:
-    cargo run -p vgit -- repo audit-agent-surface --json
+    cargo run -p jeryu -- repo audit-agent-surface --json
 
 agent-refresh:
-    cargo run -p vgit -- repo render-agent-index
-    cargo run -p vgit -- repo audit-agent-surface --json
+    cargo run -p jeryu -- repo render-agent-index
+    cargo run -p jeryu -- repo audit-agent-surface --json
 
 fast:
     cargo check --workspace
-    cargo nextest run -p vgit --lib
+    cargo nextest run -p jeryu --lib
 
 medium:
     cargo check --workspace
-    cargo nextest run -p vgit --lib
-    cargo test -p vgit --tests -- --test-threads=1
+    cargo nextest run -p jeryu --lib
+    cargo test -p jeryu --tests -- --test-threads=1
     cargo run -p cargo-witness -- build
     cargo run -p cargo-vrc -- map --output-dir .
 
@@ -26,7 +26,7 @@ postgres-state-proof:
     scripts/postgres-state-proof.sh
 
 deep:
-    cargo nextest run -p vgit
+    cargo nextest run -p jeryu
     cargo run -p cargo-witness -- diagnose
 
 security:
@@ -34,7 +34,7 @@ security:
     cargo run -p cargo-aer -- scan --output aer-findings.json
 
 release:
-    cargo build --release -p vgit
+    cargo build --release -p jeryu
     cargo run -p cargo-aer -- scan --output aer-findings.json
     cargo run -p cargo-vrc -- map --output-dir .
 

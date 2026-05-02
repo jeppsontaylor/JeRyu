@@ -1,5 +1,5 @@
 //! Owner: VTI Test Intelligence subsystem — plan explanation
-//! Proof: `cargo nextest run -p vgit -- test_intel::explain`
+//! Proof: `cargo nextest run -p jeryu -- test_intel::explain`
 //! Invariants: Explanations cite concrete map, dependency, or history evidence for every selected test.
 //! Human-readable explanations for test plans.
 //!
@@ -18,7 +18,7 @@ pub fn explain(plan: &TestPlan) -> String {
         TestPlanMode::Selected => "SELECTED (targeted tests)",
         TestPlanMode::DocsOnly => "DOCS-ONLY (no Rust tests)",
     };
-    out.push_str("╭─ vgit Test Intelligence Plan ─────────────────╮\n");
+    out.push_str("╭─ jeryu Test Intelligence Plan ─────────────────╮\n");
     out.push_str(&format!("│ Mode: {:<40} │\n", mode_label));
     out.push_str(&format!("│ Confidence: {:<34.2} │\n", plan.confidence));
     out.push_str("╰───────────────────────────────────────────────╯\n\n");

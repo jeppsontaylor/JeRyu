@@ -1,18 +1,18 @@
 use anyhow::Result;
 use std::time::Duration;
 use tokio::time::sleep;
-use vgit::config;
+use jeryu::config;
 
 mod common;
 
 // Helper to load client outside of main bin
-fn load_client() -> Result<vgit::gitlab_client::GitlabClient> {
+fn load_client() -> Result<jeryu::gitlab_client::GitlabClient> {
     let env_path = config::env_file();
     dotenvy::from_path(&env_path).ok();
 
     let pat = std::env::var("GITLAB_PAT")?;
     let url = format!("http://localhost:{}", config::GITLAB_HTTP_PORT);
-    Ok(vgit::gitlab_client::GitlabClient::new(&url, Some(pat)))
+    Ok(jeryu::gitlab_client::GitlabClient::new(&url, Some(pat)))
 }
 
 #[tokio::test]
@@ -21,7 +21,7 @@ async fn test_full_lifecycle() -> Result<()> {
     let client = match load_client() {
         Ok(c) => c,
         Err(_) => {
-            println!("Skipping E2E test — `vgit bootstrap` hasn't been run.");
+            println!("Skipping E2E test — `jeryu bootstrap` hasn't been run.");
             return Ok(());
         }
     };
@@ -32,8 +32,8 @@ async fn test_full_lifecycle() -> Result<()> {
         return Ok(());
     }
 
-    let docker = vgit::docker::DockerCtl::connect()?;
-    let db = vgit::state::Db::open().await?;
+    let docker = jeryu::docker::DockerCtl::connect()?;
+    let db = jeryu::state::Db::open().await?;
 
     let repo_name = format!(
         "e2e-test-{}",
@@ -75,8 +75,8 @@ test_job:
         "Created ephemeral pool: {} (runner_id: {})",
         pool_name, runner_id
     );
-    vgit::pool::resume_pool(&db, &client, &pool_name).await?;
-    vgit::pool::scale_pool_to(&db, &docker, &client, &pool_name, 1).await?;
+    jeryu::pool::resume_pool(&db, &client, &pool_name).await?;
+    jeryu::pool::scale_pool_to(&db, &docker, &client, &pool_name, 1).await?;
     let active = db.count_active_managers(&pool_name).await?;
     assert!(active >= 1, "Failed to scale pool up");
     println!("Scaled ephemeral pool to {}", active);
@@ -130,8 +130,8 @@ test_job:
                         "Retrying transient runner system failure for job {} ({}/2)",
                         job.id, system_failure_retries
                     );
-                    vgit::pool::drain_pool(&db, &docker, &client, &pool_name).await?;
-                    vgit::pool::scale_pool_to(&db, &docker, &client, &pool_name, 1).await?;
+                    jeryu::pool::drain_pool(&db, &docker, &client, &pool_name).await?;
+                    jeryu::pool::scale_pool_to(&db, &docker, &client, &pool_name, 1).await?;
                     client.retry_job(project.id, job.id).await?;
                     continue;
                 }
@@ -154,7 +154,7 @@ test_job:
 
     // 6. Drain test
     println!("Draining pool...");
-    vgit::pool::drain_pool(&db, &docker, &client, &pool_name).await?;
+    jeryu::pool::drain_pool(&db, &docker, &client, &pool_name).await?;
 
     let active_after = db.count_active_managers(&pool_name).await?;
     assert_eq!(active_after, 0, "Managers should be 0 after drain");

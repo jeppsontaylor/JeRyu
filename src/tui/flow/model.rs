@@ -1,5 +1,5 @@
 //! Owner: Interactive TUI subsystem — flow data model
-//! Proof: `cargo nextest run -p vgit -- tui::flow`
+//! Proof: `cargo nextest run -p jeryu -- tui::flow`
 //! Invariants: Flow model types remain serializable, cloneable snapshots of observed control-plane state.
 
 use chrono::{DateTime, Utc};

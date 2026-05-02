@@ -2,7 +2,7 @@ I attempted a direct local clone, but this environment could not resolve `github
 
 ## Bottom line
 
-JeRyu / `vgit` has a genuinely strong concept: it treats GitLab, runners, tests, logs, sandboxes, cache, secrets, release gates, and agent actions as one agent-operable control plane. That is the right direction. The docs describe a five-plane architecture — interface, control, state, execution, intelligence — and a Rust control plane around local GitLab CE, GitLab Runner, Docker, Vault, SQLite, VTI, SmartCache, TUI, evidence, and agent actions. ([GitHub][1])
+JeRyu / `jeryu` has a genuinely strong concept: it treats GitLab, runners, tests, logs, sandboxes, cache, secrets, release gates, and agent actions as one agent-operable control plane. That is the right direction. The docs describe a five-plane architecture — interface, control, state, execution, intelligence — and a Rust control plane around local GitLab CE, GitLab Runner, Docker, Vault, SQLite, VTI, SmartCache, TUI, evidence, and agent actions. ([GitHub][1])
 
 The biggest issue is that the repo currently reads like **a powerful prototype whose documentation has outrun its trust boundary**. The agent-first ideas are excellent; the security, policy, capability, and merge-control layers are not yet strong enough for a system that lets autonomous agents mutate repositories, run CI, access logs, manage runners, and request merges.
 
@@ -14,7 +14,7 @@ My strongest advice: **make the trust model real before adding more “God mode.
 
 ### 1. The product framing is excellent
 
-The README positions `vgit` as a single-binary Rust control plane for a local GitLab instance, intended to let agents manage projects, issues, runners, sandboxes, and CI/CD without using the GitLab UI. That is exactly the sort of interface agents need: less browser, more typed control plane. ([GitHub][2])
+The README positions `jeryu` as a single-binary Rust control plane for a local GitLab instance, intended to let agents manage projects, issues, runners, sandboxes, and CI/CD without using the GitLab UI. That is exactly the sort of interface agents need: less browser, more typed control plane. ([GitHub][2])
 
 The core idea is also correctly broader than “smart test selection.” It includes runner lifecycle, test intelligence, CI semantics, release gates, evidence, cache, Vault secrets, action registry, and TUI visibility. That is a much stronger foundation than a normal CI helper script. ([GitHub][1])
 
@@ -48,7 +48,7 @@ That is good. For a project trying to become an agent-first CI/Git control plane
 
 The docs describe a supply-chain boundary involving sandboxing, honeypots, taint tracking, witness graphs, BuildKit namespacing, and “strict process/network sandbox” behavior using `unshare`/`bwrap`. ([GitHub][1])
 
-But the sandbox source I inspected shows the “strict network isolation” path effectively launching `bash` with `VGIT_SANDBOXED=1`, with comments saying full namespace behavior would require more production plumbing. ([GitHub][6])
+But the sandbox source I inspected shows the “strict network isolation” path effectively launching `bash` with `JERYU_SANDBOXED=1`, with comments saying full namespace behavior would require more production plumbing. ([GitHub][6])
 
 That is a major trust mismatch. If this is agent-first infrastructure, sandbox claims must be brutally precise. “Strict isolation” cannot mean “environment variable plus hope.” For agent workloads, the minimum credible sandbox boundary should include container isolation, no host Docker socket by default, seccomp/AppArmor or gVisor/Kata/Firecracker option, network egress policy, mounted secret controls, filesystem allowlists, and explicit artifact export rules.
 
@@ -108,7 +108,7 @@ The right fix is an explicit cache artifact manifest: only declared paths can be
 
 ### 7. VTI config docs and code appear inconsistent
 
-`VTI.md` documents an external `.vgit/testmap.toml` shape with `[metadata]`, `[global]`, `docs_patterns`, `[[subsystem]]`, `name`, `paths`, and `jobs`. ([GitHub][3])
+`VTI.md` documents an external `.jeryu/testmap.toml` shape with `[metadata]`, `[global]`, `docs_patterns`, `[[subsystem]]`, `name`, `paths`, and `jobs`. ([GitHub][3])
 
 The `testmap.rs` source I inspected expects a different shape using `[policy]`, `global_invalidators.paths`, `docs`, `subsystem.id`, `subsystem.paths`, `subsystem.ci_jobs`, and `cross_cutting`. ([GitHub][11])
 
@@ -169,7 +169,7 @@ Add MCP support, OpenAPI, JSON Schema, and stable CLI JSON output for every comm
 
 ```json
 {
-  "tool": "vgit.propose_patch",
+  "tool": "jeryu.propose_patch",
   "risk": "high",
   "idempotency_key": "...",
   "inputs_schema": "...",
@@ -284,9 +284,9 @@ That would be a killer feature.
 Agents need reproducibility. Add replay capsules:
 
 ```text
-vgit replay job <job_id>
-vgit replay failure <failure_id>
-vgit replay mr <mr_id> --lane integration
+jeryu replay job <job_id>
+jeryu replay failure <failure_id>
+jeryu replay mr <mr_id> --lane integration
 ```
 
 A replay capsule should pin image, commit, env, cache state, secrets policy, artifacts, test command, and resource limits. This is how agents stop guessing.
@@ -437,9 +437,9 @@ The README has a quickstart, but a world-class repo needs a reproducible demo:
 ```text
 git clone ...
 just demo
-vgit init --demo
-vgit agent spawn --task "fix failing test"
-vgit evidence query ...
+jeryu init --demo
+jeryu agent spawn --task "fix failing test"
+jeryu evidence query ...
 ```
 
 Include screenshots, an asciinema/GIF of the TUI, expected output, and troubleshooting.

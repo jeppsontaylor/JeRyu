@@ -1,5 +1,5 @@
 //! Owner: Custom Executor & Sandbox Isolation
-//! Proof: `cargo test -p vgit -- exec`
+//! Proof: `cargo test -p jeryu -- exec`
 //! Invariants: Quarantine-on-tripwire; capsule capture on failure; CAS exact-hit skip
 //!
 //! This module acts as the plugin interface for `gitlab-runner` when configured
@@ -65,7 +65,7 @@ docker info >/dev/null 2>&1 || { echo "custom executor: docker info failed again
     Ok(())
 }
 
-/// Handles `vgit exec config`
+/// Handles `jeryu exec config`
 /// Tells GitLab Runner what capabilities this driver supports.
 pub fn run_config() -> Result<()> {
     let config_json = r#"{
@@ -73,7 +73,7 @@ pub fn run_config() -> Result<()> {
   "cache_dir": "/cache",
   "builds_dir_is_shared": false,
   "driver": {
-    "name": "vgit God Mode Driver",
+    "name": "jeryu God Mode Driver",
     "version": "1.0.0"
   }
 }"#;
@@ -82,13 +82,13 @@ pub fn run_config() -> Result<()> {
     Ok(())
 }
 
-/// Handles `vgit exec prepare`
+/// Handles `jeryu exec prepare`
 /// Provisions the actual job container sandbox.
 pub async fn run_prepare() -> Result<()> {
     // GitLab Runner passes job metadata via CUSTOM_ENV_* variables
     let job_id = env::var("CUSTOM_ENV_CI_JOB_ID").unwrap_or_else(|_| "unknown".to_string());
     let project_dir =
-        env::var("CUSTOM_ENV_CI_PROJECT_DIR").unwrap_or_else(|_| "/tmp/vgit-job".to_string());
+        env::var("CUSTOM_ENV_CI_PROJECT_DIR").unwrap_or_else(|_| "/tmp/jeryu-job".to_string());
 
     info!(
         job_id,
@@ -112,7 +112,7 @@ pub async fn run_prepare() -> Result<()> {
     // directory created above. Docker-level isolation is handled by the `docker`
     // executor pools via config.rs render_runner_config(). The custom executor
     // provides host-level isolation through the Detonation Lane (honeypot tripwires)
-    // and optional strict network namespacing via VGIT_STRICT_SANDBOX.
+    // and optional strict network namespacing via JERYU_STRICT_SANDBOX.
 
     Ok(())
 }
@@ -167,7 +167,7 @@ fn fast_clone(src: &str, dst: &str) -> Result<()> {
     Ok(())
 }
 
-/// Handles `vgit exec run`
+/// Handles `jeryu exec run`
 /// Executes a specific stage of the pipeline (step_script, build_script, etc.)
 pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
     let job_id_str = env::var("CUSTOM_ENV_CI_JOB_ID").unwrap_or_else(|_| "0".to_string());
@@ -185,7 +185,7 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
     // SMARTCACHE v3: CACHE BRAIN ORCHESTRATION
     // -----------------------------------------------------
     let project_dir =
-        env::var("CUSTOM_ENV_CI_PROJECT_DIR").unwrap_or_else(|_| "/tmp/vgit-job".to_string());
+        env::var("CUSTOM_ENV_CI_PROJECT_DIR").unwrap_or_else(|_| "/tmp/jeryu-job".to_string());
     let sandbox_path = format!("{}-sandbox", project_dir);
 
     // Initialize State and Cache Brain
@@ -203,7 +203,7 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
     let mut build_unit: Option<crate::cache_brain::BuildUnit> = None;
 
     if stage == "build_script"
-        && std::env::var("CUSTOM_ENV_VGIT_FORCE_REFRESH").unwrap_or_default() != "1"
+        && std::env::var("CUSTOM_ENV_JERYU_FORCE_REFRESH").unwrap_or_default() != "1"
     {
         let is_rust_build = script_path.contains("cargo build")
             && !script_path.contains("cargo test")
@@ -358,8 +358,8 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
 
     if cargo_available && rustc_available {
         let pool_cache_root =
-            std::env::var("VGIT_CARGO_CACHE_ROOT").unwrap_or_else(|_| "/pool-cache".to_string());
-        let cargo_cache_enabled = std::env::var("VGIT_CARGO_CACHE")
+            std::env::var("JERYU_CARGO_CACHE_ROOT").unwrap_or_else(|_| "/pool-cache".to_string());
+        let cargo_cache_enabled = std::env::var("JERYU_CARGO_CACHE")
             .ok()
             .map(|value| value.trim() != "0")
             .unwrap_or(true);
@@ -376,12 +376,12 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
             })
             .unwrap_or_else(|| "unknown-project".to_string());
         let isolate_job =
-            if std::env::var("VGIT_CARGO_TARGET_ISOLATE").ok().as_deref() == Some("job") {
+            if std::env::var("JERYU_CARGO_TARGET_ISOLATE").ok().as_deref() == Some("job") {
                 std::env::var("CUSTOM_ENV_CI_JOB_ID").ok()
             } else {
                 None
             };
-        let incremental_override = std::env::var("VGIT_CARGO_INCREMENTAL").ok();
+        let incremental_override = std::env::var("JERYU_CARGO_INCREMENTAL").ok();
         let cargo_layout = crate::cargo_cache::runner_cargo_layout(
             std::path::Path::new(&pool_cache_root),
             &project_scope,
@@ -403,9 +403,9 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
     let _ = std::fs::create_dir_all(&cargo_dir);
     let cargo_toml = r#"
 [source.crates-io]
-replace-with = "vgit-proxy"
+replace-with = "jeryu-proxy"
 
-[source.vgit-proxy]
+[source.jeryu-proxy]
 registry = "sparse+http://127.0.0.1:19800/api/v1/crates"
 "#
     .to_string();
@@ -485,7 +485,7 @@ registry = "sparse+http://127.0.0.1:19800/api/v1/crates"
     // Record forensic attempt capsule to the ledger
 
     // Check if process was killed due to detonation lane
-    let quarantine_marker = std::path::Path::new(&sandbox_path).join(".vgit_quarantine");
+    let quarantine_marker = std::path::Path::new(&sandbox_path).join(".jeryu_quarantine");
     let is_quarantined = quarantine_marker.exists();
 
     if is_quarantined {
@@ -505,7 +505,7 @@ registry = "sparse+http://127.0.0.1:19800/api/v1/crates"
             "quarantine_capsule",
             project_id,
             Some(job_id),
-            "vgit-exec",
+            "jeryu-exec",
             &capsule.to_json(),
         )
         .await?;
@@ -529,7 +529,7 @@ registry = "sparse+http://127.0.0.1:19800/api/v1/crates"
             "failure_capsule",
             project_id,
             Some(job_id),
-            "vgit-exec",
+            "jeryu-exec",
             &capsule.to_json(),
         )
         .await?;
@@ -547,7 +547,7 @@ registry = "sparse+http://127.0.0.1:19800/api/v1/crates"
         "stage_execution",
         project_id,
         Some(job_id),
-        "vgit-exec",
+        "jeryu-exec",
         &payload.to_string(),
     )
     .await?;
@@ -614,18 +614,18 @@ registry = "sparse+http://127.0.0.1:19800/api/v1/crates"
     Ok(())
 }
 
-/// Handles `vgit exec cleanup`
+/// Handles `jeryu exec cleanup`
 /// Tears down the sandbox.
 pub async fn run_cleanup() -> Result<()> {
     let job_id = env::var("CUSTOM_ENV_CI_JOB_ID").unwrap_or_else(|_| "unknown".to_string());
     let project_id_str = env::var("CUSTOM_ENV_CI_PROJECT_ID").unwrap_or_default();
     let project_dir =
-        env::var("CUSTOM_ENV_CI_PROJECT_DIR").unwrap_or_else(|_| "/tmp/vgit-job".to_string());
+        env::var("CUSTOM_ENV_CI_PROJECT_DIR").unwrap_or_else(|_| "/tmp/jeryu-job".to_string());
 
     info!(job_id, "Driver: cleaning up sandbox");
 
     let sandbox_path = format!("{}-sandbox", project_dir);
-    let quarantine_marker = std::path::Path::new(&sandbox_path).join(".vgit_quarantine");
+    let quarantine_marker = std::path::Path::new(&sandbox_path).join(".jeryu_quarantine");
 
     // Pillar 2: Detonation Lane overrides cleanup
     if quarantine_marker.exists() {
@@ -643,7 +643,7 @@ pub async fn run_cleanup() -> Result<()> {
             "executor_cleanup_quarantined",
             project_id_str.parse().ok(),
             job_id.parse().ok(),
-            "vgit-exec",
+            "jeryu-exec",
             &payload.to_string(),
         )
         .await?;
@@ -669,7 +669,7 @@ pub async fn run_cleanup() -> Result<()> {
         "executor_cleanup",
         project_id_str.parse().ok(),
         job_id.parse().ok(),
-        "vgit-exec",
+        "jeryu-exec",
         &payload.to_string(),
     )
     .await?;

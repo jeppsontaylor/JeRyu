@@ -1,4 +1,4 @@
-# proof-lanes.toml — Machine-readable proof path for vgit
+# proof-lanes.toml — Machine-readable proof path for jeryu
 #
 # Agents use this to determine which validation commands to run for a given
 # change type. This replaces the need to reconstruct proof paths from
@@ -7,27 +7,27 @@
 # ─── Lanes ──────────────────────────────────────────────────────────────
 
 [lane.check]
-command = "cargo check -p vgit --message-format=json"
+command = "cargo check -p jeryu --message-format=json"
 description = "Type-check only — fast feedback"
 required_for = ["any"]
 
 [lane.unit]
-command = "cargo nextest run -p vgit --lib"
+command = "cargo nextest run -p jeryu --lib"
 description = "Unit tests from inline #[cfg(test)] modules (nextest structured output)"
 required_for = ["any"]
 
 [lane.integration]
-command = "cargo test -p vgit --test '*' -- --test-threads=1"
+command = "cargo test -p jeryu --test '*' -- --test-threads=1"
 description = "Integration tests (state-dependent, serial)"
 required_for = ["state-change", "api-change", "release-change"]
 
 [lane.full]
-command = "cargo nextest run -p vgit"
+command = "cargo nextest run -p jeryu"
 description = "All tests via nextest"
 required_for = ["release-blocking", "cross-module"]
 
 [lane.security]
-command = "cargo test -p vgit -- secrets exec honeypot admission"
+command = "cargo test -p jeryu -- secrets exec honeypot admission"
 description = "Security-relevant module tests"
 required_for = ["security-relevant"]
 trigger_paths = [

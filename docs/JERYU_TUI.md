@@ -1,19 +1,19 @@
-# VGIT TUI Design and Functionality
+# JERYU TUI Design and Functionality
 
-This document describes the current `vgit tui` implementation in `/home/ubuntu/JeRyu` as of April 27, 2026. It is intentionally technical: it is meant to give outside engineers and AI advisors enough context to reason about the terminal UI, the data model, the refresh loop, release visibility, live log behavior, screenshot capture, and current implementation limits without needing to reverse engineer the Rust code first.
+This document describes the current `jeryu tui` implementation in `/home/ubuntu/JeRyu` as of April 27, 2026. It is intentionally technical: it is meant to give outside engineers and AI advisors enough context to reason about the terminal UI, the data model, the refresh loop, release visibility, live log behavior, screenshot capture, and current implementation limits without needing to reverse engineer the Rust code first.
 
 ## Quick Start
 
-The TUI is launched through the normal `vgit` CLI:
+The TUI is launched through the normal `jeryu` CLI:
 
 ```bash
-cargo run -p vgit -- tui
+cargo run -p jeryu -- tui
 ```
 
 There is also a smoke-render mode used by tests and CI:
 
 ```bash
-cargo run -p vgit -- tui --once
+cargo run -p jeryu -- tui --once
 ```
 
 The smoke mode renders one frame with Ratatui's `TestBackend` and exits. It is intended to prove that the TUI can render even with empty or partial state.
@@ -21,8 +21,8 @@ The smoke mode renders one frame with Ratatui's `TestBackend` and exits. It is i
 Publication and review screenshots can be generated without an interactive terminal:
 
 ```bash
-cargo run -p vgit -- tui --capture --tab jobs --output paper/assets/vgit-tui-jobs-flow.png
-cargo run -p vgit -- tui --capture --tab tests --output paper/assets/vgit-tui-tests-vti.png
+cargo run -p jeryu -- tui --capture --tab jobs --output paper/assets/jeryu-tui-jobs-flow.png
+cargo run -p jeryu -- tui --capture --tab tests --output paper/assets/jeryu-tui-tests-vti.png
 ```
 
 `--capture` accepts `mission`, `release`, `jobs`, `agents`, `tests`, `pools`, `cache`, `evidence`, and `secrets`. The capture path renders the same Ratatui layout through `TestBackend` and writes a PNG.
@@ -43,7 +43,7 @@ The active TUI implementation is split across these files:
 | `src/tui/flow/eta.rs` | Simple lane-based ETA estimator. |
 | `src/tui/flow/inspector.rs` | Job inspector renderer. This exists, but is not in the active main Flow layout right now. |
 
-The CLI definitions live in `src/cli.rs`, and the command dispatcher calls `vgit::tui::run_tui(...)`, `vgit::tui::run_tui_once(...)`, or `vgit::tui::capture_tui_png(...)` from `src/dispatch.rs`.
+The CLI definitions live in `src/cli.rs`, and the command dispatcher calls `jeryu::tui::run_tui(...)`, `jeryu::tui::run_tui_once(...)`, or `jeryu::tui::capture_tui_png(...)` from `src/dispatch.rs`.
 
 ## High-Level Design
 
@@ -323,7 +323,7 @@ This design intentionally favors a stable board with a stale marker over a board
 
 The header is always visible, including maximized log mode. It shows:
 
-- Product title: `vgit Mission Control`
+- Product title: `jeryu Mission Control`
 - GitLab connectivity: `ONLINE` or `OFF/BOOTING`
 - Active container count
 - Shadow sync summary when available
@@ -1057,15 +1057,15 @@ The TUI has focused tests covering:
 Useful proof commands:
 
 ```bash
-cargo check -p vgit --message-format=json
-cargo test -p vgit -- tui -- --nocapture
-cargo run -p vgit -- tui --once
+cargo check -p jeryu --message-format=json
+cargo test -p jeryu -- tui -- --nocapture
+cargo run -p jeryu -- tui --once
 ```
 
 In this environment, commands should be run through `rtk`, for example:
 
 ```bash
-rtk cargo test -p vgit -- tui -- --nocapture
+rtk cargo test -p jeryu -- tui -- --nocapture
 ```
 
 ## Current Limitations and Open Design Questions

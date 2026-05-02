@@ -1,12 +1,12 @@
 ## Overall read
 
-JeRyu / `vgit` is already much more interesting than a CI helper. It is a **local delivery control plane** with typed state, runner orchestration, release gates, failure evidence, Vault-backed secret lifecycle, VTI test selection, cache policy, and an operational TUI.
+JeRyu / `jeryu` is already much more interesting than a CI helper. It is a **local delivery control plane** with typed state, runner orchestration, release gates, failure evidence, Vault-backed secret lifecycle, VTI test selection, cache policy, and an operational TUI.
 
 The biggest gap is not raw functionality. The biggest gap is that the system’s **power is spread across many surfaces**, while the agent and TUI surfaces still expose only a fraction of the operational intelligence that already exists internally.
 
 The north-star improvement is:
 
-> Turn `vgit` into a real-time, typed, auditable **mission-control console** where humans and agents can see every pipeline, blocker, gate, action, ETA, risk, cache decision, test decision, release state, and remediation option in one place.
+> Turn `jeryu` into a real-time, typed, auditable **mission-control console** where humans and agents can see every pipeline, blocker, gate, action, ETA, risk, cache decision, test decision, release state, and remediation option in one place.
 
 Right now, the internals are closer to that dream than the interface is.
 
@@ -73,7 +73,7 @@ is the right overall shape for an agent-operable CI system.
 
 ## The VTI/test intelligence layer is a major differentiator
 
-Smart test selection, external `.vgit/testmap.toml`, selector audits, learning suggestions, test bottlenecks, and cache keys are exactly the kind of information agents need to avoid brute-force validation.
+Smart test selection, external `.jeryu/testmap.toml`, selector audits, learning suggestions, test bottlenecks, and cache keys are exactly the kind of information agents need to avoid brute-force validation.
 
 The current TUI does not yet make this feel central, but the underlying idea is very strong.
 
@@ -107,7 +107,7 @@ Better response shape:
   "state": "deferred_unimplemented",
   "message": "RequestMerge is recognized but not active in this build.",
   "data": {
-    "suggested_surface": "vgit agent merge <project_id> <mr_iid>"
+    "suggested_surface": "jeryu agent merge <project_id> <mr_iid>"
   }
 }
 ```
@@ -152,7 +152,7 @@ Example:
 Agent asks:
   "Run the minimal safe validation for this patch."
 
-vgit returns:
+jeryu returns:
   - changed modules
   - selected tests
   - skipped tests
@@ -164,7 +164,7 @@ vgit returns:
 
 Agent confirms or policy auto-allows.
 
-vgit executes, streams progress, records evidence, and returns:
+jeryu executes, streams progress, records evidence, and returns:
   - pass/fail
   - failure capsules
   - retry advice
@@ -398,7 +398,7 @@ This should be available as structured JSON, not just text.
 Instead of only:
 
 ```bash
-vgit test run --command "cargo test ..."
+jeryu test run --command "cargo test ..."
 ```
 
 An agent wants:
@@ -451,7 +451,7 @@ Ideal behavior:
 
 ```text
 Agent submits patch plan
-  -> vgit creates branch/worktree
+  -> jeryu creates branch/worktree
   -> applies patch
   -> runs formatting/static checks
   -> creates commit
@@ -469,7 +469,7 @@ This patch would touch:
   - docs/API.md
 
 Required proof lane:
-  - cargo check -p vgit
+  - cargo check -p jeryu
   - release::tests
   - state::tests::test_production_pipeline_tracking
   - repo audit-agent-surface
@@ -490,7 +490,7 @@ Hypothesis B: fix evidence capsule timing
 Hypothesis C: fix state query freshness
 ```
 
-Then `vgit` could:
+Then `jeryu` could:
 
 * create isolated branches
 * run selected validation for each
@@ -1780,5 +1780,5 @@ What evidence proves it?
 What happens if I do it?
 ```
 
-That is what would make `vgit tui` a developer dream: not just a dashboard, but a real-time, high-trust, high-power command center for the entire delivery system.
+That is what would make `jeryu tui` a developer dream: not just a dashboard, but a real-time, high-trust, high-power command center for the entire delivery system.
 

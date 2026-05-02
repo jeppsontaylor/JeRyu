@@ -16,7 +16,7 @@ GitHub and GitLab are both already moving into coding-agent territory. GitHub’
 
 ## 1. The product thesis is strong
 
-The README describes `vgit` as a “Headless GitLab & Autonomous Agent Hypervisor,” a single-binary Rust control plane intended to turn local GitLab into a high-performance orchestration engine for autonomous AI agents, bypassing GitLab’s web UI. It explicitly highlights runner lifecycle, sandboxing, ephemeral bot users, a custom executor, and semantic CI/CD. ([GitHub][4])
+The README describes `jeryu` as a “Headless GitLab & Autonomous Agent Hypervisor,” a single-binary Rust control plane intended to turn local GitLab into a high-performance orchestration engine for autonomous AI agents, bypassing GitLab’s web UI. It explicitly highlights runner lifecycle, sandboxing, ephemeral bot users, a custom executor, and semantic CI/CD. ([GitHub][4])
 
 That is a great thesis. Agents do not primarily need a prettier forge UI. They need:
 
@@ -33,7 +33,7 @@ JeRyu is aiming at exactly that layer.
 
 ## 2. Rust single-binary control plane is the right direction
 
-The workspace is centered around `vgit`, with supporting crates such as `cargo-witness`, `cargo-vrc`, `cargo-aer`, `witness-rt`, and `arc-bench`; the dependency set includes Tokio, Axum, Bollard, SQLx, git2, ratatui, crossterm, notify, and related tooling. ([GitHub][5])
+The workspace is centered around `jeryu`, with supporting crates such as `cargo-witness`, `cargo-vrc`, `cargo-aer`, `witness-rt`, and `arc-bench`; the dependency set includes Tokio, Axum, Bollard, SQLx, git2, ratatui, crossterm, notify, and related tooling. ([GitHub][5])
 
 That stack makes sense for an agent-first Git substrate:
 
@@ -180,7 +180,7 @@ That is the product.
 
 This is the most urgent security gap.
 
-`sandbox.rs` declares an invariant that strict network isolation uses `unshare`/`bwrap`, but the actual strict branch spawns `bash`, sets `VGIT_SANDBOXED=1`, and comments that full network namespace isolation would require additional setup; it says the custom executor relies on honeypots and proxy-enforced egress instead. ([GitHub][15])
+`sandbox.rs` declares an invariant that strict network isolation uses `unshare`/`bwrap`, but the actual strict branch spawns `bash`, sets `JERYU_SANDBOXED=1`, and comments that full network namespace isolation would require additional setup; it says the custom executor relies on honeypots and proxy-enforced egress instead. ([GitHub][15])
 
 That is not strict sandboxing. It is a marker plus compensating controls.
 
@@ -198,7 +198,7 @@ Until fixed, I would mark capability-level `RequestMerge` as **dry-run only**.
 
 ## 5. Admission control is not strict by default
 
-The pre-receive hook checks `VGIT_ADMISSION_ENFORCE`; enforcement only occurs when that env var is set to `1`. Otherwise, agent refs can fall into audit behavior. ([GitHub][17])
+The pre-receive hook checks `JERYU_ADMISSION_ENFORCE`; enforcement only occurs when that env var is set to `1`. Otherwise, agent refs can fall into audit behavior. ([GitHub][17])
 
 Audit mode is useful for demos, but agent-first safety should invert the default:
 
@@ -289,7 +289,7 @@ Minimum protocol fields:
 
 ```json
 {
-  "protocol_version": "vgit.capability.v1",
+  "protocol_version": "jeryu.capability.v1",
   "request_id": "uuid",
   "actor": {
     "agent_id": "agent-123",
@@ -381,13 +381,13 @@ Merge refs require merge approval and passing evidence.
 No DB / no ledger = deny for agent refs.
 ```
 
-Current admission enforcement depends on `VGIT_ADMISSION_ENFORCE=1`. ([GitHub][17]) For production, make enforcement the default and require explicit `--audit-only` to weaken it.
+Current admission enforcement depends on `JERYU_ADMISSION_ENFORCE=1`. ([GitHub][17]) For production, make enforcement the default and require explicit `--audit-only` to weaken it.
 
 ## 5. Replace “strict sandbox” with real strict sandbox
 
 This is the highest-priority security work.
 
-Current strict sandbox behavior is not strict enough: it spawns `bash` and sets `VGIT_SANDBOXED=1`. ([GitHub][15]) Replace it with one or more real isolation modes:
+Current strict sandbox behavior is not strict enough: it spawns `bash` and sets `JERYU_SANDBOXED=1`. ([GitHub][15]) Replace it with one or more real isolation modes:
 
 ```text
 sandbox.mode = "none"        # dev only
@@ -507,7 +507,7 @@ The most important thing: skipped work must still produce a visible proof.
 Do not let a skipped test appear as a fake green test. Instead create a dedicated required check:
 
 ```text
-vgit/proof-required
+jeryu/proof-required
   PASS: selected 43 tests, skipped 812 tests
   confidence: 0.982
   reasons: no symbol path, no ownership path, no history path
@@ -745,7 +745,7 @@ Exit: 101
 Kind: likely race / timeout
 First failing command: cargo test auth_refresh
 Repro:
-  vgit replay capsule cap_123
+  jeryu replay capsule cap_123
 
 Similar failures:
   7 prior
@@ -870,7 +870,7 @@ Proceed? y/N
 
 1. **Stop calling it a GitLab fork unless you actually fork GitLab.** Call it a GitLab-backed Rust agent control plane.
 
-2. **Make `vgit doctor --security` brutally honest.** It should fail loudly if strict sandbox is configured but only `VGIT_SANDBOXED=1` is applied.
+2. **Make `jeryu doctor --security` brutally honest.** It should fail loudly if strict sandbox is configured but only `JERYU_SANDBOXED=1` is applied.
 
 3. **Disable or mark capability `RequestMerge` as dry-run until it checks real MR state.** It must query exact SHA, required checks, branch protection, approvals, discussions, evidence, taints, and selector misses.
 
@@ -952,12 +952,12 @@ Proceed? y/N
 
 # The “epicness” features I would build
 
-## 1. `vgit next`
+## 1. `jeryu next`
 
 The agent or human asks:
 
 ```bash
-vgit next --for mr:42
+jeryu next --for mr:42
 ```
 
 JeRyu answers:
@@ -973,19 +973,19 @@ Why:
   Retry budget allows 1 retry.
 
 Command:
-  vgit job retry 987 --clean-runner --reason flake-check
+  jeryu job retry 987 --clean-runner --reason flake-check
 ```
 
-## 2. `vgit explain everything`
+## 2. `jeryu explain everything`
 
 Every decision should be explainable:
 
 ```bash
-vgit explain merge !42
-vgit explain skip test:auth_refresh
-vgit explain cache-hit abc123
-vgit explain release release-91
-vgit explain agent agent-foo
+jeryu explain merge !42
+jeryu explain skip test:auth_refresh
+jeryu explain cache-hit abc123
+jeryu explain release release-91
+jeryu explain agent agent-foo
 ```
 
 This is essential for trust.
@@ -1131,7 +1131,7 @@ That is a genuinely strong direction.
 [11]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/release.rs "raw.githubusercontent.com"
 [12]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/src/pool.rs "raw.githubusercontent.com"
 [13]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/taint.rs "raw.githubusercontent.com"
-[14]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[14]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [15]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/sandbox.rs "raw.githubusercontent.com"
 [16]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/exec.rs "raw.githubusercontent.com"
 [17]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/admission.rs "raw.githubusercontent.com"

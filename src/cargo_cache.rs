@@ -1,5 +1,5 @@
 //! Owner: Cargo cache layout and local agent helpers
-//! Proof: `cargo test -p vgit -- cargo_cache`
+//! Proof: `cargo test -p jeryu -- cargo_cache`
 //! Invariants: Cache keys are deterministic; target dirs stay scoped by repo/project, toolchain, and host triple; active leases are never collected.
 
 use anyhow::{Context, Result};
@@ -10,7 +10,7 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-pub const LEASES_DIR_NAME: &str = ".vgit-leases";
+pub const LEASES_DIR_NAME: &str = ".jeryu-leases";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CargoToolchainKey {
@@ -103,24 +103,24 @@ pub fn build_cargo_cache_layout(
 
     let mut env = BTreeMap::new();
     env.insert(
-        "VGIT_CARGO_CACHE".to_string(),
+        "JERYU_CARGO_CACHE".to_string(),
         if cache_enabled { "1" } else { "0" }.to_string(),
     );
     env.insert(
-        "VGIT_CARGO_CACHE_ROOT".to_string(),
+        "JERYU_CARGO_CACHE_ROOT".to_string(),
         cache_root.display().to_string(),
     );
-    env.insert("VGIT_CARGO_SCOPE_KEY".to_string(), scope_key.clone());
+    env.insert("JERYU_CARGO_SCOPE_KEY".to_string(), scope_key.clone());
     env.insert(
-        "VGIT_CARGO_RUSTC_KEY".to_string(),
+        "JERYU_CARGO_RUSTC_KEY".to_string(),
         toolchain.rustc_key.clone(),
     );
     env.insert(
-        "VGIT_CARGO_RUSTC_VERSION".to_string(),
+        "JERYU_CARGO_RUSTC_VERSION".to_string(),
         toolchain.rustc_version.clone(),
     );
     env.insert(
-        "VGIT_CARGO_HOST_TRIPLE".to_string(),
+        "JERYU_CARGO_HOST_TRIPLE".to_string(),
         toolchain.host_triple.clone(),
     );
     env.insert("CARGO_INCREMENTAL".to_string(), cargo_incremental.clone());
@@ -166,7 +166,7 @@ pub fn build_cargo_cache_layout(
 }
 
 pub fn local_cargo_layout(repo_root: &Path, cache_enabled: bool) -> Result<CargoCacheLayout> {
-    let incremental_override = std::env::var("VGIT_CARGO_INCREMENTAL").ok();
+    let incremental_override = std::env::var("JERYU_CARGO_INCREMENTAL").ok();
     build_cargo_cache_layout(
         &crate::config::local_cargo_cache_root(),
         "targets",
@@ -198,7 +198,7 @@ pub fn render_runner_cargo_pre_build_script(pool_cache_mount: &str, executor: &s
     let _ = executor;
     format!(
         r#"set -eu
-if [ "${{VGIT_CARGO_CACHE:-1}}" = "0" ]; then
+if [ "${{JERYU_CARGO_CACHE:-1}}" = "0" ]; then
   exit 0
 fi
 if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
@@ -211,26 +211,26 @@ if [ -z "$HOST_TRIPLE" ] || [ -z "$RUSTC_VERSION" ]; then
   exit 0
 fi
 RUSTC_KEY="$(printf '%s\n' "$RUSTC_INFO" | sha256sum | cut -c1-12)"
-VGIT_CARGO_SCOPE_KEY="${{CI_PROJECT_PATH_SLUG:-unknown-project}}"
-VGIT_CARGO_CACHE_ROOT="{pool_cache_mount}"
-VGIT_CARGO_TARGET_ROOT="$VGIT_CARGO_CACHE_ROOT/cargo-targets/$VGIT_CARGO_SCOPE_KEY/$RUSTC_KEY/$HOST_TRIPLE"
-if [ "${{VGIT_CARGO_TARGET_ISOLATE:-}}" = "job" ]; then
-  VGIT_CARGO_TARGET_ROOT="$VGIT_CARGO_TARGET_ROOT/jobs/${{CI_JOB_ID:-unknown}}"
+JERYU_CARGO_SCOPE_KEY="${{CI_PROJECT_PATH_SLUG:-unknown-project}}"
+JERYU_CARGO_CACHE_ROOT="{pool_cache_mount}"
+JERYU_CARGO_TARGET_ROOT="$JERYU_CARGO_CACHE_ROOT/cargo-targets/$JERYU_CARGO_SCOPE_KEY/$RUSTC_KEY/$HOST_TRIPLE"
+if [ "${{JERYU_CARGO_TARGET_ISOLATE:-}}" = "job" ]; then
+  JERYU_CARGO_TARGET_ROOT="$JERYU_CARGO_TARGET_ROOT/jobs/${{CI_JOB_ID:-unknown}}"
 fi
-export VGIT_CARGO_CACHE_ROOT VGIT_CARGO_SCOPE_KEY VGIT_CARGO_RUSTC_KEY="$RUSTC_KEY" VGIT_CARGO_RUSTC_VERSION="$RUSTC_VERSION" VGIT_CARGO_HOST_TRIPLE="$HOST_TRIPLE"
-export CARGO_TARGET_DIR="$VGIT_CARGO_TARGET_ROOT/target"
+export JERYU_CARGO_CACHE_ROOT JERYU_CARGO_SCOPE_KEY JERYU_CARGO_RUSTC_KEY="$RUSTC_KEY" JERYU_CARGO_RUSTC_VERSION="$RUSTC_VERSION" JERYU_CARGO_HOST_TRIPLE="$HOST_TRIPLE"
+export CARGO_TARGET_DIR="$JERYU_CARGO_TARGET_ROOT/target"
 mkdir -p "$CARGO_TARGET_DIR"
-if [ -n "${{VGIT_CARGO_INCREMENTAL:-}}" ]; then
-  export CARGO_INCREMENTAL="$VGIT_CARGO_INCREMENTAL"
+if [ -n "${{JERYU_CARGO_INCREMENTAL:-}}" ]; then
+  export CARGO_INCREMENTAL="$JERYU_CARGO_INCREMENTAL"
 else
   export CARGO_INCREMENTAL=0
 fi
-if [ "${{VGIT_SCCACHE_ENABLED:-1}}" != "0" ] && command -v sccache >/dev/null 2>&1; then
-  export SCCACHE_DIR="$VGIT_CARGO_CACHE_ROOT/sccache"
+if [ "${{JERYU_SCCACHE_ENABLED:-1}}" != "0" ] && command -v sccache >/dev/null 2>&1; then
+  export SCCACHE_DIR="$JERYU_CARGO_CACHE_ROOT/sccache"
   export RUSTC_WRAPPER=sccache
   export SCCACHE_NO_DAEMON=1
-  if [ -n "${{VGIT_SCCACHE_CACHE_SIZE:-}}" ]; then
-    export SCCACHE_CACHE_SIZE="$VGIT_SCCACHE_CACHE_SIZE"
+  if [ -n "${{JERYU_SCCACHE_CACHE_SIZE:-}}" ]; then
+    export SCCACHE_CACHE_SIZE="$JERYU_SCCACHE_CACHE_SIZE"
   fi
   mkdir -p "$SCCACHE_DIR"
 else
@@ -509,7 +509,7 @@ mod tests {
         let path_dir = make_test_bin_dir(false, true, false);
         let original_path = std::env::var_os("PATH");
         set_env_var("PATH", path_dir.path());
-        let cache_root = PathBuf::from("/tmp/vgit-cache");
+        let cache_root = PathBuf::from("/tmp/jeryu-cache");
         let layout = build_cargo_cache_layout(
             &cache_root,
             "targets",
@@ -567,7 +567,7 @@ mod tests {
         let original_path = std::env::var_os("PATH");
         set_env_var("PATH", path_dir.path());
         let layout = build_cargo_cache_layout(
-            Path::new("/tmp/vgit-cache"),
+            Path::new("/tmp/jeryu-cache"),
             "targets",
             "repo-key",
             true,
@@ -676,8 +676,8 @@ mod tests {
         let output = std::process::Command::new("/bin/sh")
             .arg("-lc")
             .arg(script)
-            .env("VGIT_CARGO_CACHE", "1")
-            .env("VGIT_SCCACHE_ENABLED", "1")
+            .env("JERYU_CARGO_CACHE", "1")
+            .env("JERYU_SCCACHE_ENABLED", "1")
             .env("CI_PROJECT_PATH_SLUG", "demo-project")
             .output()
             .unwrap();

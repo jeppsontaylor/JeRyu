@@ -2,7 +2,7 @@ I attempted a local clone first, but the sandbox could not resolve `github.com`,
 
 ## Executive verdict
 
-**JeRyu is extremely promising, but it is not actually a GitLab fork yet.** The repo is branded internally as `vgit` and presents itself as a Rust “Headless GitLab & Autonomous Agent Hypervisor”: a single-binary control plane around local GitLab, GitLab Runner, Docker, Vault, SQL state, CI, cache, and agent workflows. That is a better architectural direction than forking all of GitLab’s Rails/Go/Ruby surface if the goal is an agent-first developer substrate. But it also means the project is currently more of an **agent operations layer on top of GitLab** than “the world’s #1 agent-first GitLab/GitHub replacement.” The README describes exactly that Rust control-plane position, including GitLab CE, runner pools, CoW sandboxing, ephemeral bot users, custom executor integration, VTI, and cache/memory tuning. ([GitHub][1])
+**JeRyu is extremely promising, but it is not actually a GitLab fork yet.** The repo is branded internally as `jeryu` and presents itself as a Rust “Headless GitLab & Autonomous Agent Hypervisor”: a single-binary control plane around local GitLab, GitLab Runner, Docker, Vault, SQL state, CI, cache, and agent workflows. That is a better architectural direction than forking all of GitLab’s Rails/Go/Ruby surface if the goal is an agent-first developer substrate. But it also means the project is currently more of an **agent operations layer on top of GitLab** than “the world’s #1 agent-first GitLab/GitHub replacement.” The README describes exactly that Rust control-plane position, including GitLab CE, runner pools, CoW sandboxing, ephemeral bot users, custom executor integration, VTI, and cache/memory tuning. ([GitHub][1])
 
 The strongest parts are the **agent-first primitives**: typed CLI, capability intents, evidence capsules, VTI selective testing, runner/pool orchestration, sandbox/cache concepts, pre-receive admission hooks, and a TUI. The weakest parts are the things that make full autonomy safe: real merge-proof enforcement, authenticated capability execution, end-to-end agent state, actual sandbox isolation, complete race orchestration, durable policy, model/tool protocols, and a richer TUI that explains “why this is safe to merge right now.”
 
@@ -32,7 +32,7 @@ For autonomous coding, this is exactly the kind of substrate that GitHub/GitLab-
 
 ### 4. VTI selective testing is one of the best ideas in the repo
 
-The VTI docs and code implement path/subsystem-based test selection, docs-only fast paths, conservative full-suite fallbacks, external `.vgit/testmap.toml` support, generated child pipeline YAML, confidence thresholds, and nightly selector-miss auditing. The planner explicitly falls back to full execution on empty diffs, global invalidators, unknown paths, and low confidence. ([GitHub][5])
+The VTI docs and code implement path/subsystem-based test selection, docs-only fast paths, conservative full-suite fallbacks, external `.jeryu/testmap.toml` support, generated child pipeline YAML, confidence thresholds, and nightly selector-miss auditing. The planner explicitly falls back to full execution on empty diffs, global invalidators, unknown paths, and low confidence. ([GitHub][5])
 
 This is a killer feature if made trustworthy. Agents need fast validation loops more than humans do. A 40-minute pipeline is annoying for a person; it can completely destroy autonomous iteration.
 
@@ -82,7 +82,7 @@ Also, logging the whole intent is risky because `ProposePatch` and `RacePatches`
 
 ### P0: The sandbox is not as strict as the docs imply
 
-The sandbox source says strict network isolation is intended, but the implementation comments state that full network namespace isolation via `bwrap`/`unshare` is not actually used in that path; it starts `bash`, sets `VGIT_SANDBOXED=1`, and relies on Docker executor pools, honeypot tripwires, and proxy-enforced egress. ([GitHub][11])
+The sandbox source says strict network isolation is intended, but the implementation comments state that full network namespace isolation via `bwrap`/`unshare` is not actually used in that path; it starts `bash`, sets `JERYU_SANDBOXED=1`, and relies on Docker executor pools, honeypot tripwires, and proxy-enforced egress. ([GitHub][11])
 
 That is not enough for untrusted autonomous agents. Honeypots are useful detection, not containment.
 
@@ -120,11 +120,11 @@ The `PlanValidation` intent accepts `project_id`, `test_ids`, and `ref_name`, bu
 
 ### P1: Docs and code have drift
 
-The API docs describe `/cache/summary` as unauthenticated, while the engine code requires an `X-Vgit-Token` check for cache summary access. ([GitHub][13])
+The API docs describe `/cache/summary` as unauthenticated, while the engine code requires an `X-Jeryu-Token` check for cache summary access. ([GitHub][13])
 
 The architecture docs describe one set of disk thresholds, while the engine source appears to enforce a different set. ([GitHub][2])
 
-The CI-testing docs reference a `vgit gc` command, while the CLI surface I saw exposes cache/host reclaim flows rather than a top-level `gc`. ([GitHub][14])
+The CI-testing docs reference a `jeryu gc` command, while the CLI surface I saw exposes cache/host reclaim flows rather than a top-level `gc`. ([GitHub][14])
 
 **Fix:** generate docs from the CLI/action registry and server routes. Add a doc drift test that fails CI when docs mention a command or route that no longer exists.
 
@@ -590,7 +590,7 @@ Replays the entire autonomous session: decisions, patches, tests, failures, fixe
 
 ## The PR sequence I would prioritize
 
-1. **Rename/clarify identity:** decide whether this is `JeRyu` or `vgit`; align README, binary, docs, version numbers, and commands.
+1. **Rename/clarify identity:** decide whether this is `JeRyu` or `jeryu`; align README, binary, docs, version numbers, and commands.
 
 2. **Generate docs from code:** CLI, routes, action registry, settings, and policy docs should be generated or tested for drift.
 
@@ -638,7 +638,7 @@ The path to “world’s #1 agent-first Git option” is clear:
 [6]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/exec.rs "raw.githubusercontent.com"
 [7]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/capability.rs "JeRyu/src/capability.rs at main · jeppsontaylor/JeRyu · GitHub"
 [8]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/admission.rs "raw.githubusercontent.com"
-[9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [10]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/decision.rs "raw.githubusercontent.com"
 [11]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/sandbox.rs "raw.githubusercontent.com"
 [12]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/agent.rs "JeRyu/src/agent.rs at main · jeppsontaylor/JeRyu · GitHub"

@@ -1,5 +1,5 @@
 //! Owner: State Store (Postgres primary, SQLite fallback)
-//! Proof: `cargo test -p vgit -- state`
+//! Proof: `cargo test -p jeryu -- state`
 //! Invariants: append-only event log; manager state machine (starting→online→draining→stopped)
 //!
 //! Owns the schema, migrations, and all CRUD operations for pools,
@@ -589,7 +589,7 @@ impl StateBackend {
             Ok(Self::Sqlite)
         } else {
             anyhow::bail!(
-                "unsupported VGIT_DATABASE_URL scheme; expected postgres://, postgresql://, or sqlite:"
+                "unsupported JERYU_DATABASE_URL scheme; expected postgres://, postgresql://, or sqlite:"
             )
         }
     }
@@ -762,9 +762,9 @@ impl Db {
         Ok(db)
     }
 
-    /// Open the optional Postgres integration database from `VGIT_TEST_POSTGRES_URL`.
+    /// Open the optional Postgres integration database from `JERYU_TEST_POSTGRES_URL`.
     pub async fn open_test_postgres() -> Result<Option<Self>> {
-        match std::env::var("VGIT_TEST_POSTGRES_URL") {
+        match std::env::var("JERYU_TEST_POSTGRES_URL") {
             Ok(url) if !url.trim().is_empty() => Self::open_url(&url).await.map(Some),
             _ => Ok(None),
         }
@@ -3396,18 +3396,18 @@ mod tests {
     #[test]
     fn state_backend_detects_supported_urls() -> Result<()> {
         assert_eq!(
-            StateBackend::from_url("postgres://vgit:secret@127.0.0.1/vgit")?,
+            StateBackend::from_url("postgres://jeryu:secret@127.0.0.1/jeryu")?,
             StateBackend::Postgres
         );
         assert_eq!(
-            StateBackend::from_url("postgresql://vgit:secret@127.0.0.1/vgit")?,
+            StateBackend::from_url("postgresql://jeryu:secret@127.0.0.1/jeryu")?,
             StateBackend::Postgres
         );
         assert_eq!(
-            StateBackend::from_url("sqlite:/tmp/vgit.db?mode=rwc")?,
+            StateBackend::from_url("sqlite:/tmp/jeryu.db?mode=rwc")?,
             StateBackend::Sqlite
         );
-        assert!(StateBackend::from_url("mysql://localhost/vgit").is_err());
+        assert!(StateBackend::from_url("mysql://localhost/jeryu").is_err());
         Ok(())
     }
 
@@ -3680,7 +3680,7 @@ mod tests {
             job_name: "compile-workspace".to_string(),
             stage: "compile".to_string(),
             status: "success".to_string(),
-            runner: Some("vgit-build".to_string()),
+            runner: Some("jeryu-build".to_string()),
             runner_pool: Some("build".to_string()),
             queued_duration_secs: Some(1.0),
             duration_secs: Some(12.5),

@@ -1,4 +1,4 @@
-This is a **wildly ambitious and genuinely compelling system**. The strongest thing about JeRyu / `vgit` is that it is not pretending CI/CD is just “run a command and hope.” It is building an actual **local delivery control plane** with typed state, release gates, runner orchestration, cache policy, failure evidence, agent workflows, Vault-backed secrets, and a supervisory TUI.
+This is a **wildly ambitious and genuinely compelling system**. The strongest thing about JeRyu / `jeryu` is that it is not pretending CI/CD is just “run a command and hope.” It is building an actual **local delivery control plane** with typed state, release gates, runner orchestration, cache policy, failure evidence, agent workflows, Vault-backed secrets, and a supervisory TUI.
 
 My biggest overall feedback:
 
@@ -67,7 +67,7 @@ An agent may interpret `success: true` as “the patch was proposed,” “the r
   "state": "deferred_not_implemented",
   "message": "RequestMerge is recognized but not currently routed.",
   "data": {
-    "recommended_surface": "vgit agent merge"
+    "recommended_surface": "jeryu agent merge"
   }
 }
 ```
@@ -367,8 +367,8 @@ Instead of sending large payloads over the socket, the agent capability API shou
 {
   "intent": "ProposePatch",
   "payload": {
-    "patch_file": "/tmp/vgit-agent/patches/123.diff",
-    "manifest": "/tmp/vgit-agent/patches/123.json"
+    "patch_file": "/tmp/jeryu-agent/patches/123.diff",
+    "manifest": "/tmp/jeryu-agent/patches/123.json"
   }
 }
 ```
@@ -390,7 +390,7 @@ Keep the socket for control messages, not bulk transfer.
 
 ## 2.11 `shadow sync-now` is a placeholder
 
-The API documents `shadow sync-now` as a CLI trigger placeholder that tells the user to ensure `vgit serve` is running.
+The API documents `shadow sync-now` as a CLI trigger placeholder that tells the user to ensure `jeryu serve` is running.
 
 That is surprising. A command named `sync-now` should either:
 
@@ -589,7 +589,7 @@ AgentIntent::SubscribeEvents {
 Or a separate local event stream:
 
 ```text
-vgit capability stream /tmp/vgit-events.sock
+jeryu capability stream /tmp/jeryu-events.sock
 ```
 
 The stream should include:
@@ -740,7 +740,7 @@ Hypothesis B: adjust witness signature
 Hypothesis C: bypass stale verdict path
 ```
 
-`vgit` would:
+`jeryu` would:
 
 * create three branches
 * run the same validation plan on each
@@ -825,7 +825,7 @@ Then `ApplyAction` should only work when preflight passes.
 
 ---
 
-## 3.8 Agent dream: access to proof-scoped tools through `vgit`
+## 3.8 Agent dream: access to proof-scoped tools through `jeryu`
 
 The workspace tools are excellent:
 
@@ -835,17 +835,17 @@ The workspace tools are excellent:
 * `arc-bench`
 * `witness-rt`
 
-But they sit beside `vgit`.
+But they sit beside `jeryu`.
 
 An agent would benefit from a unified surface:
 
 ```text
-vgit proof witness build
-vgit proof witness diff
-vgit proof vrc map
-vgit proof vrc plan
-vgit proof aer scan
-vgit proof diagnose
+jeryu proof witness build
+jeryu proof witness diff
+jeryu proof vrc map
+jeryu proof vrc plan
+jeryu proof aer scan
+jeryu proof diagnose
 ```
 
 Or capability intents:
@@ -910,7 +910,7 @@ These are the ones I would fix before adding more UI glamour.
 
 ---
 
-# 5. Dream TUI redesign: “VGIT Mission Control”
+# 5. Dream TUI redesign: “JERYU Mission Control”
 
 The current TUI is good as a foundation. The dream version should be a **high-contrast, command-driven, real-time operational cockpit**.
 
@@ -944,7 +944,7 @@ The top strip should be always visible and brutally informative.
 Example:
 
 ```text
-VGIT MISSION CONTROL   ONLINE  main@fa51a52  ci-fa51a52  Canary: E2E PASSED  Prod: READY
+JERYU MISSION CONTROL   ONLINE  main@fa51a52  ci-fa51a52  Canary: E2E PASSED  Prod: READY
 GitLab ✓  Webhook ✓  DB ✓  Docker ✓  Vault ✓  Hook ✓  Cache ⚠  Disk 72%  Agents 3  Runners 7/10
 ```
 
@@ -1546,8 +1546,8 @@ Agent suggestions
 1. Failure likely regression in src/cache_brain.rs
 2. Relevant recent commit: fa51a52
 3. Suggested focused tests:
-   - cargo test -p vgit cache_brain
-   - cargo test -p vgit state::tests::cache
+   - cargo test -p jeryu cache_brain
+   - cargo test -p jeryu state::tests::cache
 4. Suggested repair agent task:
    "Investigate cache verdict regression in cache_brain exact-hit path"
 
@@ -1698,7 +1698,7 @@ Decision: ESCALATE
 Reason: untrusted work requires human review
 ```
 
-This should be visible before `vgit agent merge`.
+This should be visible before `jeryu agent merge`.
 
 ---
 
@@ -1858,7 +1858,7 @@ GitLab, Docker, DB, Vault, webhook, hook, cache, disk, and runner capacity are t
 
 # 18. My ideal end-state mental model
 
-The dream version of `vgit tui` should feel like this:
+The dream version of `jeryu tui` should feel like this:
 
 ```text
 I open the TUI.

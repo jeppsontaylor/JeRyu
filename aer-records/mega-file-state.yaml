@@ -1,9 +1,9 @@
-id: aer.vgit.mega-file.state
+id: aer.jeryu.mega-file.state
 class_id: mega-file
 rule: "Files should stay below the house budget unless locality would be harmed."
-exception: "src/state.rs is the single SQLite schema + accessor boundary for all of vgit's persistent state."
+exception: "src/state.rs is the single SQLite schema + accessor boundary for all of jeryu's persistent state."
 reason: "All state mutations are required to go through state::Db methods (invariant in package.metadata.agent). Splitting across files creates implicit coupling and makes transaction boundary review harder. The file size is proportional to the number of domain entities, not to complexity."
 risk: medium
-owner: vgit-core
+owner: jeryu-core
 doc_links: []
 sunset_condition: "Refactor when state::Db is split into domain sub-modules with explicit transaction boundaries per subdomain."

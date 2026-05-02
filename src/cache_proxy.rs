@@ -1,5 +1,5 @@
 //! Owner: Cache Proxy (sccache TCP Proxy)
-//! Proof: `cargo test -p vgit -- cache_proxy`
+//! Proof: `cargo test -p jeryu -- cache_proxy`
 //! Invariants: Proxy forwards to sccache; authentication failures are logged and traffic is dropped, not forwarded; proxy lifecycle is tied to the executor session
 
 use anyhow::{Result, bail};

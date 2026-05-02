@@ -26,7 +26,7 @@ Third, the **CLI** exposes many operational surfaces: pools, jobs, pipelines, ca
 
 The TUI has tabs for **Mission, Release, Jobs, Agents, Tests, Pools, Cache, Evidence, and Secrets**. Its state snapshot includes pools, GitLab readiness, active containers, jobs, pipelines, flow state, live logs, cache metrics, registry/mirror/CA health, cache taints, storage breakdown, pipeline ETA/progress, release status, test bottlenecks, evidence, secret audits, agent pipelines, and audit events. ([GitHub][4])
 
-The renderer has a recognizable structure: header, tabs, active content area, event console, footer, and optional command palette. The header shows `vgit`, GitLab status, container count, active pools, release SHA/state, staleness, and numbered tabs. ([GitHub][5])
+The renderer has a recognizable structure: header, tabs, active content area, event console, footer, and optional command palette. The header shows `jeryu`, GitLab status, container count, active pools, release SHA/state, staleness, and numbered tabs. ([GitHub][5])
 
 The Mission tab is a 2x2 dashboard with system health, pipeline summary, release status, and cache health. The Release tab has a gate matrix and inspector. The Jobs tab has a pipeline list, flow board, logs, and job inspector. The Agents tab currently focuses on agent-like pipelines and capability/audit history. The Tests tab shows bottlenecks and history. ([GitHub][5])
 
@@ -249,7 +249,7 @@ This replaces the current Mission tab.
 Purpose: show the top operational truth.
 
 ```text
-┌─ vgit COMMAND CENTER ─────────────────────────────────────────────────────┐
+┌─ jeryu COMMAND CENTER ─────────────────────────────────────────────────────┐
 │ HEALTH green   AUTONOMY patch+test   RELEASE blocked   QUEUE 6   RISK 2  │
 ├───────────────────────────────────────────────────────────────────────────┤
 │ Attention                                                                  │
@@ -620,7 +620,7 @@ The existing flow model can render this much more truthfully.
 The header should become denser and more informative:
 
 ```text
-vgit  HEALTH:green  AUTONOMY:patch+test  RELEASE:blocked  AGENTS:7/3 blocked  CI:18 run/6 queue  CACHE:71%  RISK:2  STALE:none
+jeryu  HEALTH:green  AUTONOMY:patch+test  RELEASE:blocked  AGENTS:7/3 blocked  CI:18 run/6 queue  CACHE:71%  RISK:2  STALE:none
 ```
 
 Use color sparingly but consistently:

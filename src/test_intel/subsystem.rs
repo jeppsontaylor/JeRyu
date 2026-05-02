@@ -1,5 +1,5 @@
 //! Owner: VTI Test Intelligence subsystem — subsystem ownership graph
-//! Proof: `cargo nextest run -p vgit -- test_intel::subsystem`
+//! Proof: `cargo nextest run -p jeryu -- test_intel::subsystem`
 //! Invariants: Subsystem mappings stay deterministic and reflect the shared VTI contract.
 //! Subsystem rules: maps source file paths to named subsystems and test commands.
 //!
@@ -80,7 +80,7 @@ pub const DOCS_PATTERNS: &[&str] = &["*.md", "docs/*", "LICENSE", ".gitignore", 
 // Registry
 // ---------------------------------------------------------------------------
 
-/// The complete set of subsystem rules for the JeRyu vgit codebase.
+/// The complete set of subsystem rules for the JeRyu jeryu codebase.
 pub const SUBSYSTEMS: &[Subsystem] = &[
     Subsystem {
         id: "pool",

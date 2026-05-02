@@ -1,5 +1,5 @@
 //! Owner: MCP adapter for external coding agents
-//! Proof: `cargo check -p vgit --message-format=json` and `cargo test -p vgit --lib mcp`
+//! Proof: `cargo check -p jeryu --message-format=json` and `cargo test -p jeryu --lib mcp`
 //! Invariants: These tests guard the adapter behavior and must not mutate policy state.
 
 use std::sync::Arc;
@@ -29,11 +29,11 @@ async fn spawn_http_server() -> (String, tokio::task::JoinHandle<()>) {
 #[test]
 fn manifest_includes_capability_tools() {
     let manifest = tool_manifest();
-    assert!(manifest.iter().any(|tool| tool["name"] == "vgit.run_tests"));
+    assert!(manifest.iter().any(|tool| tool["name"] == "jeryu.run_tests"));
     assert!(
         manifest
             .iter()
-            .any(|tool| tool["name"] == "vgit.fetch_capsule")
+            .any(|tool| tool["name"] == "jeryu.fetch_capsule")
     );
 }
 
@@ -54,7 +54,7 @@ fn manifest_covers_all_capability_actions() {
         })
     {
         assert!(
-            names.contains(&format!("vgit.{}", entry.id)),
+            names.contains(&format!("jeryu.{}", entry.id)),
             "missing MCP tool for capability action {}",
             entry.id
         );
@@ -166,13 +166,13 @@ async fn http_transport_initializes_and_executes_tools() {
         .header("Mcp-Session-Id", &session)
         .header("MCP-Protocol-Version", MCP_PROTOCOL_VERSION)
         .header("Mcp-Method", "tools/call")
-        .header("Mcp-Name", "vgit.explain_blockers")
+        .header("Mcp-Name", "jeryu.explain_blockers")
         .json(&json!({
             "jsonrpc": "2.0",
             "id": 3,
             "method": "tools/call",
             "params": {
-                "name": "vgit.explain_blockers",
+                "name": "jeryu.explain_blockers",
                 "arguments": { "entity_type": "merge", "entity_id": 1 }
             }
         }))
@@ -250,13 +250,13 @@ async fn http_transport_rejects_unknown_tools() {
         .header("Mcp-Session-Id", &session)
         .header("MCP-Protocol-Version", MCP_PROTOCOL_VERSION)
         .header("Mcp-Method", "tools/call")
-        .header("Mcp-Name", "vgit.not_a_real_tool")
+        .header("Mcp-Name", "jeryu.not_a_real_tool")
         .json(&json!({
             "jsonrpc": "2.0",
             "id": 2,
             "method": "tools/call",
             "params": {
-                "name": "vgit.not_a_real_tool",
+                "name": "jeryu.not_a_real_tool",
                 "arguments": {}
             }
         }))

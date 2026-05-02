@@ -1,5 +1,5 @@
 //! Owner: BuildKit Configuration (Per-Trust-Namespace Rootless Builders)
-//! Proof: `cargo test -p vgit -- buildkit`
+//! Proof: `cargo test -p jeryu -- buildkit`
 //! Invariants: Each trust namespace has its own BuildKit instance to prevent cache poisoning; namespace is injected into all generated configs; never share builder state across namespaces
 
 /// Manager for generating rootless dedicated BuildKit builder configurations
@@ -21,7 +21,7 @@ impl BuildKitManager {
         vec![
             (
                 "BUILDX_BUILDER".to_string(),
-                format!("vgit-{}", self.namespace),
+                format!("jeryu-{}", self.namespace),
             ),
             ("DOCKER_BUILDKIT".to_string(), "1".to_string()),
         ]
@@ -56,7 +56,7 @@ mod tests {
     fn test_buildkit_env_injection() {
         let mgr = BuildKitManager::new("quarantine");
         let envs = mgr.inject_env();
-        assert!(envs.contains(&("BUILDX_BUILDER".into(), "vgit-quarantine".into())));
+        assert!(envs.contains(&("BUILDX_BUILDER".into(), "jeryu-quarantine".into())));
     }
 
     #[test]

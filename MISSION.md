@@ -2,7 +2,7 @@
 
 ## Mission
 
-`vgit` exists to replace wasteful, brittle, human-babysat Git processes with an agent-governed Rust control plane.
+`jeryu` exists to replace wasteful, brittle, human-babysat Git processes with an agent-governed Rust control plane.
 
 The project is opinionated about where control should live:
 
@@ -26,13 +26,13 @@ The most common public complaints about Git processes and CI/CD are no longer ed
 
 These are not separate annoyances. They are all symptoms of the same missing layer: current CI systems are good at executing predefined work, but weak at making good decisions when the world changes underneath a run.
 
-That is the opening for `vgit`.
+That is the opening for `jeryu`.
 
-## What `vgit` Already Has
+## What `jeryu` Already Has
 
 This repository already has meaningful foundations for an agent-first control plane:
 
-- **GitLab bootstrap and runner-pool control**: `vgit` can stand up a local GitLab stack, provision runner pools, scale managers, rotate tokens, pause/drain capacity, and reconcile Docker-backed runtime state.
+- **GitLab bootstrap and runner-pool control**: `jeryu` can stand up a local GitLab stack, provision runner pools, scale managers, rotate tokens, pause/drain capacity, and reconcile Docker-backed runtime state.
 - **Webhook-driven engine and state ledger**: the engine receives job, pipeline, and push events and records lifecycle state into SQLite so orchestration can be event-driven and auditable.
 - **Custom executor and isolated workspaces**: the execution plane can provision per-job sandboxes and intercept runner lifecycle stages instead of treating the runner as an untouchable black box.
 - **Ephemeral bot identities and agent workflow scaffolding**: agents can get disposable GitLab identities, create branches, track work via issues, open merge requests, inspect results, and operate with tighter attribution than a shared service account.
@@ -51,7 +51,7 @@ In practical terms, the runner, state, GitLab client, and agent-management paths
 
 The highest-value pain in Git processes is only partially addressed in this repo today. The missing layer is the actual decision system.
 
-`vgit` does not yet fully deliver:
+`jeryu` does not yet fully deliver:
 
 - **Commit supersedence with partial DAG reuse**: the system does not yet natively decide which work is obsolete, which work should be degraded, and which prior evidence remains reusable after a new commit lands.
 - **Semantic impact analysis tied to safe required checks**: there is not yet a finished impact engine that can map a diff to the smallest safe job and test set while still satisfying merge and policy requirements.
@@ -59,11 +59,11 @@ The highest-value pain in Git processes is only partially addressed in this repo
 - **Structured causal explanations**: it does not yet expose a complete machine-readable explanation layer for why work ran, skipped, waited, failed, retried, or was canceled.
 - **Policy-driven agent authority for risky actions**: it does not yet enforce a complete least-privilege model for high-risk merges, deploys, secret use, or destructive operations under agent control.
 
-This is the most important framing discipline for contributors: `vgit` already has compelling infrastructure control, but it has not yet finished the intelligence layer that would resolve the most common CI complaints.
+This is the most important framing discipline for contributors: `jeryu` already has compelling infrastructure control, but it has not yet finished the intelligence layer that would resolve the most common CI complaints.
 
 ## The Product Thesis
 
-`vgit` should be built and judged according to a simple thesis:
+`jeryu` should be built and judged according to a simple thesis:
 
 - **GitLab-first today**: the current substrate is GitLab, local-first, and intentionally close to the runner and webhook machinery.
 - **Rust-first in control and policy**: orchestration, safety rules, state transitions, and authority boundaries should live in typed Rust systems rather than in ad hoc CI configuration.
@@ -153,7 +153,7 @@ These are not just naming preferences. They are the product interfaces that conn
 
 ## Contributor Guidance
 
-When making roadmap decisions, contributors should prefer work that moves `vgit` from "can execute jobs and spawn agents" toward "can decide and justify the minimum safe next action."
+When making roadmap decisions, contributors should prefer work that moves `jeryu` from "can execute jobs and spawn agents" toward "can decide and justify the minimum safe next action."
 
 That means prioritizing:
 
@@ -188,4 +188,4 @@ The pain described above is visible in recurring public complaints and official 
 - Empirical flaky-build study  
   <https://arxiv.org/abs/2602.02307>
 
-These references should be treated as evidence of repeated user pain, not as product requirements by themselves. The mission of `vgit` is to turn those repeated complaints into a coherent agent-first control plane built in Rust.
+These references should be treated as evidence of repeated user pain, not as product requirements by themselves. The mission of `jeryu` is to turn those repeated complaints into a coherent agent-first control plane built in Rust.

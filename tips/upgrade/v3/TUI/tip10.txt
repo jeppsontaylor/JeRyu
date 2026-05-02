@@ -84,7 +84,7 @@ That creates a design problem: the TUI is doing too much collection and interpre
 /v1/actions/:id/execute
 ```
 
-The TUI should not be the place where GitLab state, Docker state, DB state, release state, and agent state are reconciled. That should live in a `vgitd` or internal state service.
+The TUI should not be the place where GitLab state, Docker state, DB state, release state, and agent state are reconciled. That should live in a `jeryud` or internal state service.
 
 ## Gap 3: Realtime is polling-heavy
 
@@ -234,7 +234,7 @@ The Mission screen should answer, in this order:
 A rough mockup:
 
 ```text
-VGIT Mission Control   GitLab ✓  Runners 8/10  Agents 3  Release BLOCKED  Cache ✓
+JERYU Mission Control   GitLab ✓  Runners 8/10  Agents 3  Release BLOCKED  Cache ✓
 ───────────────────────────────────────────────────────────────────────────────
 
 NEXT ACTION
@@ -552,7 +552,7 @@ Type          Entity        Result     Actor      Time
 capability    patch         granted    agent-19   12:38
 job           unit          passed     runner-4   12:40
 capsule       integration   failed     runner-2   12:41
-merge-gate    !42           blocked    vgit       12:42
+merge-gate    !42           blocked    jeryu       12:42
 admission     ref-update    denied     hook       12:43
 ```
 
@@ -1395,7 +1395,7 @@ That is the product loop for a world-class agent-first TUI.
 The current TUI has strong bones. The best next move is not more panels; it is a better state/action/evidence model. If the API starts giving the TUI typed realtime facts, blockers, risks, and recommended actions, the interface can become genuinely world-class: not just a prettier CI dashboard, but an autonomous software delivery cockpit.
 
 [1]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/API.md "raw.githubusercontent.com"
-[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [3]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/tui/ui.rs "JeRyu/src/tui/ui.rs at main · jeppsontaylor/JeRyu · GitHub"
 [4]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/flow/builder.rs "raw.githubusercontent.com"
 [5]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/capability.rs "JeRyu/src/capability.rs at main · jeppsontaylor/JeRyu · GitHub"

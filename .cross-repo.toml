@@ -7,7 +7,7 @@
 [boundary]
 ci_meaning_owner = "dougx"          # apps/veox-testctl/src/ci.rs
 ci_execution_owner = "JeRyu"     # src/engine.rs, src/release.rs
-testmap_owner = "dougx"             # .vgit/testmap.toml
+testmap_owner = "dougx"             # .jeryu/testmap.toml
 testmap_consumer = "JeRyu"       # src/test_intel/
 
 [contracts]
@@ -15,10 +15,10 @@ testmap_consumer = "JeRyu"       # src/test_intel/
 consumed_surfaces = [
     "CI lane semantics      ← dougx/apps/veox-testctl/src/ci.rs",
     "Release evidence schema ← dougx/ops/releases/<version>/",
-    "VTI subsystem map       ← dougx/.vgit/testmap.toml",
+    "VTI subsystem map       ← dougx/.jeryu/testmap.toml",
 ]
 
 [validation]
 # If the consumed surface schema changes in dougx, run these locally:
-local_check = "cargo check -p vgit --message-format=json"
-local_vti_tests = "cargo test -p vgit -- test_intel"
+local_check = "cargo check -p jeryu --message-format=json"
+local_vti_tests = "cargo test -p jeryu -- test_intel"

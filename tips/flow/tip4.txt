@@ -1,4 +1,4 @@
-# vgit Flow TUI — Build Spec
+# jeryu Flow TUI — Build Spec
 
 Build the new TUI around one primary concept: **the Flow Board**. The current dashboard is good for proving the machine is alive. The next version should make the whole delivery system feel like an air-traffic-control board for software: left-to-right Git flow, stacked parallel work, live position, release gates, ETA, blockers, and drilldown.
 
@@ -26,7 +26,7 @@ The screen should answer these questions without drilldown:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ vgit God Mode │ GitLab ● ONLINE │ ref main │ ci-54c658... │ ETA 18m ±4m     │
+│ jeryu God Mode │ GitLab ● ONLINE │ ref main │ ci-54c658... │ ETA 18m ±4m     │
 │ Release: stale → canary blocked │ Active: 5 jobs │ Queue: 3 │ Blocker: e2e   │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ FLOW                                                                         │
@@ -53,7 +53,7 @@ The screen should answer these questions without drilldown:
 │  └─────────────┘   └──────────────┘   └────────────┘   └───────────────┘    │
 ├───────────────────────────────────────┬──────────────────────────────────────┤
 │ SELECTED: build-enclave-server        │ INSPECTOR                            │
-│ pool: default │ runner: vgit-e2e...   │ status: running                      │
+│ pool: default │ runner: jeryu-e2e...   │ status: running                      │
 │ elapsed: 09:48 │ p50: 10:00 │ p95: 13 │ ETA basis: historical job duration   │
 │ trace: compiling enclave-server...    │ next: integration gate waits on this │
 ├───────────────────────────────────────┴──────────────────────────────────────┤
@@ -238,7 +238,7 @@ Trace tail:
   assertion failed: expected 200, got 502
 
 Repro:
-  vgit job explain 2 12345
+  jeryu job explain 2 12345
   ./replay.sh
 ```
 
@@ -259,7 +259,7 @@ ansi-to-tui = "8"
 tokio = { version = "1", features = ["full"] }
 ```
 
-For Ratatui 0.30, application developers can continue using the main `ratatui` crate as before, while widget authors can use the modularized lower-level crates such as `ratatui-core`; the vgit app should stay on `ratatui` unless you split custom widgets into a reusable crate. ([Ratatui][2])
+For Ratatui 0.30, application developers can continue using the main `ratatui` crate as before, while widget authors can use the modularized lower-level crates such as `ratatui-core`; the jeryu app should stay on `ratatui` unless you split custom widgets into a reusable crate. ([Ratatui][2])
 
 Use Ratatui’s single-root-widget pattern: render the whole app through one root widget that delegates to child widgets. Ratatui documents this as a clean way to separate application state from rendering and compose complex UIs. ([Docs.rs][3])
 
@@ -1269,7 +1269,7 @@ The TUI should reuse the existing API:
 | Cache node            | cache status/doctor                          |
 | Pool node             | pool manager status/logs                     |
 
-Do not shell out to `vgit pipeline explain`. Move shared logic into callable Rust functions if it is currently CLI-only:
+Do not shell out to `jeryu pipeline explain`. Move shared logic into callable Rust functions if it is currently CLI-only:
 
 ```rust
 pub async fn explain_pipeline(
@@ -1435,7 +1435,7 @@ fn diagnose_job(job: &FlowJob, pools: &[FlowPool], trace: Option<&TraceTail>) ->
 Deliverable:
 
 ```text
-vgit tui
+jeryu tui
 ```
 
 shows the new `Flow` tab with static nodes from DB + GitLab.
@@ -1555,7 +1555,7 @@ Acceptance:
 Give the implementing agent this exact task:
 
 ```text
-Implement a new default vgit TUI tab called Flow.
+Implement a new default jeryu TUI tab called Flow.
 
 Create src/tui/flow/{mod.rs,model.rs,collect.rs,eta.rs,layout.rs,widget.rs,inspector.rs,style.rs,commands.rs}.
 
@@ -1598,7 +1598,7 @@ Add --once tests using Ratatui TestBackend or equivalent snapshot rendering for 
 
 ## 22. Final design principle
 
-The Flow Board should make vgit feel less like “CI logs” and more like a **software delivery control tower**:
+The Flow Board should make jeryu feel less like “CI logs” and more like a **software delivery control tower**:
 
 ```text
 left side  = Git truth

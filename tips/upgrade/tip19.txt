@@ -1,6 +1,6 @@
 ## Executive take
 
-JeRyu / `vgit` already has the skeleton of something unusually powerful: a local GitLab control plane, runner fleet manager, release gatekeeper, cache/security brain, failure-evidence system, and TUI in one Rust binary. The strongest architectural idea is that agents are not given a raw shell and broad tokens; they operate through typed surfaces, GitLab workflows, risk gates, evidence capsules, and release pipelines.
+JeRyu / `jeryu` already has the skeleton of something unusually powerful: a local GitLab control plane, runner fleet manager, release gatekeeper, cache/security brain, failure-evidence system, and TUI in one Rust binary. The strongest architectural idea is that agents are not given a raw shell and broad tokens; they operate through typed surfaces, GitLab workflows, risk gates, evidence capsules, and release pipelines.
 
 The main gap is that the **control plane is much more powerful than the visible/operator-facing experience**. The system can scale pools, reason about risk, track release attempts, retry transient failures, select smart tests, rotate release secrets, inspect capsules, and trigger production promotion, but the TUI currently exposes only a narrow slice of that power. The “dream” version should feel less like a dashboard and more like a **mission-control console with an action graph, command palette, live incident timeline, policy-aware execution previews, and an agent copilot lane**.
 
@@ -31,7 +31,7 @@ The backend exposes a very rich control surface, but the active TUI only exposes
 
 This creates a mismatch: the system is capable of being a command center, but the current TUI is still closer to an observability prototype with some operational actions.
 
-**Recommendation:** treat the next major TUI version as a productized control surface, not just a dashboard. Every meaningful `vgit` action should become discoverable, previewable, and executable from the TUI, subject to risk gates.
+**Recommendation:** treat the next major TUI version as a productized control surface, not just a dashboard. Every meaningful `jeryu` action should become discoverable, previewable, and executable from the TUI, subject to risk gates.
 
 ---
 
@@ -95,7 +95,7 @@ Returns:
     "candidate_actions": [
       {
         "action": "RunFocusedTests",
-        "command": "cargo test -p vgit release::tests -- --nocapture",
+        "command": "cargo test -p jeryu release::tests -- --nocapture",
         "reason": "Failure maps to release.rs gate logic"
       },
       {
@@ -317,7 +317,7 @@ The better architecture would be:
 * Log stream includes metadata: byte offset, fetch errors, last updated, job status, artifact availability.
 * TUI can follow multiple logs or pin a comparison view.
 
-Even without true GitLab websocket support, `vgit serve` could expose an internal local stream abstraction:
+Even without true GitLab websocket support, `jeryu serve` could expose an internal local stream abstraction:
 
 ```text
 /tui/events
@@ -413,7 +413,7 @@ This would make the system feel trustworthy. Operators want to know not only wha
 
 ## 1.10 Shadow sync appears underpowered
 
-`shadow sync-now` is currently a placeholder that tells the user to make sure `vgit serve` is running. That is a red flag for a command surface that sounds imperative.
+`shadow sync-now` is currently a placeholder that tells the user to make sure `jeryu serve` is running. That is a red flag for a command surface that sounds imperative.
 
 I would either:
 
@@ -532,9 +532,9 @@ Returns:
   "data": {
     "risk": "high",
     "recommended_commands": [
-      "rtk cargo check -p vgit --message-format=json",
-      "rtk cargo test -p vgit -- state::tests::test_production_pipeline_tracking release::tests -- --nocapture",
-      "rtk cargo run -p vgit -- repo audit-agent-surface --json"
+      "rtk cargo check -p jeryu --message-format=json",
+      "rtk cargo test -p jeryu -- state::tests::test_production_pipeline_tracking release::tests -- --nocapture",
+      "rtk cargo run -p jeryu -- repo audit-agent-surface --json"
     ],
     "reason": "Release and state changes affect production promotion gates."
   }
@@ -612,7 +612,7 @@ The missing piece is a unified capability route that makes this loop first-class
 A dream command might be:
 
 ```bash
-vgit agent repair 2 --pipeline 531 --job 14445 --open-mr
+jeryu agent repair 2 --pipeline 531 --job 14445 --open-mr
 ```
 
 Or in TUI:
@@ -672,7 +672,7 @@ Selected failed job -> Repair with Agent -> Preview Plan -> Start
 
 ---
 
-# 4. The dream TUI: “vgit Command Center”
+# 4. The dream TUI: “jeryu Command Center”
 
 I would redesign the TUI around a single idea:
 
@@ -696,7 +696,7 @@ The power-user experience should feel like a blend of:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-│ VGIT COMMAND CENTER  ONLINE  main@fa51a52  Release ci-fa51a52  Canary RUN  Prod BLOCKED     │
+│ JERYU COMMAND CENTER  ONLINE  main@fa51a52  Release ci-fa51a52  Canary RUN  Prod BLOCKED     │
 │ GitLab ✓  Vault ✓  Cache ✓  Runners 7/10  Queue 4  Disk 71%  Taints 0  Risk: MEDIUM         │
 ├───────────────┬───────────────────────────────────────────────────────────┬─────────────────┤
 │ NAV           │ FLOW / CRITICAL PATH                                      │ INSPECTOR       │
@@ -1140,7 +1140,7 @@ Example:
 12:05:02  agent_spawn        issue #44   repair release validation
 ```
 
-This room would make `vgit` feel trustworthy and auditable.
+This room would make `jeryu` feel trustworthy and auditable.
 
 ---
 
@@ -1167,7 +1167,7 @@ Example:
 
 ```text
 Vault: healthy
-Authority: vgit-vault
+Authority: jeryu-vault
 Release: ci-fa51a52
 Target: production
 Secret set: rotated, not finalized
@@ -1223,9 +1223,9 @@ Action: Promote production
 Risk: HIGH
 Will trigger:
   GitLab pipeline with CI_PIPELINE_PRODUCT=production-promotion
-  VGIT_PROD_APPROVED=1
-  VGIT_RELEASE_SHA=fa51a52
-  VGIT_RELEASE_VERSION=ci-fa51a52
+  JERYU_PROD_APPROVED=1
+  JERYU_RELEASE_SHA=fa51a52
+  JERYU_RELEASE_VERSION=ci-fa51a52
 
 Preflight:
   ✓ canary e2e passed
@@ -1532,7 +1532,7 @@ For a power user, I prefer more explicit tabs.
 Always show:
 
 ```text
-VGIT  ONLINE  main@fa51a52  Release ci-fa51a52  Phase CANARY  Prod BLOCKED  Queue 4  Runners 7/10  Disk 71%
+JERYU  ONLINE  main@fa51a52  Release ci-fa51a52  Phase CANARY  Prod BLOCKED  Queue 4  Runners 7/10  Disk 71%
 ```
 
 This header should be the TUI’s truth strip.
@@ -1615,43 +1615,43 @@ This prevents UI code from accumulating operational logic.
 
 ---
 
-## 12.2 Add `vgit action list`
+## 12.2 Add `jeryu action list`
 
 Expose the action registry over CLI:
 
 ```bash
-vgit action list --context job:14445 --json
-vgit action preview retry-job --job-id 14445 --json
-vgit action apply retry-job --job-id 14445
+jeryu action list --context job:14445 --json
+jeryu action preview retry-job --job-id 14445 --json
+jeryu action apply retry-job --job-id 14445
 ```
 
 Then the TUI and agents can use the same action system.
 
 ---
 
-## 12.3 Add `vgit explain`
+## 12.3 Add `jeryu explain`
 
 A universal explain command would be powerful:
 
 ```bash
-vgit explain job 14445
-vgit explain pipeline 531
-vgit explain release --ref main
-vgit explain pool build
-vgit explain cache --job 14445
-vgit explain agent !17
+jeryu explain job 14445
+jeryu explain pipeline 531
+jeryu explain release --ref main
+jeryu explain pool build
+jeryu explain cache --job 14445
+jeryu explain agent !17
 ```
 
 The TUI can bind `e` to this concept everywhere.
 
 ---
 
-## 12.4 Add `vgit watch` or local event stream
+## 12.4 Add `jeryu watch` or local event stream
 
 A machine-readable watch stream:
 
 ```bash
-vgit watch --json
+jeryu watch --json
 ```
 
 Events:
@@ -1723,7 +1723,7 @@ Then:
 9. Add “why/what next” assistant panel.
 10. Add audit trail for every agent action.
 
-This would turn `vgit` into a serious agent-operable delivery system.
+This would turn `jeryu` into a serious agent-operable delivery system.
 
 ---
 
@@ -1755,5 +1755,5 @@ It should combine:
 * security boundaries
 * safe command execution
 
-That would make `vgit tui` feel like the beating heart of the whole system.
+That would make `jeryu tui` feel like the beating heart of the whole system.
 

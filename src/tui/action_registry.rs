@@ -1,8 +1,8 @@
-//! Action registry — single source of truth for all vgit actions.
+//! Action registry — single source of truth for all jeryu actions.
 //! Owner: TUI action surface and capability action contract.
-//! Proof: `cargo test -p vgit -- action_registry`.
+//! Proof: `cargo test -p jeryu -- action_registry`.
 //! Invariants: action IDs are unique; mutating actions declare grants; capability JSON is generated from this registry.
-//! Consumed by TUI command palette, CLI `vgit action list`, and capability `ListAllowedActions`.
+//! Consumed by TUI command palette, CLI `jeryu action list`, and capability `ListAllowedActions`.
 
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
@@ -58,7 +58,7 @@ impl Surface {
 pub enum SideEffectClass {
     /// Reads state only.
     ReadOnly,
-    /// Mutates local vgit state only.
+    /// Mutates local jeryu state only.
     LocalState,
     /// Writes to Git branches or merge requests.
     GitWrite,
@@ -381,7 +381,7 @@ pub static REGISTRY: &[ActionEntry] = &[
     },
     ActionEntry {
         id: "quit",
-        label: "Quit vgit TUI",
+        label: "Quit jeryu TUI",
         key_hint: Some("q"),
         risk_tier: RiskTier::ReadOnly,
         surfaces: TUI,

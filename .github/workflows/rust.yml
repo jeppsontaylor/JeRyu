@@ -73,20 +73,20 @@ jobs:
       - name: Compute test plan
         id: plan
         run: |
-          mkdir -p target/vgit
-          cargo build --bin vgit
-          ./target/debug/vgit test select \
+          mkdir -p target/jeryu
+          cargo build --bin jeryu
+          ./target/debug/jeryu test select \
             --base origin/main \
             --head HEAD \
             --explain \
-            --emit-plan target/vgit/test-plan.json
-          MODE=$(jq -r '.mode' target/vgit/test-plan.json)
+            --emit-plan target/jeryu/test-plan.json
+          MODE=$(jq -r '.mode' target/jeryu/test-plan.json)
           # Extract the combined nextest -E filter expression from all unit_filter entries.
           # The plan stores full commands like: cargo nextest run -E 'test(/pool|docker/)'
           # We extract just the expression part and OR them together.
           UNIT_FILTER_EXPR=$(python3 - <<'PYEOF'
 import json, sys
-plan = json.load(open("target/vgit/test-plan.json"))
+plan = json.load(open("target/jeryu/test-plan.json"))
 exprs = []
 for t in plan.get("selected_tests", []):
     if t.get("kind") == "unit_filter":
@@ -105,7 +105,7 @@ PYEOF
         uses: actions/upload-artifact@v4
         with:
           name: vti-test-plan
-          path: target/vgit/test-plan.json
+          path: target/jeryu/test-plan.json
 
   test-lib:
     name: Library Tests
@@ -127,7 +127,7 @@ PYEOF
         uses: actions/download-artifact@v4
         with:
           name: vti-test-plan
-          path: target/vgit/
+          path: target/jeryu/
         continue-on-error: true
       - name: Run library tests
         run: |
@@ -135,10 +135,10 @@ PYEOF
           FILTER="${{ needs.test-select.outputs.unit_filter_expr }}"
           if [ "$MODE" = "selected" ] && [ -n "$FILTER" ]; then
             echo "VTI selected: running filter: $FILTER"
-            cargo nextest run -p vgit --lib --profile ci -E "$FILTER"
+            cargo nextest run -p jeryu --lib --profile ci -E "$FILTER"
           else
             echo "VTI mode=${MODE:-unknown}: running full lib suite"
-            cargo nextest run -p vgit --lib --profile ci
+            cargo nextest run -p jeryu --lib --profile ci
           fi
 
   test-integration:
@@ -298,7 +298,7 @@ PYEOF
       - name: Install cargo-semver-checks
         uses: taiki-e/install-action@cargo-semver-checks
       - name: Semver check
-        run: cargo semver-checks check-release -p vgit 2>/dev/null || cargo semver-checks check-release || true
+        run: cargo semver-checks check-release -p jeryu 2>/dev/null || cargo semver-checks check-release || true
       - name: AER structural audit
         run: cargo run -p cargo-aer -- scan --output aer-findings.json
       - name: Upload hardening findings

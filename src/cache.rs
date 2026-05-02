@@ -1,5 +1,5 @@
 //! Owner: SmartCache & Disk Management
-//! Proof: `cargo test -p vgit -- cache`
+//! Proof: `cargo test -p jeryu -- cache`
 //! Invariants: LRU GC every 30 min; active-manager caches never collected; CAS atomic store
 
 use anyhow::{Context, Result};
@@ -83,7 +83,7 @@ impl Default for GcOptions {
 pub struct CacheStatusReport {
     pub generated_at: String,
     pub root_fs: FsUsage,
-    pub vgit_cache_bytes: u64,
+    pub jeryu_cache_bytes: u64,
     pub manager_cache_bytes: u64,
     pub manager_cache_budget_bytes: Option<u64>,
     pub manager_caches: Vec<ManagerCacheStatus>,
@@ -646,7 +646,7 @@ impl SmartCache {
         Ok(CacheStatusReport {
             generated_at: now_rfc3339(),
             root_fs: df_usage("/").await?,
-            vgit_cache_bytes: du_bytes(&crate::config::cache_root_dir())
+            jeryu_cache_bytes: du_bytes(&crate::config::cache_root_dir())
                 .await
                 .unwrap_or(0),
             manager_cache_bytes,
@@ -715,8 +715,8 @@ pub fn print_cache_status_report(report: &CacheStatusReport) {
         if report.registry_up { "Up" } else { "Down" }
     );
     println!(
-        "vgit cache: {} (manager caches: {})",
-        human_bytes(report.vgit_cache_bytes),
+        "jeryu cache: {} (manager caches: {})",
+        human_bytes(report.jeryu_cache_bytes),
         human_bytes(report.manager_cache_bytes)
     );
     println!(
@@ -818,7 +818,7 @@ pub fn print_cache_gc_report(report: &CacheGcReport) {
 }
 
 pub fn print_host_doctor_report(report: &HostDoctorReport) {
-    println!("━━━ vgit host doctor ━━━");
+    println!("━━━ jeryu host doctor ━━━");
     for check in &report.checks {
         println!(
             "{} {:<24} {}",
@@ -845,7 +845,7 @@ async fn active_runner_manager_ids() -> BTreeSet<String> {
     };
     String::from_utf8_lossy(&output.stdout)
         .lines()
-        .filter_map(|line| line.strip_prefix("vgit-runner-"))
+        .filter_map(|line| line.strip_prefix("jeryu-runner-"))
         .map(str::to_string)
         .collect()
 }
@@ -956,7 +956,7 @@ fn path_age_seconds(path: &Path) -> Option<u64> {
 }
 
 fn pool_target_lease_fallback_ttl() -> Duration {
-    std::env::var("VGIT_POOL_CARGO_LEASE_FALLBACK_SECS")
+    std::env::var("JERYU_POOL_CARGO_LEASE_FALLBACK_SECS")
         .ok()
         .and_then(|value| value.trim().parse::<u64>().ok())
         .map(Duration::from_secs)
@@ -1003,7 +1003,7 @@ async fn remove_cache_paths_as_root(root: &Path, candidates: &[PathBuf]) -> Resu
         "-eu",
         "-c",
         "for path do rm -rf -- \"$path\"; done",
-        "vgit-cache-gc",
+        "jeryu-cache-gc",
     ]);
     command.args(&container_paths);
     let output = command
@@ -1150,10 +1150,10 @@ async fn gitlab_redis_write_check() -> HostDoctorCheck {
     let output = tokio::process::Command::new("docker")
         .args([
             "exec",
-            "vgit-gitlab",
+            "jeryu-gitlab",
             "sh",
             "-lc",
-            "gitlab-redis-cli set vgit:doctor:write ok EX 60 >/dev/null && gitlab-redis-cli get vgit:doctor:write",
+            "gitlab-redis-cli set jeryu:doctor:write ok EX 60 >/dev/null && gitlab-redis-cli get jeryu:doctor:write",
         ])
         .output()
         .await;
@@ -1364,11 +1364,11 @@ mod tests {
 
     #[test]
     fn gc_path_validation_accepts_literal_special_characters_and_rejects_parent_dirs() {
-        let root = Path::new("/tmp/vgit-cache");
+        let root = Path::new("/tmp/jeryu-cache");
         let good = vec![
-            PathBuf::from("/tmp/vgit-cache/cargo-targets/space dir/target"),
-            PathBuf::from("/tmp/vgit-cache/cargo-targets/quote'\";semi/target"),
-            PathBuf::from("/tmp/vgit-cache/cargo-targets/..literal/target"),
+            PathBuf::from("/tmp/jeryu-cache/cargo-targets/space dir/target"),
+            PathBuf::from("/tmp/jeryu-cache/cargo-targets/quote'\";semi/target"),
+            PathBuf::from("/tmp/jeryu-cache/cargo-targets/..literal/target"),
         ];
         let paths = validated_cache_container_paths(root, &good).unwrap();
         assert_eq!(
@@ -1381,7 +1381,7 @@ mod tests {
         );
 
         let bad = vec![PathBuf::from(
-            "/tmp/vgit-cache/cargo-targets/../escape/target",
+            "/tmp/jeryu-cache/cargo-targets/../escape/target",
         )];
         assert!(validated_cache_container_paths(root, &bad).is_err());
     }
@@ -1389,9 +1389,9 @@ mod tests {
     #[test]
     fn pool_fallback_ttl_uses_override() {
         let _guard = ENV_LOCK.lock().unwrap();
-        set_env_var("VGIT_POOL_CARGO_LEASE_FALLBACK_SECS", "7");
+        set_env_var("JERYU_POOL_CARGO_LEASE_FALLBACK_SECS", "7");
         assert_eq!(pool_target_lease_fallback_ttl(), Duration::from_secs(7));
-        remove_env_var("VGIT_POOL_CARGO_LEASE_FALLBACK_SECS");
+        remove_env_var("JERYU_POOL_CARGO_LEASE_FALLBACK_SECS");
     }
 
     #[tokio::test]

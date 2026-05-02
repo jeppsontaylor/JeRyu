@@ -1,5 +1,5 @@
 //! Owner: MCP adapter for external coding agents
-//! Proof: `cargo check -p vgit --message-format=json` and `cargo test -p vgit --lib mcp`
+//! Proof: `cargo check -p jeryu --message-format=json` and `cargo test -p jeryu --lib mcp`
 //! Invariants: MCP request handling must remain a thin adapter over the capability policy;
 //!             it must not bypass grant checks, evidence handling, or merge/release gates.
 
@@ -207,11 +207,11 @@ impl McpCore {
                     "tools": { "listChanged": false }
                 },
                 "serverInfo": {
-                    "name": "vgit",
+                    "name": "jeryu",
                     "version": env!("CARGO_PKG_VERSION"),
-                    "description": "MCP adapter over vgit capability policy"
+                    "description": "MCP adapter over jeryu capability policy"
                 },
-                "instructions": "Use tools/list to discover the vgit tool surface. Each tool executes through the same policy, grant, and evidence gates as the capability socket."
+                "instructions": "Use tools/list to discover the jeryu tool surface. Each tool executes through the same policy, grant, and evidence gates as the capability socket."
             }),
         )
     }

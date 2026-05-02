@@ -1,8 +1,8 @@
 //! Owner: CLI Definitions
-//! Proof: `cargo check -p vgit`
+//! Proof: `cargo check -p jeryu`
 //! Invariants: All types are pub(crate); main.rs is the only consumer
 //!
-//! Pure data: clap struct/enum definitions for the `vgit` CLI.
+//! Pure data: clap struct/enum definitions for the `jeryu` CLI.
 //! No logic lives here — dispatch is in `dispatch.rs`.
 
 use clap::{Parser, Subcommand};
@@ -14,9 +14,9 @@ use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(
-    name = "vgit",
+    name = "jeryu",
     version,
-    about = "Headless GitLab with Rust god-mode control"
+    about = "Git-compatible version control layer for the AI era"
 )]
 pub(crate) struct Cli {
     #[command(subcommand)]
@@ -25,7 +25,7 @@ pub(crate) struct Cli {
 
 #[derive(Subcommand)]
 pub(crate) enum Commands {
-    /// Initialize the entire vgit environment (GitLab + DB + Runners).
+    /// Initialize the entire jeryu environment (GitLab + DB + Runners).
     Init,
 
     /// Alias for init.
@@ -50,7 +50,7 @@ pub(crate) enum Commands {
         #[arg(long, default_value = "jobs")]
         tab: String,
         /// Output path for --capture.
-        #[arg(long, default_value = "paper/assets/vgit-tui.png")]
+        #[arg(long, default_value = "paper/assets/jeryu-tui.png")]
         output: PathBuf,
         /// Capture width in terminal cells.
         #[arg(long, default_value_t = 140)]
@@ -66,7 +66,31 @@ pub(crate) enum Commands {
     /// Drain all managers and stop GitLab.
     Down,
 
-    /// Show full system status.
+    /// Passthrough command for git.
+    Git {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+
+    /// Save your work (git add + commit).
+    Save {
+        /// The commit message
+        message: String,
+    },
+
+    /// Sync with the remote (pull --rebase + push).
+    Sync,
+
+    /// Undo the last save (git reset HEAD~1 --soft).
+    Undo,
+
+    /// Ship it: sync to remote AND push to the local shadow pipeline.
+    Ship,
+
+    /// Show full JeRyu system status (formerly Status).
+    System,
+
+    /// Show git status (AI magic layer).
     Status,
 
     /// Pool management.
@@ -172,7 +196,7 @@ pub(crate) enum Commands {
         entity_id: i64,
     },
 
-    /// List all registered vgit actions with risk tier and surfaces.
+    /// List all registered jeryu actions with risk tier and surfaces.
     #[command(name = "action", subcommand)]
     Action(ActionCommands),
 }
@@ -236,7 +260,7 @@ mod tests {
 
     #[test]
     fn release_watch_accepts_legacy_ref_alias() {
-        let cli = Cli::parse_from(["vgit", "release", "watch", "--ref", "main"]);
+        let cli = Cli::parse_from(["jeryu", "release", "watch", "--ref", "main"]);
         match cli.command {
             Commands::Release(ReleaseCommands::Watch { ref_name, .. }) => {
                 assert_eq!(ref_name, "main");
@@ -247,7 +271,7 @@ mod tests {
 
     #[test]
     fn release_watch_accepts_ref_name_spelling() {
-        let cli = Cli::parse_from(["vgit", "release", "watch", "--ref-name", "main"]);
+        let cli = Cli::parse_from(["jeryu", "release", "watch", "--ref-name", "main"]);
         match cli.command {
             Commands::Release(ReleaseCommands::Watch { ref_name, .. }) => {
                 assert_eq!(ref_name, "main");
@@ -337,7 +361,7 @@ pub(crate) enum PipelineCommands {
         project_id: i64,
         pipeline_id: i64,
     },
-    /// Show historical slow CI jobs from the local vgit timing ledger.
+    /// Show historical slow CI jobs from the local jeryu timing ledger.
     Bottlenecks {
         #[arg(long, default_value = "2")]
         project_id: i64,
@@ -384,7 +408,7 @@ pub(crate) enum CacheCommands {
 
 #[derive(Subcommand)]
 pub(crate) enum LocalCommands {
-    /// Run cargo with vgit-managed cache roots for a repository checkout.
+    /// Run cargo with jeryu-managed cache roots for a repository checkout.
     Cargo {
         /// Repository root to run cargo in.
         #[arg(long)]
@@ -610,7 +634,7 @@ pub(crate) enum TestCommands {
         /// Path to a JSON test plan file.
         plan_path: PathBuf,
     },
-    /// Smart test selection for an external workspace with a `.vgit/testmap.toml`.
+    /// Smart test selection for an external workspace with a `.jeryu/testmap.toml`.
     SelectExternal {
         /// Base ref (e.g. origin/main, HEAD~1, SHA).
         #[arg(long, default_value = "origin/main")]
@@ -618,7 +642,7 @@ pub(crate) enum TestCommands {
         /// Head ref (e.g. HEAD, SHA).
         #[arg(long, default_value = "HEAD")]
         head: String,
-        /// Path to the external workspace root (must contain .vgit/testmap.toml).
+        /// Path to the external workspace root (must contain .jeryu/testmap.toml).
         #[arg(long)]
         workspace: PathBuf,
         /// Print the plan explanation.
@@ -762,7 +786,7 @@ pub(crate) enum ReleaseCommands {
 
 #[derive(Subcommand)]
 pub(crate) enum SecretsCommands {
-    /// Bootstrap and initialize the vgit-managed Vault.
+    /// Bootstrap and initialize the jeryu-managed Vault.
     Init,
     /// Show Vault health and the latest tracked secret rotation state.
     Status {
@@ -825,7 +849,7 @@ pub(crate) enum HostCommands {
 
 #[derive(Subcommand)]
 pub(crate) enum RepoCommands {
-    /// Generate the machine-readable agent routing index for vgit.
+    /// Generate the machine-readable agent routing index for jeryu.
     RenderAgentIndex {
         #[arg(long, default_value_t = false)]
         check: bool,

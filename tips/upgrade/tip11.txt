@@ -1,4 +1,4 @@
-Based on the API, architecture, and TUI docs you shared, my overall read is: **vgit is already much more than a CI helper. It is becoming a local delivery operating system.** The strongest parts are the typed control surfaces, release gates, durable SQLite state, failure evidence, VTI test selection, trust-tiered runners, Vault-backed release secrets, and the anti-blanking TUI behavior. The biggest opportunity is to turn this from a powerful but somewhat fragmented control plane into a **real-time, explainable, safety-gated command console** where a human or agent can always answer:
+Based on the API, architecture, and TUI docs you shared, my overall read is: **jeryu is already much more than a CI helper. It is becoming a local delivery operating system.** The strongest parts are the typed control surfaces, release gates, durable SQLite state, failure evidence, VTI test selection, trust-tiered runners, Vault-backed release secrets, and the anti-blanking TUI behavior. The biggest opportunity is to turn this from a powerful but somewhat fragmented control plane into a **real-time, explainable, safety-gated command console** where a human or agent can always answer:
 
 **What is happening? Why? What is blocked? What changed? What can I safely do next? What will happen if I do it?**
 
@@ -40,7 +40,7 @@ I would change deferred intents to return something like:
   "message": "Intent RequestMerge is recognized but not implemented",
   "data": {
     "status": "not_implemented",
-    "recommended_surface": "vgit agent merge"
+    "recommended_surface": "jeryu agent merge"
   }
 }
 ```
@@ -64,7 +64,7 @@ The API surface is rich, but it is mostly documented as commands. For a dream TU
 Something like:
 
 ```bash
-vgit actions list --json
+jeryu actions list --json
 ```
 
 Each action should declare:
@@ -107,7 +107,7 @@ A power user needs to see:
 * current upstream `main` pipeline
 * release-execution pipeline
 * production-promotion pipeline
-* scratch `vgit-test-*` pipelines
+* scratch `jeryu-test-*` pipelines
 * agent MR pipelines
 * downstream child pipelines
 * superseded/canceling pipelines
@@ -204,7 +204,7 @@ Capability `RunTests` creates a branch, writes dynamic CI, and triggers a pipeli
 * TTL for scratch branches
 * deduplication/cache behavior
 
-The CLI `vgit test run` sounds more complete than the capability intent. I would either make capability `RunTests` call the same logic as `vgit test run`, or clearly expose two modes: `trigger_only` and `run_and_wait`.
+The CLI `jeryu test run` sounds more complete than the capability intent. I would either make capability `RunTests` call the same logic as `jeryu test run`, or clearly expose two modes: `trigger_only` and `run_and_wait`.
 
 ## Gap 10: Webhook/cache endpoint exposure should be tightened
 
@@ -273,7 +273,7 @@ The Audit tab should become a first-class “flight recorder.”
 
 It should answer:
 
-* What did vgit do?
+* What did jeryu do?
 * Who or what requested it?
 * Which pipeline/job/release did it affect?
 * What evidence justified it?
@@ -352,8 +352,8 @@ A dream version:
     "patch": "...",
     "validation_plan": {
       "commands": [
-        "rtk cargo check -p vgit --message-format=json",
-        "rtk cargo test -p vgit -- tui -- --nocapture"
+        "rtk cargo check -p jeryu --message-format=json",
+        "rtk cargo test -p jeryu -- tui -- --nocapture"
       ]
     }
   }
@@ -434,7 +434,7 @@ This is the killer capability.
 A command like this would be huge:
 
 ```bash
-vgit next --project-id 2 --ref-name main --json
+jeryu next --project-id 2 --ref-name main --json
 ```
 
 It would return prioritized actionable items:
@@ -491,9 +491,9 @@ If I had to prioritize fixes, I would do this.
 1. Implement real `ProposePatch`.
 2. Implement real `RequestMerge`.
 3. Implement `RacePatches` with isolated branch execution.
-4. Add `vgit actions list --json`.
-5. Add `vgit next --json`.
-6. Add `vgit explain-blocker --entity ... --json`.
+4. Add `jeryu actions list --json`.
+5. Add `jeryu next --json`.
+6. Add `jeryu explain-blocker --entity ... --json`.
 7. Add event streaming for agents and TUI.
 
 ## Priority 3: Performance and polish
@@ -507,7 +507,7 @@ If I had to prioritize fixes, I would do this.
 
 ---
 
-# 5. The dream TUI: “VGIT Command Deck”
+# 5. The dream TUI: “JERYU Command Deck”
 
 I would redesign the TUI as a high-contrast, real-time operational command deck.
 
@@ -521,7 +521,7 @@ The operator should be able to see the whole system, select any entity, understa
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ VGIT COMMAND DECK  GitLab ONLINE  DB OK  Vault OK  Cache OK  Disk 71%  main │
+│ JERYU COMMAND DECK  GitLab ONLINE  DB OK  Vault OK  Cache OK  Disk 71%  main │
 │ Release ci-fa51a52  Canary e2e-passed  Prod blocked: handoff missing        │
 ├───────────────┬───────────────────────────────────────────────┬──────────────┤
 │ NAV           │ FLOW MAP                                      │ INSPECTOR    │
@@ -635,7 +635,7 @@ For each pipeline/ref:
 Changed paths:
   src/release.rs
   src/state.rs
-  docs/VGIT_TUI.md
+  docs/JERYU_TUI.md
 
 Impact:
   release-critical
@@ -643,7 +643,7 @@ Impact:
   TUI render affected
 
 Selected validation:
-  cargo check -p vgit
+  cargo check -p jeryu
   release::tests
   state::tests
   tui smoke render
@@ -870,7 +870,7 @@ For each agent task:
 * merge readiness
 * human escalation reason
 
-This would make vgit feel like a supervised multi-agent engineering system.
+This would make jeryu feel like a supervised multi-agent engineering system.
 
 ## Tests tab
 
@@ -985,7 +985,7 @@ Largest consumers:
   Runner caches        22 GB
   CAS objects          14 GB
   Rust targets         9 GB
-  vgit DB              1.2 GB
+  jeryu DB              1.2 GB
 
 Recommended reclaim:
   cache gc --dry-run       frees 8.4 GB
@@ -1264,7 +1264,7 @@ Possible surfaces:
 
 ```text
 GET /events/stream
-vgit events stream --json
+jeryu events stream --json
 capability intent: SubscribeEvents
 ```
 
@@ -1341,13 +1341,13 @@ This is one of the most important improvements for both humans and agents.
 Two commands would dramatically improve the whole system.
 
 ```bash
-vgit explain-blocker --project-id 2 --ref-name main --json
+jeryu explain-blocker --project-id 2 --ref-name main --json
 ```
 
 And:
 
 ```bash
-vgit next --project-id 2 --ref-name main --json
+jeryu next --project-id 2 --ref-name main --json
 ```
 
 The TUI, CLI, and agents could all consume these.
@@ -1380,7 +1380,7 @@ Example output:
 }
 ```
 
-This would turn vgit from an operational tool into an operational advisor.
+This would turn jeryu from an operational tool into an operational advisor.
 
 ---
 
@@ -1470,7 +1470,7 @@ Merge MR                 blocked: pending jobs exist
 
 The system is already impressive. The main thing I would do is **unify observability, action, evidence, and policy**.
 
-Right now, vgit has many powerful surfaces:
+Right now, jeryu has many powerful surfaces:
 
 * CLI
 * TUI

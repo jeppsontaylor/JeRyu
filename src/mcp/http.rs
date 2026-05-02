@@ -1,5 +1,5 @@
 //! Owner: MCP adapter for external coding agents
-//! Proof: `cargo check -p vgit --message-format=json` and `cargo test -p vgit --lib mcp`
+//! Proof: `cargo check -p jeryu --message-format=json` and `cargo test -p jeryu --lib mcp`
 //! Invariants: HTTP transport is loopback-only, validates MCP session headers, and routes
 //!             tool execution through the same capability policy path as stdio.
 
@@ -70,7 +70,7 @@ pub(crate) async fn handle_mcp_get() -> Response {
     (
         StatusCode::METHOD_NOT_ALLOWED,
         [("Allow", "POST, DELETE")],
-        "Streamable HTTP GET is not enabled for vgit MCP",
+        "Streamable HTTP GET is not enabled for jeryu MCP",
     )
         .into_response()
 }

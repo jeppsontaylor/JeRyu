@@ -1,5 +1,5 @@
 //! Owner: Capability API (Structured AgentIntent Payloads)
-//! Proof: `cargo check -p vgit` (type-checked surface)
+//! Proof: `cargo check -p jeryu` (type-checked surface)
 //! Invariants: All external agent payloads deserialize through AgentIntent or AgentActionRequest
 //!             before execution; AgentIntent uses tagged serde enum; never execute raw payload strings.
 
@@ -185,7 +185,7 @@ fn dynamic_ci_yaml(scope: &str) -> anyhow::Result<String> {
         format!("dynamic-{job_suffix}-job"),
         serde_yaml::to_value(CiJob {
             stage: "test",
-            tags: vec!["vgit"],
+            tags: vec!["jeryu"],
             script,
         })?,
     );

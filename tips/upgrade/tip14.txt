@@ -1,6 +1,6 @@
 ## My overall read
 
-You have built something much more interesting than a CLI wrapper. `vgit` is already a local delivery-control OS: GitLab, runners, custom execution, cache policy, release automation, Vault, evidence, retries, and a supervisory TUI are all tied together through state and typed decisions.
+You have built something much more interesting than a CLI wrapper. `jeryu` is already a local delivery-control OS: GitLab, runners, custom execution, cache policy, release automation, Vault, evidence, retries, and a supervisory TUI are all tied together through state and typed decisions.
 
 The biggest gap is not “more features.” The biggest gap is **making the existing power legible, explainable, and safely operable by agents and humans in real time**.
 
@@ -185,8 +185,8 @@ This is especially important because the system is an orchestration control plan
 The production path is intentionally gated, which is good. But I would want an explicit release hold mechanism surfaced everywhere:
 
 ```bash
-vgit release hold --reason "investigating canary telemetry"
-vgit release unhold
+jeryu release hold --reason "investigating canary telemetry"
+jeryu release unhold
 ```
 
 And in the TUI:
@@ -276,7 +276,7 @@ A developer/operator may need to see:
 * release-execution pipeline
 * production-promotion pipeline
 * agent MR pipelines
-* scratch `vgit-test-*` pipelines
+* scratch `jeryu-test-*` pipelines
 * superseded/canceled pipelines
 * downstream/child pipelines
 
@@ -386,7 +386,7 @@ That would be extremely valuable.
 
 ## P1: `shadow sync-now` being a placeholder should be fixed or renamed
 
-A command named `sync-now` that tells the user to ensure `vgit serve` is running is likely to confuse both humans and agents.
+A command named `sync-now` that tells the user to ensure `jeryu serve` is running is likely to confuse both humans and agents.
 
 I would either:
 
@@ -619,7 +619,7 @@ Hypothesis B: fix state upsert idempotency
 Hypothesis C: fix pipeline product classification
 ```
 
-`vgit` would:
+`jeryu` would:
 
 1. Create isolated branches.
 2. Apply each patch.
@@ -654,7 +654,7 @@ For example:
 
 ```text
 The selector skipped integration-auth, but integration-auth failed.
-Suggested .vgit/testmap.toml update:
+Suggested .jeryu/testmap.toml update:
 - paths: crates/auth/**
 - tests: integration-auth
 ```
@@ -716,7 +716,7 @@ The layout I would use:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ vgit Control Plane   ONLINE  GitLab✓ Docker✓ Vault✓ Cache✓ Hook✓  Disk 71% │
+│ jeryu Control Plane   ONLINE  GitLab✓ Docker✓ Vault✓ Cache✓ Hook✓  Disk 71% │
 │ main fa51a52  Release ci-fa51a52  Canary RUNNING  Prod BLOCKED  ETA 6m20s │
 ├───────────────┬───────────────────────────────────────────────┬──────────────┤
 │ NAV / FILTERS │ LIVE FLOW GRAPH                                │ INSPECTOR    │
@@ -1383,7 +1383,7 @@ I would prioritize these agent-facing changes.
 12. Add per-agent identity and capability scopes.
 13. Add rate limits and budgets for test runs.
 14. Add audit events for every capability request.
-15. Make `RunTests` align more closely with `vgit test run`, including result tracking and cleanup behavior.
+15. Make `RunTests` align more closely with `jeryu test run`, including result tracking and cleanup behavior.
 
 ---
 
@@ -1466,7 +1466,7 @@ That is what would make the TUI feel magical.
 * Add rollback/release-hold workflows.
 * Build full agent workbench.
 * Add policy profiles and scoped capabilities.
-* Make the TUI the canonical command center for all `vgit` actions.
+* Make the TUI the canonical command center for all `jeryu` actions.
 
 ---
 
@@ -1488,5 +1488,5 @@ What automation already tried.
 What will happen if I act.
 ```
 
-If you build that, `vgit tui` becomes more than a dashboard. It becomes the control room for an agent-native delivery system.
+If you build that, `jeryu tui` becomes more than a dashboard. It becomes the control room for an agent-native delivery system.
 

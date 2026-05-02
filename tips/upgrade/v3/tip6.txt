@@ -2,7 +2,7 @@ I reviewed the repo as a live GitHub project and read the key source/docs. One c
 
 ## Executive verdict
 
-JeRyu is **not currently a literal source-level fork of GitLab**. It is better described as a **Rust “agent control plane” around a local GitLab CE + GitLab Runner + Docker + Vault + Postgres/SQLite stack**. The README calls `vgit` a single-binary Rust control plane that turns a local GitLab into an orchestration engine for autonomous AI agents, and the architecture docs describe it as a Rust control plane over GitLab, Runner, Docker, Vault, and state storage. ([GitHub][1])
+JeRyu is **not currently a literal source-level fork of GitLab**. It is better described as a **Rust “agent control plane” around a local GitLab CE + GitLab Runner + Docker + Vault + Postgres/SQLite stack**. The README calls `jeryu` a single-binary Rust control plane that turns a local GitLab into an orchestration engine for autonomous AI agents, and the architecture docs describe it as a Rust control plane over GitLab, Runner, Docker, Vault, and state storage. ([GitHub][1])
 
 The idea is excellent. The strongest parts are: typed agent capability surfaces, GitLab-backed CI/release workflows, evidence capsules, smart test selection, cache/taint thinking, ephemeral bot identities, risk-gated merges, and a serious TUI direction. But the project is still more of an **agent-first GitLab hypervisor/prototype** than the “world’s #1 agent-first Git option.” To get there, it needs deeper agent autonomy, stronger sandbox isolation, lower-latency APIs, generalized project support, structured diff/test/proof protocols, real event streaming, and hardened supply-chain/security guarantees.
 
@@ -23,10 +23,10 @@ The Unix-domain socket `AgentIntent` enum supports `ProposePatch`, `RacePatches`
 The pre-receive hook classifies agent refs, records admission decisions, and can require an active capability grant tied to a ref and optional new SHA before accepting agent branch updates. That is exactly the kind of “agent write ledger” GitHub/GitLab do not provide natively. ([GitHub][5])
 
 **5. It understands that autonomous coding needs failure evidence, not just logs.**
-The system has failure capsules, job explanation, retry decisions, blocker explanation, and evidence records in state. The API docs describe `vgit job explain`, `FetchCapsule`, and `explain-blocker` surfaces that expose failure kind, classification, retry advice, repro script, log snippets, and blocker state. ([GitHub][6])
+The system has failure capsules, job explanation, retry decisions, blocker explanation, and evidence records in state. The API docs describe `jeryu job explain`, `FetchCapsule`, and `explain-blocker` surfaces that expose failure kind, classification, retry advice, repro script, log snippets, and blocker state. ([GitHub][6])
 
 **6. Smart test selection is a serious, useful subsystem.**
-VTI maps changed files to subsystems, selects minimal tests, supports external `.vgit/testmap.toml`, emits GitLab child pipeline YAML, tracks skipped jobs, and includes a nightly oracle that records selector misses and learning suggestions. That is one of the most agent-useful features in the repo. ([GitHub][7])
+VTI maps changed files to subsystems, selects minimal tests, supports external `.jeryu/testmap.toml`, emits GitLab child pipeline YAML, tracks skipped jobs, and includes a nightly oracle that records selector misses and learning suggestions. That is one of the most agent-useful features in the repo. ([GitHub][7])
 
 **7. Release/canary/prod thinking is more mature than a normal agent toy project.**
 The release module tracks upstream, release-execution, canary, and production pipeline state; checks gate artifacts; explains pipeline eligibility; runs preflight checks; and promotes production only after canary/E2E and handoff validation. ([GitHub][8])
@@ -54,7 +54,7 @@ The repo currently wraps and orchestrates GitLab CE rather than replacing or dee
 `ProposePatch`, `RacePatches`, and `RunTests` are active, but the API docs explicitly say the capability API has partial routing and not all intents perform the named action. `RequestMerge` returns an advisory proof rather than being fully integrated into every merge path. ([GitHub][6])
 
 **4. The sandbox story is weaker than the security language suggests.**
-`sandbox.rs` says strict network isolation should use `unshare`/`bwrap`, but the current implementation mostly sets `VGIT_SANDBOXED=1` and injects proxy env vars; the comments say Docker executor pools provide container isolation and the custom executor relies on honeypots plus proxy-enforced egress. That is not enough for high-trust autonomous agent execution. ([GitHub][13])
+`sandbox.rs` says strict network isolation should use `unshare`/`bwrap`, but the current implementation mostly sets `JERYU_SANDBOXED=1` and injects proxy env vars; the comments say Docker executor pools provide container isolation and the custom executor relies on honeypots plus proxy-enforced egress. That is not enough for high-trust autonomous agent execution. ([GitHub][13])
 
 **5. Honeypots are useful but not a security boundary.**
 The honeypot module seeds decoy AWS and npm tokens and kills the process if they are accessed. That is great detection, but agents or malicious code can still exfiltrate via allowed network paths, abuse mounted Docker sockets, inspect env, attack filesystem paths, or avoid touching the honeyfiles. ([GitHub][14])
@@ -93,12 +93,12 @@ The repo already has issues/MRs, capability grants, events, test plans, and evid
 Dream CLI/TUI commands:
 
 ```bash
-vgit agent run --goal "fix flaky auth test" --repo myrepo --budget 2h --risk low
-vgit agent observe <run_id>
-vgit agent pause <run_id>
-vgit agent fork <run_id> --hypothesis "switch mock server"
-vgit agent prove <run_id>
-vgit agent replay <run_id>
+jeryu agent run --goal "fix flaky auth test" --repo myrepo --budget 2h --risk low
+jeryu agent observe <run_id>
+jeryu agent pause <run_id>
+jeryu agent fork <run_id> --hypothesis "switch mock server"
+jeryu agent prove <run_id>
+jeryu agent replay <run_id>
 ```
 
 ### 2. Add a canonical “proof bundle” for every merge/release
@@ -143,9 +143,9 @@ Use a local event stream for:
 Persist every event with monotonic sequence numbers and expose:
 
 ```bash
-vgit events tail --agent <id>
-vgit events replay --since <seq>
-vgit events explain-causality <job_id>
+jeryu events tail --agent <id>
+jeryu events replay --since <seq>
+jeryu events explain-causality <job_id>
 ```
 
 This would make agents far faster and more reliable because they would stop repeatedly polling GitLab and state tables.
@@ -189,21 +189,21 @@ VTI already has selected/full/docs-only modes, confidence, selector misses, nigh
 This is essential. Add a repo onboarding flow:
 
 ```bash
-vgit repo onboard --url git@... --name myservice
-vgit repo scan
-vgit repo infer-testmap
-vgit repo write-agent-contract
-vgit repo validate-agent-contract
+jeryu repo onboard --url git@... --name myservice
+jeryu repo scan
+jeryu repo infer-testmap
+jeryu repo write-agent-contract
+jeryu repo validate-agent-contract
 ```
 
 Generate:
 
-* `.vgit/testmap.toml`
-* `.vgit/agent-contract.toml`
-* `.vgit/security-policy.toml`
-* `.vgit/release-gates.toml`
-* `.vgit/context-map.json`
-* `.vgit/owner-map.json`
+* `.jeryu/testmap.toml`
+* `.jeryu/agent-contract.toml`
+* `.jeryu/security-policy.toml`
+* `.jeryu/release-gates.toml`
+* `.jeryu/context-map.json`
+* `.jeryu/owner-map.json`
 
 Right now the default release project/root and secrets flow are visibly tied to `dougx`; making JeRyu repo-agnostic is the difference between a great internal tool and a real platform. ([GitHub][6])
 
@@ -234,12 +234,12 @@ The platform should apply the patch only if base blobs match, then produce a new
 GitHub/GitLab are terrible at giving agents the right context. JeRyu should expose:
 
 ```bash
-vgit context pack --task "fix auth refresh" --budget 80k
-vgit context symbol AuthSession
-vgit context callers refresh_token
-vgit context recent-failures --path src/auth
-vgit context ownership --path src/auth
-vgit context contracts --path src/auth
+jeryu context pack --task "fix auth refresh" --budget 80k
+jeryu context symbol AuthSession
+jeryu context callers refresh_token
+jeryu context recent-failures --path src/auth
+jeryu context ownership --path src/auth
+jeryu context contracts --path src/auth
 ```
 
 Return compact, ranked, cited context: relevant files, symbols, tests, owners, recent failures, dependency edges, API contracts, release blast radius, and examples.
@@ -445,7 +445,7 @@ Here is the feature set I would aim for:
 * Sign capability grants and proof bundles.
 * Add event stream and structured logs.
 * Add patch transaction API.
-* Add repo onboarding and `.vgit/*` contract files.
+* Add repo onboarding and `.jeryu/*` contract files.
 
 **Phase 3: make it unbeatable**
 
@@ -470,7 +470,7 @@ JeRyu has the right instincts and several genuinely strong primitives: typed age
 [8]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/release.rs "raw.githubusercontent.com"
 [9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/state.rs "raw.githubusercontent.com"
 [10]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/cache_brain.rs "raw.githubusercontent.com"
-[11]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[11]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [12]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/agent.rs "raw.githubusercontent.com"
 [13]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/sandbox.rs "raw.githubusercontent.com"
 [14]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/honeypot.rs "raw.githubusercontent.com"

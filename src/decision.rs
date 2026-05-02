@@ -1,5 +1,5 @@
 //! Owner: Agent Decision Engine (Risk Gates, Supersedence, Impact Classification)
-//! Proof: `cargo test -p vgit -- decision`
+//! Proof: `cargo test -p jeryu -- decision`
 //! Invariants: All agent outcomes flow through evaluate_risk_gate; supersedence and impact are typed enums, never raw strings; RiskGateDecision must be checked before any merge or promotion
 
 use serde::{Deserialize, Serialize};

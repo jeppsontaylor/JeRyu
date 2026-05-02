@@ -1,5 +1,5 @@
 //! Owner: Epoch-Based Cache Invalidation
-//! Proof: `cargo test -p vgit -- epoch`
+//! Proof: `cargo test -p jeryu -- epoch`
 //! Invariants: Epoch bumps are recorded with author_job_id and reason; is_valid fails closed (returns false) on lookup failure; epochs are per-scope and never shared across scopes
 
 use anyhow::Result;

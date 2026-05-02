@@ -1,6 +1,6 @@
 I reviewed the repo through its GitHub source/docs and raw code. I wasn’t able to do a local `git clone` inside the container because DNS resolution to GitHub failed, so I did **not** compile or run the binary. I still reviewed the core docs, source layout, TUI docs, architecture docs, VTI docs, capability layer, engine, agent flow, executor/sandbox, cache/security primitives, and API surface.
 
-My headline take: **JeRyu / `vgit` is not literally a GitLab fork yet; it is a Rust control plane that orchestrates a local GitLab/GitLab Runner/Docker/Vault stack.** That is not a bad thing. In fact, it may be the better architecture for an agent-first Git platform, because GitLab remains the substrate while `vgit` owns policy, runners, evidence, CI decisions, agent capabilities, cache, release gates, and the TUI. The README and architecture docs describe exactly that: a single-binary Rust control plane over local GitLab, with runner pools, webhooks, custom executor policy, release/canary automation, SmartCache, VTI, Vault secrets, evidence, settings, and TUI support. ([GitHub][1])
+My headline take: **JeRyu / `jeryu` is not literally a GitLab fork yet; it is a Rust control plane that orchestrates a local GitLab/GitLab Runner/Docker/Vault stack.** That is not a bad thing. In fact, it may be the better architecture for an agent-first Git platform, because GitLab remains the substrate while `jeryu` owns policy, runners, evidence, CI decisions, agent capabilities, cache, release gates, and the TUI. The README and architecture docs describe exactly that: a single-binary Rust control plane over local GitLab, with runner pools, webhooks, custom executor policy, release/canary automation, SmartCache, VTI, Vault secrets, evidence, settings, and TUI support. ([GitHub][1])
 
 ## Executive verdict
 
@@ -84,7 +84,7 @@ This is directionally excellent. The next step is making every identity/grant na
 
 ## 1. It is not actually a GitLab fork
 
-The repo positions `vgit` as a Rust control plane for local GitLab, not as a modified GitLab codebase. The architecture docs explicitly describe GitLab/GitLab Runner/Docker/Vault/Postgres/SQLite as components driven by the Rust binary. ([GitHub][9])
+The repo positions `jeryu` as a Rust control plane for local GitLab, not as a modified GitLab codebase. The architecture docs explicitly describe GitLab/GitLab Runner/Docker/Vault/Postgres/SQLite as components driven by the Rust binary. ([GitHub][9])
 
 That is fine, but the product language should be precise:
 
@@ -855,9 +855,9 @@ This would be much better than agents acting invisibly through opaque GitHub/Git
 
 12. Add real Flow graph edges.
 
-13. Add `vgit explain merge <mr>`.
+13. Add `jeryu explain merge <mr>`.
 
-14. Add `vgit proof <mr|pipeline|job>`.
+14. Add `jeryu proof <mr|pipeline|job>`.
 
 15. Add branch/MR-aware merge simulation.
 
@@ -899,22 +899,22 @@ This would be much better than agents acting invisibly through opaque GitHub/Git
 
 If I were trying to make this the world’s #1 agent-first Git option, I would build these as headline features.
 
-## 1. `vgit why`
+## 1. `jeryu why`
 
 Ask why anything happened:
 
 ```bash
-vgit why job 812 failed
-vgit why mr 44 cannot merge
-vgit why tests were skipped
-vgit why cache was denied
-vgit why pipeline 91 was canceled
-vgit why release was blocked
+jeryu why job 812 failed
+jeryu why mr 44 cannot merge
+jeryu why tests were skipped
+jeryu why cache was denied
+jeryu why pipeline 91 was canceled
+jeryu why release was blocked
 ```
 
 Agents and humans both need this.
 
-## 2. `vgit next`
+## 2. `jeryu next`
 
 The system should always know the best next action:
 
@@ -925,54 +925,54 @@ Estimated time: 4m 20s.
 Merge gate will likely pass after this evidence.
 ```
 
-## 3. `vgit race`
+## 3. `jeryu race`
 
 Parallel hypotheses should be native:
 
 ```bash
-vgit race "fix flaky cache invalidation" --agents 5 --budget 30m --merge-if-safe
+jeryu race "fix flaky cache invalidation" --agents 5 --budget 30m --merge-if-safe
 ```
 
 This is exactly where agents can outperform humans.
 
-## 4. `vgit proof`
+## 4. `jeryu proof`
 
 Every merge/release should have a proof pack:
 
 ```bash
-vgit proof mr 123 --format json
-vgit proof release prod-2026-04-27 --open
+jeryu proof mr 123 --format json
+jeryu proof release prod-2026-04-27 --open
 ```
 
 This becomes the trust layer.
 
-## 5. `vgit replay`
+## 5. `jeryu replay`
 
 Every failure should be reproducible:
 
 ```bash
-vgit replay job 812
-vgit replay capsule cap_abc123 --sandbox
+jeryu replay job 812
+jeryu replay capsule cap_abc123 --sandbox
 ```
 
 Agents need reproducibility more than humans do.
 
-## 6. `vgit autopilot`
+## 6. `jeryu autopilot`
 
 A controlled autonomy mode:
 
 ```bash
-vgit autopilot --repo . --max-risk medium --budget 2h --require-human-for prod
+jeryu autopilot --repo . --max-risk medium --budget 2h --require-human-for prod
 ```
 
 Autopilot should operate inside explicit policy, not free-form.
 
-## 7. `vgit simulate merge`
+## 7. `jeryu simulate merge`
 
 Before merging:
 
 ```bash
-vgit simulate merge mr 123
+jeryu simulate merge mr 123
 ```
 
 Output:
@@ -985,12 +985,12 @@ Output:
 * dependent branches,
 * cache invalidations.
 
-## 8. `vgit safe-run`
+## 8. `jeryu safe-run`
 
 A universal agent-safe command runner:
 
 ```bash
-vgit safe-run "cargo test -p cache" --trust untrusted --egress none
+jeryu safe-run "cargo test -p cache" --trust untrusted --egress none
 ```
 
 This should be the only way untrusted agents execute code.
@@ -1021,7 +1021,7 @@ The repo already has the bones of something genuinely different. The next level 
 [3]: https://github.com/jeppsontaylor/JeRyu/tree/main/src "JeRyu/src at main · jeppsontaylor/JeRyu · GitHub"
 [4]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/API.md "raw.githubusercontent.com"
 [5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/AGENTS.md "raw.githubusercontent.com"
-[6]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[6]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [7]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/VTI.md "raw.githubusercontent.com"
 [8]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/test_intel/planner.rs "raw.githubusercontent.com"
 [9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/ARCHITECTURE.md "raw.githubusercontent.com"

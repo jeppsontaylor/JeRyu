@@ -2,7 +2,7 @@
 
 This is an unusually strong system already. The architecture has the right bones for agent-operable delivery: typed control surfaces, durable SQLite state, GitLab as the execution authority, trust-tiered runners, release gates, Vault-backed secrets, evidence capsules, VTI planning, SmartCache, and a TUI that intentionally resists flickering/blank states.
 
-The biggest opportunity is to make `vgit` feel less like “many powerful tools plus a dashboard” and more like **one unified command center** where every object has context, every action has a safety preview, every blocker has an explanation, and every agent operation is auditable, reversible where possible, and gated by policy.
+The biggest opportunity is to make `jeryu` feel less like “many powerful tools plus a dashboard” and more like **one unified command center** where every object has context, every action has a safety preview, every blocker has an explanation, and every agent operation is auditable, reversible where possible, and gated by policy.
 
 My strongest feedback:
 
@@ -33,9 +33,9 @@ Production promotion is not a shell command. It is a GitLab pipeline product wit
 
 ```text
 CI_PIPELINE_PRODUCT=production-promotion
-VGIT_PROD_APPROVED=1
-VGIT_RELEASE_SHA=<sha>
-VGIT_RELEASE_VERSION=<version>
+JERYU_PROD_APPROVED=1
+JERYU_RELEASE_SHA=<sha>
+JERYU_RELEASE_VERSION=<version>
 ```
 
 That is the right shape. It keeps deployment inside a visible, logged, replayable CI/CD system instead of letting agents or operators bypass the delivery path.
@@ -99,7 +99,7 @@ That is dangerous for agents. An agent will interpret `success: true` as “the 
   "status": "deferred",
   "message": "RequestMerge is recognized but not currently executable through this API.",
   "data": {
-    "recommended_surface": "vgit agent merge",
+    "recommended_surface": "jeryu agent merge",
     "requires": ["risk_gate", "pipeline_evidence"]
   }
 }
@@ -146,7 +146,7 @@ And receive:
     {
       "name": "RequestMerge",
       "implemented": false,
-      "recommended_surface": "vgit agent merge"
+      "recommended_surface": "jeryu agent merge"
     }
   ]
 }
@@ -181,7 +181,7 @@ A 64 KiB socket read buffer is fine for small intents, but not for patch operati
   "intent": "ProposePatch",
   "payload": {
     "base_branch": "main",
-    "patch_artifact": "file:///tmp/vgit-agent/patch-123.diff",
+    "patch_artifact": "file:///tmp/jeryu-agent/patch-123.diff",
     "commit_message": "Fix failing release gate"
   }
 }
@@ -258,7 +258,7 @@ Power users need to see more than one pipeline, especially when these can coexis
 * production-promotion pipeline
 * downstream bridges
 * active MR pipelines
-* `vgit-test-*` scratch pipelines
+* `jeryu-test-*` scratch pipelines
 * superseded/canceled pipelines
 * agent task pipelines
 
@@ -303,13 +303,13 @@ A better design would allow CI jobs to declare metadata:
 test-rust-nextest:
   stage: test
   variables:
-    VGIT_LANE: unit
-    VGIT_COLUMN: tests
-    VGIT_REQUIRED: "true"
-    VGIT_RELEASE_CRITICAL: "true"
+    JERYU_LANE: unit
+    JERYU_COLUMN: tests
+    JERYU_REQUIRED: "true"
+    JERYU_RELEASE_CRITICAL: "true"
 ```
 
-Or use a `.vgit/ci-map.toml` contract:
+Or use a `.jeryu/ci-map.toml` contract:
 
 ```toml
 [[jobs]]
@@ -439,7 +439,7 @@ For example:
 Delete local job record?
 Job #14445 / failed / release-critical
 
-This only removes local vgit state.
+This only removes local jeryu state.
 It does not cancel or delete the GitLab job.
 
 [Archive] [Delete] [Cancel]
@@ -625,8 +625,8 @@ Or:
   "would_trigger": {
     "pipeline_variables": {
       "CI_PIPELINE_PRODUCT": "production-promotion",
-      "VGIT_PROD_APPROVED": "1",
-      "VGIT_RELEASE_SHA": "fa51a52..."
+      "JERYU_PROD_APPROVED": "1",
+      "JERYU_RELEASE_SHA": "fa51a52..."
     }
   }
 }
@@ -634,7 +634,7 @@ Or:
 
 ## 4. Run selected validation plans, not just arbitrary commands
 
-`vgit test run` is already useful. The dream version lets agents ask:
+`jeryu test run` is already useful. The dream version lets agents ask:
 
 ```json
 {
@@ -672,7 +672,7 @@ agent task
   -> request risk gate
 ```
 
-The agent should not need a PAT or shell access to GitLab. `vgit` should mediate.
+The agent should not need a PAT or shell access to GitLab. `jeryu` should mediate.
 
 ## 6. Ask for the next safe action
 
@@ -699,14 +699,14 @@ Response:
       "target": "job #14445",
       "risk": "low",
       "reason": "classified infrastructure failure; no prior retry",
-      "command": "vgit job retry 2 14445"
+      "command": "jeryu job retry 2 14445"
     },
     {
       "action": "run_pipeline_doctor",
       "target": "pipeline #530",
       "risk": "read-only",
       "reason": "runner assignment stale for 7m",
-      "command": "vgit pipeline doctor 530 --project-id 2 --json"
+      "command": "jeryu pipeline doctor 530 --project-id 2 --json"
     }
   ]
 }
@@ -822,14 +822,14 @@ This would make the TUI feel magical because the system would always know what a
 
 ---
 
-# Dream TUI redesign: “VGIT Command Center”
+# Dream TUI redesign: “JERYU Command Center”
 
 The current TUI is useful. The dream version should feel like a mission-control cockpit for CI, release, agents, infrastructure, and evidence.
 
 ## Overall layout
 
 ```text
-┌ VGIT COMMAND CENTER ─────────────────────────────────────────────────────────────┐
+┌ JERYU COMMAND CENTER ─────────────────────────────────────────────────────────────┐
 │ GitLab ONLINE  Docker OK  Vault OK  DB OK  Webhook OK  Cache OK  Disk 61%       │
 │ Project dougx/#2  Ref main  SHA fa51a52  Release ci-fa51a52  Canary E2E PASS    │
 │ Prod BLOCKED: missing C validation artifact        Queue 4  Runners 7/10        │
@@ -1139,7 +1139,7 @@ Actions:
 
 ## 4. Agents tab
 
-This is where `vgit agent` becomes visible.
+This is where `jeryu agent` becomes visible.
 
 Columns:
 
@@ -1401,8 +1401,8 @@ Action: Promote production
 Risk: HIGH
 Will trigger GitLab pipeline:
   CI_PIPELINE_PRODUCT=production-promotion
-  VGIT_PROD_APPROVED=1
-  VGIT_RELEASE_SHA=fa51a52
+  JERYU_PROD_APPROVED=1
+  JERYU_RELEASE_SHA=fa51a52
 Prerequisites:
   ✓ canary_state == e2e-passed
   ✓ handoff artifact exists
@@ -1695,8 +1695,8 @@ f agent:true
 
 Examples:
 
-* selected job -> `vgit job explain`
-* selected pipeline -> `vgit pipeline explain`
+* selected job -> `jeryu job explain`
+* selected pipeline -> `jeryu pipeline explain`
 * selected release -> release gate explanation
 * selected test -> VTI rationale/history
 * selected cache miss -> cache verdict explanation
@@ -1987,11 +1987,11 @@ Highest ROI fixes:
     Preserve evidence and auditability.
 
 12. **Give agents a “next safe action” API.**
-    That would turn `vgit` from an agent-accessible tool into an agent-native operating system.
+    That would turn `jeryu` from an agent-accessible tool into an agent-native operating system.
 
 ---
 
 # The dream version in one sentence
 
-The dream `vgit tui` is a **real-time, high-contrast CI/release/agent command center** where the operator can see every pipeline, gate, runner, cache decision, secret state, agent task, failure capsule, ETA, blocker, and safe next action from one screen — and every action is previewed, policy-checked, auditable, and explainable before it runs.
+The dream `jeryu tui` is a **real-time, high-contrast CI/release/agent command center** where the operator can see every pipeline, gate, runner, cache decision, secret state, agent task, failure capsule, ETA, blocker, and safe next action from one screen — and every action is previewed, policy-checked, auditable, and explainable before it runs.
 

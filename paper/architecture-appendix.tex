@@ -49,8 +49,8 @@
 \node[widebox=blue, anchor=north west] (capability) at (0.43,3.89) {Capability\\socket};
 \node[widebox=blue, anchor=north west] (actions) at (0.43,3.21) {Action registry\\and hooks};
 
-\node[lane=teal, minimum width=8.88cm, minimum height=6.95cm, anchor=north west] (vgit) at (3.75,7.45) {};
-\node[title, text=teal!55!black, anchor=west] at (3.95,7.18) {vgit Rust control plane};
+\node[lane=teal, minimum width=8.88cm, minimum height=6.95cm, anchor=north west] (jeryu) at (3.75,7.45) {};
+\node[title, text=teal!55!black, anchor=west] at (3.95,7.18) {jeryu Rust control plane};
 
 \node[lane=cyan, minimum width=8.44cm, minimum height=0.83cm, anchor=north west] (interfaceplane) at (3.97,6.78) {};
 \node[plabel, text=cyan!45!black, anchor=west] at (4.15,6.48) {Interface\\plane};
@@ -165,6 +165,6 @@
 
 \end{tikzpicture}
 \end{adjustbox}
-\caption{JeRyu architecture as described in \texttt{docs/ARCHITECTURE.md}. GitLab remains the forge and CI substrate, while the Rust \texttt{vgit} control plane owns agent authority, runner policy, validation planning, cache trust, evidence capture, merge gates, and release gates.}
+\caption{JeRyu architecture as described in \texttt{docs/ARCHITECTURE.md}. GitLab remains the forge and CI substrate, while the Rust \texttt{jeryu} control plane owns agent authority, runner policy, validation planning, cache trust, evidence capture, merge gates, and release gates.}
 \label{fig:architecture-appendix}
 \end{figure*}

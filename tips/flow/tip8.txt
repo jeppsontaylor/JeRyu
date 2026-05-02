@@ -1,6 +1,6 @@
 ## TUI North Star: “Mission Control Flow”
 
-Make `vgit tui` default to a **left-to-right CI/release flow map** instead of a status dashboard. The CEO-level view should answer four questions within five seconds:
+Make `jeryu tui` default to a **left-to-right CI/release flow map** instead of a status dashboard. The CEO-level view should answer four questions within five seconds:
 
 1. **What is running right now?**
 2. **Where is each run in the delivery flow?**
@@ -16,7 +16,7 @@ The engineer-level view should allow immediate drilldown into jobs, logs, eviden
 The default tab should become:
 
 ```text
-vgit God Mode | GitLab: ● ONLINE | Runners: 10 | Release: main ci-54c658… [stale] | ETA: 18m ± 6m
+jeryu God Mode | GitLab: ● ONLINE | Runners: 10 | Release: main ci-54c658… [stale] | ETA: 18m ± 6m
 ┌─ Active Runs ───────────────────────────────────────────────────────────────────────────────┐
 │ ▶ #407 main ci-54c658…  72%  running  current: build-enclave-server     ETA 18m ±6m         │
 │ ○ #405 main ci-1a2b3c…   0%  created  waiting for runner                ETA calculating     │
@@ -46,7 +46,7 @@ vgit God Mode | GitLab: ● ONLINE | Runners: 10 | Release: main ci-54c658… [s
 │ Status: running                                            │ Compiling enclave v0.4.2         │
 │ Stage: build                                               │ Finished release [optimized]     │
 │ Pool: build / docker-build                                 │ Running post-build checks...     │
-│ Runner: vgit-e2e-pool-d5a6f67c / system_id s_abc123        │                                  │
+│ Runner: jeryu-e2e-pool-d5a6f67c / system_id s_abc123        │                                  │
 │ Started: 2m41s ago                                         │                                  │
 │ ETA: 1m12s remaining, confidence medium                    │                                  │
 │ Queue: 3.1s                                                │                                  │
@@ -121,7 +121,7 @@ The graph builder should choose the best mode automatically based on the selecte
 | Main release run | `ref_name == "main"` and release attempt exists                  |
 | Branch/MR run    | pipeline ref is not `main`                                       |
 | Agent run        | branch starts with `agent/` or issue/MR label contains `agent:*` |
-| Smoke/test run   | branch starts with `vgit-test-*` or project is smoke test        |
+| Smoke/test run   | branch starts with `jeryu-test-*` or project is smoke test        |
 
 ---
 
@@ -315,7 +315,7 @@ Use these sources, in order:
 
 1. Current GitLab job fields: `started_at`, `finished_at`, `duration`, `queued_duration`, `status`.
 2. Historical completed jobs from previous pipelines.
-3. `test_executions` table for test names already tracked by vgit.
+3. `test_executions` table for test names already tracked by jeryu.
 4. Stage defaults when history is insufficient.
 
 Recommended defaults:
@@ -1474,7 +1474,7 @@ flow_render_tests.rs
 Add:
 
 ```bash
-vgit tui --once --view flow
+jeryu tui --once --view flow
 ```
 
 Expected:
@@ -1497,7 +1497,7 @@ Latest main:
 
 Next actions:
 - push to main to start release flow
-- run `vgit test run -c "..."`
+- run `jeryu test run -c "..."`
 ```
 
 ## GitLab offline
@@ -1554,7 +1554,7 @@ Goal: collect pools, managers, active pipelines, jobs, release attempts.
 Acceptance:
 
 ```text
-vgit tui --once --view flow
+jeryu tui --once --view flow
 ```
 
 renders a real selected run.
@@ -1638,11 +1638,11 @@ help overlay
 Use this as the build brief:
 
 ```text
-Implement a new default Flow View for vgit's Ratatui TUI.
+Implement a new default Flow View for jeryu's Ratatui TUI.
 
 Context:
-- vgit already has src/tui/{mod.rs,app.rs,ui.rs,events.rs}
-- vgit uses ratatui 0.30, crossterm 0.29, tokio, ansi-to-tui
+- jeryu already has src/tui/{mod.rs,app.rs,ui.rs,events.rs}
+- jeryu uses ratatui 0.30, crossterm 0.29, tokio, ansi-to-tui
 - State lives in SQLite via state::Db
 - GitLab API is exposed through GitlabClient
 - Docker manager data is exposed through docker.rs
@@ -1700,5 +1700,5 @@ What can I do?
   Drill into job, watch logs, run doctor, cancel, retry, play manual gates, reconcile release, promote prod.
 ```
 
-That is the view that turns `vgit` from “CI status” into a real Agent OS mission-control surface.
+That is the view that turns `jeryu` from “CI status” into a real Agent OS mission-control surface.
 

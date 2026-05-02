@@ -1,4 +1,4 @@
-Based on the API, architecture, and TUI docs, `vgit` already has the bones of a very serious agent-operable delivery control plane. The strongest design choice is that production, merge, cache, secrets, and executor behavior are mediated through typed surfaces, GitLab pipelines, state records, risk gates, and evidence—not loose shell commands. That is exactly the right direction.
+Based on the API, architecture, and TUI docs, `jeryu` already has the bones of a very serious agent-operable delivery control plane. The strongest design choice is that production, merge, cache, secrets, and executor behavior are mediated through typed surfaces, GitLab pipelines, state records, risk gates, and evidence—not loose shell commands. That is exactly the right direction.
 
 The biggest opportunity is to make the whole system feel less like a collection of powerful commands and more like a **live operational command center**: one place where a human or agent can see what is happening, why it is happening, what is blocked, what is risky, and what safe action is available next.
 
@@ -102,9 +102,9 @@ Better response shape:
 {
   "success": false,
   "status": "not_implemented",
-  "message": "RequestMerge is currently deferred. Use vgit agent merge instead.",
+  "message": "RequestMerge is currently deferred. Use jeryu agent merge instead.",
   "data": {
-    "recommended_surface": "vgit agent merge <project_id> <mr_iid>"
+    "recommended_surface": "jeryu agent merge <project_id> <mr_iid>"
   }
 }
 ```
@@ -146,7 +146,7 @@ recommended next actions
 A dream endpoint would be:
 
 ```bash
-vgit explain job <project_id> <job_id> --json
+jeryu explain job <project_id> <job_id> --json
 ```
 
 Or capability intent:
@@ -198,8 +198,8 @@ The current capability API is one request, one response. That is fine for small 
 Ideal additions:
 
 ```text
-vgit capability stream /tmp/vgit-events.sock
-vgit events watch --json
+jeryu capability stream /tmp/jeryu-events.sock
+jeryu events watch --json
 GET /events/stream
 ```
 
@@ -240,13 +240,13 @@ Right now, a supervising agent would need to poll a lot.
 
 ## 2.5 Agents need action manifests
 
-A very powerful improvement would be for `vgit` to expose its full action catalog:
+A very powerful improvement would be for `jeryu` to expose its full action catalog:
 
 ```bash
-vgit actions list --json
-vgit actions describe job.retry --json
-vgit actions plan job.retry --payload ... --json
-vgit actions apply job.retry --payload ... --json
+jeryu actions list --json
+jeryu actions describe job.retry --json
+jeryu actions plan job.retry --payload ... --json
+jeryu actions apply job.retry --payload ... --json
 ```
 
 Every action should advertise:
@@ -398,7 +398,7 @@ release-execution pipeline
 production-promotion pipeline
 child pipelines
 agent test pipelines
-scratch vgit-test pipelines
+scratch jeryu-test pipelines
 superseded pipelines
 ```
 
@@ -531,15 +531,15 @@ Capability `FetchCapsule` should query the evidence table directly. Scanning eve
 A command named:
 
 ```bash
-vgit shadow sync-now --source <dir>
+jeryu shadow sync-now --source <dir>
 ```
 
-that only tells the user to ensure `vgit serve` is running is likely to disappoint both humans and agents.
+that only tells the user to ensure `jeryu serve` is running is likely to disappoint both humans and agents.
 
 Either implement it or rename it to something like:
 
 ```bash
-vgit shadow request-sync
+jeryu shadow request-sync
 ```
 
 If implemented, it should append a sync request event that the shadow loop consumes.
@@ -678,7 +678,7 @@ Which actions are safe?
 Ideal command:
 
 ```bash
-vgit observe --project-id 2 --ref-name main --json
+jeryu observe --project-id 2 --ref-name main --json
 ```
 
 Response should include:
@@ -706,7 +706,7 @@ Agents need “why” more than raw status.
 Ideal command:
 
 ```bash
-vgit explain blocker --project-id 2 --ref-name main --json
+jeryu explain blocker --project-id 2 --ref-name main --json
 ```
 
 Example answer:
@@ -758,7 +758,7 @@ The system should create isolated branches, run selected validation, compare res
 The VTI tooling is strong. Agents should be able to say:
 
 ```bash
-vgit validate changes --base origin/main --head HEAD --json
+jeryu validate changes --base origin/main --head HEAD --json
 ```
 
 And get:
@@ -776,7 +776,7 @@ commands to run
 Then:
 
 ```bash
-vgit validate apply <plan-id>
+jeryu validate apply <plan-id>
 ```
 
 ## 4.5 Request merge with complete evidence
@@ -784,7 +784,7 @@ vgit validate apply <plan-id>
 A dream merge request flow:
 
 ```bash
-vgit agent request-merge \
+jeryu agent request-merge \
   --project-id 2 \
   --mr-iid 17 \
   --trust-tier untrusted \
@@ -837,7 +837,7 @@ rollback or recovery note
 This would be extremely powerful:
 
 ```bash
-vgit next-action --project-id 2 --ref-name main --json
+jeryu next-action --project-id 2 --ref-name main --json
 ```
 
 Example output:
@@ -870,7 +870,7 @@ This is the difference between an agent having tools and an agent having operati
 
 ---
 
-# 5. Dream TUI redesign: “vgit Command Center”
+# 5. Dream TUI redesign: “jeryu Command Center”
 
 The current TUI is useful. The dream version should feel like a **real-time mission control console for developers, release engineers, and agents**.
 
@@ -893,7 +893,7 @@ I would redesign it around five principles:
 The entire TUI should have a persistent high-contrast shell:
 
 ```text
-┌ vgit COMMAND CENTER ─────────────────────────────────────────────────────────────┐
+┌ jeryu COMMAND CENTER ─────────────────────────────────────────────────────────────┐
 │ Profile dougx/main  GitLab ONLINE  Vault OK  Docker OK  Cache OK  Disk 68%      │
 │ Release ci-fa51a52  Canary E2E-PASSED  Prod NOT TRIGGERED  Runners 5/10 warm    │
 ├─────────────────────────────────────────────────────────────────────────────────┤
@@ -1676,10 +1676,10 @@ These are relatively small changes with high trust impact.
 Add:
 
 ```bash
-vgit actions list --json
-vgit actions describe <action> --json
-vgit actions plan <action> --payload ... --json
-vgit actions apply <action> --payload ... --json
+jeryu actions list --json
+jeryu actions describe <action> --json
+jeryu actions plan <action> --payload ... --json
+jeryu actions apply <action> --payload ... --json
 ```
 
 Then use that manifest in:
@@ -1699,11 +1699,11 @@ This would unify human and agent control.
 Add rich explain endpoints:
 
 ```bash
-vgit explain system --json
-vgit explain pipeline <id> --json
-vgit explain job <id> --json
-vgit explain release --json
-vgit explain blocker --json
+jeryu explain system --json
+jeryu explain pipeline <id> --json
+jeryu explain job <id> --json
+jeryu explain release --json
+jeryu explain blocker --json
 ```
 
 These become the foundation for agent reasoning and TUI inspector panels.
@@ -1729,7 +1729,7 @@ The Flow Board then becomes the heart of the TUI.
 Add one or more:
 
 ```text
-vgit events watch --json
+jeryu events watch --json
 capability event stream
 HTTP SSE /events
 TUI internal event bus
@@ -1832,5 +1832,5 @@ The highest-value fixes and enhancements are:
 12. Make every blocked state explain why and what comes next.
 ```
 
-If those are implemented, `vgit tui` could become an exceptional power-user console: not just a terminal dashboard, but a live, explainable, risk-aware command center where developers, release engineers, and agents can safely operate the entire CI/CD system.
+If those are implemented, `jeryu tui` could become an exceptional power-user console: not just a terminal dashboard, but a live, explainable, risk-aware command center where developers, release engineers, and agents can safely operate the entire CI/CD system.
 

@@ -3,11 +3,11 @@ use sqlx::Row;
 use std::os::unix::fs::PermissionsExt;
 use std::sync::{LazyLock, Mutex};
 use tempfile::TempDir;
-use vgit::cache_brain::{BuildUnit, BuildUnitType, CacheBrain};
-use vgit::epoch::EpochManager;
-use vgit::explain::{CacheVerdict, MissReason};
-use vgit::policy::TrustTier;
-use vgit::taint::TaintManager;
+use jeryu::cache_brain::{BuildUnit, BuildUnitType, CacheBrain};
+use jeryu::epoch::EpochManager;
+use jeryu::explain::{CacheVerdict, MissReason};
+use jeryu::policy::TrustTier;
+use jeryu::taint::TaintManager;
 
 static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
@@ -29,8 +29,8 @@ fn remove_env_var<K: AsRef<std::ffi::OsStr>>(key: K) {
 
 /// Create a test DB using the PRODUCTION migration (not test-local schemas).
 /// This validates that all queries work against the real schema.
-async fn setup_production_db() -> Result<vgit::state::Db> {
-    let db = vgit::state::Db::open_memory().await?;
+async fn setup_production_db() -> Result<jeryu::state::Db> {
+    let db = jeryu::state::Db::open_memory().await?;
     Ok(db)
 }
 
@@ -55,7 +55,7 @@ fn make_tool_path(include_sccache: bool) -> Result<TempDir> {
 fn init_temp_cargo_repo() -> Result<TempDir> {
     let dir = TempDir::new()?;
     let status = std::process::Command::new("cargo")
-        .args(["init", "--lib", "--name", "vgit_local_smoke", "."])
+        .args(["init", "--lib", "--name", "jeryu_local_smoke", "."])
         .current_dir(dir.path())
         .status()?;
     anyhow::ensure!(status.success(), "cargo init failed with {status}");
@@ -361,9 +361,9 @@ async fn local_cargo_wrapper_smoke_without_sccache() -> Result<()> {
     let original_home = std::env::var_os("HOME");
     set_env_var("PATH", tool_path.path());
     set_env_var("HOME", repo.path());
-    remove_env_var("VGIT_CARGO_CACHE");
+    remove_env_var("JERYU_CARGO_CACHE");
 
-    let result = vgit::local::run_cargo(repo.path().to_path_buf(), vec!["check".to_string()]).await;
+    let result = jeryu::local::run_cargo(repo.path().to_path_buf(), vec!["check".to_string()]).await;
 
     match original_path {
         Some(value) => set_env_var("PATH", value),
@@ -386,9 +386,9 @@ async fn local_cargo_wrapper_smoke_with_sccache_shim() -> Result<()> {
     let original_home = std::env::var_os("HOME");
     set_env_var("PATH", tool_path.path());
     set_env_var("HOME", repo.path());
-    remove_env_var("VGIT_CARGO_CACHE");
+    remove_env_var("JERYU_CARGO_CACHE");
 
-    let result = vgit::local::run_cargo(repo.path().to_path_buf(), vec!["check".to_string()]).await;
+    let result = jeryu::local::run_cargo(repo.path().to_path_buf(), vec!["check".to_string()]).await;
 
     match original_path {
         Some(value) => set_env_var("PATH", value),
@@ -408,19 +408,19 @@ async fn cache_status_report_exposes_local_and_pool_cargo_bytes() -> Result<()> 
     let temp_home = TempDir::new()?;
     let original_home = std::env::var_os("HOME");
     set_env_var("HOME", temp_home.path());
-    let cache_root = vgit::config::cache_root_dir();
-    let local_target = vgit::config::local_cargo_targets_root()
+    let cache_root = jeryu::config::cache_root_dir();
+    let local_target = jeryu::config::local_cargo_targets_root()
         .join("scope")
         .join("rustc")
         .join("host")
         .join("target");
-    let local_sccache = vgit::config::local_cargo_sccache_dir();
-    let pool_target = vgit::config::pool_cargo_targets_root("default")
+    let local_sccache = jeryu::config::local_cargo_sccache_dir();
+    let pool_target = jeryu::config::pool_cargo_targets_root("default")
         .join("scope")
         .join("rustc")
         .join("host")
         .join("target");
-    let pool_sccache = vgit::config::pool_cargo_sccache_dir("default");
+    let pool_sccache = jeryu::config::pool_cargo_sccache_dir("default");
     std::fs::create_dir_all(&local_target)?;
     std::fs::create_dir_all(&local_sccache)?;
     std::fs::create_dir_all(&pool_target)?;
@@ -431,7 +431,7 @@ async fn cache_status_report_exposes_local_and_pool_cargo_bytes() -> Result<()> 
     std::fs::write(pool_sccache.join("d"), vec![0_u8; 8])?;
 
     let db = setup_production_db().await?;
-    let report = vgit::cache::SmartCache::new(db).status_report(None).await?;
+    let report = jeryu::cache::SmartCache::new(db).status_report(None).await?;
     let json = serde_json::to_value(&report)?;
     assert!(report.local_cargo_target_bytes > 0);
     assert!(report.local_cargo_sccache_bytes > 0);
@@ -441,7 +441,7 @@ async fn cache_status_report_exposes_local_and_pool_cargo_bytes() -> Result<()> 
     assert!(json.get("local_cargo_sccache_bytes").is_some());
     assert!(json.get("pool_cargo_target_bytes").is_some());
     assert!(json.get("pool_cargo_sccache_bytes").is_some());
-    assert!(report.vgit_cache_bytes >= report.local_cargo_target_bytes);
+    assert!(report.jeryu_cache_bytes >= report.local_cargo_target_bytes);
     assert!(cache_root.exists());
 
     match original_home {

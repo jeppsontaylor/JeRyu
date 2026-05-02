@@ -1,4 +1,4 @@
-use vgit::reclaim::{
+use jeryu::reclaim::{
     gc_orphaned_workers, live_registry_gc_enabled, live_registry_gc_skip_reason, mem_available_gb,
 };
 

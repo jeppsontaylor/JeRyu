@@ -2,7 +2,7 @@
 
 I reviewed the public repo, README, workspace metadata, AGENTS/proof-lane docs, generated agent index, main Rust modules, architecture docs, API docs, TUI docs, VTI docs, and several source modules in detail. Direct `git clone` failed in the container because DNS resolution for `github.com` was unavailable, so I used GitHub’s source browser/raw files and downloaded representative files locally. I did **not** run `cargo check` or the test suite, so this is a static architecture/code review rather than a build-verified audit.
 
-**My blunt read:** JeRyu/vgit is not yet “a GitLab fork” in the normal sense. The docs describe it more accurately as a **single-binary Rust control plane wrapped around a local GitLab CE, GitLab Runner, Docker, Vault, Postgres/SQLite, cache, custom executor, and Ratatui TUI**. That is still a strong direction: it is trying to make GitLab agent-operable rather than merely scriptable. The current repo has a lot of good agent-first scaffolding, but the security/isolation claims are ahead of the implementation, and the actual “agent codes autonomously, repairs itself, wins a race, proves safety, and ships” loop is only partially implemented. The architecture doc itself frames it as a Rust control plane that turns local GitLab and related services into an “agent-operable delivery system,” not as a replacement for GitLab’s core Rails/Gitaly/database product. ([GitHub][1])
+**My blunt read:** JeRyu/jeryu is not yet “a GitLab fork” in the normal sense. The docs describe it more accurately as a **single-binary Rust control plane wrapped around a local GitLab CE, GitLab Runner, Docker, Vault, Postgres/SQLite, cache, custom executor, and Ratatui TUI**. That is still a strong direction: it is trying to make GitLab agent-operable rather than merely scriptable. The current repo has a lot of good agent-first scaffolding, but the security/isolation claims are ahead of the implementation, and the actual “agent codes autonomously, repairs itself, wins a race, proves safety, and ships” loop is only partially implemented. The architecture doc itself frames it as a Rust control plane that turns local GitLab and related services into an “agent-operable delivery system,” not as a replacement for GitLab’s core Rails/Gitaly/database product. ([GitHub][1])
 
 ---
 
@@ -26,7 +26,7 @@ The current classifier is simple, but the abstraction is right. It lets the syst
 
 ### 4. The VTI smart test system is a strong differentiator
 
-VTI maps changed files to minimal tests, emits GitLab child pipeline YAML, records plans in the DB, and includes a nightly/self-auditing oracle idea. The VTI doc describes internal subsystem planning, external `.vgit/testmap.toml` planning, docs-only skipping, global invalidators, selected tests, confidence, and selector-miss persistence. ([GitHub][5])
+VTI maps changed files to minimal tests, emits GitLab child pipeline YAML, records plans in the DB, and includes a nightly/self-auditing oracle idea. The VTI doc describes internal subsystem planning, external `.jeryu/testmap.toml` planning, docs-only skipping, global invalidators, selected tests, confidence, and selector-miss persistence. ([GitHub][5])
 
 This is one of the highest-leverage areas for agent-led development. Autonomous agents need fast validation loops. A 40-minute full CI cycle kills agent throughput; a reliable 2-minute selected proof lane makes autonomy plausible.
 
@@ -60,9 +60,9 @@ That is the right shape for an autonomous delivery system: do not leave critical
 
 ### 9. It correctly builds on GitLab’s custom executor model
 
-GitLab Runner’s custom executor is explicitly designed around `config_exec`, `prepare_exec`, `run_exec`, and `cleanup_exec` stages, and JeRyu maps into that model with `vgit exec config/prepare/run/cleanup`. ([GitLab Docs][8])
+GitLab Runner’s custom executor is explicitly designed around `config_exec`, `prepare_exec`, `run_exec`, and `cleanup_exec` stages, and JeRyu maps into that model with `jeryu exec config/prepare/run/cleanup`. ([GitLab Docs][8])
 
-That is a good choice because it gives vgit a place to inject cache, sandbox, evidence capture, tripwires, and policy around job execution.
+That is a good choice because it gives jeryu a place to inject cache, sandbox, evidence capture, tripwires, and policy around job execution.
 
 ---
 
@@ -70,7 +70,7 @@ That is a good choice because it gives vgit a place to inject cache, sandbox, ev
 
 ### 1. The sandbox/isolation claims are much stronger than the implementation
 
-This is the most important gap. The README/architecture talk about sandboxing and strict isolation, but `sandbox.rs` currently spawns `bash`, sets `VGIT_SANDBOXED=1` when “strict” is enabled, and injects proxy env vars. That is not a real sandbox. ([GitHub][9])
+This is the most important gap. The README/architecture talk about sandboxing and strict isolation, but `sandbox.rs` currently spawns `bash`, sets `JERYU_SANDBOXED=1` when “strict” is enabled, and injects proxy env vars. That is not a real sandbox. ([GitHub][9])
 
 Even more concerning: `exec.rs`’s custom executor bootstraps Python/Docker via `apt-get`, checks for `/var/run/docker.sock`, and requires `docker info` against the mounted socket. Mounting the Docker socket into an untrusted execution lane is effectively host-root-equivalent in many setups. ([GitHub][10])
 
@@ -126,7 +126,7 @@ This means the repo is currently more of an **agent-control substrate** than an 
 
 Agents create project access tokens with `api` and `write_repository` scopes and Developer access. GitLab project access token docs define `api` as complete read/write access to the scoped project API, while `write_repository` grants repository read/write access. ([GitHub][6])
 
-GitLab does support bot users for project access tokens and associates them with token permissions, so the direction is valid. But JeRyu needs stronger lifecycle control: scoped tokens per action, no broad `api` unless necessary, automatic revocation after completion, token fingerprints in DB, no token values in task structs after use, and emergency revocation on tripwire. GitLab’s API supports project access token creation, rotation, and revocation, so vgit should use the whole lifecycle, not just creation. ([GitLab Docs][13])
+GitLab does support bot users for project access tokens and associates them with token permissions, so the direction is valid. But JeRyu needs stronger lifecycle control: scoped tokens per action, no broad `api` unless necessary, automatic revocation after completion, token fingerprints in DB, no token values in task structs after use, and emergency revocation on tripwire. GitLab’s API supports project access token creation, rotation, and revocation, so jeryu should use the whole lifecycle, not just creation. ([GitLab Docs][13])
 
 ### 7. Failure capsule redaction is incomplete
 
@@ -166,7 +166,7 @@ That is fine for an internal prototype, but not for a world-class GitLab/GitHub 
 
 `WorkspaceProfile { forge, project, default_branch, language, test_map, release_lanes, secret_authority, deploy_targets }`.
 
-### 10. Current GitHub/GitLab already expose many primitives, so vgit’s advantage must be agent-native orchestration
+### 10. Current GitHub/GitLab already expose many primitives, so jeryu’s advantage must be agent-native orchestration
 
 GitHub exposes APIs for listing workflow runs, getting jobs/logs, canceling and force-canceling workflow runs. GitLab exposes job retry and pipeline creation APIs. ([GitHub Docs][15])
 
@@ -295,10 +295,10 @@ Add `PollRaceResult`, `CancelRace`, `ExplainRace`, and `PromoteWinner`.
 A failure capsule should become a one-click replay bundle:
 
 ```bash
-vgit capsule replay <capsule-id>
-vgit capsule minimize <capsule-id>
-vgit capsule repair <capsule-id>
-vgit capsule compare <old> <new>
+jeryu capsule replay <capsule-id>
+jeryu capsule minimize <capsule-id>
+jeryu capsule repair <capsule-id>
+jeryu capsule compare <old> <new>
 ```
 
 It should contain:
@@ -319,7 +319,7 @@ It should contain:
 
 ### 6. Add “agent memory” that is repo-native, not chat-native
 
-Create `.vgit/memory/` or DB-backed memory:
+Create `.jeryu/memory/` or DB-backed memory:
 
 * recurring failures,
 * flaky tests,
@@ -378,13 +378,13 @@ Then implement:
 * local bare Git,
 * maybe Gerrit for review-heavy shops.
 
-This makes vgit a true agent-first Git control plane, not just a local GitLab automation layer.
+This makes jeryu a true agent-first Git control plane, not just a local GitLab automation layer.
 
 ---
 
 ## Security upgrades I would prioritize immediately
 
-1. **Replace `VGIT_SANDBOXED=1` with real isolation.** Use rootless containers, seccomp, AppArmor/SELinux, cgroups, read-only bind mounts, no host Docker socket, no ambient host package install, per-job temp home, and explicit egress policy.
+1. **Replace `JERYU_SANDBOXED=1` with real isolation.** Use rootless containers, seccomp, AppArmor/SELinux, cgroups, read-only bind mounts, no host Docker socket, no ambient host package install, per-job temp home, and explicit egress policy.
 
 2. **Remove default invalid TLS acceptance.** Only allow invalid certs in `dev_localhost` mode. Pin CA fingerprints.
 
@@ -402,7 +402,7 @@ This makes vgit a true agent-first Git control plane, not just a local GitLab au
 
 9. **Policy-as-code.** Use OPA/Rego or a Rust policy DSL for path permissions, merge gates, release gates, network permissions, and token scopes.
 
-10. **Emergency kill switch.** `vgit lockdown` should revoke agent tokens, pause pools, deny agent refs, stop cache promotion, and preserve evidence.
+10. **Emergency kill switch.** `jeryu lockdown` should revoke agent tokens, pause pools, deny agent refs, stop cache promotion, and preserve evidence.
 
 ---
 
@@ -444,7 +444,7 @@ The action cache should be able to answer:
 
 ### 4. Add remote execution
 
-Agent throughput explodes if vgit can schedule proof units across a remote executor fleet:
+Agent throughput explodes if jeryu can schedule proof units across a remote executor fleet:
 
 * local cheap proofs,
 * remote expensive proofs,
@@ -755,7 +755,7 @@ The north star should be:
 [4]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/capsule.rs "raw.githubusercontent.com"
 [5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/VTI.md "raw.githubusercontent.com"
 [6]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/agent.rs "raw.githubusercontent.com"
-[7]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[7]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [8]: https://docs.gitlab.com/runner/executors/custom/ "The Custom executor | GitLab Docs"
 [9]: https://github.com/jeppsontaylor/JeRyu "GitHub - jeppsontaylor/JeRyu: Git sucks, making it better · GitHub"
 [10]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/exec.rs "raw.githubusercontent.com"

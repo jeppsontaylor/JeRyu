@@ -14,7 +14,7 @@ My redesign would make the TUI the canonical frontend for one question:
 
 The current API reference documents a large control surface: CLI, TUI, webhook server, Unix-socket capability API, Git server hook, custom executor, action registry, state API, settings, GitLab REST wrapper, release API, and secrets API. That is a strong starting point because the TUI can eventually become a unified cockpit instead of a passive terminal dashboard. ([GitHub][1])
 
-The TUI itself has moved toward a nine-tab product shape: Mission, Release, Jobs, Agents, Tests, Pools, Cache, Evidence, and Secrets. The CLI supports `vgit tui --once` plus deterministic PNG capture with `--capture`, `--tab`, width, and height options, which is excellent for visual regression tests, papers, and demo automation. ([GitHub][2])
+The TUI itself has moved toward a nine-tab product shape: Mission, Release, Jobs, Agents, Tests, Pools, Cache, Evidence, and Secrets. The CLI supports `jeryu tui --once` plus deterministic PNG capture with `--capture`, `--tab`, width, and height options, which is excellent for visual regression tests, papers, and demo automation. ([GitHub][2])
 
 The application state is also richer than a normal terminal app. The `TuiStateSnapshot` includes pools, GitLab readiness, containers, jobs, pipelines, flow snapshot, live log state, shadow sync, cache metrics, taints, storage, release status, test bottlenecks, recent evidence, secret audit events, agent pipelines, and recent audit events. ([GitHub][3])
 
@@ -43,7 +43,7 @@ Right now, empty states often say “No events yet” or “Waiting,” but they
 
 ### 2. The docs and current code are inconsistent
 
-`VGIT_TUI.md` says the old keybindings are `1: Flow`, `2: Storage`, `3: Cache`, `4: Audit`, `5: Tests`, while the current source and CLI expose nine tabs: Mission, Release, Jobs, Agents, Tests, Pools, Cache, Evidence, and Secrets. ([GitHub][6])
+`JERYU_TUI.md` says the old keybindings are `1: Flow`, `2: Storage`, `3: Cache`, `4: Audit`, `5: Tests`, while the current source and CLI expose nine tabs: Mission, Release, Jobs, Agents, Tests, Pools, Cache, Evidence, and Secrets. ([GitHub][6])
 
 That matters because agents and humans rely on docs as an API. For an agent-first system, stale docs are not just annoying; they cause tool-use errors.
 
@@ -111,13 +111,13 @@ That is not enough. A real agent tab should show agent objectives, current step,
 
 ---
 
-# Ground-up redesign: “vgit Mission Control”
+# Ground-up redesign: “jeryu Mission Control”
 
 I would redesign the TUI around a stable four-zone layout:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ vgit Mission Control  SAFE/DEGRADED  main@58dcf4d  agents:3  gates:2 blocked │
+│ jeryu Mission Control  SAFE/DEGRADED  main@58dcf4d  agents:3  gates:2 blocked │
 │ Next: fix release artifact contract → Run: explain release blocker           │
 ├───────────────┬───────────────────────────────────────────────┬──────────────┤
 │ NAV           │ WORKSPACE                                     │ INSPECTOR    │
@@ -304,7 +304,7 @@ Confidence: 0.81
 First bad commit: 58dcf4d
 Similar failures: 3
 Replay:
-  vgit capsule replay cap-14445
+  jeryu capsule replay cap-14445
 Repair options:
   [1] ask agent to repair
   [2] race 3 repairs
@@ -492,7 +492,7 @@ The Mission tab should not infer health from many raw counters. Give it one obje
 }
 ```
 
-This becomes the top of the TUI, CLI `vgit status`, and agent `GetSystemSnapshot`.
+This becomes the top of the TUI, CLI `jeryu status`, and agent `GetSystemSnapshot`.
 
 ## 4. Make actions first-class and typed
 
@@ -645,7 +645,7 @@ Response:
       "code": "missing_required_proof",
       "severity": "high",
       "required_action": "run_tests",
-      "suggested_command": "vgit test run --scope security --ref agent/fix-auth"
+      "suggested_command": "jeryu test run --scope security --ref agent/fix-auth"
     }
   ],
   "evidence": [...],
@@ -762,7 +762,7 @@ Keyboard should remain first-class, but mouse should not be fake.
 
 ## P0: Immediate polish and UX correctness
 
-1. **Update `VGIT_TUI.md` to match current nine-tab source.** The current docs still contain old tab/keybinding language. ([GitHub][6])
+1. **Update `JERYU_TUI.md` to match current nine-tab source.** The current docs still contain old tab/keybinding language. ([GitHub][6])
 
 2. **Fix PNG capture glyphs.** The current generated screenshots look noisy because line-drawing characters are not rendered cleanly. 
 
@@ -865,7 +865,7 @@ Make it the **agent operations cockpit** GitLab/GitHub do not have:
 [3]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/app.rs "raw.githubusercontent.com"
 [4]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/flow/model.rs "raw.githubusercontent.com"
 [5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/action_registry.rs "raw.githubusercontent.com"
-[6]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[6]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [7]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/mod.rs "raw.githubusercontent.com"
 [8]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/flow/collector.rs "raw.githubusercontent.com"
 [9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/flow/builder.rs "raw.githubusercontent.com"

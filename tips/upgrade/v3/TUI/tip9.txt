@@ -27,7 +27,7 @@ That is good for automation, but the CLI has grown faster than the product API. 
 
 ## B. Engine HTTP API
 
-The Axum engine exposes a small HTTP surface: `/health`, `/hooks`, and `/cache/summary`. The webhook route verifies the GitLab token and handles job, pipeline, push, and merge request hooks. Push hooks trigger supersedence and impact planning, while pipeline hooks update release/canary/prod-related state. The cache summary endpoint requires `X-Vgit-Token` and returns a compact cache health summary. ([GitHub][2])
+The Axum engine exposes a small HTTP surface: `/health`, `/hooks`, and `/cache/summary`. The webhook route verifies the GitLab token and handles job, pipeline, push, and merge request hooks. Push hooks trigger supersedence and impact planning, while pipeline hooks update release/canary/prod-related state. The cache summary endpoint requires `X-Jeryu-Token` and returns a compact cache health summary. ([GitHub][2])
 
 This is useful, but it is not enough for a first-class TUI. The TUI needs a dedicated API that answers “give me the current operational truth,” not just webhook ingestion and cache summary.
 
@@ -39,7 +39,7 @@ This is a good start, but it is too coarse for a world-class TUI/API. For exampl
 
 ## D. Action registry
 
-The action registry is one of the best current design choices. It defines actions with ID, label, description, risk tier, allowed surfaces, dry-run availability, side-effect class, and grant requirement. Risk tiers include `ReadOnly`, `Low`, `High`, and `Production`; side-effect classes include read-only, local state, Git write, CI execution, merge, and production. The registry is intended to be consumed by the TUI palette, CLI `vgit action list`, and capability `ListAllowedActions`. ([GitHub][4])
+The action registry is one of the best current design choices. It defines actions with ID, label, description, risk tier, allowed surfaces, dry-run availability, side-effect class, and grant requirement. Risk tiers include `ReadOnly`, `Low`, `High`, and `Production`; side-effect classes include read-only, local state, Git write, CI execution, merge, and production. The registry is intended to be consumed by the TUI palette, CLI `jeryu action list`, and capability `ListAllowedActions`. ([GitHub][4])
 
 This should become the center of the API redesign. Every button, hotkey, command-palette command, and agent intent should be backed by this registry.
 
@@ -1215,7 +1215,7 @@ Avoid panels that are just miscellaneous data dumps.
 # 17. The “world-class” TUI mockup
 
 ```text
-┌ vgit OPS ─ stream LIVE ─ GitLab OK ─ runners 8/12 ─ cache 91% trusted ─ risk LOW ┐
+┌ jeryu OPS ─ stream LIVE ─ GitLab OK ─ runners 8/12 ─ cache 91% trusted ─ risk LOW ┐
 │ main@a1b2c3 · release candidate active · canary healthy · 3 items need attention │
 ├─ Attention ───────────────┬─ Pipeline Flight Deck ─────────────────┬─ Inspector ─┤
 │ P0 MR !42 blocked         │ Commit → Impact → Build → Tests → Ship │ WHY BLOCKED │

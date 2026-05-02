@@ -1,5 +1,5 @@
 //! Owner: Autonomous Agent System
-//! Proof: `cargo test -p vgit -- agent`
+//! Proof: `cargo test -p jeryu -- agent`
 //! Invariants: Agents always create a GitLab issue before branching; race hypotheses are independent branches; pipeline check (check_agent_pipeline) is mandatory before merge
 //!
 //! An agent is a Rust-spawned worker that:
@@ -95,7 +95,7 @@ pub async fn spawn_agent(
                  **Branch:** `{}`\n\
                  **Identity:** `{}`\n\
                  **Status:** Pending\n\n\
-                 _This issue is managed by vgit agent._",
+                 _This issue is managed by jeryu agent._",
                 task_description, branch_name, bot.name
             ),
             &["agent:pending"],
@@ -197,7 +197,7 @@ pub async fn spawn_race(
                  **Task:** {}\n\
                  **Base Branch:** `{}`\n\
                  **Identity:** `{}`\n\n\
-                 _This issue is managed by vgit Parallel Hypothesis Racing._",
+                 _This issue is managed by jeryu Parallel Hypothesis Racing._",
                 hypotheses.len(),
                 task_description,
                 base_branch_name,
@@ -267,7 +267,7 @@ pub async fn spawn_race(
 /// Create a merge request for an agent's work.
 pub async fn create_agent_mr(client: &GitlabClient, task: &AgentTask) -> Result<i64> {
     let description = format!(
-        "Automated change by vgit agent.\n\n\
+        "Automated change by jeryu agent.\n\n\
          **Task:** {}\n\n\
          {}",
         task.task_description,

@@ -10,7 +10,7 @@
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.12}
 
-This appendix is the agent-facing contract for the V3.01 repository. It is grounded in the active \apicode{vgit} binary, the Unix-socket capability API, the native MCP server, the engine HTTP routes, the GitLab Runner custom executor protocol, the Git server admission hook, and the canonical action registry. The MCP surface is not a parallel authority system: it is a standards-compatible transport for the same policy, evidence, grant, and merge/release checks exposed through the existing capability model.
+This appendix is the agent-facing contract for the V3.01 repository. It is grounded in the active \apicode{jeryu} binary, the Unix-socket capability API, the native MCP server, the engine HTTP routes, the GitLab Runner custom executor protocol, the Git server admission hook, and the canonical action registry. The MCP surface is not a parallel authority system: it is a standards-compatible transport for the same policy, evidence, grant, and merge/release checks exposed through the existing capability model.
 
 \subsection{Surface Map}
 
@@ -34,14 +34,14 @@ Action registry & static JSON contract & CLI, TUI, capability clients & canonica
 \end{center}
 
 \begin{lstlisting}[style=api,language=bash,caption={Agent discovery and status entrypoints}]
-vgit action list --json
-vgit status
-vgit next --project-id 2 --ref-name main
-vgit explain-blocker job 14445
-vgit capability serve /tmp/vgit-capability.sock
-vgit mcp serve
-vgit mcp serve-http
-vgit mcp tools --json
+jeryu action list --json
+jeryu status
+jeryu next --project-id 2 --ref-name main
+jeryu explain-blocker job 14445
+jeryu capability serve /tmp/jeryu-capability.sock
+jeryu mcp serve
+jeryu mcp serve-http
+jeryu mcp tools --json
 \end{lstlisting}
 
 \clearpage
@@ -56,18 +56,18 @@ All command names are kebab-case at the shell. Defaults below match the current 
 \toprule
 \textbf{Command} & \textbf{Mode} & \textbf{Purpose}\\
 \midrule
-\apicmd{vgit init} & mutating & Bootstrap GitLab, state DB, runners, secrets, compose files, and smoke setup.\\
-\apicmd{vgit bootstrap} & mutating & Hidden alias for \apicode{init}.\\
-\apicmd{vgit serve} & daemon & Start Docker/GitLab orchestration, hook install, cache supervisor, runner warmup, engine, and shadow loop.\\
-\apicmd{vgit down} & mutating & Drain runner managers and stop the GitLab stack.\\
-\apicmd{vgit status} & read & Show GitLab, Vault, pools, managed containers, jobs, release, and secret state.\\
-\apicmd{vgit tui [--once]} & UI/read & Launch the Ratatui dashboard or render one smoke frame.\\
-\apicmd{vgit tui --capture --tab <tab> --output <png>} & read/artifact & Deterministic Ratatui PNG capture. Tabs: mission, release, jobs, agents, tests, pools, cache, evidence, secrets.\\
-\apicmd{vgit tui --screenshot --tab <tab> --screenshot-hold-ms <ms>} & read/session & Hold a real terminal render for external screenshot tooling.\\
-\apicmd{vgit progress --project-id 2 --ref-name main [--json]} & read & Show lane-aware CI and release progress.\\
-\apicmd{vgit next --project-id 2 --ref-name main} & read & Print the highest-priority next action for a branch.\\
-\apicmd{vgit explain-blocker <job|release|merge> <id>} & read & Explain why an entity is blocked using DB/GitLab evidence.\\
-\apicmd{vgit action list [--json]} & read & Emit the canonical action registry for humans or agents.\\
+\apicmd{jeryu init} & mutating & Bootstrap GitLab, state DB, runners, secrets, compose files, and smoke setup.\\
+\apicmd{jeryu bootstrap} & mutating & Hidden alias for \apicode{init}.\\
+\apicmd{jeryu serve} & daemon & Start Docker/GitLab orchestration, hook install, cache supervisor, runner warmup, engine, and shadow loop.\\
+\apicmd{jeryu down} & mutating & Drain runner managers and stop the GitLab stack.\\
+\apicmd{jeryu status} & read & Show GitLab, Vault, pools, managed containers, jobs, release, and secret state.\\
+\apicmd{jeryu tui [--once]} & UI/read & Launch the Ratatui dashboard or render one smoke frame.\\
+\apicmd{jeryu tui --capture --tab <tab> --output <png>} & read/artifact & Deterministic Ratatui PNG capture. Tabs: mission, release, jobs, agents, tests, pools, cache, evidence, secrets.\\
+\apicmd{jeryu tui --screenshot --tab <tab> --screenshot-hold-ms <ms>} & read/session & Hold a real terminal render for external screenshot tooling.\\
+\apicmd{jeryu progress --project-id 2 --ref-name main [--json]} & read & Show lane-aware CI and release progress.\\
+\apicmd{jeryu next --project-id 2 --ref-name main} & read & Print the highest-priority next action for a branch.\\
+\apicmd{jeryu explain-blocker <job|release|merge> <id>} & read & Explain why an entity is blocked using DB/GitLab evidence.\\
+\apicmd{jeryu action list [--json]} & read & Emit the canonical action registry for humans or agents.\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -80,27 +80,27 @@ All command names are kebab-case at the shell. Defaults below match the current 
 \toprule
 \textbf{Command} & \textbf{Mode} & \textbf{Purpose}\\
 \midrule
-\apicmd{vgit pool list} & read & List pools, manager counts, paused state, executor, and runner id.\\
-\apicmd{vgit pool scale <name> <count>} & mutating & Scale a pool to an exact manager count.\\
-\apicmd{vgit pool pause|resume <name>} & mutating & Pause or resume runner intake.\\
-\apicmd{vgit pool drain <name>} & mutating & Pause, wait, and stop managers.\\
-\apicmd{vgit pool delete <name>} & mutating & Drain, delete DB record, and unregister runner.\\
-\apicmd{vgit pool rotate-token <name>} & mutating & Reset GitLab runner token and update manager config.\\
-\apicmd{vgit job list <project> [--status running,pending]} & read & List GitLab jobs by scope.\\
-\apicmd{vgit job trace <project> <job>} & read & Print GitLab job trace.\\
-\apicmd{vgit job play|cancel|retry <project> <job>} & mutating & Start manual jobs, cancel jobs, or retry failed jobs.\\
-\apicmd{vgit job explain <project> <job>} & read & Print latest structured failure capsule and retry advice.\\
-\apicmd{vgit job clear} & mutating & Clear local job and pipeline history.\\
-\apicmd{vgit pipeline explain|doctor|jobs <pipeline> [--project-id 2] [--json]} & read & Inspect release eligibility, health, and job timing.\\
-\apicmd{vgit pipeline jobs <pipeline> --ingest} & mutating & Store current job timing rows.\\
-\apicmd{vgit pipeline ingest|cancel <pipeline> [--project-id 2]} & mutating & Persist timings or cancel a pipeline.\\
-\apicmd{vgit pipeline bottlenecks [--limit 25] [--json]} & read & Report historical slow jobs from local timing ledger.\\
-\apicmd{vgit cache enable} & mutating & Configure Docker for SmartCache registry mirror.\\
-\apicmd{vgit cache doctor|status [--json]} & read & Check proxy/registry/cache state and metrics.\\
-\apicmd{vgit cache gc [--dry-run] [--json] [--older-than <age>] [--max-cache-gb <gb>]} & mutating & Garbage-collect manager caches and cache state.\\
-\apicmd{vgit logs <manager-id> [-n 50]} & read & Tail manager container logs.\\
-\apicmd{vgit host storage-audit|doctor [--json]} & read & Audit storage and host health.\\
-\apicmd{vgit host reclaim --mode <mode> (--plan|--apply)} & mutating & Run planned or applied reclaim.\\
+\apicmd{jeryu pool list} & read & List pools, manager counts, paused state, executor, and runner id.\\
+\apicmd{jeryu pool scale <name> <count>} & mutating & Scale a pool to an exact manager count.\\
+\apicmd{jeryu pool pause|resume <name>} & mutating & Pause or resume runner intake.\\
+\apicmd{jeryu pool drain <name>} & mutating & Pause, wait, and stop managers.\\
+\apicmd{jeryu pool delete <name>} & mutating & Drain, delete DB record, and unregister runner.\\
+\apicmd{jeryu pool rotate-token <name>} & mutating & Reset GitLab runner token and update manager config.\\
+\apicmd{jeryu job list <project> [--status running,pending]} & read & List GitLab jobs by scope.\\
+\apicmd{jeryu job trace <project> <job>} & read & Print GitLab job trace.\\
+\apicmd{jeryu job play|cancel|retry <project> <job>} & mutating & Start manual jobs, cancel jobs, or retry failed jobs.\\
+\apicmd{jeryu job explain <project> <job>} & read & Print latest structured failure capsule and retry advice.\\
+\apicmd{jeryu job clear} & mutating & Clear local job and pipeline history.\\
+\apicmd{jeryu pipeline explain|doctor|jobs <pipeline> [--project-id 2] [--json]} & read & Inspect release eligibility, health, and job timing.\\
+\apicmd{jeryu pipeline jobs <pipeline> --ingest} & mutating & Store current job timing rows.\\
+\apicmd{jeryu pipeline ingest|cancel <pipeline> [--project-id 2]} & mutating & Persist timings or cancel a pipeline.\\
+\apicmd{jeryu pipeline bottlenecks [--limit 25] [--json]} & read & Report historical slow jobs from local timing ledger.\\
+\apicmd{jeryu cache enable} & mutating & Configure Docker for SmartCache registry mirror.\\
+\apicmd{jeryu cache doctor|status [--json]} & read & Check proxy/registry/cache state and metrics.\\
+\apicmd{jeryu cache gc [--dry-run] [--json] [--older-than <age>] [--max-cache-gb <gb>]} & mutating & Garbage-collect manager caches and cache state.\\
+\apicmd{jeryu logs <manager-id> [-n 50]} & read & Tail manager container logs.\\
+\apicmd{jeryu host storage-audit|doctor [--json]} & read & Audit storage and host health.\\
+\apicmd{jeryu host reclaim --mode <mode> (--plan|--apply)} & mutating & Run planned or applied reclaim.\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -113,27 +113,27 @@ All command names are kebab-case at the shell. Defaults below match the current 
 \toprule
 \textbf{Command} & \textbf{Mode} & \textbf{Purpose}\\
 \midrule
-\apicmd{vgit agent spawn <project> --task <text>} & mutating & Create an autonomous task branch/MR/issue workflow.\\
-\apicmd{vgit agent list <project>} & read & List active agent MRs/issues.\\
-\apicmd{vgit agent merge <project> <mr> [--trust-tier trusted]} & mutating & Request merge through the risk gate.\\
-\apicmd{vgit shadow <subcommand>} & mixed & Manage periodic local source-to-GitLab shadow sync: add, enable, disable, remove, sync-now, status.\\
-\apicmd{vgit shadow-remote <subcommand>} & mixed & Inspect, create, or push a repo-local shadow remote: status, ensure, push.\\
-\apicmd{vgit test run --command <cmd> [--force]} & mutating & Run a command through an ephemeral GitLab CI pipeline.\\
-\apicmd{vgit test plan --command <cmd>} & read & Preview inferred image, tags, timeout, and runner class.\\
-\apicmd{vgit test batch --command <cmd>... [--max-parallel 3]} & mutating & Launch several validation pipelines concurrently.\\
-\apicmd{vgit test results|failed|retry <pipeline>} & mixed & Inspect or retry pipeline test jobs.\\
-\apicmd{vgit test impact --base <sha> --head <sha> [--json]} & read & Determine CI jobs and release gates needed for a diff.\\
-\apicmd{vgit test select [emit flags]} & read/artifact & Compute internal VTI plan and optionally emit GitLab YAML, JSON plan, and VTI receipt.\\
-\apicmd{vgit test explain-plan <plan.json>} & read & Explain a serialized VTI plan.\\
-\apicmd{vgit test select-external --workspace <root>} & read/artifact & Use external \apicode{.vgit/testmap.toml}.\\
-\apicmd{vgit test audit|learn} & read & Compare VTI selections with oracle results and suggest rule changes.\\
-\apicmd{vgit test cache-status --base <sha> --head <sha> [--json]} & read & Show test-command cache state for the current source state.\\
-\apicmd{vgit release status|watch|reconcile} & mixed & Read or reconcile release attempts.\\
-\apicmd{vgit release promote-prod [--version <v>]} & mutating & Trigger approved production promotion after canary gates.\\
-\apicmd{vgit release preflight|doctor [--json]} & read & Check blockers, infrastructure, and release readiness.\\
-\apicmd{vgit secrets <subcommand>} & mixed & Manage Vault-backed release lifecycle: init, status, rotate, finalize, report, recover.\\
-\apicmd{vgit repo render-agent-index [--check]} & artifact/check & Generate or verify machine-readable agent routing index.\\
-\apicmd{vgit repo audit-agent-surface [--json]} & read & Audit routing docs, generated index, and agent surface freshness.\\
+\apicmd{jeryu agent spawn <project> --task <text>} & mutating & Create an autonomous task branch/MR/issue workflow.\\
+\apicmd{jeryu agent list <project>} & read & List active agent MRs/issues.\\
+\apicmd{jeryu agent merge <project> <mr> [--trust-tier trusted]} & mutating & Request merge through the risk gate.\\
+\apicmd{jeryu shadow <subcommand>} & mixed & Manage periodic local source-to-GitLab shadow sync: add, enable, disable, remove, sync-now, status.\\
+\apicmd{jeryu shadow-remote <subcommand>} & mixed & Inspect, create, or push a repo-local shadow remote: status, ensure, push.\\
+\apicmd{jeryu test run --command <cmd> [--force]} & mutating & Run a command through an ephemeral GitLab CI pipeline.\\
+\apicmd{jeryu test plan --command <cmd>} & read & Preview inferred image, tags, timeout, and runner class.\\
+\apicmd{jeryu test batch --command <cmd>... [--max-parallel 3]} & mutating & Launch several validation pipelines concurrently.\\
+\apicmd{jeryu test results|failed|retry <pipeline>} & mixed & Inspect or retry pipeline test jobs.\\
+\apicmd{jeryu test impact --base <sha> --head <sha> [--json]} & read & Determine CI jobs and release gates needed for a diff.\\
+\apicmd{jeryu test select [emit flags]} & read/artifact & Compute internal VTI plan and optionally emit GitLab YAML, JSON plan, and VTI receipt.\\
+\apicmd{jeryu test explain-plan <plan.json>} & read & Explain a serialized VTI plan.\\
+\apicmd{jeryu test select-external --workspace <root>} & read/artifact & Use external \apicode{.jeryu/testmap.toml}.\\
+\apicmd{jeryu test audit|learn} & read & Compare VTI selections with oracle results and suggest rule changes.\\
+\apicmd{jeryu test cache-status --base <sha> --head <sha> [--json]} & read & Show test-command cache state for the current source state.\\
+\apicmd{jeryu release status|watch|reconcile} & mixed & Read or reconcile release attempts.\\
+\apicmd{jeryu release promote-prod [--version <v>]} & mutating & Trigger approved production promotion after canary gates.\\
+\apicmd{jeryu release preflight|doctor [--json]} & read & Check blockers, infrastructure, and release readiness.\\
+\apicmd{jeryu secrets <subcommand>} & mixed & Manage Vault-backed release lifecycle: init, status, rotate, finalize, report, recover.\\
+\apicmd{jeryu repo render-agent-index [--check]} & artifact/check & Generate or verify machine-readable agent routing index.\\
+\apicmd{jeryu repo audit-agent-surface [--json]} & read & Audit routing docs, generated index, and agent surface freshness.\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -142,107 +142,107 @@ All command names are kebab-case at the shell. Defaults below match the current 
 
 The following grammar is generated from the active Clap definitions in \apicode{src/cli.rs}. It includes hidden protocol calls because those are part of the agent and runner contract even though they are not intended for direct human operation.
 
-\begin{lstlisting}[style=api,language=bash,caption={Exhaustive vgit command forms}]
-vgit init
-vgit bootstrap
-vgit serve
-vgit down
-vgit status
-vgit logs <manager-id> [-n <lines>]
-vgit progress [--project-id <id>] [--ref-name <ref>] [--json]
-vgit next [--project-id <id>] [--ref-name <ref>]
-vgit explain-blocker <job|release|merge> <id>
+\begin{lstlisting}[style=api,language=bash,caption={Exhaustive jeryu command forms}]
+jeryu init
+jeryu bootstrap
+jeryu serve
+jeryu down
+jeryu status
+jeryu logs <manager-id> [-n <lines>]
+jeryu progress [--project-id <id>] [--ref-name <ref>] [--json]
+jeryu next [--project-id <id>] [--ref-name <ref>]
+jeryu explain-blocker <job|release|merge> <id>
 
-vgit tui [--once]
-vgit tui --capture [--tab <tab>] [--output <path>] [--width <cols>] [--height <rows>]
-vgit tui --screenshot [--tab <tab>] [--width <cols>] [--height <rows>] [--screenshot-hold-ms <ms>]
+jeryu tui [--once]
+jeryu tui --capture [--tab <tab>] [--output <path>] [--width <cols>] [--height <rows>]
+jeryu tui --screenshot [--tab <tab>] [--width <cols>] [--height <rows>] [--screenshot-hold-ms <ms>]
 
-vgit action list [--json]
+jeryu action list [--json]
 
-vgit pool list
-vgit pool scale <name> <count>
-vgit pool pause <name>
-vgit pool resume <name>
-vgit pool drain <name>
-vgit pool delete <name>
-vgit pool rotate-token <name>
+jeryu pool list
+jeryu pool scale <name> <count>
+jeryu pool pause <name>
+jeryu pool resume <name>
+jeryu pool drain <name>
+jeryu pool delete <name>
+jeryu pool rotate-token <name>
 
-vgit job list <project-id> [--status <csv>]
-vgit job trace <project-id> <job-id>
-vgit job play <project-id> <job-id>
-vgit job cancel <project-id> <job-id>
-vgit job retry <project-id> <job-id>
-vgit job explain <project-id> <job-id>
-vgit job clear
+jeryu job list <project-id> [--status <csv>]
+jeryu job trace <project-id> <job-id>
+jeryu job play <project-id> <job-id>
+jeryu job cancel <project-id> <job-id>
+jeryu job retry <project-id> <job-id>
+jeryu job explain <project-id> <job-id>
+jeryu job clear
 
-vgit pipeline explain [--project-id <id>] <pipeline-id> [--json]
-vgit pipeline doctor [--project-id <id>] <pipeline-id> [--json]
-vgit pipeline jobs [--project-id <id>] <pipeline-id> [--ingest] [--json]
-vgit pipeline ingest [--project-id <id>] <pipeline-id>
-vgit pipeline cancel [--project-id <id>] <pipeline-id>
-vgit pipeline bottlenecks [--project-id <id>] [--ref-name <ref>] [--limit <n>] [--json]
+jeryu pipeline explain [--project-id <id>] <pipeline-id> [--json]
+jeryu pipeline doctor [--project-id <id>] <pipeline-id> [--json]
+jeryu pipeline jobs [--project-id <id>] <pipeline-id> [--ingest] [--json]
+jeryu pipeline ingest [--project-id <id>] <pipeline-id>
+jeryu pipeline cancel [--project-id <id>] <pipeline-id>
+jeryu pipeline bottlenecks [--project-id <id>] [--ref-name <ref>] [--limit <n>] [--json]
 
-vgit cache enable
-vgit cache doctor
-vgit cache status [--json]
-vgit cache gc [--dry-run] [--json] [--keep-active-managers[=true|false]] [--older-than <age>] [--max-cache-gb <gb>]
+jeryu cache enable
+jeryu cache doctor
+jeryu cache status [--json]
+jeryu cache gc [--dry-run] [--json] [--keep-active-managers[=true|false]] [--older-than <age>] [--max-cache-gb <gb>]
 
-vgit agent spawn <project-id> --task <text>
-vgit agent list <project-id>
-vgit agent merge <project-id> <mr-iid> [--trust-tier <tier>]
+jeryu agent spawn <project-id> --task <text>
+jeryu agent list <project-id>
+jeryu agent merge <project-id> <mr-iid> [--trust-tier <tier>]
 
-vgit shadow add --source <path> --project-id <id> --branch <branch> [--enable]
-vgit shadow enable --source <path>
-vgit shadow disable --source <path>
-vgit shadow remove --source <path>
-vgit shadow sync-now --source <path>
-vgit shadow status [--source <path>]
+jeryu shadow add --source <path> --project-id <id> --branch <branch> [--enable]
+jeryu shadow enable --source <path>
+jeryu shadow disable --source <path>
+jeryu shadow remove --source <path>
+jeryu shadow sync-now --source <path>
+jeryu shadow status [--source <path>]
 
-vgit shadow-remote status [--repo <path>] [--name <remote>]
-vgit shadow-remote ensure [--repo <path>] [--name <remote>] --url <url>
-vgit shadow-remote push [--repo <path>] [--name <remote>] [--branch <branch>] [--mirror]
+jeryu shadow-remote status [--repo <path>] [--name <remote>]
+jeryu shadow-remote ensure [--repo <path>] [--name <remote>] --url <url>
+jeryu shadow-remote push [--repo <path>] [--name <remote>] [--branch <branch>] [--mirror]
 
-vgit test run --command <cmd> [--project-id <id>] [--image <image>] [--tags <csv>] [--timeout <sec>] [--force]
-vgit test plan --command <cmd> [--project-id <id>] [--image <image>] [--tags <csv>] [--timeout <sec>]
-vgit test batch --command <cmd>... [--project-id <id>] [--image <image>] [--tags <csv>] [--timeout <sec>] [--max-parallel <n>] [--force]
-vgit test results <pipeline-id> [--project-id <id>]
-vgit test retry <pipeline-id> <job-name> [--project-id <id>]
-vgit test failed <pipeline-id> [--project-id <id>]
-vgit test impact --base <ref> --head <ref> [--repo-root <path>] [--json]
-vgit test select [--base <ref>] [--head <ref>] [--repo-root <path>] [--explain] [--json] [--emit-gitlab <path>] [--emit-plan <path>] [--emit-receipt <path>]
-vgit test explain-plan <plan-path>
-vgit test select-external [--base <ref>] [--head <ref>] --workspace <path> [--explain] [--json] [--emit-gitlab <path>] [--emit-plan <path>] [--emit-skipped <path>]
-vgit test audit --changed <csv> --all-tests <csv> [--failed <csv>] [--sha <sha>] [--json] [--workspace <path>]
-vgit test learn --changed <csv> --all-tests <csv> [--failed <csv>] [--sha <sha>] [--json] [--workspace <path>]
-vgit test cache-status [--base <ref>] [--head <ref>] [--json]
+jeryu test run --command <cmd> [--project-id <id>] [--image <image>] [--tags <csv>] [--timeout <sec>] [--force]
+jeryu test plan --command <cmd> [--project-id <id>] [--image <image>] [--tags <csv>] [--timeout <sec>]
+jeryu test batch --command <cmd>... [--project-id <id>] [--image <image>] [--tags <csv>] [--timeout <sec>] [--max-parallel <n>] [--force]
+jeryu test results <pipeline-id> [--project-id <id>]
+jeryu test retry <pipeline-id> <job-name> [--project-id <id>]
+jeryu test failed <pipeline-id> [--project-id <id>]
+jeryu test impact --base <ref> --head <ref> [--repo-root <path>] [--json]
+jeryu test select [--base <ref>] [--head <ref>] [--repo-root <path>] [--explain] [--json] [--emit-gitlab <path>] [--emit-plan <path>] [--emit-receipt <path>]
+jeryu test explain-plan <plan-path>
+jeryu test select-external [--base <ref>] [--head <ref>] --workspace <path> [--explain] [--json] [--emit-gitlab <path>] [--emit-plan <path>] [--emit-skipped <path>]
+jeryu test audit --changed <csv> --all-tests <csv> [--failed <csv>] [--sha <sha>] [--json] [--workspace <path>]
+jeryu test learn --changed <csv> --all-tests <csv> [--failed <csv>] [--sha <sha>] [--json] [--workspace <path>]
+jeryu test cache-status [--base <ref>] [--head <ref>] [--json]
 
-vgit release status [--project-id <id>] [--ref-name <ref>] [--sha <sha>] [--limit <n>] [--json]
-vgit release watch [--project-id <id>] [--ref-name <ref>] [--sha <sha>] [--limit <n>] [--interval-secs <sec>] [--json]
-vgit release reconcile [--project-id <id>] [--ref-name <ref>] [--json]
-vgit release promote-prod [--project-id <id>] [--ref-name <ref>] [--version <version>]
-vgit release preflight [--ssh-host <host>] [--json]
-vgit release doctor [--version <version>] [--preflight[=true|false]] [--json]
+jeryu release status [--project-id <id>] [--ref-name <ref>] [--sha <sha>] [--limit <n>] [--json]
+jeryu release watch [--project-id <id>] [--ref-name <ref>] [--sha <sha>] [--limit <n>] [--interval-secs <sec>] [--json]
+jeryu release reconcile [--project-id <id>] [--ref-name <ref>] [--json]
+jeryu release promote-prod [--project-id <id>] [--ref-name <ref>] [--version <version>]
+jeryu release preflight [--ssh-host <host>] [--json]
+jeryu release doctor [--version <version>] [--preflight[=true|false]] [--json]
 
-vgit secrets init
-vgit secrets status [--json]
-vgit secrets rotate [--repo <name>] --version <version> --target <target>
-vgit secrets finalize [--repo <name>] --version <version> --target <target>
-vgit secrets report [--repo <name>] --version <version>
-vgit secrets recover [--repo <name>] --version <version>
+jeryu secrets init
+jeryu secrets status [--json]
+jeryu secrets rotate [--repo <name>] --version <version> --target <target>
+jeryu secrets finalize [--repo <name>] --version <version> --target <target>
+jeryu secrets report [--repo <name>] --version <version>
+jeryu secrets recover [--repo <name>] --version <version>
 
-vgit host storage-audit
-vgit host doctor [--json]
-vgit host reclaim --mode <mode> [--plan] [--apply]
+jeryu host storage-audit
+jeryu host doctor [--json]
+jeryu host reclaim --mode <mode> [--plan] [--apply]
 
-vgit repo render-agent-index [--check]
-vgit repo audit-agent-surface [--json]
+jeryu repo render-agent-index [--check]
+jeryu repo audit-agent-surface [--json]
 
-vgit exec config
-vgit exec prepare
-vgit exec run <script-path> <stage>
-vgit exec cleanup
-vgit server-hook pre-receive
-vgit capability serve <socket-path>
+jeryu exec config
+jeryu exec prepare
+jeryu exec run <script-path> <stage>
+jeryu exec cleanup
+jeryu server-hook pre-receive
+jeryu capability serve <socket-path>
 \end{lstlisting}
 
 \clearpage
@@ -255,12 +255,12 @@ vgit capability serve <socket-path>
 \toprule
 \textbf{Command} & \textbf{Caller} & \textbf{Contract}\\
 \midrule
-\apicmd{vgit exec config} & GitLab Runner & Return custom executor driver configuration JSON.\\
-\apicmd{vgit exec prepare} & GitLab Runner & Prepare clone/sandbox/honeypot/cache context.\\
-\apicmd{vgit exec run <script> <stage>} & GitLab Runner & Run a build stage with cache brain, witnesses, tripwire handling, and capsule capture.\\
-\apicmd{vgit exec cleanup} & GitLab Runner & Clean executor state after job completion.\\
-\apicmd{vgit server-hook pre-receive} & Git server hook & Read ref updates from stdin and write admission decisions.\\
-\apicmd{vgit capability serve <socket>} & local supervisor & Start Unix-socket JSON capability API.\\
+\apicmd{jeryu exec config} & GitLab Runner & Return custom executor driver configuration JSON.\\
+\apicmd{jeryu exec prepare} & GitLab Runner & Prepare clone/sandbox/honeypot/cache context.\\
+\apicmd{jeryu exec run <script> <stage>} & GitLab Runner & Run a build stage with cache brain, witnesses, tripwire handling, and capsule capture.\\
+\apicmd{jeryu exec cleanup} & GitLab Runner & Clean executor state after job completion.\\
+\apicmd{jeryu server-hook pre-receive} & Git server hook & Read ref updates from stdin and write admission decisions.\\
+\apicmd{jeryu capability serve <socket>} & local supervisor & Start Unix-socket JSON capability API.\\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -361,7 +361,7 @@ Legacy requests & Accepted for compatibility, tagged as \apicode{legacy-capabili
   "payload": {
     "project_id": 2,
     "ref_name": "main",
-    "test_ids": ["unit:vgit", "integration:job_tests"]
+    "test_ids": ["unit:jeryu", "integration:job_tests"]
   }
 }
 \end{lstlisting}
@@ -395,7 +395,7 @@ Legacy requests & Accepted for compatibility, tagged as \apicode{legacy-capabili
 \textbf{Method} & \textbf{Path} & \textbf{Auth} & \textbf{Behavior}\\
 \midrule
 GET & \apicode{/health} & none & Return \apicode{ok}.\\
-POST & \apicode{/hooks} & \apicode{X-Gitlab-Token} matching \apicode{VGIT\_WEBHOOK\_SECRET} & Ingest GitLab job, pipeline, push, and MR webhooks.\\
+POST & \apicode{/hooks} & \apicode{X-Gitlab-Token} matching \apicode{JERYU\_WEBHOOK\_SECRET} & Ingest GitLab job, pipeline, push, and MR webhooks.\\
 GET & \apicode{/cache/summary} & none & Return cache health summary JSON.\\
 \bottomrule
 \end{tabular}
@@ -407,7 +407,7 @@ curl http://127.0.0.1:9777/health
 curl http://127.0.0.1:9777/cache/summary
 
 curl -X POST http://127.0.0.1:9777/hooks \
-  -H "X-Gitlab-Token: $VGIT_WEBHOOK_SECRET" \
+  -H "X-Gitlab-Token: $JERYU_WEBHOOK_SECRET" \
   -H "X-Gitlab-Event: Push Hook" \
   --data-binary @push-hook.json
 \end{lstlisting}
@@ -421,7 +421,7 @@ curl -X POST http://127.0.0.1:9777/hooks \
 \midrule
 Job Hook & Upsert job event, maybe auto-retry failures, scale up for pending/created work.\\
 Pipeline Hook & Track pipeline state, launch canary on green main, update release/prod pipeline state.\\
-Push Hook & Normalize ref, skip \apicode{vgit-test-*}, cancel superseded pipelines, compute impact, persist VTI plan.\\
+Push Hook & Normalize ref, skip \apicode{jeryu-test-*}, cancel superseded pipelines, compute impact, persist VTI plan.\\
 Merge Request Hook & Logged for observability; no privileged merge behavior.\\
 Other & Logged as unhandled.\\
 \bottomrule
@@ -430,7 +430,7 @@ Other & Logged as unhandled.\\
 
 \subsection{Action Registry Contract}
 
-The action registry is the shared action catalog consumed by the TUI command palette, \apicode{vgit action list}, and \apicode{ListAllowedActions}. Each entry exposes \apicode{id}, \apicode{label}, \apicode{key\_hint}, \apicode{risk\_tier}, \apicode{side\_effect\_class}, \apicode{required\_grant}, \apicode{dry\_run}, \apicode{surfaces}, and \apicode{description}.
+The action registry is the shared action catalog consumed by the TUI command palette, \apicode{jeryu action list}, and \apicode{ListAllowedActions}. Each entry exposes \apicode{id}, \apicode{label}, \apicode{key\_hint}, \apicode{risk\_tier}, \apicode{side\_effect\_class}, \apicode{required\_grant}, \apicode{dry\_run}, \apicode{surfaces}, and \apicode{description}.
 
 \apitabletitle{Canonical Action Registry}
 \begin{center}
@@ -477,9 +477,9 @@ The action registry is the shared action catalog consumed by the TUI command pal
 \subsection{Native MCP Server}
 \label{app:mcp-server}
 
-V3.01 ships a native Model Context Protocol server for external coding agents that already speak MCP. The server is implemented as \apicode{src/mcp.rs} plus the \apicode{src/mcp/} module tree and is exposed through \apicode{vgit mcp serve}, \apicode{vgit mcp serve-http}, and \apicode{vgit mcp tools --json}. Its purpose is deliberately narrow: translate MCP lifecycle and tool messages into the same typed \apicode{AgentIntent} execution path used by the Unix-socket capability API.
+V3.01 ships a native Model Context Protocol server for external coding agents that already speak MCP. The server is implemented as \apicode{src/mcp.rs} plus the \apicode{src/mcp/} module tree and is exposed through \apicode{jeryu mcp serve}, \apicode{jeryu mcp serve-http}, and \apicode{jeryu mcp tools --json}. Its purpose is deliberately narrow: translate MCP lifecycle and tool messages into the same typed \apicode{AgentIntent} execution path used by the Unix-socket capability API.
 
-The important boundary is that MCP is a transport, not a privilege escalation path. A call to \apicode{vgit.request\_merge} over MCP is evaluated by the same capability policy, grant metadata, durable evidence recording, GitLab client wrapper, and merge/release gate logic as the equivalent native capability request. Read-only tools remain read-only; branch-writing tools still create explicit branches and evidence; production-sensitive tools still require the same gate decisions.
+The important boundary is that MCP is a transport, not a privilege escalation path. A call to \apicode{jeryu.request\_merge} over MCP is evaluated by the same capability policy, grant metadata, durable evidence recording, GitLab client wrapper, and merge/release gate logic as the equivalent native capability request. Read-only tools remain read-only; branch-writing tools still create explicit branches and evidence; production-sensitive tools still require the same gate decisions.
 
 \begin{table}[t]
 \centering
@@ -508,14 +508,14 @@ The important boundary is that MCP is a transport, not a privilege escalation pa
 \toprule
 \textbf{Tool} & \textbf{Function}\\
 \midrule
-\shortstack[l]{\apicode{vgit.get\_system}\\\apicode{\_snapshot}} & Read current operational state for jobs, pools, release, and evidence.\\
-\shortstack[l]{\apicode{vgit.explain}\\\apicode{\_blockers}} & Explain why a job, release, or merge is blocked.\\
-\shortstack[l]{\apicode{vgit.plan}\\\apicode{\_validation}} & Produce a VTI-backed validation plan for selected tests and refs.\\
-\shortstack[l]{\apicode{vgit.fetch}\\\apicode{\_capsule}} & Fetch structured failure capsule data for a job.\\
-\shortstack[l]{\apicode{vgit.run}\\\apicode{\_tests}} & Create an ephemeral validation branch and trigger CI for a scoped test run.\\
-\shortstack[l]{\apicode{vgit.propose}\\\apicode{\_patch}} & Create a branch, apply file modifications, commit, and open a merge request.\\
-\shortstack[l]{\apicode{vgit.race}\\\apicode{\_patches}} & Launch multiple patch hypotheses while preserving branch-level evidence.\\
-\shortstack[l]{\apicode{vgit.request}\\\apicode{\_merge}} & Ask the merge gate to evaluate an MR against release and risk policy.\\
+\shortstack[l]{\apicode{jeryu.get\_system}\\\apicode{\_snapshot}} & Read current operational state for jobs, pools, release, and evidence.\\
+\shortstack[l]{\apicode{jeryu.explain}\\\apicode{\_blockers}} & Explain why a job, release, or merge is blocked.\\
+\shortstack[l]{\apicode{jeryu.plan}\\\apicode{\_validation}} & Produce a VTI-backed validation plan for selected tests and refs.\\
+\shortstack[l]{\apicode{jeryu.fetch}\\\apicode{\_capsule}} & Fetch structured failure capsule data for a job.\\
+\shortstack[l]{\apicode{jeryu.run}\\\apicode{\_tests}} & Create an ephemeral validation branch and trigger CI for a scoped test run.\\
+\shortstack[l]{\apicode{jeryu.propose}\\\apicode{\_patch}} & Create a branch, apply file modifications, commit, and open a merge request.\\
+\shortstack[l]{\apicode{jeryu.race}\\\apicode{\_patches}} & Launch multiple patch hypotheses while preserving branch-level evidence.\\
+\shortstack[l]{\apicode{jeryu.request}\\\apicode{\_merge}} & Ask the merge gate to evaluate an MR against release and risk policy.\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -530,7 +530,7 @@ The HTTP transport adds local-server hardening around the same core. It refuses 
   "id": 7,
   "method": "tools/call",
   "params": {
-    "name": "vgit.explain_blockers",
+    "name": "jeryu.explain_blockers",
     "arguments": {
       "entity_type": "merge",
       "entity_id": 42

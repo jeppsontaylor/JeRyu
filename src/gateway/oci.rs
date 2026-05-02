@@ -1,5 +1,5 @@
 //! Owner: Cache Gateway subsystem — OCI image proxy
-//! Proof: `cargo nextest run -p vgit -- gateway::oci`
+//! Proof: `cargo nextest run -p jeryu -- gateway::oci`
 //! Invariants: OCI cache decisions keep digest identity and trust namespace separation intact.
 use super::singleflight::Singleflight;
 use anyhow::Result;

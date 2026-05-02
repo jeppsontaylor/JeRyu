@@ -1,5 +1,5 @@
 //! Owner: Cache Gateway subsystem — Cargo registry proxy
-//! Proof: `cargo nextest run -p vgit -- gateway::cargo`
+//! Proof: `cargo nextest run -p jeryu -- gateway::cargo`
 //! Invariants: Cargo registry caching never crosses trust namespaces or serves unverified content as trusted.
 use super::singleflight::Singleflight;
 use anyhow::Result;

@@ -1,4 +1,4 @@
-This is a seriously ambitious control plane. The big thing that jumps out: **vgit already has most of the ingredients for an agent-native delivery system**, but the current surfaces are still split between “CLI commands humans can call,” “engine automation,” “partial capability intents,” and “TUI observability.” The dream version would unify those into a **real-time command console where every action, gate, blocker, agent task, runner, cache decision, release state, and log stream is visible, explainable, and actionable from one place.**
+This is a seriously ambitious control plane. The big thing that jumps out: **jeryu already has most of the ingredients for an agent-native delivery system**, but the current surfaces are still split between “CLI commands humans can call,” “engine automation,” “partial capability intents,” and “TUI observability.” The dream version would unify those into a **real-time command console where every action, gate, blocker, agent task, runner, cache decision, release state, and log stream is visible, explainable, and actionable from one place.**
 
 Below is my best design-review feedback.
 
@@ -6,7 +6,7 @@ Below is my best design-review feedback.
 
 # 1. Highest-level assessment
 
-`vgit` has an unusually strong foundation:
+`jeryu` has an unusually strong foundation:
 
 * It owns the local GitLab lifecycle, runners, webhooks, release automation, Vault-backed secrets, SmartCache, failure evidence, VTI test selection, agent MRs, and a TUI.
 * It has a durable SQLite state plane, which is exactly what an agent-operable system needs.
@@ -61,7 +61,7 @@ That is dangerous from an agent UX perspective. An agent may interpret “succes
   "data": {
     "status": "deferred",
     "intent": "RequestMerge",
-    "recommended_surface": "vgit agent merge"
+    "recommended_surface": "jeryu agent merge"
   }
 }
 ```
@@ -88,7 +88,7 @@ Response:
     {
       "name": "RequestMerge",
       "implemented": false,
-      "recommended_cli": "vgit agent merge"
+      "recommended_cli": "jeryu agent merge"
     }
   ]
 }
@@ -182,7 +182,7 @@ That is fine for a first version, but a power user needs to see:
 * release-execution pipeline
 * production-promotion pipeline
 * downstream child pipelines
-* scratch `vgit-test-*` pipelines
+* scratch `jeryu-test-*` pipelines
 * agent branch pipelines
 * blocked/manual jobs
 * stale pipelines with no progress
@@ -197,7 +197,7 @@ Pipelines
 ● #533 release-execution main ci-fa51a52  running   61% ETA 4m
 ● #532 main              fa51a52          success   upstream
 ○ #534 prod-promotion    fa51a52          blocked   waiting gates
-○ #535 vgit-test-abc     agent/fix-x      pending   unit
+○ #535 jeryu-test-abc     agent/fix-x      pending   unit
 ```
 
 Then the center graph updates based on the selected pipeline.
@@ -216,7 +216,7 @@ A dream console needs dependency visibility:
 * Which skipped test was omitted because of VTI?
 * Which manual job is blocking production?
 
-**Fix:** compute edges from GitLab stages, job needs, bridges/downstream pipelines, release attempt linkage, and vgit semantic events.
+**Fix:** compute edges from GitLab stages, job needs, bridges/downstream pipelines, release attempt linkage, and jeryu semantic events.
 
 Even approximate edges would be powerful:
 
@@ -418,8 +418,8 @@ But they are still process-invocable commands.
 
 For example:
 
-* `vgit exec prepare` should require GitLab Runner custom executor env vars.
-* `vgit exec run` should reject suspicious manual contexts unless `VGIT_ALLOW_PROTOCOL_DRIVER_TEST=1`.
+* `jeryu exec prepare` should require GitLab Runner custom executor env vars.
+* `jeryu exec run` should reject suspicious manual contexts unless `JERYU_ALLOW_PROTOCOL_DRIVER_TEST=1`.
 * `server-hook pre-receive` should validate hook-like stdin format and maybe log direct manual use.
 * Protocol commands should emit clear “driver protocol only” errors when invoked incorrectly.
 
@@ -429,7 +429,7 @@ This reduces accidental misuse.
 
 ## 2.12 Shadow sync has a placeholder command
 
-`vgit shadow sync-now --source <dir>` currently tells the user to ensure `vgit serve` is running.
+`jeryu shadow sync-now --source <dir>` currently tells the user to ensure `jeryu serve` is running.
 
 For an operator console, that is unsatisfying. Manual sync is a natural power-user action.
 
@@ -621,7 +621,7 @@ This would be incredible for CI repair, flaky tests, release gate failures, and 
 
 ## 3.5 Typed validation oracle
 
-Agents should not guess which tests to run. They should ask vgit:
+Agents should not guess which tests to run. They should ask jeryu:
 
 ```text
 PlanValidationForChange
@@ -863,7 +863,7 @@ I would call the main screen something like **Control Deck**, **Mission Control*
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────┐
-│ VGIT COMMAND DECK  ONLINE  GitLab✓ Docker✓ Vault✓ Cache✓ DB✓  Disk 68%  Ref main   │
+│ JERYU COMMAND DECK  ONLINE  GitLab✓ Docker✓ Vault✓ Cache✓ DB✓  Disk 68%  Ref main   │
 │ Ship: BLOCKED  Reason: Canary E2E failed  Release ci-fa51a52  ETA: —              │
 ├───────────────┬───────────────────────────────────────────────┬────────────────────┤
 │ NAV           │ FLOW GRAPH / RELEASE DAG                      │ INSPECTOR          │
@@ -1375,14 +1375,14 @@ Example:
 ```text
 Time       Type       Actor      Event
 12:40:01   Push       GitLab     main updated fa51a52
-12:40:03   Engine     vgit       canceled superseded pipeline #529
-12:40:04   Impact     vgit       release-impacting=true
-12:40:05   VTI        vgit       selected 9 jobs, skipped 21
+12:40:03   Engine     jeryu       canceled superseded pipeline #529
+12:40:04   Impact     jeryu       release-impacting=true
+12:40:05   VTI        jeryu       selected 9 jobs, skipped 21
 12:44:11   Pipeline   GitLab     #532 success
-12:44:12   Release    vgit       claimed canary ci-fa51a52
-12:44:14   Pipeline   vgit       triggered release-execution #533
+12:44:12   Release    jeryu       claimed canary ci-fa51a52
+12:44:14   Pipeline   jeryu       triggered release-execution #533
 12:46:11   Job        GitLab     canary-e2e failed
-12:46:12   Retry      vgit       DoNotRetry: regression
+12:46:12   Retry      jeryu       DoNotRetry: regression
 ```
 
 Filters:
@@ -1944,5 +1944,5 @@ The current system already has the raw ingredients. The dream version is not “
 
 > **Make every state explainable, every blocker actionable, every action gated, every ETA evidence-based, and every agent operation auditable.**
 
-That would turn `vgit tui` from a dashboard into a true **developer operations cockpit**.
+That would turn `jeryu tui` from a dashboard into a true **developer operations cockpit**.
 

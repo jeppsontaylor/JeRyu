@@ -1,5 +1,5 @@
 //! Owner: Pipeline Explain subsystem
-//! Proof: `cargo nextest run -p vgit -- explain`
+//! Proof: `cargo nextest run -p jeryu -- explain`
 //! Invariants: Explanations are derived from recorded state and do not mutate control-plane data.
 use serde::{Deserialize, Serialize};
 

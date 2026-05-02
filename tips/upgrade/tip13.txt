@@ -8,7 +8,7 @@ This is already a serious control plane, not a toy CLI. The strongest design cho
 4. **The security model is explicit**: trust-tiered runners, custom executor sandboxing, taint, honeypots, Vault, risk gates, release gates.
 5. **The TUI already has the right instinct**: keep useful state visible under partial data rather than flickering to empty.
 
-The biggest opportunity is to turn `vgit` from “many excellent commands plus a dashboard” into a **live, permissioned command-and-evidence cockpit** where every entity, action, failure, risk, and release gate is inspectable and actionable in real time.
+The biggest opportunity is to turn `jeryu` from “many excellent commands plus a dashboard” into a **live, permissioned command-and-evidence cockpit** where every entity, action, failure, risk, and release gate is inspectable and actionable in real time.
 
 ---
 
@@ -116,7 +116,7 @@ That is a problem for agents. An agent may interpret `success: true` as “the p
   "data": {
     "status": "deferred",
     "implemented": false,
-    "recommended_surface": "vgit agent merge"
+    "recommended_surface": "jeryu agent merge"
   }
 }
 ```
@@ -124,7 +124,7 @@ That is a problem for agents. An agent may interpret `success: true` as “the p
 Even better, expose:
 
 ```bash
-vgit capability describe --json
+jeryu capability describe --json
 ```
 
 Or socket intent:
@@ -217,7 +217,7 @@ with confirmation and an audit event.
 The TUI should show clearly:
 
 ```text
-This deletes only local vgit state. It does not cancel or delete the GitLab job/pipeline.
+This deletes only local jeryu state. It does not cancel or delete the GitLab job/pipeline.
 ```
 
 ---
@@ -438,17 +438,17 @@ If an agent has shell access, it can still run hidden commands.
 For example:
 
 ```text
-vgit exec run
+jeryu exec run
   requires CUSTOM_ENV_CI_JOB_ID
   requires CUSTOM_ENV_CI_PROJECT_DIR
   requires runner-specific context
-  refuses direct invocation unless VGIT_ALLOW_EXEC_DRIVER_TESTING=1
+  refuses direct invocation unless JERYU_ALLOW_EXEC_DRIVER_TESTING=1
 ```
 
 For server hook:
 
 ```text
-vgit server-hook pre-receive
+jeryu server-hook pre-receive
   validates hook install context or explicit test mode
 ```
 
@@ -540,7 +540,7 @@ What can I safely fix?
 Possible command:
 
 ```bash
-vgit agent context --project-id 2 --ref main --json
+jeryu agent context --project-id 2 --ref main --json
 ```
 
 Output should include:
@@ -560,7 +560,7 @@ host pressure
 recommended next actions
 ```
 
-This is different from `vgit status`. It is a task-oriented “what should an agent know before acting?” digest.
+This is different from `jeryu status`. It is a task-oriented “what should an agent know before acting?” digest.
 
 ---
 
@@ -569,7 +569,7 @@ This is different from `vgit status`. It is a task-oriented “what should an ag
 Before mutating anything, an agent should be able to ask:
 
 ```bash
-vgit action preflight release.promote-prod --project-id 2 --ref main --json
+jeryu action preflight release.promote-prod --project-id 2 --ref main --json
 ```
 
 Response:
@@ -619,7 +619,7 @@ retry policy
 Possible command:
 
 ```bash
-vgit job repair-packet <project_id> <job_id> --json
+jeryu job repair-packet <project_id> <job_id> --json
 ```
 
 This should combine:
@@ -689,12 +689,12 @@ Possible flow:
 
 ```text
 agent sends patch proposal
-vgit validates touched files
-vgit checks agent ownership/routing
-vgit creates branch
-vgit commits patch
-vgit runs selected validation
-vgit opens MR
+jeryu validates touched files
+jeryu checks agent ownership/routing
+jeryu creates branch
+jeryu commits patch
+jeryu runs selected validation
+jeryu opens MR
 risk gate evaluates
 ```
 
@@ -717,10 +717,10 @@ This would make the capability API genuinely agent-grade.
 For any entity, an agent should be able to ask:
 
 ```bash
-vgit explain blocked pipeline:123 --json
-vgit explain blocked release:ci-fa51a52 --json
-vgit explain blocked job:14445 --json
-vgit explain blocked pool:untrusted --json
+jeryu explain blocked pipeline:123 --json
+jeryu explain blocked release:ci-fa51a52 --json
+jeryu explain blocked job:14445 --json
+jeryu explain blocked pool:untrusted --json
 ```
 
 The response should be causal:
@@ -743,13 +743,13 @@ This is the difference between “dashboard” and “operator brain.”
 You already have VTI and proof-scoped tools. An agent would love a single command:
 
 ```bash
-vgit validate plan --changed-paths ... --risk target --json
+jeryu validate plan --changed-paths ... --risk target --json
 ```
 
 It should unify:
 
-* `vgit test select`
-* `vgit test select-external`
+* `jeryu test select`
+* `jeryu test select-external`
 * `cargo-vrc plan`
 * `cargo-witness diff`
 * release-impact analysis
@@ -760,12 +760,12 @@ Output:
 
 ```text
 Required:
-  cargo check -p vgit
-  cargo test -p vgit -- release::tests
-  cargo run -p vgit -- repo audit-agent-surface --json
+  cargo check -p jeryu
+  cargo test -p jeryu -- release::tests
+  cargo run -p jeryu -- repo audit-agent-surface --json
 
 Recommended:
-  vgit test run --command ...
+  jeryu test run --command ...
   cargo-witness build
 
 Skipped:
@@ -775,7 +775,7 @@ Skipped:
 Then:
 
 ```bash
-vgit validate run --plan vrc-plan.json
+jeryu validate run --plan vrc-plan.json
 ```
 
 ---
@@ -853,7 +853,7 @@ project_id = 2
 default_ref = "main"
 repo_root = "/home/ubuntu/dougx"
 release_enabled = true
-external_testmap = "/home/ubuntu/dougx/.vgit/testmap.toml"
+external_testmap = "/home/ubuntu/dougx/.jeryu/testmap.toml"
 ```
 
 Then commands can default to the active profile while still supporting explicit overrides.
@@ -997,7 +997,7 @@ Better architecture:
 
 ```text
 GitLab trace polling / streaming
-  -> vgit engine trace cache
+  -> jeryu engine trace cache
   -> TUI subscribes via Unix socket/WebSocket/local event stream
 ```
 
@@ -1021,7 +1021,7 @@ That is fine, but the UI should label them:
 ```text
 Docker image bytes       approximate
 CAS objects              measured
-vgit DB                  measured
+jeryu DB                  measured
 Root disk usage          measured
 Docker build cache       unavailable / estimated
 ```
@@ -1052,9 +1052,9 @@ This reinforces the safety model for humans and agents.
 The API has:
 
 ```text
-vgit agent spawn
-vgit agent list
-vgit agent merge
+jeryu agent spawn
+jeryu agent list
+jeryu agent merge
 ```
 
 But the TUI design does not describe a real Agent tab.
@@ -1094,7 +1094,7 @@ race hypotheses
 
 I would redesign the TUI around one concept:
 
-## **VGIT Mission Control**
+## **JERYU Mission Control**
 
 Not a dashboard. Not just a terminal UI. A live command console where every entity has:
 
@@ -1124,7 +1124,7 @@ The UI should answer four questions instantly:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ VGIT MISSION CONTROL  ONLINE  GitLab✓ Vault✓ Cache✓ Runners 7/10 Disk 68%    │
+│ JERYU MISSION CONTROL  ONLINE  GitLab✓ Vault✓ Cache✓ Runners 7/10 Disk 68%    │
 │ Profile: dougx/main  Release: ci-fa51a52  Canary: RUNNING  Prod: BLOCKED     │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ Left Navigator        │                 Live Flow DAG                         │
@@ -1328,7 +1328,7 @@ A selected failed job should immediately say:
 Failure: regression
 Retry: disabled by policy
 Likely owner: release.rs
-Minimal validation: cargo test -p vgit -- release::tests
+Minimal validation: cargo test -p jeryu -- release::tests
 Evidence: failure capsule #...
 ```
 
@@ -1667,7 +1667,7 @@ Before dangerous action:
 │                                                             │
 │ Will trigger GitLab pipeline with:                           │
 │  CI_PIPELINE_PRODUCT=production-promotion                    │
-│  VGIT_PROD_APPROVED=1                                        │
+│  JERYU_PROD_APPROVED=1                                        │
 │                                                             │
 │ Audit event: production_promotion_requested                  │
 │                                                             │
@@ -1862,7 +1862,7 @@ Likely affected:
   state migrations
 
 Recommended validation:
-  cargo test -p vgit -- state::tests::test_production_pipeline_tracking release::tests
+  cargo test -p jeryu -- state::tests::test_production_pipeline_tracking release::tests
 ```
 
 This would be incredibly valuable.
@@ -2006,7 +2006,7 @@ Then the TUI becomes simple and powerful:
 * right side inspects evidence/actions
 * bottom shows live events and command entry
 
-That would make `vgit tui` feel less like a dashboard and more like a **real-time operating system for delivery**.
+That would make `jeryu tui` feel less like a dashboard and more like a **real-time operating system for delivery**.
 
 ---
 

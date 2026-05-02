@@ -1,5 +1,5 @@
 //! Owner: Shadow Remote Mirroring
-//! Proof: `cargo test -p vgit -- shadow`
+//! Proof: `cargo test -p jeryu -- shadow`
 //! Invariants: Mirror operations are idempotent; push failures do not block the primary pipeline; git2 errors are always surfaced via anyhow context
 
 use crate::gitlab_client::GitlabClient;

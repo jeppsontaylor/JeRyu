@@ -34,7 +34,7 @@ The raw review corpus in `tips/upgrade/v2/*.txt` is retained as release evidence
 - Add `VERSION` with `2.0.1` and a `version.json` checkable against Cargo metadata.
 - Add `CHANGELOG.md` section `2.0.1 - Agent Proof Control Plane`.
 - Tag policy: `v2.0.1-rc.1` after check/unit/integration lanes pass, `v2.0.1` after release and security lanes pass.
-- Require `cargo run -p vgit -- repo render-agent-index --check` before any release tag.
+- Require `cargo run -p jeryu -- repo render-agent-index --check` before any release tag.
 
 ## Milestone 1: Contract Truth
 
@@ -51,7 +51,7 @@ Implementation:
 Tests:
 
 - Unit: action registry serialization and risk tier mapping.
-- Snapshot: capability `ListAllowedActions` equals `vgit action list --json`.
+- Snapshot: capability `ListAllowedActions` equals `jeryu action list --json`.
 - CI: API docs generated check.
 
 ## Milestone 1.5: Concurrent State Backend
@@ -60,11 +60,11 @@ Goal: make JeRyu's durable memory suitable for many agents, webhooks, runners, a
 
 Implemented:
 
-- Add `VGIT_DATABASE_URL` selection with `postgres://`, `postgresql://`, and explicit `sqlite:` URL support.
+- Add `JERYU_DATABASE_URL` selection with `postgres://`, `postgresql://`, and explicit `sqlite:` URL support.
 - Keep SQLite as the no-config fallback and in-memory test backend.
-- Add bootstrap-managed `vgit-postgres` Docker Compose service and fresh-env Postgres URL generation.
+- Add bootstrap-managed `jeryu-postgres` Docker Compose service and fresh-env Postgres URL generation.
 - Move shared upserts away from SQLite-only `INSERT OR REPLACE` / `INSERT OR IGNORE` syntax to portable `ON CONFLICT` statements.
-- Add optional `VGIT_TEST_POSTGRES_URL` integration smoke coverage for core state operations, VTI ledgers, cache verdicts, epoch bumps, taint propagation, CacheBrain hit/deny decisions, capability grants, and admission decisions.
+- Add optional `JERYU_TEST_POSTGRES_URL` integration smoke coverage for core state operations, VTI ledgers, cache verdicts, epoch bumps, taint propagation, CacheBrain hit/deny decisions, capability grants, and admission decisions.
 - Add `just postgres-state-proof` to run the Postgres smoke against a disposable `postgres:16-alpine` container.
 
 Next:
@@ -153,7 +153,7 @@ Implementation:
 
 - Fix unsafe `impact.rs` fallback: unknown files force full validation.
 - Update subsystem globs to recursive patterns where needed, especially `src/tui/**`, `src/test_intel/**`, `src/gateway/**`.
-- Add schema validation for external `.vgit/testmap.toml`; align docs and parser.
+- Add schema validation for external `.jeryu/testmap.toml`; align docs and parser.
 - Add VTI proof receipts: selected, skipped, docs-only, full fallback, cache hit, confidence, invalidators, evidence refs.
 - Add selector-miss scoping by project/ref/SHA/plan.
 - Add sentinels for docs-only and low-confidence selected plans.
@@ -172,13 +172,13 @@ Goal: TUI mirrors the API and shows the proof loop.
 
 Implementation:
 
-- Update `docs/VGIT_TUI.md` to the current nine-tab model.
+- Update `docs/JERYU_TUI.md` to the current nine-tab model.
 - Add an Agent Runs pane: task state, branch, MR, validation ID, current blocker, next action.
 - Add Merge Gate pane: required jobs, VTI confidence, taints, selector misses, approvals, decision.
 - Add VTI Plan inspector: changed files, selected tests, skipped tests, fallback reasons, proof receipt.
 - Add Patch Race pane: hypotheses, pipeline IDs, winner, loser cleanup, evidence.
 - Add event stream status once the event bus exists.
-- Add deterministic PNG capture command: `vgit tui --capture --tab <tab> --output paper/assets/<name>.png`.
+- Add deterministic PNG capture command: `jeryu tui --capture --tab <tab> --output paper/assets/<name>.png`.
 
 Tests:
 
@@ -203,8 +203,8 @@ Validation:
 - `latexmk -pdf paper/main.tex` or documented fallback.
 - Link check for references.
 - `cargo check --workspace --message-format=json`.
-- `cargo nextest run -p vgit --lib --profile ci`.
-- `cargo test -p vgit --test '*' -- --test-threads=1`.
+- `cargo nextest run -p jeryu --lib --profile ci`.
+- `cargo test -p jeryu --test '*' -- --test-threads=1`.
 
 ## Execution Order
 

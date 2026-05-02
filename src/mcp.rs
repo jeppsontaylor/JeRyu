@@ -1,5 +1,5 @@
 //! Owner: MCP adapter for external coding agents
-//! Proof: `cargo check -p vgit` and `cargo test -p vgit mcp`
+//! Proof: `cargo check -p jeryu` and `cargo test -p jeryu mcp`
 //! Invariants: MCP is a transport adapter over the existing capability policy;
 //!             it must not bypass grant checks, evidence handling, or merge/release gates.
 
@@ -15,4 +15,4 @@ pub use http::start_mcp_http;
 pub use tools::tool_manifest;
 
 pub(crate) const MCP_PROTOCOL_VERSION: &str = "2025-11-25";
-pub(crate) const TOOL_PREFIX: &str = "vgit.";
+pub(crate) const TOOL_PREFIX: &str = "jeryu.";

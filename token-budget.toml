@@ -20,7 +20,7 @@ summary_files = [
   "docs/VTI.md",
 ]
 raw_log_dirs = [
-  ".vgit",
+  ".jeryu",
   "logs",
 ]
 

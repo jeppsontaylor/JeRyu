@@ -1,6 +1,6 @@
 ## Bottom-line verdict
 
-JeRyu / `vgit` is **not a GitLab fork in the literal sense**. It is closer to a **Rust control plane / agent hypervisor wrapped around a local GitLab instance**: it bootstraps GitLab, runners, Vault, Postgres, cache infrastructure, a custom executor, agent branches, capability APIs, evidence capsules, release gates, and a TUI. That is a good direction. The repo already has several “agent-first GitOps” instincts that GitHub/GitLab do not expose cleanly: typed agent intents, issue/branch/MR orchestration, evidence capsules, test-impact planning, cache tainting, risk gates, runner pools, and a command/action registry. The README itself frames it as “Headless GitLab & Autonomous Agent Hypervisor,” a single-binary Rust control plane for local GitLab, CI/CD, agents, sandboxes, runners, and releases. ([GitHub][1])
+JeRyu / `jeryu` is **not a GitLab fork in the literal sense**. It is closer to a **Rust control plane / agent hypervisor wrapped around a local GitLab instance**: it bootstraps GitLab, runners, Vault, Postgres, cache infrastructure, a custom executor, agent branches, capability APIs, evidence capsules, release gates, and a TUI. That is a good direction. The repo already has several “agent-first GitOps” instincts that GitHub/GitLab do not expose cleanly: typed agent intents, issue/branch/MR orchestration, evidence capsules, test-impact planning, cache tainting, risk gates, runner pools, and a command/action registry. The README itself frames it as “Headless GitLab & Autonomous Agent Hypervisor,” a single-binary Rust control plane for local GitLab, CI/CD, agents, sandboxes, runners, and releases. ([GitHub][1])
 
 Important limitation: I tried to clone it into the sandbox, but the container could not resolve `github.com`, so I reviewed the public GitHub source and raw files rather than running `cargo build`, tests, or static analyzers locally. A local build/test pass remains essential before treating any compile-level observations as final.
 
@@ -27,7 +27,7 @@ The TUI action registry has action IDs, labels, key hints, risk tiers, surfaces,
 `FailureCapsule` captures job ID, pipeline ID, project ID, stage, exit code, commit SHA, ref, working directory, log snippet, repro script, environment, failure kind, summary, supersedence, and retry lineage. For agent-led repair loops, this is much better than dumping raw logs into an LLM. ([GitHub][7])
 
 **7. Test intelligence is a serious differentiator.**
-The planner can classify full validation, docs-only changes, selected tests, global invalidators, changed tests, subsystem mappings, confidence, and threshold fallback. The external `.vgit/testmap.toml` path is also promising because a world-class agent-first Git system needs repository-specific test knowledge rather than one-size-fits-all CI. ([GitHub][8])
+The planner can classify full validation, docs-only changes, selected tests, global invalidators, changed tests, subsystem mappings, confidence, and threshold fallback. The external `.jeryu/testmap.toml` path is also promising because a world-class agent-first Git system needs repository-specific test knowledge rather than one-size-fits-all CI. ([GitHub][8])
 
 **8. CacheBrain has the right safety vocabulary.**
 The cache system is not just “reuse blobs.” It includes trust tiers, taints, cache epochs, action-cache hits, material aliases, toolchain fingerprints, leases, requests, hot-cache metrics, and verdicts. Cache taints and trust-tier compatibility are particularly important because agent systems will otherwise poison themselves with stale or untrusted outputs. ([GitHub][9])
@@ -46,7 +46,7 @@ The `agent_surface` module can render `agent-index.json` / `agent-index.md`, aud
 ## Biggest gaps and risks I would fix first
 
 **1. The security story currently overclaims strict sandboxing.**
-`sandbox.rs` says strict network isolation uses `unshare`/`bwrap`, but the actual strict path starts `bash` and sets `VGIT_SANDBOXED=1`; comments acknowledge full network namespace isolation would require more setup. For an autonomous coding platform, this is the largest gap. “Strict sandbox” must mean enforceable isolation, not an environment flag. ([GitHub][13])
+`sandbox.rs` says strict network isolation uses `unshare`/`bwrap`, but the actual strict path starts `bash` and sets `JERYU_SANDBOXED=1`; comments acknowledge full network namespace isolation would require more setup. For an autonomous coding platform, this is the largest gap. “Strict sandbox” must mean enforceable isolation, not an environment flag. ([GitHub][13])
 
 **2. GitLab TLS verification is disabled in the client.**
 `GitlabClient::new` builds `reqwest::Client` with `danger_accept_invalid_certs(true)`. That is acceptable only behind an explicit dev-only flag. For an agent-first release platform, this should be a hard default fail with an escape hatch, not the default behavior. ([GitHub][14])
@@ -64,13 +64,13 @@ The capsule capture path stores all environment variables whose keys start with 
 The honeypot module seeds fake AWS and npm credentials, watches those files, kills the workload on access/modify, and writes a quarantine marker. That is useful detonation telemetry, but it cannot replace real isolation, syscall policy, egress control, and secret minimization. ([GitHub][16])
 
 **7. Bootstrap stores powerful credentials locally and creates a root PAT via Rails.**
-Bootstrap writes `vgit.env`, generates a GitLab root password, starts GitLab/Vault/Postgres, creates a root PAT through `gitlab-rails`, appends PAT/runner tokens to the env file, then creates runner pools. This is pragmatic for a local dev appliance, but for production or shared autonomous agents, root PAT creation and local env-file token storage need stronger threat modeling. ([GitHub][17])
+Bootstrap writes `jeryu.env`, generates a GitLab root password, starts GitLab/Vault/Postgres, creates a root PAT through `gitlab-rails`, appends PAT/runner tokens to the env file, then creates runner pools. This is pragmatic for a local dev appliance, but for production or shared autonomous agents, root PAT creation and local env-file token storage need stronger threat modeling. ([GitHub][17])
 
 **8. Vault is local and dev-shaped by default.**
 The compose template runs Vault with `tls_disable = 1`, local file storage, and host-bound service ports. That is fine for a local appliance, but “world’s best agent-first Git” needs a hardened production Vault mode, OIDC/JWT auth, short-lived dynamic secrets, break-glass workflows, and sealed audit logging. ([GitHub][18])
 
 **9. Admission control looks branch-prefix based.**
-The pre-receive hook model is directionally right, but from the reviewed code the agent-ref detection emphasizes branch/ref names such as `agent/`, `vgit/`, and `agents/`. That is not enough. Agent identity and capability should be bound to actor, token, SHA, branch, ref update, expiration, and policy—not inferred mainly from ref naming. ([GitHub][19])
+The pre-receive hook model is directionally right, but from the reviewed code the agent-ref detection emphasizes branch/ref names such as `agent/`, `jeryu/`, and `agents/`. That is not enough. Agent identity and capability should be bound to actor, token, SHA, branch, ref update, expiration, and policy—not inferred mainly from ref naming. ([GitHub][19])
 
 **10. GitLab API access needs production-grade pagination, retries, and rate-limit handling.**
 Several API methods use `per_page=100` and return a single page; I did not see a general pagination/retry/backoff wrapper in the raw client. Agents will break or silently miss data on large repos unless every list endpoint is paginated and every mutating operation has idempotency and retry semantics. ([GitHub][14])
@@ -498,7 +498,7 @@ Create `arc-bench`-style tasks that measure: fix success rate, time-to-green, fa
 
 ## My strongest recommendation
 
-Keep GitLab as the local substrate for now, but make **`vgit` itself the agent-native layer**: typed capabilities, evidence, proof packets, safe sandboxes, cache trust, test intelligence, and mission-control TUI. The project already has the skeleton of something much more interesting than “GitLab with agents.” The biggest jump in quality will come from making every autonomous action **permissioned, observable, reproducible, and explainable**—then making the TUI and API show the same truth.
+Keep GitLab as the local substrate for now, but make **`jeryu` itself the agent-native layer**: typed capabilities, evidence, proof packets, safe sandboxes, cache trust, test intelligence, and mission-control TUI. The project already has the skeleton of something much more interesting than “GitLab with agents.” The biggest jump in quality will come from making every autonomous action **permissioned, observable, reproducible, and explainable**—then making the TUI and API show the same truth.
 
 [1]: https://github.com/jeppsontaylor/JeRyu?utm_source=chatgpt.com "GitHub - jeppsontaylor/JeRyu: Git sucks, making it better · GitHub"
 [2]: https://github.com/jeppsontaylor/JeRyu/tree/main/src?utm_source=chatgpt.com "JeRyu/src at main · jeppsontaylor/JeRyu · GitHub"

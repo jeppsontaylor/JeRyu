@@ -1,4 +1,4 @@
-Based on the docs, my read is: **JeRyu/vgit is already much more than a CLI wrapper.** It is close to being a local delivery operating system for agents: GitLab, runners, cache, release gates, Vault, evidence capsules, VTI, risk gates, and a TUI all orbiting one SQLite-backed control plane.
+Based on the docs, my read is: **JeRyu/jeryu is already much more than a CLI wrapper.** It is close to being a local delivery operating system for agents: GitLab, runners, cache, release gates, Vault, evidence capsules, VTI, risk gates, and a TUI all orbiting one SQLite-backed control plane.
 
 The biggest opportunity is to turn it from “many powerful surfaces” into **one coherent command-and-observation fabric** where a human or agent can always answer:
 
@@ -328,7 +328,7 @@ First failure:
 Likely owner:
   module: test_intel
   validation:
-    rtk cargo test -p vgit -- test_intel -- --nocapture
+    rtk cargo test -p jeryu -- test_intel -- --nocapture
 
 Related:
   previous failure: pipeline 876, same test, 2h ago
@@ -453,7 +453,7 @@ I would change deferred responses to something explicit:
   "message": "Intent accepted by schema but not implemented",
   "data": {
     "status": "deferred",
-    "recommended_surface": "vgit agent spawn / vgit agent merge"
+    "recommended_surface": "jeryu agent spawn / jeryu agent merge"
   }
 }
 ```
@@ -518,12 +518,12 @@ Some commands already support dry-run or plan semantics, like cache GC and host 
 Useful additions:
 
 ```bash
-vgit pool scale <name> <count> --plan
-vgit release promote-prod --plan
-vgit job retry <project> <job> --explain
-vgit pipeline cancel <pipeline> --plan
-vgit agent merge <project> <mr> --explain
-vgit secrets finalize --plan
+jeryu pool scale <name> <count> --plan
+jeryu release promote-prod --plan
+jeryu job retry <project> <job> --explain
+jeryu pipeline cancel <pipeline> --plan
+jeryu agent merge <project> <mr> --explain
+jeryu secrets finalize --plan
 ```
 
 The TUI can then safely preview actions before executing them.
@@ -574,7 +574,7 @@ But logs can contain secrets. Since this system handles Vault, release env hando
 * PAT-like tokens
 * Vault tokens
 * GitLab tokens
-* `VGIT_*SECRET*`
+* `JERYU_*SECRET*`
 * `*_PASSWORD`
 * URLs with embedded credentials
 * honey tokens
@@ -740,7 +740,7 @@ I would give them scoped grants like:
 
 ```text
 observe: all
-test.run: project 2, branch prefix vgit-test-*
+test.run: project 2, branch prefix jeryu-test-*
 patch.propose: allowed paths only
 mr.create: allowed
 mr.merge.request: allowed
@@ -771,7 +771,7 @@ That would make agents productive without making them scary.
 
 # 5. The dream TUI redesign
 
-I would redesign the TUI as **VGIT Mission Control**.
+I would redesign the TUI as **JERYU Mission Control**.
 
 Not a dashboard. Not a menu system. A real-time command center.
 
@@ -940,7 +940,7 @@ For a large terminal, I would use this layout:
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────┐
-│ VGIT MISSION CONTROL  ONLINE  GitLab ✓ Docker ✓ Vault ✓ Cache ✓ Webhook ✓ DB ✓     │
+│ JERYU MISSION CONTROL  ONLINE  GitLab ✓ Docker ✓ Vault ✓ Cache ✓ Webhook ✓ DB ✓     │
 │ Project dougx#2  Ref main  SHA fa51a52  Release ci-fa51a52  Canary e2e-passed      │
 │ Queue 4  Runners 7/10  Disk 68%  Cache hit 82%  Taints 0  Prod READY               │
 ├───────────────┬───────────────────────────────────────────────┬────────────────────┤
@@ -1142,7 +1142,7 @@ Likely owner:
   foo::bar
 
 Suggested validation:
-  rtk cargo test -p vgit -- foo::bar -- --nocapture
+  rtk cargo test -p jeryu -- foo::bar -- --nocapture
 
 Actions:
   e  full explanation
@@ -1212,7 +1212,7 @@ retry selected job
 explain release
 promote production
 scale build 4
-run test cargo test -p vgit -- release::tests
+run test cargo test -p jeryu -- release::tests
 cache gc dry run
 host reclaim plan
 spawn agent task fix flaky release gate
@@ -1244,7 +1244,7 @@ Example:
 │ Promote production                                           │
 │                                                             │
 │ Command:                                                     │
-│   vgit release promote-prod --project-id 2 --ref-name main   │
+│   jeryu release promote-prod --project-id 2 --ref-name main   │
 │                                                             │
 │ Preconditions:                                               │
 │   ✓ canary_state == e2e-passed                               │

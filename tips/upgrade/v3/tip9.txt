@@ -2,7 +2,7 @@
 
 I attempted to clone the repo locally, but the container could not resolve `github.com`, so I could not literally download/build it in the sandbox. I reviewed the repo through GitHub’s repo tree, raw source views, README, mission docs, core modules, CLI dispatch, TUI files, and the agent/test/cache/release/security subsystems. So: this is a careful source review, but not a successful local compile/run review.
 
-My headline read: **JeRyu / `vgit` is not really a GitLab fork yet. It is a Rust GitLab control plane + custom executor + agent hypervisor + TUI + evidence/cache/test-intelligence layer.** That is actually a better direction than a literal fork, but the marketing should be precise. The README describes it as a “single-binary Rust control plane” that turns a local GitLab instance into an orchestration engine for autonomous AI agents, with direct CI/CD control, runner lifecycle management, sandboxes, and programmatic GitLab operations. ([GitHub][1])
+My headline read: **JeRyu / `jeryu` is not really a GitLab fork yet. It is a Rust GitLab control plane + custom executor + agent hypervisor + TUI + evidence/cache/test-intelligence layer.** That is actually a better direction than a literal fork, but the marketing should be precise. The README describes it as a “single-binary Rust control plane” that turns a local GitLab instance into an orchestration engine for autonomous AI agents, with direct CI/CD control, runner lifecycle management, sandboxes, and programmatic GitLab operations. ([GitHub][1])
 
 ---
 
@@ -12,7 +12,7 @@ This repo has a **very strong agent-first thesis** and several unusually good id
 
 But it is currently closer to a **prototype / research control plane** than a “world’s #1 agent-first Git option.” The most important gaps are:
 
-1. **Security boundaries are weaker than advertised.** The sandbox invariant says strict isolation uses `unshare`/`bwrap`, but the code path currently launches `bash` and sets `VGIT_SANDBOXED=1`; the comments admit full network namespace isolation is not implemented there. ([GitHub][2])
+1. **Security boundaries are weaker than advertised.** The sandbox invariant says strict isolation uses `unshare`/`bwrap`, but the code path currently launches `bash` and sets `JERYU_SANDBOXED=1`; the comments admit full network namespace isolation is not implemented there. ([GitHub][2])
 2. **Capability/admission control is not strong enough for autonomous agents.** The capability server accepts JSON over a Unix socket with a one-shot read and no evident per-agent authentication, framing, replay protection, rate limiting, or signed grants. ([GitHub][3])
 3. **There are likely compile-breaking raw source issues.** I saw `Some(¬e)` in `engine.rs`; if that is not a GitHub rendering artifact, it is a hard build failure. ([GitHub][4])
 4. **The “semantic CI/CD / AST intelligence” promise is ahead of the code.** The current `impact.rs` mostly classifies changed paths into coarse lanes such as full/unit/integration/docs-only. That is useful, but it is not yet real semantic dependency analysis. ([GitHub][5])
@@ -171,7 +171,7 @@ The risk: archiving an entire sandbox can capture secrets, temporary tokens, hon
 
 The release module is rich: release status, canary gates, production promotion, CI schema, pipeline explanation, doctor/preflight, progress report, and artifact syncing. ([GitHub][19]) But it is currently tied to `/home/ubuntu/dougx`, a default release project ID, `veox-testctl`, and repo-specific artifact paths. ([GitHub][19])
 
-To become a platform, release logic needs a declarative `vgit.release.toml` contract per repo.
+To become a platform, release logic needs a declarative `jeryu.release.toml` contract per repo.
 
 ## P1: secrets handling should not bootstrap Vault with easy-mode material
 
@@ -274,15 +274,15 @@ The repo has many pieces, but not yet the whole autonomous loop.
 Add commands/APIs:
 
 ```bash
-vgit agent start --objective ...
-vgit agent plan --contract ...
-vgit agent step --contract ...
-vgit agent repair --capsule ...
-vgit agent rebase --contract ...
-vgit agent prove-merge --mr ...
-vgit agent merge --mr --proof ...
-vgit agent release --sha ...
-vgit agent close --contract ...
+jeryu agent start --objective ...
+jeryu agent plan --contract ...
+jeryu agent step --contract ...
+jeryu agent repair --capsule ...
+jeryu agent rebase --contract ...
+jeryu agent prove-merge --mr ...
+jeryu agent merge --mr --proof ...
+jeryu agent release --sha ...
+jeryu agent close --contract ...
 ```
 
 ## Phase 3: Evidence Capsules 2.0
@@ -789,7 +789,7 @@ Do **not** position this as “a fork of GitLab” unless you actually fork GitL
 
 Position it as:
 
-> **JeRyu / vgit: an agent-first GitLab control plane that turns self-hosted GitLab into an autonomous coding, testing, evidence, and release OS.**
+> **JeRyu / jeryu: an agent-first GitLab control plane that turns self-hosted GitLab into an autonomous coding, testing, evidence, and release OS.**
 
 That is much more credible and much more exciting.
 

@@ -1,8 +1,8 @@
 ## JeRyu review: this is already exciting, but it needs a sharper “agent operating system” core
 
-I attempted to clone the repo into the sandbox, but direct `git clone` failed because the execution environment could not resolve `github.com`. I still reviewed the repository through GitHub source/docs pages, including the README, `Cargo.toml`, `AGENTS.md`, `MISSION.md`, `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/VTI.md`, `docs/VGIT_TUI.md`, and key source modules such as `capability.rs`, `admission.rs`, `decision.rs`, `engine.rs`, `exec.rs`, and `sandbox.rs`. So this is a source/design review, not a successful local build/benchmark review.
+I attempted to clone the repo into the sandbox, but direct `git clone` failed because the execution environment could not resolve `github.com`. I still reviewed the repository through GitHub source/docs pages, including the README, `Cargo.toml`, `AGENTS.md`, `MISSION.md`, `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/VTI.md`, `docs/JERYU_TUI.md`, and key source modules such as `capability.rs`, `admission.rs`, `decision.rs`, `engine.rs`, `exec.rs`, and `sandbox.rs`. So this is a source/design review, not a successful local build/benchmark review.
 
-The biggest framing point: **JeRyu does not appear to be a literal GitLab fork**. It is better described as a **Rust control plane that provisions and governs a local GitLab CE + Runner + Docker/Vault/state stack**. The README calls `vgit` a “single-binary Rust control plane” for a local GitLab instance, and the API docs list GitLab CE, GitLab Runner, Vault, Postgres/SQLite, webhooks, custom executor, state API, TUI, secrets, and release controls as the actual surfaces. That is not a bad thing; it may be the faster path to an agent-first Git platform. But the product should present itself honestly as **“agent-first GitLab control plane / GitLab substrate”**, not “GitLab fork,” unless the repo actually starts replacing GitLab server internals. ([GitHub][1])
+The biggest framing point: **JeRyu does not appear to be a literal GitLab fork**. It is better described as a **Rust control plane that provisions and governs a local GitLab CE + Runner + Docker/Vault/state stack**. The README calls `jeryu` a “single-binary Rust control plane” for a local GitLab instance, and the API docs list GitLab CE, GitLab Runner, Vault, Postgres/SQLite, webhooks, custom executor, state API, TUI, secrets, and release controls as the actual surfaces. That is not a bad thing; it may be the faster path to an agent-first Git platform. But the product should present itself honestly as **“agent-first GitLab control plane / GitLab substrate”**, not “GitLab fork,” unless the repo actually starts replacing GitLab server internals. ([GitHub][1])
 
 ---
 
@@ -61,7 +61,7 @@ JeRyu already has modules for many of these.
 
 ## 4. The custom executor + SmartCache direction is excellent
 
-The custom executor design is a big deal. The API docs say `vgit exec prepare` creates a reflink sandbox and seeds honeypot tripwires, while `vgit exec run` bootstraps tools, initializes DB/epoch/taint/cache brain, computes witnesses, decides cache hits, captures failure capsules, and quarantines on tripwire evidence. That is very close to the kind of agent-grade CI runtime that GitHub Actions/GitLab CI do not natively offer. ([GitHub][4])
+The custom executor design is a big deal. The API docs say `jeryu exec prepare` creates a reflink sandbox and seeds honeypot tripwires, while `jeryu exec run` bootstraps tools, initializes DB/epoch/taint/cache brain, computes witnesses, decides cache hits, captures failure capsules, and quarantines on tripwire evidence. That is very close to the kind of agent-grade CI runtime that GitHub Actions/GitLab CI do not natively offer. ([GitHub][4])
 
 The source supports that general design: `exec.rs` prepares a sandbox, attempts CoW cloning, seeds honeypot tokens, injects cache/build env, runs through `ExecutorSandbox`, captures logs, records failure capsules, and handles quarantine markers. ([GitHub][5])
 
@@ -111,13 +111,13 @@ This should be priority one.
 
 ## 3. Admission control is too permissive by default
 
-The pre-receive admission hook is a great idea, but the docs and code show agent refs are audit-only by default unless `VGIT_ADMISSION_ENFORCE=1` is set. For a production agent-first system, enforcement should be the default once bootstrap is complete. ([GitHub][4])
+The pre-receive admission hook is a great idea, but the docs and code show agent refs are audit-only by default unless `JERYU_ADMISSION_ENFORCE=1` is set. For a production agent-first system, enforcement should be the default once bootstrap is complete. ([GitHub][4])
 
 Also, the source checks for 40-character SHA-like object IDs, which is fine for SHA-1 Git repos but not a future-proof Git object model. It should support SHA-256 Git repositories and validate signed provenance, not just ref format. ([GitHub][9])
 
 ## 4. The sandbox claims are stronger than the implementation
 
-The README says disposable worktrees, Docker constraints, cgroups, and strong isolation. The docs say strict sandboxing uses `unshare/bwrap`. But `sandbox.rs` currently says full network namespace isolation via `bwrap/unshare` would require additional setup, and the actual strict mode mainly sets `VGIT_SANDBOXED=1` while relying on Docker executor pools, honeypots, and proxy-enforced egress. ([GitHub][1])
+The README says disposable worktrees, Docker constraints, cgroups, and strong isolation. The docs say strict sandboxing uses `unshare/bwrap`. But `sandbox.rs` currently says full network namespace isolation via `bwrap/unshare` would require additional setup, and the actual strict mode mainly sets `JERYU_SANDBOXED=1` while relying on Docker executor pools, honeypots, and proxy-enforced egress. ([GitHub][1])
 
 That is a major place to tighten language and implementation. Honeypots are detection. They are not isolation.
 
@@ -692,8 +692,8 @@ Every action should preview:
 Every TUI screen should have a JSON twin. The TUI should be both a human cockpit and an agent-observable state surface:
 
 ```bash
-vgit tui snapshot --tab merge-gate --mr 42 --json
-vgit tui action --dry-run request_merge --mr 42
+jeryu tui snapshot --tab merge-gate --mr 42 --json
+jeryu tui action --dry-run request_merge --mr 42
 ```
 
 That makes the TUI not just visual, but operationally reusable by agents.
@@ -786,7 +786,7 @@ Do that, and this stops being a GitLab wrapper and becomes something much more i
 [4]: https://github.com/jeppsontaylor/JeRyu/blob/main/docs/API.md "JeRyu/docs/API.md at main · jeppsontaylor/JeRyu · GitHub"
 [5]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/exec.rs "JeRyu/src/exec.rs at main · jeppsontaylor/JeRyu · GitHub"
 [6]: https://github.com/jeppsontaylor/JeRyu/blob/main/docs/VTI.md "JeRyu/docs/VTI.md at main · jeppsontaylor/JeRyu · GitHub"
-[7]: https://github.com/jeppsontaylor/JeRyu/blob/main/docs/VGIT_TUI.md "JeRyu/docs/VGIT_TUI.md at main · jeppsontaylor/JeRyu · GitHub"
+[7]: https://github.com/jeppsontaylor/JeRyu/blob/main/docs/JERYU_TUI.md "JeRyu/docs/JERYU_TUI.md at main · jeppsontaylor/JeRyu · GitHub"
 [8]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/capability.rs "JeRyu/src/capability.rs at main · jeppsontaylor/JeRyu · GitHub"
 [9]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/admission.rs "JeRyu/src/admission.rs at main · jeppsontaylor/JeRyu · GitHub"
 [10]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/engine.rs "JeRyu/src/engine.rs at main · jeppsontaylor/JeRyu · GitHub"

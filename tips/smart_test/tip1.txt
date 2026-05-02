@@ -1,6 +1,6 @@
-## Recommendation: build a vgit-native **TestBrain**, not just path filters
+## Recommendation: build a jeryu-native **TestBrain**, not just path filters
 
-Your current `impact.rs` is the right seed, but it is too coarse. Today it decides lanes like `src/**/*.rs → Unit`, `tests/ → Integration`, `Cargo.toml/.gitlab-ci → Full`, `*.md → DocsOnly`. That is useful, but it will not get you to 100x because `vgit` is mostly a Rust control plane where many changes are inside the same crate. Package-level or directory-level selection will help, but the real win comes from **test-level and subsystem-level selection**, plus cache reuse.
+Your current `impact.rs` is the right seed, but it is too coarse. Today it decides lanes like `src/**/*.rs → Unit`, `tests/ → Integration`, `Cargo.toml/.gitlab-ci → Full`, `*.md → DocsOnly`. That is useful, but it will not get you to 100x because `jeryu` is mostly a Rust control plane where many changes are inside the same crate. Package-level or directory-level selection will help, but the real win comes from **test-level and subsystem-level selection**, plus cache reuse.
 
 The best architecture is:
 
@@ -8,7 +8,7 @@ The best architecture is:
 
 AI should participate, but it should **not** be the root decision-maker. AI should propose missing mappings, generate explanations, and suggest tests. The deterministic Rust planner should make the final test-selection decision, record it in SQLite, emit an auditable plan, and fail closed when it is unsure.
 
-This matches vgit’s philosophy perfectly: Rust owns policy and orchestration; Git is the ledger; GitLab Runner executes; AI searches and proposes.
+This matches jeryu’s philosophy perfectly: Rust owns policy and orchestration; Git is the ledger; GitLab Runner executes; AI searches and proposes.
 
 ---
 
@@ -26,19 +26,19 @@ Microsoft’s Test Impact Analysis is the most important safety template: it sel
 
 For Rust specifically, `cargo-nextest` is the right default runner substrate. It can list tests as machine-readable JSON, supports filter expressions such as package/dependency/reverse-dependency/test/binary filters, and can emit JUnit XML where each test appears as a testcase. ([Nexte.st][5])
 
-GitLab’s `rules:changes` is useful only as a coarse optimization, not as the brain. GitLab caps `rules:changes` evaluation at 50,000 checks, caps a section at 50 patterns, and treats matches as OR logic. That is too blunt for vgit’s goal. GitHub path filters also have a 300-file diff limitation, which is another reason vgit should compute the diff itself instead of relying on hosted-CI path filters. ([GitLab Docs][6])
+GitLab’s `rules:changes` is useful only as a coarse optimization, not as the brain. GitLab caps `rules:changes` evaluation at 50,000 checks, caps a section at 50 patterns, and treats matches as OR logic. That is too blunt for jeryu’s goal. GitHub path filters also have a 300-file diff limitation, which is another reason jeryu should compute the diff itself instead of relying on hosted-CI path filters. ([GitLab Docs][6])
 
-GitLab dynamic child pipelines are a strong fit: vgit can generate the exact CI YAML for only the selected jobs and trigger it from an artifact, which is much more powerful than a giant static `.gitlab-ci.yml`. ([GitLab Docs][7])
+GitLab dynamic child pipelines are a strong fit: jeryu can generate the exact CI YAML for only the selected jobs and trigger it from an artifact, which is much more powerful than a giant static `.gitlab-ci.yml`. ([GitLab Docs][7])
 
 For Rust graphing, use `cargo metadata` and `guppy`: `cargo metadata` emits machine-readable workspace and dependency information, and `guppy` builds a package dependency graph from that metadata. ([Rust Documentation][8])
 
 For learning test-to-code edges, Rust’s source-based coverage via `-C instrument-coverage` can produce `.profraw` data and coverage reports; this is useful for nightly learning and not necessarily for every PR. ([Rust Documentation][9])
 
-For quality auditing, `cargo-mutants --in-diff` can test mutants only in changed diff regions, but its own docs warn that incremental mutation testing is not a substitute for a full test run. That is exactly the right attitude for vgit: fast targeted checks by day, full validation by schedule. ([Mutants][10])
+For quality auditing, `cargo-mutants --in-diff` can test mutants only in changed diff regions, but its own docs warn that incremental mutation testing is not a substitute for a full test run. That is exactly the right attitude for jeryu: fast targeted checks by day, full validation by schedule. ([Mutants][10])
 
 ---
 
-## The system to build: `vgit TestBrain`
+## The system to build: `jeryu TestBrain`
 
 Add a new subsystem, likely under these files:
 
@@ -101,7 +101,7 @@ This plan becomes evidence in your event ledger and risk gate.
 
 ---
 
-## How it maps to vgit’s four planes
+## How it maps to jeryu’s four planes
 
 ### 1. Admission Plane
 
@@ -176,11 +176,11 @@ RunSelectedTests {
 }
 ```
 
-The AI may propose a new rule when nightly full catches a miss, but vgit policy should approve it. Adding tests is low risk; removing or narrowing tests should require a stricter gate.
+The AI may propose a new rule when nightly full catches a miss, but jeryu policy should approve it. Adding tests is low risk; removing or narrowing tests should require a stricter gate.
 
 ---
 
-## The selector: what vgit should consider
+## The selector: what jeryu should consider
 
 The planner should combine seven sources of truth.
 
@@ -196,7 +196,7 @@ src/pool.rs lines 120-180 changed
 
 That lets you map a change to specific functions, modules, or tests over time.
 
-### 2. Declared rules: `.vgit/testgraph.toml`
+### 2. Declared rules: `.jeryu/testgraph.toml`
 
 This gives developers and agents a clear way to declare dependencies.
 
@@ -230,7 +230,7 @@ integration = [
   "cargo nextest run -E 'binary(job_tests)'"
 ]
 e2e = [
-  "vgit e2e run runner-pool-smoke"
+  "jeryu e2e run runner-pool-smoke"
 ]
 full_if_changed = [
   "src/config.rs",
@@ -270,13 +270,13 @@ integration = [
   "cargo nextest run -E 'binary(release_tests) | binary(secrets_tests)'"
 ]
 e2e = [
-  "vgit e2e run vault-release-smoke"
+  "jeryu e2e run vault-release-smoke"
 ]
 
 [[rules]]
 id = "docs-only"
 paths = ["**/*.md"]
-unit = ["vgit docs check"]
+unit = ["jeryu docs check"]
 skip_rust = true
 risk = "low"
 
@@ -292,7 +292,7 @@ paths = [
   "src/config.rs",
   "src/policy.rs",
   "src/decision.rs",
-  ".vgit/testgraph.toml"
+  ".jeryu/testgraph.toml"
 ]
 force = "full"
 ```
@@ -371,7 +371,7 @@ runner pool
 input hash
 ```
 
-The key idea: vgit learns from its own CI over time.
+The key idea: jeryu learns from its own CI over time.
 
 ### 7. Policy and trust tier
 
@@ -407,7 +407,7 @@ Pseudo-flow:
 3. Check forced-full triggers:
    Cargo.lock, Cargo.toml, build.rs, config.rs, policy.rs, decision.rs,
    .gitlab-ci.yml, GitHub workflow, Dockerfile, schema/migration, testgraph change.
-4. Match declared rules from .vgit/testgraph.toml.
+4. Match declared rules from .jeryu/testgraph.toml.
 5. Expand via Cargo graph:
    changed package → tests in package + reverse dependents.
 6. Expand via Rust symbol/module index:
@@ -432,7 +432,7 @@ Pseudo-flow:
    human explanation
 ```
 
-This is the Microsoft TIA safety model adapted to vgit: impacted tests, previous failures, new tests, safe fallback, and scheduled full validation. ([Microsoft Learn][4])
+This is the Microsoft TIA safety model adapted to jeryu: impacted tests, previous failures, new tests, safe fallback, and scheduled full validation. ([Microsoft Learn][4])
 
 ---
 
@@ -460,7 +460,7 @@ src/gitlab_client.rs broad API changes
 src/exec.rs custom executor changes
 src/sandbox.rs isolation changes
 src/secrets.rs Vault auth changes
-.vgit/testgraph.toml
+.jeryu/testgraph.toml
 ```
 
 For `state.rs`, be more precise:
@@ -483,7 +483,7 @@ This is where hunk-level and function-level mapping matters.
 
 ---
 
-## Suggested vgit subsystem mapping
+## Suggested jeryu subsystem mapping
 
 | Changed area                          | Run immediately                                                                       | Usually skip                                             |
 | ------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------- |
@@ -518,31 +518,31 @@ plan-tests:
   stage: plan
   image: rust:1.92.0
   script:
-    - cargo build --bin vgit
-    - ./target/debug/vgit test select
+    - cargo build --bin jeryu
+    - ./target/debug/jeryu test select
         --base "${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-origin/main}"
         --head "$CI_COMMIT_SHA"
-        --mode "${VGIT_TEST_MODE:-pr}"
-        --emit-plan target/vgit/impact-plan.json
-        --emit-gitlab target/vgit/generated-tests.yml
-        --explain target/vgit/impact-explain.md
+        --mode "${JERYU_TEST_MODE:-pr}"
+        --emit-plan target/jeryu/impact-plan.json
+        --emit-gitlab target/jeryu/generated-tests.yml
+        --explain target/jeryu/impact-explain.md
   artifacts:
     paths:
-      - target/vgit/impact-plan.json
-      - target/vgit/generated-tests.yml
-      - target/vgit/impact-explain.md
+      - target/jeryu/impact-plan.json
+      - target/jeryu/generated-tests.yml
+      - target/jeryu/impact-explain.md
 
 selected-tests:
   stage: test
   needs: ["plan-tests"]
   trigger:
     include:
-      - artifact: target/vgit/generated-tests.yml
+      - artifact: target/jeryu/generated-tests.yml
         job: plan-tests
     strategy: mirror
 ```
 
-GitLab supports triggering child pipelines from generated YAML artifacts, which makes this the right mechanism for vgit’s planner-generated test graph. ([GitLab Docs][7])
+GitLab supports triggering child pipelines from generated YAML artifacts, which makes this the right mechanism for jeryu’s planner-generated test graph. ([GitLab Docs][7])
 
 Then schedule nightly:
 
@@ -551,15 +551,15 @@ nightly-full:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
   variables:
-    VGIT_TEST_MODE: "full"
+    JERYU_TEST_MODE: "full"
   script:
-    - vgit test full --learn --coverage --e2e
+    - jeryu test full --learn --coverage --e2e
 ```
 
-For GitHub Actions mirror CI, keep the workflows, but make them call vgit:
+For GitHub Actions mirror CI, keep the workflows, but make them call jeryu:
 
 ```yaml
-- run: vgit test select --emit-github-matrix target/vgit/matrix.json
+- run: jeryu test select --emit-github-matrix target/jeryu/matrix.json
 ```
 
 Do not rely on GitHub `paths:` as the authoritative selector because of its diff limits. ([GitHub Docs][11])
@@ -571,32 +571,32 @@ Do not rely on GitHub `paths:` as the authoritative selector because of its diff
 Add these commands:
 
 ```bash
-vgit test discover
-vgit test select --base <SHA> --head <SHA> [--mode pr|main|nightly|release] [--json]
-vgit test explain-plan <PLAN_ID|PATH>
-vgit test run-selected --plan <impact-plan.json>
-vgit test learn --from-pipeline <PIPELINE_ID>
-vgit test full --learn --coverage --e2e
-vgit test graph status
-vgit test graph repair --from-missed-impact <ID>
-vgit test audit --coverage-gaps --orphan-tests --stale-rules
+jeryu test discover
+jeryu test select --base <SHA> --head <SHA> [--mode pr|main|nightly|release] [--json]
+jeryu test explain-plan <PLAN_ID|PATH>
+jeryu test run-selected --plan <impact-plan.json>
+jeryu test learn --from-pipeline <PIPELINE_ID>
+jeryu test full --learn --coverage --e2e
+jeryu test graph status
+jeryu test graph repair --from-missed-impact <ID>
+jeryu test audit --coverage-gaps --orphan-tests --stale-rules
 ```
 
 Expected workflows:
 
 ```bash
 # Local developer fast check
-vgit test select --base origin/main --head HEAD --mode pr --explain
-vgit test run-selected --plan target/vgit/impact-plan.json
+jeryu test select --base origin/main --head HEAD --mode pr --explain
+jeryu test run-selected --plan target/jeryu/impact-plan.json
 
 # CI planner
-vgit test select --base "$BASE_SHA" --head "$CI_COMMIT_SHA" --emit-gitlab generated-tests.yml
+jeryu test select --base "$BASE_SHA" --head "$CI_COMMIT_SHA" --emit-gitlab generated-tests.yml
 
 # Nightly teacher run
-vgit test full --learn --coverage --e2e
+jeryu test full --learn --coverage --e2e
 
 # After a missed impact
-vgit test graph repair --from-missed-impact 17
+jeryu test graph repair --from-missed-impact 17
 ```
 
 ---
@@ -705,12 +705,12 @@ hash(
   rustc version,
   cargo version,
   nextest version,
-  vgit version,
+  jeryu version,
   runner image digest,
   OS / target triple,
   relevant source files,
   relevant config files,
-  .vgit/testgraph.toml epoch,
+  .jeryu/testgraph.toml epoch,
   cache epoch,
   environment allowlist,
   Docker image digest,
@@ -734,28 +734,28 @@ Nx’s model of hashing source, dependencies, runtime values, config, and flags 
 
 ---
 
-## How vgit becomes self-managing
+## How jeryu becomes self-managing
 
 The self-management loop should look like this:
 
 ```text
 1. Discover
-   vgit indexes tests, binaries, packages, features, modules, declared rules.
+   jeryu indexes tests, binaries, packages, features, modules, declared rules.
 
 2. Select
-   For each PR/push, vgit creates an impact plan.
+   For each PR/push, jeryu creates an impact plan.
 
 3. Execute
-   vgit runs selected tests or replays valid cached witness evidence.
+   jeryu runs selected tests or replays valid cached witness evidence.
 
 4. Observe
-   vgit records test results, durations, failures, file access, coverage, traces.
+   jeryu records test results, durations, failures, file access, coverage, traces.
 
 5. Teach
    Nightly full runs compare full results against what the selector would have run.
 
 6. Repair
-   If full finds a missed failure, vgit records a missed impact and proposes a graph repair.
+   If full finds a missed failure, jeryu records a missed impact and proposes a graph repair.
 
 7. Harden
    Admission policy becomes stricter for rules that recently missed failures.
@@ -768,7 +768,7 @@ Nightly full failed: tests/cache_integration_test.rs::tainted_oci_layer_rejected
 Selective plan skipped it.
 Diff touched src/witness.rs.
 Coverage shows cache_integration_test covers witness attestation path.
-vgit proposes:
+jeryu proposes:
   add src/witness.rs to cache-gateway rule
   add edge file:src/witness.rs -> target:integration.cache_integration
 ```
@@ -779,7 +779,7 @@ AI can draft the MR:
 [Agent] Repair TestGraph edge after missed impact #17
 ```
 
-But vgit should mark it as a policy change and require a stronger gate.
+But jeryu should mark it as a policy change and require a stronger gate.
 
 ---
 
@@ -833,7 +833,7 @@ This preserves E2E protection without letting E2E dominate every PR.
 
 ---
 
-## Concrete vgit test selection examples
+## Concrete jeryu test selection examples
 
 ### Change: `src/tui/ui.rs`
 
@@ -860,7 +860,7 @@ Run:
 ```bash
 cargo nextest run -E 'test(/pool|runner|drain|token_rotation/)'
 cargo nextest run -E 'binary(pool_tests) | binary(job_tests)'
-vgit e2e run runner-pool-smoke
+jeryu e2e run runner-pool-smoke
 ```
 
 Skip:
@@ -906,10 +906,10 @@ selected E2E smoke or full depending dependency risk
 Run:
 
 ```bash
-vgit docs check
+jeryu docs check
 ```
 
-Skip Rust tests unless docs contain embedded command examples that vgit validates.
+Skip Rust tests unless docs contain embedded command examples that jeryu validates.
 
 ---
 
@@ -920,10 +920,10 @@ Skip Rust tests unless docs contain embedded command examples that vgit validate
 Build:
 
 ```text
-.vgit/testgraph.toml
-vgit test discover
-vgit test select
-vgit test explain-plan
+.jeryu/testgraph.toml
+jeryu test discover
+jeryu test select
+jeryu test explain-plan
 generated GitLab child pipeline YAML
 impact_plans DB table
 ```
@@ -967,7 +967,7 @@ Nightly:
 RUSTFLAGS="-C instrument-coverage" cargo nextest run --all-features
 llvm-profdata merge ...
 llvm-cov export ...
-vgit test learn --coverage coverage.json --junit junit.xml
+jeryu test learn --coverage coverage.json --junit junit.xml
 ```
 
 Use coverage to create `test_edges` with confidence.
@@ -1011,7 +1011,7 @@ git2                 # diff and repository operations
 syn                  # Rust AST/module/function indexing
 petgraph             # internal test graph
 sha2 / blake3        # input hashing
-serde / toml         # .vgit/testgraph.toml
+serde / toml         # .jeryu/testgraph.toml
 quick-xml            # JUnit parsing
 ```
 
@@ -1023,7 +1023,7 @@ cargo-llvm-cov or rustc -C instrument-coverage + llvm-profdata/llvm-cov
 cargo-mutants for scheduled/diff mutation audits
 ```
 
-Do **not** migrate vgit to Bazel/Pants unless you want a much larger build-system rewrite. vgit already has the control plane, GitLab integration, cache store, policy engine, and agent architecture. The right move is to copy the best ideas and implement them natively.
+Do **not** migrate jeryu to Bazel/Pants unless you want a much larger build-system rewrite. jeryu already has the control plane, GitLab integration, cache store, policy engine, and agent architecture. The right move is to copy the best ideas and implement them natively.
 
 ---
 
@@ -1067,7 +1067,7 @@ This gives speed without pretending the selector is omniscient.
 
 For docs-only, TUI-only, isolated cache, isolated secrets, or single-module changes, 100x is realistic because you avoid GitLab bootstrap, Vault, Docker runner lifecycle, and unrelated integration tests.
 
-For `Cargo.lock`, CI config, `config.rs`, schema changes, custom executor changes, or policy changes, 100x should **not** be the goal. Those are global blast-radius changes, and vgit should intentionally run broad validation.
+For `Cargo.lock`, CI config, `config.rs`, schema changes, custom executor changes, or policy changes, 100x should **not** be the goal. Those are global blast-radius changes, and jeryu should intentionally run broad validation.
 
 The winning metric should be:
 
@@ -1083,7 +1083,7 @@ Every miss: becomes training data.
 
 ## Final design principle
 
-Make vgit’s test system behave like a cautious autonomous release engineer:
+Make jeryu’s test system behave like a cautious autonomous release engineer:
 
 ```text
 Skip aggressively when evidence is strong.
@@ -1093,7 +1093,7 @@ Use nightly full runs as the teacher.
 Let AI improve the graph, but let Rust enforce the policy.
 ```
 
-That is the path to a self-managing, vgit-native selective testing system that is fast enough for agents and safe enough for autonomous software delivery.
+That is the path to a self-managing, jeryu-native selective testing system that is fast enough for agents and safe enough for autonomous software delivery.
 
 [1]: https://bazel.build/query/language "The Bazel Query Reference"
 [2]: https://www.pantsbuild.org/dev/docs/using-pants/advanced-target-selection "Advanced target selection | Pantsbuild"

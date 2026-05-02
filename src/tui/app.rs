@@ -1,5 +1,5 @@
 //! Owner: Interactive TUI subsystem — application state and refresh loop
-//! Proof: `cargo nextest run -p vgit -- tui::app`
+//! Proof: `cargo nextest run -p jeryu -- tui::app`
 //! Invariants: UI state refreshes are bounded, non-blocking, and derived from durable control-plane state.
 use crate::{
     docker::DockerCtl,
@@ -76,7 +76,7 @@ pub struct StorageBreakdown {
     pub runner_data_bytes: u64,
     pub git_repos_bytes: u64,
     pub rust_target_bytes: u64,
-    pub vgit_db_bytes: u64,
+    pub jeryu_db_bytes: u64,
     pub total_disk_bytes: u64,
     pub disk_available_bytes: u64,
 }
@@ -270,7 +270,7 @@ impl App {
             has_e2e_gate: true,
             has_telemetry_diag: true,
             release_identity_ok: true,
-            canary_public_url: Some("https://example.invalid/vgit/demo-canary".into()),
+            canary_public_url: Some("https://example.invalid/jeryu/demo-canary".into()),
         };
 
         let flow_jobs = vec![
@@ -512,7 +512,7 @@ impl App {
                 runner_data_bytes: 2_600_000,
                 git_repos_bytes: 1_200_000,
                 rust_target_bytes: 2_300_000,
-                vgit_db_bytes: 450_000,
+                jeryu_db_bytes: 450_000,
                 total_disk_bytes: 45_000_000,
                 disk_available_bytes: 120_000_000,
             },
@@ -614,7 +614,7 @@ impl App {
             secret_audit_events: vec![
                 crate::state::SecretAuditEvent {
                     id: Some(21),
-                    repo_name: "vgit".into(),
+                    repo_name: "jeryu".into(),
                     version: "v3.0.1".into(),
                     target: "release".into(),
                     action: "rotated".into(),
@@ -624,7 +624,7 @@ impl App {
                 },
                 crate::state::SecretAuditEvent {
                     id: Some(22),
-                    repo_name: "vgit".into(),
+                    repo_name: "jeryu".into(),
                     version: "v3.0.1".into(),
                     target: "agent".into(),
                     action: "fetched".into(),
@@ -976,8 +976,8 @@ impl App {
                 // Fetch other storage queries roughly. (Since they are heavy, in a real app would cache them and do them every 60s instead of 1s, but this is a POC)
                 snap.storage_breakdown.cas_bytes = snap.cas_disk_bytes as u64;
                 snap.storage_breakdown.crate_cache_bytes = snap.crate_cache_disk_bytes as u64;
-                snap.storage_breakdown.vgit_db_bytes =
-                    std::fs::metadata(crate::config::data_dir().join("vgit.db"))
+                snap.storage_breakdown.jeryu_db_bytes =
+                    std::fs::metadata(crate::config::data_dir().join("jeryu.db"))
                         .map(|m| m.len())
                         .unwrap_or(0);
 

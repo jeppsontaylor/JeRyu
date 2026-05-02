@@ -1,13 +1,13 @@
-# API.md — JeRyu / vgit Complete Agent and Control Surface Reference
+# API.md — JeRyu / jeryu Complete Agent and Control Surface Reference
 
 > Version: 5.0.0
 > Last updated: 2026-04-26
 > Verified against: `src/cli.rs`, `src/dispatch.rs`, `src/engine.rs`, `src/capability.rs`, `src/state.rs`, `src/release.rs`, `src/gitlab_client.rs`, `src/settings.rs`, `src/tui/action_registry.rs`
 > Audience: External agents, reviewers, and contributors requiring complete API context.
 
-This file is the single technical reference for every public, internal, and agent-facing control surface exposed by JeRyu's `vgit` binary. It covers the CLI, hidden hook commands, custom executor commands, the Unix-socket capability API, webhook HTTP API, GitLab client wrapper, state API, release controls, test-intelligence controls, secrets controls, action registry, settings API, and operational hooks available to humans or agents.
+This file is the single technical reference for every public, internal, and agent-facing control surface exposed by JeRyu's `jeryu` binary. It covers the CLI, hidden hook commands, custom executor commands, the Unix-socket capability API, webhook HTTP API, GitLab client wrapper, state API, release controls, test-intelligence controls, secrets controls, action registry, settings API, and operational hooks available to humans or agents.
 
-The repository root is `/home/ubuntu/JeRyu`. The binary is the Rust crate/package `vgit`.
+The repository root is `/home/ubuntu/JeRyu`. The binary is the Rust crate/package `jeryu`.
 
 ---
 
@@ -16,12 +16,12 @@ The repository root is `/home/ubuntu/JeRyu`. The binary is the Rust crate/packag
 | Surface | Transport | Primary consumer | Entry point |
 | --- | --- | --- | --- |
 | CLI | Process invocation | humans, agents, shell scripts | `src/cli.rs`, `src/dispatch.rs` |
-| TUI | Terminal UI | humans, supervising agents | `vgit tui`, `src/tui/` |
+| TUI | Terminal UI | humans, supervising agents | `jeryu tui`, `src/tui/` |
 | Webhook server | HTTP | GitLab webhooks | `src/engine.rs` |
 | Capability API | Unix domain socket JSON | local supervised agents | `src/capability.rs` |
 | MCP adapter | Stdio JSON-RPC + Streamable HTTP | external coding agents | `src/mcp.rs` |
-| Git server hook | stdin/stdout process hook | GitLab Gitaly/server hook | `vgit server-hook pre-receive` |
-| Custom executor | GitLab Runner custom executor protocol | GitLab Runner | `vgit exec ...` |
+| Git server hook | stdin/stdout process hook | GitLab Gitaly/server hook | `jeryu server-hook pre-receive` |
+| Custom executor | GitLab Runner custom executor protocol | GitLab Runner | `jeryu exec ...` |
 | Action registry | Static registry, CLI list, TUI palette | agents, TUI, CLI | `src/tui/action_registry.rs` |
 | State API | Postgres-primary/sqlx methods with SQLite fallback | internal modules and tests | `src/state.rs` |
 | Settings API | JSON file + singleton | all modules | `src/settings.rs` |
@@ -42,7 +42,7 @@ The repository root is `/home/ubuntu/JeRyu`. The binary is the Rust crate/packag
 | `GITLAB_SSH_PORT` | `2224` | Host SSH port for GitLab |
 | `WEBHOOK_LISTEN_PORT` | `9777` | Engine HTTP port (bind: `127.0.0.1:9777`) |
 | `VAULT_IMAGE` | `hashicorp/vault:1.17.5` | Vault image |
-| `VAULT_CONTAINER_NAME` | `vgit-vault` | Vault container |
+| `VAULT_CONTAINER_NAME` | `jeryu-vault` | Vault container |
 | `VAULT_HTTP_PORT` | `18200` | Host Vault port |
 | `POSTGRES_IMAGE` | `postgres:16-alpine` | State database image |
 | `POSTGRES_PORT` | `15432` | Host Postgres port bound to `127.0.0.1` |
@@ -51,14 +51,14 @@ The repository root is `/home/ubuntu/JeRyu`. The binary is the Rust crate/packag
 | `CACHE_PROXY_PORT` | `19800` | SmartCache proxy/gateway port |
 | `CACHE_REGISTRY_PORT` | `19801` | Local OCI registry mirror port |
 | `DEFAULT_RELEASE_PROJECT_ID` | `2` | Default release project |
-| Default release repo root | `/home/ubuntu/dougx` | Overridable via `VGIT_RELEASE_REPO_ROOT` or `settings.release.repo_root` |
+| Default release repo root | `/home/ubuntu/dougx` | Overridable via `JERYU_RELEASE_REPO_ROOT` or `settings.release.repo_root` |
 
-All constants are configurable through `~/.vgit/settings.json` — see the Settings API section.
+All constants are configurable through `~/.jeryu/settings.json` — see the Settings API section.
 
 Configuration paths are rooted under `crate::config::data_dir()`:
-- `vgit.env`: primary vgit environment/secrets file
+- `jeryu.env`: primary jeryu environment/secrets file
 - `postgres/`: Postgres data directory for the bootstrap-managed state database
-- `vgit.db`: SQLite fallback state database when `VGIT_DATABASE_URL` is unset
+- `jeryu.db`: SQLite fallback state database when `JERYU_DATABASE_URL` is unset
 - `runners/`: runner manager config directories
 - `cache/`: manager cache, crate cache, CAS, and SmartCache state
 - Vault config/storage/env/bootstrap files
@@ -73,7 +73,7 @@ Configuration paths are rooted under `crate::config::data_dir()`:
 | `build` | `build,docker-build,x86-64,docker,dind` | `docker` | 2 | 4 | `privileged` |
 | `untrusted` | `untrusted,sandbox,mr` | `custom` | 1 | 2 | `untrusted` |
 
-Agents should prefer tags inferred by `vgit test plan` or VTI planners instead of hardcoding runner tags.
+Agents should prefer tags inferred by `jeryu test plan` or VTI planners instead of hardcoding runner tags.
 
 ---
 
@@ -83,323 +83,323 @@ Clap subcommands are kebab-case on the command line. Hidden/internal commands ar
 
 ### 4.1 Lifecycle
 
-#### `vgit init`
+#### `jeryu init`
 
-Alias: hidden `vgit bootstrap`. Bootstraps the full local control plane (secrets → compose → GitLab → DB → pools → smoke).
+Alias: hidden `jeryu bootstrap`. Bootstraps the full local control plane (secrets → compose → GitLab → DB → pools → smoke).
 
-#### `vgit serve`
+#### `jeryu serve`
 
 Starts the operational daemon (loads client → state DB → Docker → compose → hook → cache → pools → engine → shadow → Ctrl-C).
 
-#### `vgit down`
+#### `jeryu down`
 
 Drains every pool and stops GitLab via Docker Compose.
 
-#### `vgit status`
+#### `jeryu status`
 
 Shows GitLab readiness, Vault status, pool state, managed Docker containers, recent job events, latest release, and latest release secret set.
 
-#### `vgit tui [--once] [--capture --tab <name> --output <png>]`
+#### `jeryu tui [--once] [--capture --tab <name> --output <png>]`
 
-Launches the Ratatui dashboard. `--once` renders a single frame with optional GitLab auth and exits. `--capture` renders a deterministic Ratatui frame to a PNG file without entering an interactive terminal; accepted tabs are `mission`, `release`, `jobs`, `agents`, `tests`, `pools`, `cache`, `evidence`, and `secrets`. See `docs/VGIT_TUI.md`.
+Launches the Ratatui dashboard. `--once` renders a single frame with optional GitLab auth and exits. `--capture` renders a deterministic Ratatui frame to a PNG file without entering an interactive terminal; accepted tabs are `mission`, `release`, `jobs`, `agents`, `tests`, `pools`, `cache`, `evidence`, and `secrets`. See `docs/JERYU_TUI.md`.
 
 ### 4.2 Pool Management
 
-#### `vgit pool list`
+#### `jeryu pool list`
 
 Prints pools with paused state, executor, min warm count, active managers, max managers, and runner id.
 
-#### `vgit pool scale <name> <count>`
+#### `jeryu pool scale <name> <count>`
 
 Scales a pool exactly to `count` manager containers.
 
-#### `vgit pool pause <name>`
+#### `jeryu pool pause <name>`
 
 Pauses a runner pool in GitLab and local DB.
 
-#### `vgit pool resume <name>`
+#### `jeryu pool resume <name>`
 
 Resumes a paused runner pool.
 
-#### `vgit pool drain <name>`
+#### `jeryu pool drain <name>`
 
 Gracefully drains a pool.
 
-#### `vgit pool delete <name>`
+#### `jeryu pool delete <name>`
 
 Drains, deletes local pool record, unregisters GitLab runner.
 
-#### `vgit pool rotate-token <name>`
+#### `jeryu pool rotate-token <name>`
 
 Resets GitLab runner auth token, updates DB, rolls manager configuration.
 
 ### 4.3 Job Management
 
-#### `vgit job list <project_id> [--status running,pending]`
+#### `jeryu job list <project_id> [--status running,pending]`
 
 Lists jobs from GitLab for comma-separated scopes.
 
-#### `vgit job trace <project_id> <job_id>`
+#### `jeryu job trace <project_id> <job_id>`
 
 Fetches and prints GitLab job trace output.
 
-#### `vgit job play <project_id> <job_id>`
+#### `jeryu job play <project_id> <job_id>`
 
 Starts a manual job.
 
-#### `vgit job cancel <project_id> <job_id>`
+#### `jeryu job cancel <project_id> <job_id>`
 
 Cancels a job.
 
-#### `vgit job retry <project_id> <job_id>`
+#### `jeryu job retry <project_id> <job_id>`
 
 Retries a failed job.
 
-#### `vgit job explain <project_id> <job_id>`
+#### `jeryu job explain <project_id> <job_id>`
 
 Reads the latest structured evidence capsule for the job from the state database and prints: pipeline id, stage, ref, commit, failure kind, classification, retry advice, latest retry record, log snippet.
 
-#### `vgit job clear`
+#### `jeryu job clear`
 
 Clears local job and pipeline history from the state database.
 
 ### 4.4 Pipeline Inspection and Control
 
-#### `vgit pipeline explain <pipeline_id> [--project-id 2] [--json]`
+#### `jeryu pipeline explain <pipeline_id> [--project-id 2] [--json]`
 
 Builds a blocking/non-blocking release eligibility report for a pipeline. Groups jobs into release-critical, extended, research, and release-execution categories.
 
-#### `vgit pipeline doctor <pipeline_id> [--project-id 2] [--json]`
+#### `jeryu pipeline doctor <pipeline_id> [--project-id 2] [--json]`
 
 Diagnoses active jobs, runner assignment, stale trace symptoms, and likely pipeline health issues.
 
-#### `vgit pipeline jobs <pipeline_id> [--project-id 2] [--ingest] [--json]`
+#### `jeryu pipeline jobs <pipeline_id> [--project-id 2] [--ingest] [--json]`
 
 Lists all GitLab jobs for a pipeline with timing fields. With `--ingest`, stores job timing rows into `ci_job_runs`.
 
-#### `vgit pipeline ingest <pipeline_id> [--project-id 2]`
+#### `jeryu pipeline ingest <pipeline_id> [--project-id 2]`
 
 Fetches and stores all current GitLab job timings for the pipeline.
 
-#### `vgit pipeline cancel <pipeline_id> [--project-id 2]`
+#### `jeryu pipeline cancel <pipeline_id> [--project-id 2]`
 
 Cancels a pipeline in GitLab.
 
-#### `vgit pipeline bottlenecks [--project-id 2] [--ref-name <ref>] [--limit 25] [--json]`
+#### `jeryu pipeline bottlenecks [--project-id 2] [--ref-name <ref>] [--limit 25] [--json]`
 
 Reports historical slow CI jobs from `ci_job_runs`.
 
 ### 4.5 Cache Management
 
-#### `vgit cache enable`
+#### `jeryu cache enable`
 
 Configures Docker for the SmartCache registry mirror and local cache services.
 
-#### `vgit cache doctor`
+#### `jeryu cache doctor`
 
 Health-checks proxy, registry, Docker mirror, and cache prerequisites.
 
-#### `vgit cache status [--json]`
+#### `jeryu cache status [--json]`
 
 Shows cache objects, hot bandwidth, hit/miss counts, proxy/registry state, manager cache state, Cargo target/sccache usage, and disk usage. JSON output also includes local and pool Cargo cache byte totals plus per-target cache entries, including nested nextest extract scratch trees that still live under a target cache.
 
-#### `vgit cache gc [--dry-run] [--json] [--keep-active-managers[=true|false]] [--older-than <age>] [--max-cache-gb <gb>]`
+#### `jeryu cache gc [--dry-run] [--json] [--keep-active-managers[=true|false]] [--older-than <age>] [--max-cache-gb <gb>]`
 
 Runs cache garbage collection. Options: `--dry-run` (preview), `--keep-active-managers=false` (allow active cache eviction), `--older-than 12h|2d` (age threshold), `--max-cache-gb` (budget forcing). Active Cargo target leases are preserved, pool Cargo caches stay inside their pool namespace, and stale nested `target/nextest/extract/*` scratch trees can now be reclaimed without manual path deletion.
 
 ### 4.6 Local Cargo Wrappers
 
-#### `vgit local cargo --repo <path> -- <cargo args...>`
+#### `jeryu local cargo --repo <path> -- <cargo args...>`
 
-Runs Cargo from the given repository root with vgit-owned local cache roots. Target reuse lives under `~/.vgit/cache/local-cargo/targets/<repo-key>/<rustc-key>/<host-triple>/target` and sccache lives under `~/.vgit/cache/local-cargo/sccache`. `CARGO_INCREMENTAL` defaults to `0`; set `VGIT_CARGO_INCREMENTAL` to override it for the local wrapper.
+Runs Cargo from the given repository root with jeryu-owned local cache roots. Target reuse lives under `~/.jeryu/cache/local-cargo/targets/<repo-key>/<rustc-key>/<host-triple>/target` and sccache lives under `~/.jeryu/cache/local-cargo/sccache`. `CARGO_INCREMENTAL` defaults to `0`; set `JERYU_CARGO_INCREMENTAL` to override it for the local wrapper.
 
-#### `vgit local cargo-env --repo <path> [--json]`
+#### `jeryu local cargo-env --repo <path> [--json]`
 
-Prints the computed Cargo environment for the repository. Shell output is a list of `export ...` lines; `--json` prints the full layout object. The environment includes `CARGO_TARGET_DIR`, `SCCACHE_DIR`, `RUSTC_WRAPPER=sccache`, and the vgit cache metadata keys.
+Prints the computed Cargo environment for the repository. Shell output is a list of `export ...` lines; `--json` prints the full layout object. The environment includes `CARGO_TARGET_DIR`, `SCCACHE_DIR`, `RUSTC_WRAPPER=sccache`, and the jeryu cache metadata keys.
 
-Runner jobs also honor `VGIT_CARGO_CACHE=0` to skip target-dir injection and `VGIT_CARGO_TARGET_ISOLATE=job` to append job identity to the target root when a pool needs extra separation.
+Runner jobs also honor `JERYU_CARGO_CACHE=0` to skip target-dir injection and `JERYU_CARGO_TARGET_ISOLATE=job` to append job identity to the target root when a pool needs extra separation.
 
 ### 4.7 Manager Logs
 
-#### `vgit logs <manager_id> [-n|--lines 50]`
+#### `jeryu logs <manager_id> [-n|--lines 50]`
 
 Tails Docker logs for a runner manager container.
 
 ### 4.8 Autonomous Agent Operations
 
-#### `vgit agent spawn <project_id> --task <text>`
+#### `jeryu agent spawn <project_id> --task <text>`
 
 Creates an autonomous agent task: creates branch, creates/updates task artifacts, opens GitLab issue/MR, returns project+branch+issue+task.
 
-#### `vgit agent list <project_id>`
+#### `jeryu agent list <project_id>`
 
 Lists active agent MRs/issues by labels and titles.
 
-#### `vgit agent merge <project_id> <mr_iid> [--trust-tier trusted|untrusted|privileged]`
+#### `jeryu agent merge <project_id> <mr_iid> [--trust-tier trusted|untrusted|privileged]`
 
 Runs the risk gate before accepting a merge request.
 
 ### 4.9 Shadow Sync
 
-#### `vgit shadow add --source <dir> --project-id <id> --branch <branch> [--enable]`
+#### `jeryu shadow add --source <dir> --project-id <id> --branch <branch> [--enable]`
 
 Registers a local source directory for periodic shadow sync.
 
-#### `vgit shadow enable --source <dir>`
+#### `jeryu shadow enable --source <dir>`
 
 Enables an existing shadow sync config.
 
-#### `vgit shadow disable --source <dir>`
+#### `jeryu shadow disable --source <dir>`
 
 Disables an existing shadow sync config.
 
-#### `vgit shadow remove --source <dir>`
+#### `jeryu shadow remove --source <dir>`
 
 Deletes shadow sync configuration.
 
-#### `vgit shadow sync-now --source <dir>`
+#### `jeryu shadow sync-now --source <dir>`
 
 Triggers an immediate sync by requesting it through the DB (`request_shadow_sync`). The shadow worker picks it up within ~2 seconds.
 
-#### `vgit shadow status [--source <dir>]`
+#### `jeryu shadow status [--source <dir>]`
 
 Shows one shadow sync config or all configs.
 
 ### 4.9 Shadow Remote
 
-#### `vgit shadow-remote status [--repo <path>] [--name shadow]`
+#### `jeryu shadow-remote status [--repo <path>] [--name shadow]`
 
 Shows current git remotes and whether the target shadow remote exists.
 
-#### `vgit shadow-remote ensure [--repo <path>] [--name shadow] --url <url>`
+#### `jeryu shadow-remote ensure [--repo <path>] [--name shadow] --url <url>`
 
 Creates or updates a repo-local remote.
 
-#### `vgit shadow-remote push [--repo <path>] [--name shadow] [--branch <branch>] [--mirror]`
+#### `jeryu shadow-remote push [--repo <path>] [--name shadow] [--branch <branch>] [--mirror]`
 
 Pushes current HEAD or mirrors the repo to the shadow remote.
 
 ### 4.10 Test Runner and VTI Controls
 
-#### `vgit test run --command <cmd> [--project-id 2] [--image rust:1.92.0] [--tags a,b] [--timeout 600] [--force]`
+#### `jeryu test run --command <cmd> [--project-id 2] [--image rust:1.92.0] [--tags a,b] [--timeout 600] [--force]`
 
 Runs one test command through an ephemeral GitLab CI branch and dynamic `.gitlab-ci.yml`. Infers tags/risk/timeout unless tags are supplied. Checks local test cache unless `--force`. Creates scratch branch, commits CI config, waits, prints result, records execution, cleans up.
 
-#### `vgit test plan --command <cmd> [--project-id 2] [--image rust:1.92.0] [--tags a,b] [--timeout 600]`
+#### `jeryu test plan --command <cmd> [--project-id 2] [--image rust:1.92.0] [--tags a,b] [--timeout 600]`
 
 Prints inferred risk class, tags, timeout, and rationale without running.
 
-#### `vgit test batch --command <cmd> ... [--max-parallel 3] [--force]`
+#### `jeryu test batch --command <cmd> ... [--max-parallel 3] [--force]`
 
 Runs multiple test commands in parallel through separate CI pipelines.
 
-#### `vgit test results <pipeline_id> [--project-id 2]`
+#### `jeryu test results <pipeline_id> [--project-id 2]`
 
 Shows pass/fail/skipped/running summary for a pipeline's jobs.
 
-#### `vgit test retry <pipeline_id> <job_name> [--project-id 2]`
+#### `jeryu test retry <pipeline_id> <job_name> [--project-id 2]`
 
 Retries a failed job selected by name.
 
-#### `vgit test failed <pipeline_id> [--project-id 2]`
+#### `jeryu test failed <pipeline_id> [--project-id 2]`
 
 Prints only failed jobs and recent trace tails.
 
-#### `vgit test impact --base <ref> --head <ref> [--repo-root /home/ubuntu/dougx] [--json]`
+#### `jeryu test impact --base <ref> --head <ref> [--repo-root /home/ubuntu/dougx] [--json]`
 
 Delegates to `veox-testctl ci-impact` in the target repo and prints release-impacting/full-build/jobs/rules.
 
-#### `vgit test select [--base origin/main] [--head HEAD] [--repo-root <path>] [--explain] [--json] [--emit-gitlab <path>] [--emit-plan <path>]`
+#### `jeryu test select [--base origin/main] [--head HEAD] [--repo-root <path>] [--explain] [--json] [--emit-gitlab <path>] [--emit-plan <path>]`
 
 Runs built-in VTI smart test selection from changed files. Can emit a GitLab child pipeline YAML and JSON plan.
 
-#### `vgit test explain-plan <plan_path>`
+#### `jeryu test explain-plan <plan_path>`
 
 Reads a JSON VTI plan and prints a human explanation.
 
-#### `vgit test select-external --workspace <path> [--base origin/main] [--head HEAD] [--explain] [--json] [--emit-gitlab <path>] [--emit-plan <path>] [--emit-skipped <path>]`
+#### `jeryu test select-external --workspace <path> [--base origin/main] [--head HEAD] [--explain] [--json] [--emit-gitlab <path>] [--emit-plan <path>] [--emit-skipped <path>]`
 
-Loads external `.vgit/testmap.toml`, computes selected/skipped CI job plan, can emit child pipeline YAML, plan JSON, and skipped-job metadata.
+Loads external `.jeryu/testmap.toml`, computes selected/skipped CI job plan, can emit child pipeline YAML, plan JSON, and skipped-job metadata.
 
-#### `vgit test audit --changed <csv> --all-tests <csv> [--failed <csv>] [--sha HEAD] [--json] [--workspace <path>]`
+#### `jeryu test audit --changed <csv> --all-tests <csv> [--failed <csv>] [--sha HEAD] [--json] [--workspace <path>]`
 
 Audits VTI selector accuracy. Persists selector misses to the state database.
 
-#### `vgit test learn --changed <csv> --all-tests <csv> [--failed <csv>] [--sha HEAD] [--json] [--workspace <path>]`
+#### `jeryu test learn --changed <csv> --all-tests <csv> [--failed <csv>] [--sha HEAD] [--json] [--workspace <path>]`
 
 Runs selector audit and prints learning suggestions / flagged subsystems.
 
-#### `vgit test cache-status [--base HEAD~1] [--head HEAD] [--json]`
+#### `jeryu test cache-status [--base HEAD~1] [--head HEAD] [--json]`
 
 Computes selected tests and deterministic cache keys from changed files, `Cargo.lock`, rustc version, and epoch.
 
 ### 4.11 Release Management
 
-#### `vgit release status [--project-id 2] [--ref-name main] [--sha <sha>] [--limit 5] [--json]`
+#### `jeryu release status [--project-id 2] [--ref-name main] [--sha <sha>] [--limit 5] [--json]`
 
 Shows recent release attempts with upstream/release-execution/production pipelines, canary status, gate files, release identity state, public canary URL.
 
-#### `vgit release watch [--project-id 2] [--ref-name main] [--sha <sha>] [--limit 5] [--interval-secs 5] [--json]`
+#### `jeryu release watch [--project-id 2] [--ref-name main] [--sha <sha>] [--limit 5] [--interval-secs 5] [--json]`
 
 Continuously refreshes release status.
 
-#### `vgit release reconcile [--project-id 2] [--ref-name main] [--json]`
+#### `jeryu release reconcile [--project-id 2] [--ref-name main] [--json]`
 
 Reconciles release attempts against latest successful upstream pipeline. Also run by engine reconciliation loop.
 
-#### `vgit release promote-prod [--project-id 2] [--ref-name main] [--version <version>]`
+#### `jeryu release promote-prod [--project-id 2] [--ref-name main] [--version <version>]`
 
-Triggers production promotion when canary/E2E-passed and handoff/validation artifacts exist. Variables: `CI_PIPELINE_PRODUCT=production-promotion`, `VGIT_PROD_APPROVED=1`, `VGIT_RELEASE_SHA`, `VGIT_RELEASE_VERSION`.
+Triggers production promotion when canary/E2E-passed and handoff/validation artifacts exist. Variables: `CI_PIPELINE_PRODUCT=production-promotion`, `JERYU_PROD_APPROVED=1`, `JERYU_RELEASE_SHA`, `JERYU_RELEASE_VERSION`.
 
-#### `vgit release preflight [--ssh-host <host>] [--json]`
+#### `jeryu release preflight [--ssh-host <host>] [--json]`
 
 Pre-launch canary check: verifies SSH connectivity, Vault health, Docker registry, and disk availability. Returns structured pass/fail with blocker codes and recommended actions. Exits non-zero on failure.
 
-#### `vgit release doctor [--version <version>] [--preflight true] [--json]`
+#### `jeryu release doctor [--version <version>] [--preflight true] [--json]`
 
 Diagnoses what is blocking canary or production for a release version. Reports: `next_action`, `canary_complete`, `prod_complete`, `safe_to_reconcile`, gate artifact presence (C handoff, C validation), and blockers. Optionally runs live preflight checks. If `--version` is omitted, uses the latest known release version.
 
 ### 4.12 Secrets and Vault
 
-#### `vgit secrets init`
+#### `jeryu secrets init`
 
-Bootstraps the vgit-managed Vault, configures KV mount/prefix and records authority.
+Bootstraps the jeryu-managed Vault, configures KV mount/prefix and records authority.
 
-#### `vgit secrets status [--json]`
+#### `jeryu secrets status [--json]`
 
 Shows Vault health and latest release secret-set tracking.
 
-#### `vgit secrets rotate [--repo dougx] --version <version> --target <target>`
+#### `jeryu secrets rotate [--repo dougx] --version <version> --target <target>`
 
 Rotates release-scoped secrets, writes deploy/runtime env handoff files, stores references in Vault, records `release_secret_set`. Only `--repo dougx` is supported.
 
-#### `vgit secrets finalize [--repo dougx] --version <version> --target <target>`
+#### `jeryu secrets finalize [--repo dougx] --version <version> --target <target>`
 
 Marks a secret set finalized after promotion succeeds.
 
-#### `vgit secrets report [--repo dougx] --version <version>`
+#### `jeryu secrets report [--repo dougx] --version <version>`
 
 Regenerates the release handoff report from current artifacts.
 
-#### `vgit secrets recover [--repo dougx] --version <version>`
+#### `jeryu secrets recover [--repo dougx] --version <version>`
 
 Prints recovery instructions for a release bundle.
 
 ### 4.13 Progress
 
-#### `vgit progress [--project-id 2] [--ref-name main] [--json]`
+#### `jeryu progress [--project-id 2] [--ref-name main] [--json]`
 
 Builds a lane-aware CI/release progress report for a ref. Combines tracked pipeline state, GitLab job state, release lane classification, blockers, and release execution status.
 
 ### 4.14 Next Action
 
-#### `vgit next [--project-id 2] [--ref-name main]`
+#### `jeryu next [--project-id 2] [--ref-name main]`
 
-Shows the highest-priority recommended action for the current branch. Checks in order: recent job failures, active pipelines, release gate state, selector misses (7-day window). Prints specific suggested `vgit` commands.
+Shows the highest-priority recommended action for the current branch. Checks in order: recent job failures, active pipelines, release gate state, selector misses (7-day window). Prints specific suggested `jeryu` commands.
 
 ### 4.15 Explain Blocker
 
-#### `vgit explain-blocker <entity_type> <entity_id>`
+#### `jeryu explain-blocker <entity_type> <entity_id>`
 
 Deep-diagnoses why a specific entity is blocked.
 
@@ -411,31 +411,31 @@ Deep-diagnoses why a specific entity is blocked.
 
 ### 4.16 Action List
 
-#### `vgit action list [--json]`
+#### `jeryu action list [--json]`
 
-Lists all registered vgit actions with risk tier, key hint, surfaces, and descriptions. Machine-readable with `--json`. See the Action Registry section for the full list.
+Lists all registered jeryu actions with risk tier, key hint, surfaces, and descriptions. Machine-readable with `--json`. See the Action Registry section for the full list.
 
 ### 4.17 Repo Agent Surface
 
-#### `vgit repo render-agent-index [--check]`
+#### `jeryu repo render-agent-index [--check]`
 
 Generates or checks the machine-readable agent routing index for the repo.
 
-#### `vgit repo audit-agent-surface [--json]`
+#### `jeryu repo audit-agent-surface [--json]`
 
 Audits routing docs, generated index freshness, and agent-facing surfaces.
 
 ### 4.18 Host Operations
 
-#### `vgit host storage-audit`
+#### `jeryu host storage-audit`
 
 Performs a host storage audit.
 
-#### `vgit host doctor [--json]`
+#### `jeryu host doctor [--json]`
 
 Checks host, GitLab, Docker, registry/cache, and runner-cache health. Exits non-zero if unhealthy.
 
-#### `vgit host reclaim --mode aggressive (--plan|--apply)`
+#### `jeryu host reclaim --mode aggressive (--plan|--apply)`
 
 Runs aggressive host reclaim. Only `--mode aggressive` is currently accepted.
 
@@ -443,45 +443,45 @@ Runs aggressive host reclaim. Only `--mode aggressive` is currently accepted.
 
 These are invoked by GitLab Runner when using the `custom` executor. Agents should not call them directly except for driver testing.
 
-#### `vgit exec config`
+#### `jeryu exec config`
 
 Prints custom executor driver config JSON to stdout: `builds_dir=/builds`, `cache_dir=/cache`, `builds_dir_is_shared=false`, driver name/version.
 
-#### `vgit exec prepare`
+#### `jeryu exec prepare`
 
 Prepares sandbox: reads `CUSTOM_ENV_CI_JOB_ID`/`CUSTOM_ENV_CI_PROJECT_DIR`, creates reflink sandbox worktree, seeds honeypot tripwires.
 
-#### `vgit exec run <script_path> <stage>`
+#### `jeryu exec run <script_path> <stage>`
 
 Runs a custom executor stage. Bootstraps tools, initializes DB/epoch/taint/cache brain, computes witnesses, decides cache hits, captures failure capsules, quarantines on tripwire evidence.
 
-#### `vgit exec cleanup`
+#### `jeryu exec cleanup`
 
 Cleans up custom executor state.
 
 ### 4.20 Hidden: Server Hook
 
-#### `vgit server-hook pre-receive`
+#### `jeryu server-hook pre-receive`
 
-Runs the admission controller as a Git pre-receive hook. Reads refs from stdin. V3.01 admission evaluates each update into a versioned decision record (`allow`, `audit`, or `deny`) and persists the result in `admission_decisions` when the state database is available. Agent refs (`refs/heads/agent/*`, `refs/heads/agents/*`, `refs/heads/vgit/*`) are allowed when they match an active `capability_grants` row for the full ref and optional new SHA. Without a matching grant they are audit-only by default; set `VGIT_ADMISSION_ENFORCE=1` to deny agent refs without ledger proof.
+Runs the admission controller as a Git pre-receive hook. Reads refs from stdin. V3.01 admission evaluates each update into a versioned decision record (`allow`, `audit`, or `deny`) and persists the result in `admission_decisions` when the state database is available. Agent refs (`refs/heads/agent/*`, `refs/heads/agents/*`, `refs/heads/jeryu/*`) are allowed when they match an active `capability_grants` row for the full ref and optional new SHA. Without a matching grant they are audit-only by default; set `JERYU_ADMISSION_ENFORCE=1` to deny agent refs without ledger proof.
 
 ### 4.21 Hidden: Capability Server
 
-#### `vgit capability serve <socket_path>`
+#### `jeryu capability serve <socket_path>`
 
 Starts the local Unix domain socket capability API for supervised agents.
 
-#### `vgit mcp serve`
+#### `jeryu mcp serve`
 
 Starts the MCP adapter over stdio. This is a thin JSON-RPC transport wrapper around the capability policy engine.
 
-#### `vgit mcp serve-http`
+#### `jeryu mcp serve-http`
 
 Starts the MCP adapter over Streamable HTTP on the configured loopback bind. The server is local-only, validates loopback `Origin` headers, and assigns ephemeral `Mcp-Session-Id` values at initialization time.
 
-#### `vgit mcp tools [--json]`
+#### `jeryu mcp tools [--json]`
 
-Prints the canonical MCP tool manifest. Tool names are namespaced as `vgit.<action_id>` and each tool reuses the same grant, evidence, and merge/release gates as the capability API.
+Prints the canonical MCP tool manifest. Tool names are namespaced as `jeryu.<action_id>` and each tool reuses the same grant, evidence, and merge/release gates as the capability API.
 
 ---
 
@@ -492,7 +492,7 @@ The engine server binds `0.0.0.0:9777` (configurable via `settings.webhook.bind`
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
 | `GET` | `/health` | none | Returns `ok` |
-| `POST` | `/hooks` | `X-Gitlab-Token` = `VGIT_WEBHOOK_SECRET` | GitLab webhook ingestion |
+| `POST` | `/hooks` | `X-Gitlab-Token` = `JERYU_WEBHOOK_SECRET` | GitLab webhook ingestion |
 | `GET` | `/cache/summary` | none | JSON cache summary |
 
 ### 5.1 `POST /hooks`
@@ -503,7 +503,7 @@ Required headers: `X-Gitlab-Token`, `X-Gitlab-Event`.
 | --- | --- |
 | `Job Hook` | Upserts job event, maybe auto-retries failed job, maybe scales up on pending/created jobs |
 | `Pipeline Hook` | Tracks pipeline status, triggers canary on green main, updates release/prod pipelines, triggers prod promotion after release-execution gates |
-| `Push Hook` | Normalizes ref, skips `vgit-test-*`, cancels superseded pipelines, computes impact plan, records VTI plan |
+| `Push Hook` | Normalizes ref, skips `jeryu-test-*`, cancels superseded pipelines, computes impact plan, records VTI plan |
 | `Merge Request Hook` | Logged; no active behavior yet |
 | other | Logged as unhandled |
 
@@ -523,7 +523,7 @@ For `ref == main` and `status == failed|canceled`: update release/prod pipeline 
 ### 5.4 Push Hook Behavior
 
 1. Normalize `refs/heads/<branch>` to `<branch>`
-2. Skip `vgit-test-*` branches
+2. Skip `jeryu-test-*` branches
 3. Cancel superseded pending/running/created pipelines for older SHAs on same ref
 4. Append `pipeline_superseded` and `pipeline_cancel_requested` events
 5. Run impact analysis
@@ -540,7 +540,7 @@ Returns JSON: `{"bytes_served": N, "hits": N, "objects": N, "status": "healthy"}
 
 Unix domain socket server. One JSON payload → one JSON response. 64 KiB max.
 
-Start: `vgit capability serve /tmp/vgit-capability.sock`
+Start: `jeryu capability serve /tmp/jeryu-capability.sock`
 
 The V3.01 transport accepts either the legacy tagged `AgentIntent` JSON body or an `AgentActionRequest` envelope. New agents should use the envelope, optionally length-prefixed by a 4-byte big-endian frame length:
 
@@ -659,7 +659,7 @@ Single source of truth in `src/tui/action_registry.rs`. Each action has: id, lab
 | `tab_evidence` | Go to Evidence tab | read-only | 8 | TUI | Evidence & Audit ledger |
 | `tab_secrets` | Go to Secrets tab | read-only | 9 | TUI | Vault lifecycle |
 | `toggle_audit_ledger` | Toggle audit ledger | read-only | a | TUI | Toggle capsule/event view in Evidence tab |
-| `quit` | Quit vgit TUI | read-only | q | TUI | Exit TUI |
+| `quit` | Quit jeryu TUI | read-only | q | TUI | Exit TUI |
 
 ---
 
@@ -667,27 +667,27 @@ Single source of truth in `src/tui/action_registry.rs`. Each action has: id, lab
 
 | Control | Command/API | Safety gate |
 | --- | --- | --- |
-| Spawn autonomous task | `vgit agent spawn` | branch/MR workflow |
-| List agent work | `vgit agent list` | project-scoped |
-| Merge MR | `vgit agent merge` | risk gate |
-| Run one test | `vgit test run` | ephemeral branch, optional cache skip |
-| Plan tests | `vgit test plan`, `test select` | read-only |
-| Select external CI jobs | `vgit test select-external` | `.vgit/testmap.toml` |
-| Fetch job logs | `vgit job trace`, TUI log pane | GitLab auth |
-| Retry job | `vgit job retry`, TUI `r` | GitLab auth; TUI only failed jobs |
-| Cancel job/pipeline | `vgit job cancel`, `pipeline cancel` | GitLab auth |
-| Inspect failure evidence | `vgit job explain`, capability `FetchCapsule` | DB evidence |
-| Explain blocker | `vgit explain-blocker` | DB + GitLab reads |
-| Show next action | `vgit next` | DB reads |
-| List all actions | `vgit action list` | static registry |
-| Trigger canary reconciliation | `vgit release reconcile` | release gates |
-| Trigger prod promotion | `vgit release promote-prod` | canary e2e + handoff validation |
-| Run release preflight | `vgit release preflight` | infrastructure checks |
-| Diagnose release | `vgit release doctor` | DB + optional preflight |
-| Rotate release secrets | `vgit secrets rotate` | Vault authority |
-| Finalize release secrets | `vgit secrets finalize` | explicit CLI action |
-| Pause/drain/scale pools | `vgit pool ...` | GitLab runner auth + DB |
-| Reclaim host storage | `vgit host reclaim` | requires `--plan` or `--apply` |
+| Spawn autonomous task | `jeryu agent spawn` | branch/MR workflow |
+| List agent work | `jeryu agent list` | project-scoped |
+| Merge MR | `jeryu agent merge` | risk gate |
+| Run one test | `jeryu test run` | ephemeral branch, optional cache skip |
+| Plan tests | `jeryu test plan`, `test select` | read-only |
+| Select external CI jobs | `jeryu test select-external` | `.jeryu/testmap.toml` |
+| Fetch job logs | `jeryu job trace`, TUI log pane | GitLab auth |
+| Retry job | `jeryu job retry`, TUI `r` | GitLab auth; TUI only failed jobs |
+| Cancel job/pipeline | `jeryu job cancel`, `pipeline cancel` | GitLab auth |
+| Inspect failure evidence | `jeryu job explain`, capability `FetchCapsule` | DB evidence |
+| Explain blocker | `jeryu explain-blocker` | DB + GitLab reads |
+| Show next action | `jeryu next` | DB reads |
+| List all actions | `jeryu action list` | static registry |
+| Trigger canary reconciliation | `jeryu release reconcile` | release gates |
+| Trigger prod promotion | `jeryu release promote-prod` | canary e2e + handoff validation |
+| Run release preflight | `jeryu release preflight` | infrastructure checks |
+| Diagnose release | `jeryu release doctor` | DB + optional preflight |
+| Rotate release secrets | `jeryu secrets rotate` | Vault authority |
+| Finalize release secrets | `jeryu secrets finalize` | explicit CLI action |
+| Pause/drain/scale pools | `jeryu pool ...` | GitLab runner auth + DB |
+| Reclaim host storage | `jeryu host reclaim` | requires `--plan` or `--apply` |
 
 Critical guardrails:
 - Production promotion is not an ad hoc command — it's a GitLab pipeline with `CI_PIPELINE_PRODUCT=production-promotion`.
@@ -731,7 +731,7 @@ Critical guardrails:
 
 ## 10. State API
 
-State is owned by `Db` in `src/state.rs`. Postgres is the preferred backend for concurrent agent fleets and is selected with `VGIT_DATABASE_URL=postgres://...` or `postgresql://...`. SQLite remains the embedded fallback when `VGIT_DATABASE_URL` is absent, and explicit `sqlite:` URLs are supported for tests and development. Callers use `Db` methods — never raw SQL except in state-owned migrations or narrowly scoped backend-neutral helpers.
+State is owned by `Db` in `src/state.rs`. Postgres is the preferred backend for concurrent agent fleets and is selected with `JERYU_DATABASE_URL=postgres://...` or `postgresql://...`. SQLite remains the embedded fallback when `JERYU_DATABASE_URL` is absent, and explicit `sqlite:` URLs are supported for tests and development. Callers use `Db` methods — never raw SQL except in state-owned migrations or narrowly scoped backend-neutral helpers.
 
 ### 10.1 Core Tables
 
@@ -801,7 +801,7 @@ State is owned by `Db` in `src/state.rs`. Postgres is the preferred backend for 
 
 ## 11. Settings API
 
-`src/settings.rs` manages `~/.vgit/settings.json`. Process-wide singleton loaded at startup.
+`src/settings.rs` manages `~/.jeryu/settings.json`. Process-wide singleton loaded at startup.
 
 ### 11.1 Schema
 
@@ -816,7 +816,7 @@ State is owned by `Db` in `src/state.rs`. Postgres is the preferred backend for 
   },
   "vault": {
     "image": "hashicorp/vault:1.17.5",
-    "container_name": "vgit-vault",
+    "container_name": "jeryu-vault",
     "http_port": 18200,
     "mount": "secret",
     "prefix": "veox"
@@ -879,7 +879,7 @@ Key types: `SecretTarget`, `VaultStatusReport`, `RotateSecretOutcome`, `SecretAu
 
 Key functions: `run_secrets_init`, `vault_status`, `rotate_release_secrets`, `finalize_release_secrets`, `build_release_secret_report`, `recover_release_secrets`, `default_release_paths`.
 
-Environment variables: `VGIT_VAULT_ADDR`, `VGIT_VAULT_TOKEN`, `VGIT_VAULT_MOUNT`, `VGIT_VAULT_PREFIX`, `VGIT_RELEASE_REPO_ROOT`.
+Environment variables: `JERYU_VAULT_ADDR`, `JERYU_VAULT_TOKEN`, `JERYU_VAULT_MOUNT`, `JERYU_VAULT_PREFIX`, `JERYU_RELEASE_REPO_ROOT`.
 
 ---
 
@@ -891,30 +891,30 @@ Important surfaces: `SmartCache::start`, `SmartCache::enable`, `SmartCache::doct
 
 ## 16. TUI API Summary
 
-Launch: `vgit tui`. Screenshot capture: `vgit tui --capture --tab jobs --output paper/assets/vgit-tui-jobs-flow.png`. Key actions are defined in the action registry (section 7). Additional TUI-specific controls:
+Launch: `jeryu tui`. Screenshot capture: `jeryu tui --capture --tab jobs --output paper/assets/jeryu-tui-jobs-flow.png`. Key actions are defined in the action registry (section 7). Additional TUI-specific controls:
 
 - `Tab`, arrows: focus/select within pane
 - `Enter` on jobs: open real-time log view
 - `G`/`End`: follow latest logs
 - `Esc`: close overlay / go back
 
-Logs are polled every 650ms, syntax-highlighted, and tail-following. The Flow Board retains non-empty snapshots. Full details in `docs/VGIT_TUI.md`.
+Logs are polled every 650ms, syntax-highlighted, and tail-following. The Flow Board retains non-empty snapshots. Full details in `docs/JERYU_TUI.md`.
 
 ---
 
 ## 17. Environment Variables and Hook Inputs
 
-**Common:** `GITLAB_PAT`, `VGIT_WEBHOOK_SECRET`, `GITLAB_ROOT_PASSWORD`, `VGIT_RELEASE_REPO_ROOT`, `VGIT_DATABASE_URL`, `VGIT_GITLAB_INSECURE_TLS`.
+**Common:** `GITLAB_PAT`, `JERYU_WEBHOOK_SECRET`, `GITLAB_ROOT_PASSWORD`, `JERYU_RELEASE_REPO_ROOT`, `JERYU_DATABASE_URL`, `JERYU_GITLAB_INSECURE_TLS`.
 
-`VGIT_GITLAB_INSECURE_TLS=1` allows invalid GitLab TLS certificates for development-only self-signed HTTPS setups. The default is certificate validation enabled.
+`JERYU_GITLAB_INSECURE_TLS=1` allows invalid GitLab TLS certificates for development-only self-signed HTTPS setups. The default is certificate validation enabled.
 
-**State test override:** `VGIT_TEST_POSTGRES_URL` enables optional Postgres integration smoke tests; normal test runs use in-memory SQLite and skip the Postgres smoke when unset. `just postgres-state-proof` starts a disposable `postgres:16-alpine` container, sets the URL, runs the core state/cache smoke, and removes the container unless `VGIT_KEEP_POSTGRES_PROOF=1`.
+**State test override:** `JERYU_TEST_POSTGRES_URL` enables optional Postgres integration smoke tests; normal test runs use in-memory SQLite and skip the Postgres smoke when unset. `just postgres-state-proof` starts a disposable `postgres:16-alpine` container, sets the URL, runs the core state/cache smoke, and removes the container unless `JERYU_KEEP_POSTGRES_PROOF=1`.
 
-**Vault:** `VGIT_VAULT_ADDR`, `VGIT_VAULT_TOKEN`, `VGIT_VAULT_MOUNT`, `VGIT_VAULT_PREFIX`.
+**Vault:** `JERYU_VAULT_ADDR`, `JERYU_VAULT_TOKEN`, `JERYU_VAULT_MOUNT`, `JERYU_VAULT_PREFIX`.
 
-**Release pipeline variables set by vgit:** `CI_PIPELINE_PRODUCT`, `VGIT_CANARY_APPROVED`, `VGIT_PROD_APPROVED`, `VGIT_UPSTREAM_PIPELINE_ID`, `VGIT_UPSTREAM_BUILD_JOB_ID`, `VGIT_RELEASE_SHA`, `VGIT_RELEASE_VERSION`, `VEOX_PUBLISH_ENCLAVE_REF`.
+**Release pipeline variables set by jeryu:** `CI_PIPELINE_PRODUCT`, `JERYU_CANARY_APPROVED`, `JERYU_PROD_APPROVED`, `JERYU_UPSTREAM_PIPELINE_ID`, `JERYU_UPSTREAM_BUILD_JOB_ID`, `JERYU_RELEASE_SHA`, `JERYU_RELEASE_VERSION`, `VEOX_PUBLISH_ENCLAVE_REF`.
 
-**Custom executor inputs from GitLab Runner:** `CUSTOM_ENV_CI_JOB_ID`, `CUSTOM_ENV_CI_PROJECT_ID`, `CUSTOM_ENV_CI_PROJECT_DIR`, `CUSTOM_ENV_VGIT_FORCE_REFRESH`.
+**Custom executor inputs from GitLab Runner:** `CUSTOM_ENV_CI_JOB_ID`, `CUSTOM_ENV_CI_PROJECT_ID`, `CUSTOM_ENV_CI_PROJECT_DIR`, `CUSTOM_ENV_JERYU_FORCE_REFRESH`.
 
 **Webhook headers:** `X-Gitlab-Token`, `X-Gitlab-Event`.
 
@@ -952,23 +952,23 @@ Logs are polled every 650ms, syntax-highlighted, and tail-following. The Flow Bo
 
 Documentation-only changes:
 ```bash
-cargo check -p vgit --message-format=json
+cargo check -p jeryu --message-format=json
 ```
 
 API/control-surface changes:
 ```bash
-cargo check -p vgit --message-format=json
-cargo test -p vgit -- state release::tests engine test_runner -- --nocapture
-cargo run -p vgit -- repo audit-agent-surface --json
+cargo check -p jeryu --message-format=json
+cargo test -p jeryu -- state release::tests engine test_runner -- --nocapture
+cargo run -p jeryu -- repo audit-agent-surface --json
 ```
 
 TUI changes:
 ```bash
-cargo test -p vgit -- tui -- --nocapture
-cargo run -p vgit -- tui --once
+cargo test -p jeryu -- tui -- --nocapture
+cargo run -p jeryu -- tui --once
 ```
 
 Release automation changes:
 ```bash
-cargo test -p vgit -- state::tests::test_production_pipeline_tracking release::tests -- --nocapture
+cargo test -p jeryu -- state::tests::test_production_pipeline_tracking release::tests -- --nocapture
 ```

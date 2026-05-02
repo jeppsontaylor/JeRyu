@@ -1,5 +1,5 @@
 //! Owner: Cache Gateway subsystem — singleflight deduplication
-//! Proof: `cargo nextest run -p vgit -- gateway::singleflight`
+//! Proof: `cargo nextest run -p jeryu -- gateway::singleflight`
 //! Invariants: Equivalent in-flight requests coalesce without widening authority or hiding failed producers.
 use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;

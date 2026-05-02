@@ -8,15 +8,15 @@ async fn test_job_cycle() -> Result<()> {
     let Some(client) = common::skip_if_not_ready().await? else {
         return Ok(());
     };
-    let db = vgit::state::Db::open().await?;
-    let docker = vgit::docker::DockerCtl::connect()?;
+    let db = jeryu::state::Db::open().await?;
+    let docker = jeryu::docker::DockerCtl::connect()?;
 
     let project = common::create_test_project(&client, "job-test").await?;
     let (pool_name, runner_id) = common::create_ephemeral_pool(&client, &db).await?;
 
     // Scale up an isolated runner so this test does not disturb live pools.
-    vgit::pool::resume_pool(&db, &client, &pool_name).await?;
-    vgit::pool::scale_pool_to(&db, &docker, &client, &pool_name, 1).await?;
+    jeryu::pool::resume_pool(&db, &client, &pool_name).await?;
+    jeryu::pool::scale_pool_to(&db, &docker, &client, &pool_name, 1).await?;
 
     let ci_yaml = r#"
 test_retry:

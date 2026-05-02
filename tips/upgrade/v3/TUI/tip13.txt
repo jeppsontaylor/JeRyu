@@ -12,7 +12,7 @@ Right now, the API is too coarse and mostly request/response; the TUI is too sta
 
 ### Current TUI shape
 
-The CLI exposes `vgit tui` with one-shot capture support, specific tabs, output sizing, and capture targets including mission, release, jobs, agents, tests, pools, cache, evidence, and secrets. That is a very good foundation because it means the TUI can be regression-tested visually and used in demos/docs without an interactive terminal. ([GitHub][1])
+The CLI exposes `jeryu tui` with one-shot capture support, specific tabs, output sizing, and capture targets including mission, release, jobs, agents, tests, pools, cache, evidence, and secrets. That is a very good foundation because it means the TUI can be regression-tested visually and used in demos/docs without an interactive terminal. ([GitHub][1])
 
 The TUI runtime uses Ratatui-style terminal rendering, raw mode, alternate screen, mouse capture, a background sync loop, and a deterministic PNG capture renderer. The event loop already supports tab navigation, command palette activation, log opening, retry/delete/pause actions, audit toggling, test view toggles, and number-key tab switching. ([GitHub][2])
 
@@ -1141,7 +1141,7 @@ GET /v1/events?cursor=...
 or:
 
 ```text
-vgit capability subscribe-events
+jeryu capability subscribe-events
 ```
 
 The TUI should render from events, not just polling.
@@ -1425,10 +1425,10 @@ approve/deny/edit
 The existing TUI capture mode is excellent. Expand it into:
 
 ```text
-vgit tui capture --scenario blocked-merge
-vgit tui capture --scenario healthy-release
-vgit tui capture --scenario agent-race
-vgit tui capture --scenario cache-taint
+jeryu tui capture --scenario blocked-merge
+jeryu tui capture --scenario healthy-release
+jeryu tui capture --scenario agent-race
+jeryu tui capture --scenario cache-taint
 ```
 
 Then keep visual golden tests for UI regressions.

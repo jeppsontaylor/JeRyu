@@ -1,4 +1,4 @@
-I reviewed only the **current API and TUI surfaces** this time: `docs/API.md`, `docs/VGIT_TUI.md`, `src/cli.rs`, `src/capability.rs`, `src/tui/*`, and the flow/action-registry modules. I could not clone via `git` from the container because DNS resolution for GitHub failed, so I used the live raw repo files and downloaded the relevant API/TUI source snapshot. I did **not** run `cargo check` or the test suite.
+I reviewed only the **current API and TUI surfaces** this time: `docs/API.md`, `docs/JERYU_TUI.md`, `src/cli.rs`, `src/capability.rs`, `src/tui/*`, and the flow/action-registry modules. I could not clone via `git` from the container because DNS resolution for GitHub failed, so I used the live raw repo files and downloaded the relevant API/TUI source snapshot. I did **not** run `cargo check` or the test suite.
 
 ## Executive verdict
 
@@ -262,7 +262,7 @@ Every API response should use the same envelope:
 
 ```json
 {
-  "schema_version": "vgit.response.v1",
+  "schema_version": "jeryu.response.v1",
   "request_id": "req_...",
   "generated_at": "2026-04-27T12:00:00Z",
   "freshness_ms": 312,
@@ -385,7 +385,7 @@ I would redesign the whole TUI around a persistent four-region layout:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ vgit  repo/main@abc123  Fresh 0.8s  GitLab OK  Runners 7/9  Agents 4        │
+│ jeryu  repo/main@abc123  Fresh 0.8s  GitLab OK  Runners 7/9  Agents 4        │
 │ Merge BLOCKED: missing security/auth proof   Release READY   Next: Run proof │
 ├───────────────┬──────────────────────────────────────────────┬───────────────┤
 │ Navigation    │ Main Canvas                                  │ Inspector     │
@@ -428,7 +428,7 @@ Is the data fresh?
 Example:
 
 ```text
-vgit  my-repo main@abc123  Fresh 0.7s
+jeryu  my-repo main@abc123  Fresh 0.7s
 Merge: BLOCKED(2)  Release: CANARY OK  Agents: 4 active  CI: 73%  Cache: 81% hit
 Next: Run SecurityAudit(auth)  [Enter]
 ```
@@ -1158,7 +1158,7 @@ The best TUI should feel like this:
 A possible top-level view:
 
 ```text
-vgit  JeRyu/main@abc123  Fresh 0.6s  GitLab OK  Runners 7/9  Cache 82%
+jeryu  JeRyu/main@abc123  Fresh 0.6s  GitLab OK  Runners 7/9  Cache 82%
 Merge: BLOCKED(2)  Release: READY  Agents: 4 active, 1 blocked
 Next: Run SecurityAudit(auth)  Why: auth/session.rs changed
 
@@ -1215,7 +1215,7 @@ That is the kind of TUI I would want as an agent operator.
 4. Add layout profiles: compact, wide, presentation, SSH-safe.
 5. Add search across all entities.
 6. Add user-configurable dashboards.
-7. Add TUI snapshot export: `vgit tui snapshot --json`.
+7. Add TUI snapshot export: `jeryu tui snapshot --json`.
 8. Add screen recording/capture improvements for demos.
 9. Add diff/evidence side-by-side view.
 10. Add “operator replay”: browse historical UI state at a previous time.
@@ -1235,7 +1235,7 @@ to:
 That is what GitHub/GitLab do not have. The API should feed that directly. The TUI should make it impossible to miss what matters, easy to understand why something happened, and safe to act on it.
 
 [1]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/API.md "raw.githubusercontent.com"
-[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [3]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/flow/builder.rs "raw.githubusercontent.com"
 [4]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/flow/widget.rs "raw.githubusercontent.com"
 [5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/tui/flow/eta.rs "raw.githubusercontent.com"

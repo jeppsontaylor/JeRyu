@@ -111,7 +111,7 @@ Agent-first development changes the bottleneck. Code generation is no longer the
 
 JeRyu is designed around that gap. Instead of making an agent imitate a human in a browser, it gives agents typed control surfaces: capability intents, validation planning, job traces, failure capsules, merge readiness, release status, cache verdicts, runner pools, and a TUI that exposes the same state to human supervisors. The long-term claim is not that agents should receive unrestricted control. It is that agents should receive bounded authority and produce durable evidence for every action that matters.
 
-This paper describes the V3.01 direction for JeRyu. It uses the repository itself as the artifact under study: a Rust workspace with a \texttt{vgit} binary, proof-scoped support crates, GitLab-oriented orchestration, VTI smart test selection, a capability API, a Ratatui console, and deterministic paper screenshots. The contribution is a control-plane pattern for agent-first development:
+This paper describes the V3.01 direction for JeRyu. It uses the repository itself as the artifact under study: a Rust workspace with a \texttt{jeryu} binary, proof-scoped support crates, GitLab-oriented orchestration, VTI smart test selection, a capability API, a Ratatui console, and deterministic paper screenshots. The contribution is a control-plane pattern for agent-first development:
 
 \begin{enumerate}
 \item a proof loop that connects intent, policy, validation, evidence, and merge or release decisions;
@@ -141,7 +141,7 @@ Legacy Git forges were built around human-paced pull requests, human-scoped cred
 The paper's central claim is therefore structural. Future developers will not keep pace with AI by waiting for hosted legacy platforms to retrofit every proof boundary. They need an open-source, agent-first substrate where validation and authority are first-class product concepts rather than conventions around a pull request. JeRyu keeps GitLab compatibility where useful, but places the agent proof loop under local, inspectable control.
 
 \section{Architecture}
-JeRyu is a Rust workspace with a \texttt{vgit} binary and proof-scoped support crates. The control plane includes CLI and TUI surfaces, a Unix-socket capability API, GitLab webhook ingestion, Postgres-primary state with SQLite fallback, runner pools, custom executor hooks, VTI, release gates, and proof-routing utilities. It consumes GitLab concepts such as pipelines, runners, custom executors, protected branches, and CI artifacts \cite{gitlab-ci-docs,gitlab-runners-docs,gitlab-custom-executor,gitlab-protected-branches}. It also interoperates conceptually with GitHub-style workflow constraints and branch protection semantics \cite{github-actions-docs,github-branch-protection}.
+JeRyu is a Rust workspace with a \texttt{jeryu} binary and proof-scoped support crates. The control plane includes CLI and TUI surfaces, a Unix-socket capability API, GitLab webhook ingestion, Postgres-primary state with SQLite fallback, runner pools, custom executor hooks, VTI, release gates, and proof-routing utilities. It consumes GitLab concepts such as pipelines, runners, custom executors, protected branches, and CI artifacts \cite{gitlab-ci-docs,gitlab-runners-docs,gitlab-custom-executor,gitlab-protected-branches}. It also interoperates conceptually with GitHub-style workflow constraints and branch protection semantics \cite{github-actions-docs,github-branch-protection}.
 
 \begin{figure}[t]
 \centering
@@ -168,7 +168,7 @@ V3.01 treats repository structure as a proof-routing surface. The workspace cont
 This matters because an agent often needs two kinds of knowledge. The first is semantic knowledge about code. The second is procedural knowledge about how to prove a change. Public assistants focus heavily on the former. JeRyu makes the latter explicit. A change under \texttt{src/secrets.rs} is not merely a Rust edit; it is a security-relevant proof lane. A change under \texttt{src/test\_intel/} is not merely a module edit; it can affect selector correctness and should widen validation. This repository-level proof routing complements CI systems rather than duplicating them \cite{gitlab-ci-docs,github-actions-docs}.
 
 \section{VTI: Validation Test Intelligence}
-VTI is the core latency reducer. The current internal planner maps changed paths to subsystems, applies global invalidators, identifies docs-only changes, selects unit and integration tests, and falls back to full validation when paths are unmapped or confidence is low. External repositories can provide \texttt{.vgit/testmap.toml}. V3.01 makes the conservative boundary sharper: unknown files force full validation; recursive subsystem patterns cover nested modules; selector misses become scoped evidence; and each skipped test must have a reason that a merge gate can inspect.
+VTI is the core latency reducer. The current internal planner maps changed paths to subsystems, applies global invalidators, identifies docs-only changes, selects unit and integration tests, and falls back to full validation when paths are unmapped or confidence is low. External repositories can provide \texttt{.jeryu/testmap.toml}. V3.01 makes the conservative boundary sharper: unknown files force full validation; recursive subsystem patterns cover nested modules; selector misses become scoped evidence; and each skipped test must have a reason that a merge gate can inspect.
 
 Selective validation is valuable only when the skipped work is explained. Classical regression test selection and prioritization show that reduction must be balanced against fault-detection risk \cite{regression-test-selection-survey,safe-regression-test-selection,test-prioritization}. JeRyu therefore represents VTI as a proof generator, not an optimization flag. A VTI plan should say: these files changed; these subsystems are affected; these tests were selected; these tests were skipped; this skip is justified by path ownership, dependency information, and historical evidence; this unknown path caused full fallback.
 
@@ -269,50 +269,50 @@ To support publication and review, V3.01 uses two capture modes:
 \begin{lstlisting}[basicstyle=\ttfamily\footnotesize]
 ./scripts/capture-tui-screenshots.sh
 just tui-screenshot-smoke
-vgit tui --capture --tab jobs \
-  --output paper/assets/vgit-tui-jobs-flow.png
+jeryu tui --capture --tab jobs \
+  --output paper/assets/jeryu-tui-jobs-flow.png
 \end{lstlisting}
 
-The publication pipeline uses \texttt{vgit tui --screenshot} inside a real PTY and captures the terminal screen before alternate-screen cleanup. A dedicated \texttt{tui-capture} utility parses the terminal byte stream with a VT parser, validates that the selected font supports box drawing and block glyphs, and renders PNGs with fixed geometry, DejaVu Sans Mono, a lifted dark background, and brightened colors. This avoids browser, SVG, ANSI-to-image, and window-manager font fallback artifacts. The deterministic path remains useful for CI reproducibility. In both modes, screenshots are evidence artifacts backed by demo state snapshots.
+The publication pipeline uses \texttt{jeryu tui --screenshot} inside a real PTY and captures the terminal screen before alternate-screen cleanup. A dedicated \texttt{tui-capture} utility parses the terminal byte stream with a VT parser, validates that the selected font supports box drawing and block glyphs, and renders PNGs with fixed geometry, DejaVu Sans Mono, a lifted dark background, and brightened colors. This avoids browser, SVG, ANSI-to-image, and window-manager font fallback artifacts. The deterministic path remains useful for CI reproducibility. In both modes, screenshots are evidence artifacts backed by demo state snapshots.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{assets/vgit-tui-jobs-flow.png}
+\includegraphics[width=\linewidth]{assets/jeryu-tui-jobs-flow.png}
 \caption{TUI Jobs/Flow capture showing pipeline flow, live jobs, logs, and events.}
 \label{fig:tui-flow}
 \end{figure}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{assets/vgit-tui-tests-vti.png}
+\includegraphics[width=\linewidth]{assets/jeryu-tui-tests-vti.png}
 \caption{TUI Tests/VTI capture showing selected validation, recent test intelligence, and history context.}
 \label{fig:tui-vti}
 \end{figure}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{assets/vgit-tui-evidence.png}
+\includegraphics[width=\linewidth]{assets/jeryu-tui-evidence.png}
 \caption{TUI Evidence capture showing the audit/capsule surface that should become the human-readable proof ledger.}
 \label{fig:tui-evidence}
 \end{figure}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{assets/vgit-tui-release.png}
+\includegraphics[width=\linewidth]{assets/jeryu-tui-release.png}
 \caption{TUI Release capture showing the release gate matrix and rollout status surfaces.}
 \label{fig:tui-release}
 \end{figure}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{assets/vgit-tui-mission.png}
+\includegraphics[width=\linewidth]{assets/jeryu-tui-mission.png}
 \caption{TUI Mission capture showing action-first Mission Control with top signal, readiness, proof stack, attention queue, and next actions.}
 \label{fig:tui-mission}
 \end{figure}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{assets/vgit-tui-agents.png}
+\includegraphics[width=\linewidth]{assets/jeryu-tui-agents.png}
 \caption{TUI Agents capture showing the Agent Cockpit with session phase, progress, branch/SHA, grants, timeline, and action guidance.}
 \label{fig:tui-agents}
 \end{figure}

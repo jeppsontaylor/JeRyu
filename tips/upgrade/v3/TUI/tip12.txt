@@ -10,7 +10,7 @@ My strong conclusion: the current TUI is already pointed in the right direction,
 
 The API docs describe several surfaces: CLI, TUI, webhook HTTP server, Unix-socket capability API, Git server hook, custom executor, action registry, state API, settings API, GitLab REST client, release API, and secrets API. That is a strong foundation because the product is not treating the TUI as a thin afterthought; it already has agent actions, grants, state, release, and evidence concepts exposed through multiple surfaces. ([GitHub][1])
 
-The TUI currently supports `vgit tui`, a smoke-render mode, and deterministic PNG capture for tabs including `mission`, `release`, `jobs`, `agents`, `tests`, `pools`, `cache`, `evidence`, and `secrets`. The source confirms a nine-tab model: Mission, Release, Jobs, Agents, Tests, Pools, Cache, Evidence, and Secrets, with Jobs as the default tab. ([GitHub][2])
+The TUI currently supports `jeryu tui`, a smoke-render mode, and deterministic PNG capture for tabs including `mission`, `release`, `jobs`, `agents`, `tests`, `pools`, `cache`, `evidence`, and `secrets`. The source confirms a nine-tab model: Mission, Release, Jobs, Agents, Tests, Pools, Cache, Evidence, and Secrets, with Jobs as the default tab. ([GitHub][2])
 
 The TUI implementation is Ratatui/crossterm-based, uses raw mode and alternate screen, and runs background refresh workers for general state, flow collection, and live log polling. The docs say the general snapshot refresh runs around every 1.5 seconds and live logs are polled around every 650ms rather than streamed over websocket/SSE. ([GitHub][2])
 
@@ -24,7 +24,7 @@ The action registry is one of the best current pieces. It defines action metadat
 
 # 2. Biggest missing piece: a realtime UI API
 
-The current TUI appears to directly own DB/Docker/GitLab clients and runs its own background workers. That makes sense for an early Rust control-plane TUI, but for a world-class UX it should become a **thin realtime client** over a typed `vgitd` API.
+The current TUI appears to directly own DB/Docker/GitLab clients and runs its own background workers. That makes sense for an early Rust control-plane TUI, but for a world-class UX it should become a **thin realtime client** over a typed `jeryud` API.
 
 Right now the TUI is partly snapshot-based and partly polling-based. Logs are pulled from GitLab traces on an interval, the general snapshot refresh is periodic, and GitLab webhook handling records some events while MR hooks are still logged rather than fully acted on. ([GitHub][4])
 
@@ -231,7 +231,7 @@ The UI should make those questions answerable within one or two keystrokes.
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ vgit ◉ HEALTHY  GitLab OK  Runners 8/12  Agents 4  Queue 11  Release HELD   │
+│ jeryu ◉ HEALTHY  GitLab OK  Runners 8/12  Agents 4  Queue 11  Release HELD   │
 ├───────────────┬─────────────────────────────────────────────┬────────────────┤
 │ NOW           │ MAIN CANVAS                                 │ INSPECTOR      │
 │               │                                             │                │
@@ -541,17 +541,17 @@ Use color hierarchy carefully. Not everything should be bright. Only urgent item
 Add theme support:
 
 ```text
-vgit tui --theme dark
-vgit tui --theme light
-vgit tui --theme high-contrast
-vgit tui --theme colorblind
-vgit tui --theme monochrome
+jeryu tui --theme dark
+jeryu tui --theme light
+jeryu tui --theme high-contrast
+jeryu tui --theme colorblind
+jeryu tui --theme monochrome
 ```
 
 Also add ASCII fallback:
 
 ```text
-vgit tui --ascii
+jeryu tui --ascii
 ```
 
 ---
@@ -969,7 +969,7 @@ Likely cause
 Schema drift between generated OpenAPI and handler response.
 
 Repro
-vgit capsule repro cap_184
+jeryu capsule repro cap_184
 
 Recommended actions
 1. Explain blocker
@@ -1135,7 +1135,7 @@ Fix with generated docs:
 * Add “TUI capability report” command:
 
 ```text
-vgit tui capabilities --json
+jeryu tui capabilities --json
 ```
 
 Output:
@@ -1213,7 +1213,7 @@ This helps humans and agents know what the current TUI can actually do.
 
 # 18. The dream TUI behavior
 
-A user opens `vgit tui`.
+A user opens `jeryu tui`.
 
 They do **not** see a generic job dashboard.
 
@@ -1270,7 +1270,7 @@ The next leap is to stop thinking of the TUI as “a terminal dashboard for GitL
 That requires two big API moves: a typed realtime event stream and a universal action/explanation API. Once those exist, the TUI can become dramatically more intuitive, visual, safe, and useful.
 
 [1]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/API.md "raw.githubusercontent.com"
-[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [3]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/tui/ui.rs "JeRyu/src/tui/ui.rs at main · jeppsontaylor/JeRyu · GitHub"
 [4]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/tui/app.rs "JeRyu/src/tui/app.rs at main · jeppsontaylor/JeRyu · GitHub"
 [5]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/tui/flow/model.rs "JeRyu/src/tui/flow/model.rs at main · jeppsontaylor/JeRyu · GitHub"

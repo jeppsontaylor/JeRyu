@@ -1,5 +1,5 @@
 //! Owner: Trust Policy (TrustTier, Cache Promotion Gates)
-//! Proof: `cargo test -p vgit -- policy`
+//! Proof: `cargo test -p jeryu -- policy`
 //! Invariants: PolicyEngine::can_consume is the single gate for cache promotion across trust boundaries; higher-trust tier may not consume lower-trust output without explicit approval
 
 use serde::{Deserialize, Serialize};

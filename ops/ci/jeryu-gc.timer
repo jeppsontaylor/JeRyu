@@ -1,5 +1,5 @@
 [Unit]
-Description=Run Vgit SmartCache GC every 6 hours
+Description=Run Jeryu SmartCache GC every 6 hours
 
 [Timer]
 OnBootSec=15min

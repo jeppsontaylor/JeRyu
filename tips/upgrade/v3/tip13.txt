@@ -1,6 +1,6 @@
 ## Executive verdict
 
-JeRyu is **not a literal GitLab fork** in the sense of replacing GitLab’s Rails/Gitaly/web product. It is closer to a **Rust “headless GitLab” control plane** called `vgit`: a single-binary orchestrator around GitLab CE, GitLab Runner, custom executors, agent branches, evidence capture, test intelligence, release gates, secrets, and a Ratatui terminal interface. That is actually a better direction for “agent-first Git” than trying to fork all of GitLab. The README frames it as a Rust control plane with no Web UI, autonomous runner/pool management, disposable sandboxes, ephemeral bot users, semantic CI/CD, and cache/memory tuning. ([GitHub][1])
+JeRyu is **not a literal GitLab fork** in the sense of replacing GitLab’s Rails/Gitaly/web product. It is closer to a **Rust “headless GitLab” control plane** called `jeryu`: a single-binary orchestrator around GitLab CE, GitLab Runner, custom executors, agent branches, evidence capture, test intelligence, release gates, secrets, and a Ratatui terminal interface. That is actually a better direction for “agent-first Git” than trying to fork all of GitLab. The README frames it as a Rust control plane with no Web UI, autonomous runner/pool management, disposable sandboxes, ephemeral bot users, semantic CI/CD, and cache/memory tuning. ([GitHub][1])
 
 I could not perform a normal `git clone` inside the container because DNS resolution to GitHub failed, but I inspected the public GitHub repo, raw source, docs, module listings, and downloaded a large set of source files individually. The local files I inspected included roughly **26k+ lines of Rust** across `src/`, `src/test_intel/`, `src/tui/`, and `src/gateway/`, plus repo docs and large raw modules via GitHub.
 
@@ -204,7 +204,7 @@ If semantic CI/CD depends on push hooks, enable `push_events` or create a separa
 
 ### Fix 6: Make config errors fail closed
 
-If `~/.vgit/settings.json` exists and cannot be parsed, refuse to start the control plane unless the user passes an explicit recovery flag. Also log the failing path, validation error, and safe recovery command.
+If `~/.jeryu/settings.json` exists and cannot be parsed, refuse to start the control plane unless the user passes an explicit recovery flag. Also log the failing path, validation error, and safe recovery command.
 
 ### Fix 7: Stop runtime apt installs in executors
 

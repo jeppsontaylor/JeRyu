@@ -6,7 +6,7 @@ Below is my best feedback, broken into: major gaps, agent “dream access,” is
 
 # Executive Take
 
-`vgit` is already much more than a CLI wrapper. It has the foundations of a serious agent-operable CI/CD control plane:
+`jeryu` is already much more than a CLI wrapper. It has the foundations of a serious agent-operable CI/CD control plane:
 
 * Typed release gates.
 * Smart test selection.
@@ -107,18 +107,18 @@ The dream API would not be a generic shell escape. It would be a typed, auditabl
 The system already has powerful commands:
 
 ```bash
-vgit pipeline explain
-vgit pipeline doctor
-vgit progress
-vgit job explain
-vgit test select
-vgit test failed
-vgit test impact
-vgit release status
-vgit secrets status
-vgit cache doctor
-vgit host doctor
-vgit repo audit-agent-surface
+jeryu pipeline explain
+jeryu pipeline doctor
+jeryu progress
+jeryu job explain
+jeryu test select
+jeryu test failed
+jeryu test impact
+jeryu release status
+jeryu secrets status
+jeryu cache doctor
+jeryu host doctor
+jeryu repo audit-agent-surface
 ```
 
 But the TUI mostly shows:
@@ -307,7 +307,7 @@ That kind of explicit “why not?” explanation would make the system feel magi
 The system has a serious VTI/test intelligence layer:
 
 * Impact planning.
-* External `.vgit/testmap.toml`.
+* External `.jeryu/testmap.toml`.
 * Selected/skipped jobs.
 * Selector misses.
 * Test bottlenecks.
@@ -515,7 +515,7 @@ Return something explicit:
   "message": "Intent is recognized but not implemented",
   "data": {
     "implemented": false,
-    "recommended_surface": "vgit agent spawn"
+    "recommended_surface": "jeryu agent spawn"
   }
 }
 ```
@@ -538,10 +538,10 @@ But “success” should not imply action.
 The CLI has:
 
 ```bash
-vgit shadow sync-now --source <dir>
+jeryu shadow sync-now --source <dir>
 ```
 
-But it only tells the user to ensure `vgit serve` is running.
+But it only tells the user to ensure `jeryu serve` is running.
 
 That is confusing because the command name implies an immediate action.
 
@@ -550,7 +550,7 @@ Recommendation:
 Either implement it or rename it to something like:
 
 ```bash
-vgit shadow request-sync
+jeryu shadow request-sync
 ```
 
 with explicit behavior.
@@ -773,7 +773,7 @@ A dream implementation:
     ],
     "validation": {
       "tests": [
-        "cargo test -p vgit -- release::tests -- --nocapture"
+        "cargo test -p jeryu -- release::tests -- --nocapture"
       ]
     }
   }
@@ -856,7 +856,7 @@ Or:
 ```text
 Production promotion is safe to request.
 All gates passed.
-Triggering vgit release promote-prod...
+Triggering jeryu release promote-prod...
 ```
 
 ---
@@ -899,7 +899,7 @@ I would redesign the TUI as a **developer command center** rather than a dashboa
 Name it mentally:
 
 ```text
-vgit Mission Control
+jeryu Mission Control
 ```
 
 The layout should be optimized around real-time operational questions.
@@ -912,7 +912,7 @@ A dream layout:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ vgit Mission Control | ONLINE | main@fa51a52 | Release ci-fa51a52 | SAFE     │
+│ jeryu Mission Control | ONLINE | main@fa51a52 | Release ci-fa51a52 | SAFE     │
 │ GitLab ✓  Runners 7/8 ✓  Cache ✓  Vault ✓  Disk 62% ✓  Prod locked 🔒        │
 ├───────────────┬──────────────────────────────────────────────┬───────────────┤
 │ NAV           │ REAL-TIME FLOW / DAG                         │ INSPECTOR     │
@@ -982,7 +982,7 @@ Is anything urgent?
 Example:
 
 ```text
-vgit Mission Control  ONLINE
+jeryu Mission Control  ONLINE
 Project dougx #2  main@fa51a52
 Release ci-fa51a52  Canary: E2E-PASSED  Prod: READY
 GitLab ✓  Runners ✓  Cache ✓  Vault ✓  Disk 62% ✓
@@ -991,7 +991,7 @@ GitLab ✓  Runners ✓  Cache ✓  Vault ✓  Disk 62% ✓
 For blocked state:
 
 ```text
-vgit Mission Control  ONLINE
+jeryu Mission Control  ONLINE
 main@fa51a52  Release ci-fa51a52
 Canary: FAILED  Prod: BLOCKED
 Blocker: integration-e2e failed, classified Regression
@@ -1200,7 +1200,7 @@ With fuzzy commands:
 :doctor pipeline 530
 :retry job 14445
 :trace job 14445
-:run test cargo test -p vgit -- release::tests
+:run test cargo test -p jeryu -- release::tests
 :test select --base origin/main --head HEAD
 :release reconcile
 :release promote-prod
@@ -1415,7 +1415,7 @@ suggested tests
 agent repair action
 ```
 
-This would be the natural home for `vgit job explain`.
+This would be the natural home for `jeryu job explain`.
 
 ---
 
@@ -1573,7 +1573,7 @@ Example:
 
 ```text
 Vault: healthy
-Authority: vgit-vault
+Authority: jeryu-vault
 Mount: secret
 Prefix: veox
 
@@ -1690,7 +1690,7 @@ This should be visible without running a separate CLI command.
 For smart CI to be trusted, the UI must show:
 
 ```text
-Why did vgit run these tests?
+Why did jeryu run these tests?
 Why did it skip others?
 What risk did it accept?
 ```
@@ -2011,7 +2011,7 @@ Critical path is integration-e2e. Estimated remaining time: 6m20s.
 Runner pool untrusted is saturated.
 ```
 
-That sentence should appear at the top of the TUI, in CLI `vgit progress`, and in the capability API.
+That sentence should appear at the top of the TUI, in CLI `jeryu progress`, and in the capability API.
 
 That is the “developer dream” experience: not just seeing the system, but understanding it instantly.
 

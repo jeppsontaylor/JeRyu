@@ -1,5 +1,5 @@
 //! Owner: Cache Gateway subsystem — Git objects proxy
-//! Proof: `cargo nextest run -p vgit -- gateway::git`
+//! Proof: `cargo nextest run -p jeryu -- gateway::git`
 //! Invariants: Git object reuse remains content-addressed and scoped to the requesting namespace.
 use anyhow::Result;
 use std::path::{Path, PathBuf};

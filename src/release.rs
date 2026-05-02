@@ -1,5 +1,5 @@
 //! Owner: Release Pipeline
-//! Proof: `cargo test -p vgit -- release`
+//! Proof: `cargo test -p jeryu -- release`
 //! Invariants: Exact-SHA evidence matching, canary gate ladder, immutable evidence dirs
 
 use anyhow::{Context, Result};
@@ -568,7 +568,7 @@ async fn apply_vti_skipped_statuses(
         .filter(|job| job.name == "plan-tests" && job.status == "success")
     {
         let Ok(raw) = client
-            .job_artifact_file(project_id, job.id, "target/vgit/vti-skipped.json")
+            .job_artifact_file(project_id, job.id, "target/jeryu/vti-skipped.json")
             .await
         else {
             continue;
@@ -1158,7 +1158,7 @@ pub fn render_release_status_text(report: &ReleaseStatusReport) -> String {
     let mut out = String::new();
     use std::fmt::Write as _;
 
-    let _ = writeln!(out, "━━━ vgit release status ━━━");
+    let _ = writeln!(out, "━━━ jeryu release status ━━━");
     let _ = writeln!(
         out,
         "  Scope:      {}",
@@ -1625,7 +1625,7 @@ pub fn render_progress_text(report: &ProgressReport) -> String {
     let mut out = String::new();
     use std::fmt::Write as _;
 
-    let _ = writeln!(out, "━━━ vgit progress ━━━");
+    let _ = writeln!(out, "━━━ jeryu progress ━━━");
     let _ = writeln!(out, "  Generated:         {}", report.generated_at);
     let _ = writeln!(out, "  Ref:               {}", report.ref_name);
     let _ = writeln!(
@@ -2027,12 +2027,12 @@ pub async fn trigger_production_promotion(
         .unwrap_or_default();
     let mut trigger_vars = vec![
         ("CI_PIPELINE_PRODUCT", "production-promotion"),
-        ("VGIT_PROD_APPROVED", "1"),
-        ("VGIT_RELEASE_SHA", sha.as_str()),
-        ("VGIT_RELEASE_VERSION", release_version.as_str()),
+        ("JERYU_PROD_APPROVED", "1"),
+        ("JERYU_RELEASE_SHA", sha.as_str()),
+        ("JERYU_RELEASE_VERSION", release_version.as_str()),
     ];
     if !release_pipeline_id_str.is_empty() {
-        trigger_vars.push(("VGIT_RELEASE_PIPELINE_ID", release_pipeline_id_str.as_str()));
+        trigger_vars.push(("JERYU_RELEASE_PIPELINE_ID", release_pipeline_id_str.as_str()));
     }
     let pipeline_id = client
         .trigger_pipeline(project_id, ref_name, trigger_vars)
@@ -2194,7 +2194,7 @@ async fn production_promotion_pipeline_id(
 pub fn render_pipeline_explain_text(report: &PipelineExplainReport) -> String {
     let mut out = String::new();
     use std::fmt::Write as _;
-    let _ = writeln!(out, "━━━ vgit pipeline explain ━━━");
+    let _ = writeln!(out, "━━━ jeryu pipeline explain ━━━");
     let _ = writeln!(out, "  Pipeline:          {}", report.pipeline_id);
     let _ = writeln!(
         out,
@@ -2405,7 +2405,7 @@ pub async fn build_pipeline_doctor_report(
 pub fn render_pipeline_doctor_text(report: &PipelineDoctorReport) -> String {
     let mut out = String::new();
     use std::fmt::Write as _;
-    let _ = writeln!(out, "━━━ vgit pipeline doctor ━━━");
+    let _ = writeln!(out, "━━━ jeryu pipeline doctor ━━━");
     let _ = writeln!(out, "  Pipeline: {}", report.pipeline_id);
     let _ = writeln!(
         out,
@@ -2857,13 +2857,13 @@ pub async fn launch_canary_for_green_pipeline(
         .trigger_pipeline(project_id, ref_name, {
             let mut variables = vec![
                 ("CI_PIPELINE_PRODUCT", "release-execution"),
-                ("VGIT_CANARY_APPROVED", "1"),
-                ("VGIT_UPSTREAM_PIPELINE_ID", upstream_pipeline_id.as_str()),
-                ("VGIT_RELEASE_SHA", sha),
-                ("VGIT_RELEASE_VERSION", version.as_str()),
+                ("JERYU_CANARY_APPROVED", "1"),
+                ("JERYU_UPSTREAM_PIPELINE_ID", upstream_pipeline_id.as_str()),
+                ("JERYU_RELEASE_SHA", sha),
+                ("JERYU_RELEASE_VERSION", version.as_str()),
             ];
             if let Some(job_id) = upstream_build_job_id.as_deref() {
-                variables.push(("VGIT_UPSTREAM_BUILD_JOB_ID", job_id));
+                variables.push(("JERYU_UPSTREAM_BUILD_JOB_ID", job_id));
             }
             if let Some(image_ref) = upstream_enclave_image_ref.as_deref() {
                 variables.push(("VEOX_PUBLISH_ENCLAVE_REF", image_ref));
@@ -3040,7 +3040,7 @@ pub async fn release_preflight(ssh_host: Option<&str>) -> PreflightReport {
             code: "VAULT_UNREACHABLE".to_string(),
             component: "vault".to_string(),
             detail: format!("Vault health check failed at {vault_url}"),
-            recommended_action: "run: vgit cache doctor; check vault container is running"
+            recommended_action: "run: jeryu cache doctor; check vault container is running"
                 .to_string(),
         });
     }
@@ -3063,7 +3063,7 @@ pub async fn release_preflight(ssh_host: Option<&str>) -> PreflightReport {
             code: "REGISTRY_UNREACHABLE".to_string(),
             component: "registry-mirror".to_string(),
             detail: format!("registry mirror TCP connect to 127.0.0.1:{registry_port} failed"),
-            recommended_action: "run: vgit serve (starts registry mirror)".to_string(),
+            recommended_action: "run: jeryu serve (starts registry mirror)".to_string(),
         });
     }
 
@@ -3088,7 +3088,7 @@ pub async fn release_preflight(ssh_host: Option<&str>) -> PreflightReport {
                         "root disk only has {} free",
                         crate::cache::human_bytes(usage.available_bytes)
                     ),
-                    recommended_action: "run: vgit cache status --json; then vgit cache gc --json --keep-active-managers=false --max-cache-gb 20".to_string(),
+                    recommended_action: "run: jeryu cache status --json; then jeryu cache gc --json --keep-active-managers=false --max-cache-gb 20".to_string(),
                 });
                 false
             } else if usage.available_bytes < DISK_CRITICAL_FREE_BYTES {
@@ -3106,7 +3106,7 @@ pub async fn release_preflight(ssh_host: Option<&str>) -> PreflightReport {
                         "root disk only has {} free",
                         crate::cache::human_bytes(usage.available_bytes)
                     ),
-                    recommended_action: "run: vgit cache status --json; then vgit cache gc --dry-run --json --older-than 12h --max-cache-gb 20".to_string(),
+                    recommended_action: "run: jeryu cache status --json; then jeryu cache gc --dry-run --json --older-than 12h --max-cache-gb 20".to_string(),
                 });
                 false
             } else if usage.available_bytes < DISK_WARNING_FREE_BYTES {
@@ -3207,7 +3207,7 @@ pub async fn release_doctor(version: &str, run_preflight: bool) -> DoctorReport 
                 code: "GATE_MISSING".to_string(),
                 gate: Some(name.to_string()),
                 detail: format!("{} not found at {}", name, path.display()),
-                recommended_action: "run: vgit release reconcile (triggers new canary attempt)"
+                recommended_action: "run: jeryu release reconcile (triggers new canary attempt)"
                     .to_string(),
             });
         }
@@ -3221,7 +3221,7 @@ pub async fn release_doctor(version: &str, run_preflight: bool) -> DoctorReport 
             gate: None,
             detail: format!("release-lock.json not found at {}", lock_path.display()),
             recommended_action:
-                "run: vgit release reconcile (generates lock on next canary trigger)".to_string(),
+                "run: jeryu release reconcile (generates lock on next canary trigger)".to_string(),
         });
     }
 
@@ -3346,7 +3346,7 @@ mod tests {
             recent: vec![view_attempt(attempt).expect("view attempt")],
         };
         let text = render_release_status_text(&report);
-        assert!(text.contains("vgit release status"));
+        assert!(text.contains("jeryu release status"));
         assert!(text.contains("deploy-canary-c-state.json"));
         assert!(text.contains("Phase:"));
         assert!(text.contains("Gates:"));

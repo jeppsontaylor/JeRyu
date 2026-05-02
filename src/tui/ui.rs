@@ -1,5 +1,5 @@
 //! Owner: Interactive TUI subsystem — rendering logic
-//! Proof: `cargo nextest run -p vgit -- tui::ui`
+//! Proof: `cargo nextest run -p jeryu -- tui::ui`
 //! Invariants: Rendering redacts sensitive text and does not perform control-plane mutations directly.
 use super::app::{ActivePane, ActiveTab, App};
 use ratatui::{
@@ -276,7 +276,7 @@ fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
 
     let mut spans: Vec<Span> = vec![
         Span::styled(
-            " vgit ",
+            " jeryu ",
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),

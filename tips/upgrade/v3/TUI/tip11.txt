@@ -18,7 +18,7 @@ But the current UX is still fragmented: the TUI pulls from many sources, logs po
 
 ## Current TUI shape
 
-The current CLI supports `vgit tui`, `--once`, and deterministic PNG capture. The accepted capture tabs are `mission`, `release`, `jobs`, `agents`, `tests`, `pools`, `cache`, `evidence`, and `secrets`. ([GitHub][1])
+The current CLI supports `jeryu tui`, `--once`, and deterministic PNG capture. The accepted capture tabs are `mission`, `release`, `jobs`, `agents`, `tests`, `pools`, `cache`, `evidence`, and `secrets`. ([GitHub][1])
 
 The current source also maps capture aliases such as `jobs|flow`, `tests|vti`, and `evidence|audit` into nine active tabs: Mission, Release, Jobs, Agents, Tests, Pools, Cache, Evidence, and Secrets. ([GitHub][2])
 
@@ -76,7 +76,7 @@ NEXT BEST ACTION
 4. Agent patch-race-12 has winner candidate. Review proof, request merge.
 ```
 
-The API already has `vgit next`, `explain-blocker`, and an action registry, but the TUI does not yet make those concepts the primary UX. The API docs describe `vgit next` as checking recent job failures, active pipelines, release gate state, and selector misses to print suggested commands. ([GitHub][1])
+The API already has `jeryu next`, `explain-blocker`, and an action registry, but the TUI does not yet make those concepts the primary UX. The API docs describe `jeryu next` as checking recent job failures, active pipelines, release gate state, and selector misses to print suggested commands. ([GitHub][1])
 
 **Redesign:** make “Next Best Action” the top-left pane of the entire app, always visible.
 
@@ -181,7 +181,7 @@ The command palette is a huge opportunity, but current execution only handles na
 > retry
 Retry selected job #14445
 Risk: low
-Will call: vgit job retry 2 14445
+Will call: jeryu job retry 2 14445
 Why: failed job, retry advice says transient infra
 Grant: not required / or agent_task if invoked by agent
 [Enter] execute  [d] dry run  [e] explain
@@ -194,7 +194,7 @@ For production actions:
 Promote release ci-a1b2c3 to production
 Risk: production
 Blocked: missing C validation artifact
-Next: vgit release doctor --version ci-a1b2c3
+Next: jeryu release doctor --version ci-a1b2c3
 ```
 
 Every action should have:
@@ -208,7 +208,7 @@ Every action should have:
   "requires_grant": "agent_task",
   "blockers": [],
   "preview": "Retry GitLab job #14445",
-  "command": "vgit job retry 2 14445"
+  "command": "jeryu job retry 2 14445"
 }
 ```
 
@@ -299,10 +299,10 @@ Dim gray    metadata
 Add themes:
 
 ```text
-vgit theme set dark
-vgit theme set high-contrast
-vgit theme set colorblind-safe
-vgit theme set minimal
+jeryu theme set dark
+jeryu theme set high-contrast
+jeryu theme set colorblind-safe
+jeryu theme set minimal
 ```
 
 And make every color meaningful. No decorative color. Color should always encode status, risk, confidence, freshness, or focus.
@@ -315,7 +315,7 @@ The TUI doc says capture accepts the nine tabs, but the same doc still describes
 
 The source/API clearly expose the nine-tab model. ([GitHub][2])
 
-**Redesign:** generate TUI docs from the action registry and tab registry, or at least add a `vgit tui schema --json` command that emits current tabs, keys, panes, actions, and data sources.
+**Redesign:** generate TUI docs from the action registry and tab registry, or at least add a `jeryu tui schema --json` command that emits current tabs, keys, panes, actions, and data sources.
 
 ---
 
@@ -645,7 +645,7 @@ Dry-run response:
       "fix": "Run full validation or update VTI map"
     }
   ],
-  "would_call": "vgit agent merge 2 42 --trust-tier trusted"
+  "would_call": "jeryu agent merge 2 42 --trust-tier trusted"
 }
 ```
 
@@ -1156,7 +1156,7 @@ This makes trust inspectable.
 This is the ideal default Mission view:
 
 ```text
-vgit  GitLab OK  Project dougx/main  Agents 4  Runners 7/8  Cache 82%  Disk 71%
+jeryu  GitLab OK  Project dougx/main  Agents 4  Runners 7/8  Cache 82%  Disk 71%
 
 ┌ NEXT BEST ACTIONS ───────────────────────────────┐┌ TRUST/RISK ────────────────┐
 │ 1 ⛔ Release blocked: missing C validation        ││ grants pending: 2           │
@@ -1200,7 +1200,7 @@ The most important API upgrade is a unified `TuiSnapshot + EventStream + Action 
 [1]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/API.md "raw.githubusercontent.com"
 [2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/mod.rs "raw.githubusercontent.com"
 [3]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/app.rs "raw.githubusercontent.com"
-[4]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[4]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/ui.rs "raw.githubusercontent.com"
 [6]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/flow/model.rs "raw.githubusercontent.com"
 [7]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/flow/builder.rs "raw.githubusercontent.com"

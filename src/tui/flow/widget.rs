@@ -1,5 +1,5 @@
 //! Owner: Interactive TUI subsystem — flow graph widget
-//! Proof: `cargo nextest run -p vgit -- tui::flow`
+//! Proof: `cargo nextest run -p jeryu -- tui::flow`
 //! Invariants: Widget rendering is pure over the supplied graph and selected node.
 
 use super::model::{FlowColumnKind, FlowGraph};

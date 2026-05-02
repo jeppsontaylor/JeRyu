@@ -1,5 +1,5 @@
 //! Owner: Cache Gateway subsystem — npm registry proxy
-//! Proof: `cargo nextest run -p vgit -- gateway::npm`
+//! Proof: `cargo nextest run -p jeryu -- gateway::npm`
 //! Invariants: npm package cache entries preserve integrity metadata and namespace trust boundaries.
 use super::singleflight::Singleflight;
 use anyhow::Result;

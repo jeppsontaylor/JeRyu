@@ -2,7 +2,7 @@ I couldn’t complete a local `git clone`/build in this sandbox because DNS reso
 
 ## Executive verdict
 
-**JeRyu has the right soul.** The strongest idea is not “another CI helper,” but an **agent-native GitLab control plane**: agents get direct surfaces for test selection, runner orchestration, evidence capture, failure capsules, release gating, cache intelligence, and merge/release decisions. The repo’s own README frames `vgit` as a Rust single-binary control plane for turning local GitLab into an orchestration engine for autonomous AI agents, with commands for agents, pools, test planning, impact analysis, cache, releases, and shadow/canary/prod workflows. ([GitHub][1])
+**JeRyu has the right soul.** The strongest idea is not “another CI helper,” but an **agent-native GitLab control plane**: agents get direct surfaces for test selection, runner orchestration, evidence capture, failure capsules, release gating, cache intelligence, and merge/release decisions. The repo’s own README frames `jeryu` as a Rust single-binary control plane for turning local GitLab into an orchestration engine for autonomous AI agents, with commands for agents, pools, test planning, impact analysis, cache, releases, and shadow/canary/prod workflows. ([GitHub][1])
 
 The biggest gap is that the project currently feels like a **powerful prototype with production-shaped vocabulary**, not yet a production-grade agent platform. The docs describe an ambitious hypervisor, while the implementation has several places where features are partial, repo-specific, hard-coded, or not yet wired into durable autonomous loops. The core opportunity is to turn it from “agent can call commands” into “agent can safely own the development loop end-to-end.”
 
@@ -131,7 +131,7 @@ For a world-class agent platform, this API needs serious hardening:
 
 ### 6. VTI is smart but still too narrow and repo-specific
 
-The VTI docs describe internal planning for JeRyu and an external planner for `dougx` through `.vgit/testmap.toml`, with `veox-testctl` consuming emitted plans. ([GitHub][3]) That is useful, but too specific for a general open-source repo.
+The VTI docs describe internal planning for JeRyu and an external planner for `dougx` through `.jeryu/testmap.toml`, with `veox-testctl` consuming emitted plans. ([GitHub][3]) That is useful, but too specific for a general open-source repo.
 
 The next level is not just path-pattern mapping. It should combine:
 
@@ -190,7 +190,7 @@ The docs include defaults such as project ID `2`, release repo root `/home/ubunt
 
 That is fine for an internal prototype, but it blocks the repo from becoming broadly useful open source.
 
-**Fix:** define a per-repo `.vgit/config.toml` contract and make all repo-specific behavior pluggable: release evidence, secrets, test maps, CI lanes, protected branches, deploy targets, and test commands.
+**Fix:** define a per-repo `.jeryu/config.toml` contract and make all repo-specific behavior pluggable: release evidence, secrets, test maps, CI lanes, protected branches, deploy targets, and test commands.
 
 ---
 
@@ -359,7 +359,7 @@ When an MR changes, JeRyu should automatically recompute impact, validate test c
 
 ### 4. Generalize repo configuration immediately
 
-Remove `dougx`, project `2`, and local path assumptions from core behavior. Put repo-specific behavior in `.vgit/config.toml` plus optional plugins.
+Remove `dougx`, project `2`, and local path assumptions from core behavior. Put repo-specific behavior in `.jeryu/config.toml` plus optional plugins.
 
 ### 5. Upgrade VTI from path maps to evidence-backed confidence
 
@@ -405,7 +405,7 @@ This would build trust quickly.
 A world-class OSS repo needs a 10-minute demo:
 
 1. start local GitLab,
-2. run `vgit init`,
+2. run `jeryu init`,
 3. connect one sample repo,
 4. run impacted tests,
 5. trigger a failing MR,
@@ -425,7 +425,7 @@ The current README shows the conceptual command surface, but the project needs a
 * webhook payload examples,
 * state schema docs,
 * policy examples,
-* `.vgit/config.toml` examples.
+* `.jeryu/config.toml` examples.
 
 ### 4. Integration tests with a fake or containerized GitLab
 

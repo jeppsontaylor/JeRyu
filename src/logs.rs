@@ -1,5 +1,5 @@
 //! Owner: Logging & Observability subsystem
-//! Proof: `cargo nextest run -p vgit -- logs`
+//! Proof: `cargo nextest run -p jeryu -- logs`
 //! Invariants: Log collection remains bounded, non-secret, and attributable to the owning job or component.
 //! Log aggregation: three-stream model.
 //!

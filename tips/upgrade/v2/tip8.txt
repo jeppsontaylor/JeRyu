@@ -6,7 +6,7 @@ The biggest opportunity is to turn the existing pieces—VTI, runner control, fa
 
 ## What is done well
 
-The repo’s ambition is coherent. The README describes `vgit` as a “single-binary Rust control plane” for turning local GitLab into an orchestration engine for autonomous agents, with commands like `vgit test run`, `vgit test batch`, `vgit test impact`, and `vgit release trigger`. It is built around Rust/Tokio/Axum/Bollard/SQLite/Git2-RS, which is a reasonable stack for a local control plane that needs fast orchestration, Docker control, and persistent state. ([GitHub][1])
+The repo’s ambition is coherent. The README describes `jeryu` as a “single-binary Rust control plane” for turning local GitLab into an orchestration engine for autonomous agents, with commands like `jeryu test run`, `jeryu test batch`, `jeryu test impact`, and `jeryu release trigger`. It is built around Rust/Tokio/Axum/Bollard/SQLite/Git2-RS, which is a reasonable stack for a local control plane that needs fast orchestration, Docker control, and persistent state. ([GitHub][1])
 
 The architecture is also pointed in the right direction. `ARCHITECTURE.md` splits the system into interface, control, state, execution, and intelligence planes, and explicitly says agents should operate through typed commands, GitLab MRs/pipelines, capability intents, and hooks rather than uncontrolled shell access. That is exactly the right framing for an agent-first repo manager. ([GitHub][2])
 
@@ -96,9 +96,9 @@ The webhook handler validates the GitLab token and handles event types, but MR h
 
 ### 10. VTI is promising but too coupled to one external repo/workspace
 
-The docs say VTI supports an internal JeRyu graph and an external `.vgit/testmap.toml` mode for `dougx`; the architecture says the external planner currently points at `/home/ubuntu/dougx`. The external planner source also has hardcoded job lists. That is understandable for a prototype, but it blocks JeRyu from becoming a general agent-first GitLab fork/manager. ([GitHub][4])
+The docs say VTI supports an internal JeRyu graph and an external `.jeryu/testmap.toml` mode for `dougx`; the architecture says the external planner currently points at `/home/ubuntu/dougx`. The external planner source also has hardcoded job lists. That is understandable for a prototype, but it blocks JeRyu from becoming a general agent-first GitLab fork/manager. ([GitHub][4])
 
-**Fix:** make repo intelligence declarative and portable: `.vgit/testmap.toml`, `.vgit/policy.toml`, `.vgit/agents.toml`, `.vgit/ci.toml`, and generated discovery from Cargo metadata / language-specific project graphs.
+**Fix:** make repo intelligence declarative and portable: `.jeryu/testmap.toml`, `.jeryu/policy.toml`, `.jeryu/agents.toml`, `.jeryu/ci.toml`, and generated discovery from Cargo metadata / language-specific project graphs.
 
 ---
 
@@ -183,11 +183,11 @@ suggested next action
 Agents should be able to ask:
 
 ```text
-vgit mr explain 123
-vgit mr next-action 123
-vgit mr failures 123 --structured
-vgit mr fix-plan 123
-vgit mr merge-readiness 123
+jeryu mr explain 123
+jeryu mr next-action 123
+jeryu mr failures 123 --structured
+jeryu mr fix-plan 123
+jeryu mr merge-readiness 123
 ```
 
 This is where JeRyu can become more valuable than GitLab itself.
@@ -283,9 +283,9 @@ Agents need this distinction even more than humans do.
 When a pipeline fails, agents should be able to ask:
 
 ```text
-vgit failure bisect --job X
-vgit failure suspects --capsule Y
-vgit failure compare --against-main
+jeryu failure bisect --job X
+jeryu failure suspects --capsule Y
+jeryu failure compare --against-main
 ```
 
 The system should identify whether the failure is new, flaky, infra-caused, dependency-caused, or caused by a specific patch hunk.
@@ -325,7 +325,7 @@ I inferred 9 subsystems.
 These 3 jobs are flaky.
 These 4 paths lack test mapping.
 These tests are expensive and should be split.
-Here is your proposed .vgit/testmap.toml.
+Here is your proposed .jeryu/testmap.toml.
 Here is the minimum safe VTI policy.
 ```
 

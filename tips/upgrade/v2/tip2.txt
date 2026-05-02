@@ -2,7 +2,7 @@ I attempted to clone the repo directly, but this sandbox could not resolve `gith
 
 ## Executive verdict
 
-**The thesis is excellent.** JeRyu is aiming at the right thing: not “another CI dashboard,” but an agent-operable control plane over GitLab, runners, testing, evidence, cache, sandboxes, and release gates. The README frames `vgit` as a single-binary Rust control plane for turning local GitLab into an orchestration engine for AI agents, and the architecture docs describe a broader system that owns runner pools, webhooks, custom executor behavior, SmartCache, VTI, Vault-backed secrets, evidence capsules, settings, and a TUI. ([GitHub][1])
+**The thesis is excellent.** JeRyu is aiming at the right thing: not “another CI dashboard,” but an agent-operable control plane over GitLab, runners, testing, evidence, cache, sandboxes, and release gates. The README frames `jeryu` as a single-binary Rust control plane for turning local GitLab into an orchestration engine for AI agents, and the architecture docs describe a broader system that owns runner pools, webhooks, custom executor behavior, SmartCache, VTI, Vault-backed secrets, evidence capsules, settings, and a TUI. ([GitHub][1])
 
 **But it is not yet the “world’s most powerful agent-first GitLab fork/manager.”** Right now it looks like a highly ambitious local GitLab control plane with several excellent ideas, some real implementation, and some dangerous or incomplete agent-action paths. The biggest risks are: docs and code disagree on agent capabilities, capability actions are under-gated, dynamic CI generation is unsafe, VTI is still mostly rule-based, the system is tightly coupled to one local environment/repo, and the security boundary is not yet strong enough for untrusted autonomous agents.
 
@@ -19,7 +19,7 @@ The system’s five-plane split — interface, control, state, execution, and in
 The VTI docs describe subsystem-aware smart test selection, internal and external planners, GitLab child pipeline emission, plan JSON, skipped-test metadata, deterministic cache keys, and a nightly oracle to detect selector misses. The conservative fallback posture is good: empty diffs, global invalidators, unmapped files, missing plans, and unparseable plans fall back to full execution. ([GitHub][3])
 
 **3. Failure evidence is treated as a first-class object.**
-Failure capsules, `vgit job explain`, `explain-blocker`, retry decisions, event ledgers, and TUI evidence panes are exactly the right direction. Agents need structured failure records, not just giant logs. The architecture docs describe capsules with job ID, pipeline ID, stage, ref, commit SHA, classification, exit code, summary, log snippet, repro script, and supersedence metadata. ([GitHub][2])
+Failure capsules, `jeryu job explain`, `explain-blocker`, retry decisions, event ledgers, and TUI evidence panes are exactly the right direction. Agents need structured failure records, not just giant logs. The architecture docs describe capsules with job ID, pipeline ID, stage, ref, commit SHA, classification, exit code, summary, log snippet, repro script, and supersedence metadata. ([GitHub][2])
 
 **4. The release posture is mostly correct.**
 The docs explicitly discourage ad hoc production shell commands and route production promotion through GitLab pipelines with gate variables and tracked release attempts. That is the right shape for agent-driven release: agents can propose and observe, but production state transitions should be mediated by durable gates. ([GitHub][2])
@@ -72,11 +72,11 @@ The code loops over hypotheses, creates branches, commits updates, triggers pipe
 
 ### P0: The system is too environment-specific
 
-The architecture docs say the external VTI planner currently consumes `.vgit/testmap.toml` from `/home/ubuntu/dougx`, secrets support is focused on `dougx`, and secrets commands currently support only `--repo dougx`. The API defaults also include project ID `2` and release root assumptions. ([GitHub][2])
+The architecture docs say the external VTI planner currently consumes `.jeryu/testmap.toml` from `/home/ubuntu/dougx`, secrets support is focused on `dougx`, and secrets commands currently support only `--repo dougx`. The API defaults also include project ID `2` and release root assumptions. ([GitHub][2])
 
 That is fine for an internal prototype, but it blocks world-class open-source adoption.
 
-**Fix:** move all repo-specific contracts into `.vgit/config.toml`, `.vgit/testmap.toml`, `.vgit/release.toml`, and `.vgit/policy.toml`. Ship a minimal example repo and a one-command demo.
+**Fix:** move all repo-specific contracts into `.jeryu/config.toml`, `.jeryu/testmap.toml`, `.jeryu/release.toml`, and `.jeryu/policy.toml`. Ship a minimal example repo and a one-command demo.
 
 ### P1: VTI is promising, but still too rule-based
 
@@ -96,9 +96,9 @@ For agent-first execution, untrusted jobs should be egress-denied by default, ne
 
 ### P1: Local agent ergonomics are hurt by GitLab coupling
 
-`dispatch.rs` loads the GitLab client and opens the DB before matching any `vgit test` subcommand, even for local planning commands. The same area shells out to `cargo run -p veox-testctl` for impact analysis, reinforcing the repo-specific coupling. ([GitHub][9])
+`dispatch.rs` loads the GitLab client and opens the DB before matching any `jeryu test` subcommand, even for local planning commands. The same area shells out to `cargo run -p veox-testctl` for impact analysis, reinforcing the repo-specific coupling. ([GitHub][9])
 
-**Fix:** make `vgit test select`, `explain-plan`, `audit`, and basic VTI commands work fully offline with no GitLab PAT. Load GitLab clients lazily only for commands that need GitLab.
+**Fix:** make `jeryu test select`, `explain-plan`, `audit`, and basic VTI commands work fully offline with no GitLab PAT. Load GitLab clients lazily only for commands that need GitLab.
 
 ### P1: The TUI and observability model need an event stream
 
@@ -129,7 +129,7 @@ Each agent task should have a workspace ID, branch, sandbox, secret scope, resou
 Agents should launch multiple hypotheses, run selected tests, compare evidence, auto-close losing branches, keep the winner, and produce an MR with a machine-readable rationale.
 
 **7. Policy-as-code.**
-Add `.vgit/policy.toml` for merge gates, release gates, test-selection risk, cache promotion, sandbox egress, secret access, and human-approval thresholds.
+Add `.jeryu/policy.toml` for merge gates, release gates, test-selection risk, cache promotion, sandbox egress, secret access, and human-approval thresholds.
 
 **8. Flake intelligence.**
 Track flaky tests, quarantine status, rerun policy, failure fingerprints, and whether a failure is likely infrastructure, regression, selector miss, or nondeterminism.
@@ -156,7 +156,7 @@ The system should learn from prior failures and fixes: “This failure fingerpri
 
 ## Key design changes I would make
 
-**First, split the product conceptually into four surfaces:** `vgitd` daemon, `vgit` CLI, `vgit-agent-api`, and `vgit-runner`/executor. You can still ship one binary, but the architecture should enforce those boundaries.
+**First, split the product conceptually into four surfaces:** `jeryud` daemon, `jeryu` CLI, `jeryu-agent-api`, and `jeryu-runner`/executor. You can still ship one binary, but the architecture should enforce those boundaries.
 
 **Second, create a shared policy engine.** CLI, TUI, capability API, webhook handlers, server hooks, and release automation should all call the same gate evaluators. No duplicated merge checks. No raw SQL gate logic in capability handlers.
 
@@ -183,7 +183,7 @@ You need:
 1. **A one-command demo** that does not require `/home/ubuntu/dougx`, a private GitLab setup, or hidden local assumptions.
 2. **A “current status vs roadmap” table** separating implemented, experimental, aspirational, and unsafe-for-production features.
 3. **Generated CLI and capability docs** with examples.
-4. **A minimal example repo** showing `.vgit/testmap.toml`, policy, VTI plan output, failure capsule output, and an agent workflow.
+4. **A minimal example repo** showing `.jeryu/testmap.toml`, policy, VTI plan output, failure capsule output, and an agent workflow.
 5. **Integration tests with fake GitLab/Docker fixtures** so contributors can validate without a full local GitLab instance.
 6. **A security threat model** specifically for autonomous agents, local sockets, runner isolation, PATs, Vault, cache poisoning, and dynamic CI.
 7. **Release artifacts and packaging**: crates.io or install script, Docker image, systemd unit, Homebrew/Nix/devcontainer if appropriate.

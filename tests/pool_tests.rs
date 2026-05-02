@@ -2,13 +2,13 @@ use anyhow::Result;
 use std::sync::LazyLock;
 use tokio::sync::Mutex;
 use tokio::time::{Duration, sleep};
-use vgit::state::Pool;
+use jeryu::state::Pool;
 
 mod common;
 
 static POOL_TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
-async fn wait_for_managers(db: &vgit::state::Db, pool_name: &str, expected: i64) -> Result<i64> {
+async fn wait_for_managers(db: &jeryu::state::Db, pool_name: &str, expected: i64) -> Result<i64> {
     for _ in 0..20 {
         let active = db.count_active_managers(pool_name).await?;
         if active == expected {
@@ -21,18 +21,18 @@ async fn wait_for_managers(db: &vgit::state::Db, pool_name: &str, expected: i64)
 }
 
 async fn create_ephemeral_pool(
-    client: &vgit::gitlab_client::GitlabClient,
-    db: &vgit::state::Db,
+    client: &jeryu::gitlab_client::GitlabClient,
+    db: &jeryu::state::Db,
 ) -> Result<(String, i64)> {
     let suffix = uuid::Uuid::new_v4()
         .to_string()
         .chars()
         .take(8)
         .collect::<String>();
-    let pool_name = format!("vgit-test-pool-{suffix}");
+    let pool_name = format!("jeryu-test-pool-{suffix}");
     let runner = client
         .create_runner(
-            &format!("vgit-{pool_name}"),
+            &format!("jeryu-{pool_name}"),
             &["pool-test"],
             true,
             "instance_type",
@@ -58,14 +58,14 @@ async fn create_ephemeral_pool(
 }
 
 async fn cleanup_ephemeral_pool(
-    client: &vgit::gitlab_client::GitlabClient,
-    db: &vgit::state::Db,
+    client: &jeryu::gitlab_client::GitlabClient,
+    db: &jeryu::state::Db,
     pool_name: &str,
     runner_id: i64,
 ) {
-    let docker = vgit::docker::DockerCtl::connect().ok();
+    let docker = jeryu::docker::DockerCtl::connect().ok();
     if let Some(docker) = docker.as_ref() {
-        let _ = vgit::pool::drain_pool(db, docker, client, pool_name).await;
+        let _ = jeryu::pool::drain_pool(db, docker, client, pool_name).await;
     }
     let _ = client.delete_runner(runner_id).await;
     let _ = db.delete_pool(pool_name).await;
@@ -79,26 +79,26 @@ async fn test_pool_scale_up_down() -> Result<()> {
         return Ok(());
     };
 
-    let docker = vgit::docker::DockerCtl::connect()?;
-    let db = vgit::state::Db::open().await?;
+    let docker = jeryu::docker::DockerCtl::connect()?;
+    let db = jeryu::state::Db::open().await?;
     let (pool_name, runner_id) = create_ephemeral_pool(&client, &db).await?;
 
     // Scale to 1 first, then to 2.
-    vgit::pool::scale_pool_to(&db, &docker, &client, &pool_name, 1).await?;
+    jeryu::pool::scale_pool_to(&db, &docker, &client, &pool_name, 1).await?;
     assert_eq!(wait_for_managers(&db, &pool_name, 1).await?, 1);
 
     println!("Scaling to 2...");
-    vgit::pool::scale_pool_to(&db, &docker, &client, &pool_name, 2).await?;
+    jeryu::pool::scale_pool_to(&db, &docker, &client, &pool_name, 2).await?;
     let active = wait_for_managers(&db, &pool_name, 2).await?;
     assert_eq!(active, 2, "Failed to scale pool up to 2");
 
     // Scale to 1
     println!("Scaling to 1...");
-    vgit::pool::scale_pool_to(&db, &docker, &client, &pool_name, 1).await?;
+    jeryu::pool::scale_pool_to(&db, &docker, &client, &pool_name, 1).await?;
     let active_2 = wait_for_managers(&db, &pool_name, 1).await?;
     assert_eq!(active_2, 1, "Failed to scale pool down to 1");
 
-    vgit::pool::drain_pool(&db, &docker, &client, &pool_name).await?;
+    jeryu::pool::drain_pool(&db, &docker, &client, &pool_name).await?;
     let active_after = wait_for_managers(&db, &pool_name, 0).await?;
     assert_eq!(active_after, 0, "Pool should be drained after scale test");
 
@@ -112,17 +112,17 @@ async fn test_pool_pause_resume() -> Result<()> {
     let Some(client) = common::skip_if_not_ready().await? else {
         return Ok(());
     };
-    let db = vgit::state::Db::open().await?;
+    let db = jeryu::state::Db::open().await?;
     let (pool_name, runner_id) = create_ephemeral_pool(&client, &db).await?;
 
     println!("Testing Pool Pause");
-    vgit::pool::pause_pool(&db, &client, &pool_name).await?;
+    jeryu::pool::pause_pool(&db, &client, &pool_name).await?;
 
     let p = db.get_pool(&pool_name).await?.unwrap();
     assert!(p.paused, "Pool should be paused in db");
 
     println!("Testing Pool Resume");
-    vgit::pool::resume_pool(&db, &client, &pool_name).await?;
+    jeryu::pool::resume_pool(&db, &client, &pool_name).await?;
     let p_resumed = db.get_pool(&pool_name).await?.unwrap();
     assert!(!p_resumed.paused, "Pool should be resumed in db");
 
@@ -136,17 +136,17 @@ async fn test_pool_token_rotation() -> Result<()> {
     let Some(client) = common::skip_if_not_ready().await? else {
         return Ok(());
     };
-    let docker = vgit::docker::DockerCtl::connect()?;
-    let db = vgit::state::Db::open().await?;
+    let docker = jeryu::docker::DockerCtl::connect()?;
+    let db = jeryu::state::Db::open().await?;
     let (pool_name, runner_id) = create_ephemeral_pool(&client, &db).await?;
 
     // First ensure we have at least 1 manager online
-    vgit::pool::scale_pool_to(&db, &docker, &client, &pool_name, 1).await?;
+    jeryu::pool::scale_pool_to(&db, &docker, &client, &pool_name, 1).await?;
 
     let original_pool = db.get_pool(&pool_name).await?.unwrap();
 
     println!("Testing Token Rotation for pool: {}", pool_name);
-    let new_token = vgit::pool::rotate_pool_token(&db, &docker, &client, &pool_name).await?;
+    let new_token = jeryu::pool::rotate_pool_token(&db, &docker, &client, &pool_name).await?;
 
     let updated_pool = db.get_pool(&pool_name).await?.unwrap();
     assert_ne!(
@@ -165,7 +165,7 @@ async fn test_pool_token_rotation() -> Result<()> {
         "Managers should still be running after rotation and SIGHUP"
     );
 
-    vgit::pool::drain_pool(&db, &docker, &client, &pool_name).await?;
+    jeryu::pool::drain_pool(&db, &docker, &client, &pool_name).await?;
     let active_after = wait_for_managers(&db, &pool_name, 0).await?;
     assert_eq!(
         active_after, 0,
@@ -183,15 +183,15 @@ async fn test_pool_graceful_drain() -> Result<()> {
     let Some(client) = common::skip_if_not_ready().await? else {
         return Ok(());
     };
-    let docker = vgit::docker::DockerCtl::connect()?;
-    let db = vgit::state::Db::open().await?;
+    let docker = jeryu::docker::DockerCtl::connect()?;
+    let db = jeryu::state::Db::open().await?;
     let (pool_name, runner_id) = create_ephemeral_pool(&client, &db).await?;
 
     // Ensure there is something to drain
-    vgit::pool::scale_pool_to(&db, &docker, &client, &pool_name, 1).await?;
+    jeryu::pool::scale_pool_to(&db, &docker, &client, &pool_name, 1).await?;
 
     println!("Testing Graceful Drain for pool: {}", pool_name);
-    vgit::pool::drain_pool(&db, &docker, &client, &pool_name).await?;
+    jeryu::pool::drain_pool(&db, &docker, &client, &pool_name).await?;
 
     let active = wait_for_managers(&db, &pool_name, 0).await?;
     assert_eq!(active, 0, "Managers should be 0 after full drain");

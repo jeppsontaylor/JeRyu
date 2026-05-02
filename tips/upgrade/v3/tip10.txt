@@ -1,6 +1,6 @@
 ## Executive take
 
-JeRyu is **not currently a fork of GitLab itself** in the “modified GitLab Rails/Go codebase” sense. It is a **Rust `vgit` control plane wrapped around local GitLab CE, GitLab Runner, Docker, Vault, and a Postgres/SQLite state layer**. That is not a bad thing. In fact, it may be the right architecture for an agent-first Git system: keep GitLab as the durable forge/CI substrate, then build a fast, typed, auditable agent operating system around it. The README frames it as a “single-binary Rust control plane” for local GitLab, and the architecture docs describe it as turning GitLab, Runner, Docker, Vault, state, and CI semantics into an agent-operable delivery system. ([GitHub][1])
+JeRyu is **not currently a fork of GitLab itself** in the “modified GitLab Rails/Go codebase” sense. It is a **Rust `jeryu` control plane wrapped around local GitLab CE, GitLab Runner, Docker, Vault, and a Postgres/SQLite state layer**. That is not a bad thing. In fact, it may be the right architecture for an agent-first Git system: keep GitLab as the durable forge/CI substrate, then build a fast, typed, auditable agent operating system around it. The README frames it as a “single-binary Rust control plane” for local GitLab, and the architecture docs describe it as turning GitLab, Runner, Docker, Vault, state, and CI semantics into an agent-operable delivery system. ([GitHub][1])
 
 I attempted a local clone/run path, but the container could not resolve GitHub, so I could not compile or run the repo locally. I reviewed the live repository, raw source files, docs, command surface, and module implementation through GitHub. So this is a careful source-level/product review, not a verified runtime test report.
 
@@ -12,7 +12,7 @@ My blunt assessment: **the vision is excellent and unusually agent-native**, esp
 
 ### 1. It has the right macro-architecture: Git forge + Rust agent control plane
 
-The repo is organized as a Rust workspace with `vgit` as the main package plus supporting crates like `cargo-witness`, `witness-rt`, `cargo-vrc`, `cargo-aer`, and `arc-bench`. The package targets Rust 2024, version `2.0.1`, and declares agent validation profiles in workspace metadata. ([GitHub][2])
+The repo is organized as a Rust workspace with `jeryu` as the main package plus supporting crates like `cargo-witness`, `witness-rt`, `cargo-vrc`, `cargo-aer`, and `arc-bench`. The package targets Rust 2024, version `2.0.1`, and declares agent validation profiles in workspace metadata. ([GitHub][2])
 
 That is a good foundation because the hard problem is not “make another Git UI.” The hard problem is: give agents a **safe, low-latency, policy-governed operating surface** over branches, tests, runners, failures, releases, secrets, cache, and audit evidence.
 
@@ -20,7 +20,7 @@ The architecture docs divide the system into interface, control, state, executio
 
 ### 2. The CLI surface is broad and agent-useful
 
-The `vgit` command surface covers lifecycle, pool management, jobs, pipelines, cache, logs, agents, shadow remotes, tests, release, secrets, progress, next-action recommendation, blocker explanation, action listing, repo agent-surface generation, host operations, custom executor hooks, server hooks, and a capability socket. The API docs explicitly document both public and hidden/internal surfaces because hooks and agent operations are part of the control surface. ([GitHub][4])
+The `jeryu` command surface covers lifecycle, pool management, jobs, pipelines, cache, logs, agents, shadow remotes, tests, release, secrets, progress, next-action recommendation, blocker explanation, action listing, repo agent-surface generation, host operations, custom executor hooks, server hooks, and a capability socket. The API docs explicitly document both public and hidden/internal surfaces because hooks and agent operations are part of the control surface. ([GitHub][4])
 
 That is a major positive. Most GitHub/GitLab agent workflows are stuck scraping UI, shelling out, polling flaky APIs, or inventing conventions. JeRyu’s direction is better: make the system itself expose “agent things” as first-class operations.
 
@@ -44,13 +44,13 @@ The repo also records capability intents and grants in durable state, and the do
 
 ### 5. It has a real admission-control concept
 
-There is a pre-receive admission hook with versioned decisions: allow, audit, or deny. The docs say agent refs can be checked against active `capability_grants`, with an enforcement mode controlled by `VGIT_ADMISSION_ENFORCE=1`. ([GitHub][7])
+There is a pre-receive admission hook with versioned decisions: allow, audit, or deny. The docs say agent refs can be checked against active `capability_grants`, with an enforcement mode controlled by `JERYU_ADMISSION_ENFORCE=1`. ([GitHub][7])
 
 This is very important. The best agent-first Git system should not merely “trust” agents because they are local or because they have a token. It should require that every agent-authored ref update corresponds to a known capability grant, target ref, actor, requested intent, and expected evidence.
 
 ### 6. The test intelligence direction is strong
 
-The VTI docs describe smart test selection from changed files, subsystem maps, global invalidators, docs-only detection, external `.vgit/testmap.toml`, emitted GitLab child pipeline YAML, selector audit, miss recording, and learning suggestions. ([GitHub][8])
+The VTI docs describe smart test selection from changed files, subsystem maps, global invalidators, docs-only detection, external `.jeryu/testmap.toml`, emitted GitLab child pipeline YAML, selector audit, miss recording, and learning suggestions. ([GitHub][8])
 
 That is exactly where GitHub/GitLab are weak for autonomous coding. Agents need fast feedback loops. They need to know:
 
@@ -86,7 +86,7 @@ This is the right instinct. Autonomous agents will run massive amounts of valida
 
 ### 1. It is not yet an autonomous agent worker
 
-`vgit agent spawn` creates GitLab issue/branch/task metadata, but the reviewed code path is mostly lifecycle scaffolding. I did not see a complete worker loop that takes a task, invokes an LLM/model/tooling stack, edits code, reasons over failures, iterates, and produces a final merge-proof autonomously. The implementation creates issues, branches, MRs, bot tokens, and pipeline structures, but the core “agent does the work” runtime appears absent or external. ([GitHub][5])
+`jeryu agent spawn` creates GitLab issue/branch/task metadata, but the reviewed code path is mostly lifecycle scaffolding. I did not see a complete worker loop that takes a task, invokes an LLM/model/tooling stack, edits code, reasons over failures, iterates, and produces a final merge-proof autonomously. The implementation creates issues, branches, MRs, bot tokens, and pipeline structures, but the core “agent does the work” runtime appears absent or external. ([GitHub][5])
 
 For the world’s best agent-first Git option, this needs an **Agent Kernel**:
 
@@ -140,7 +140,7 @@ The capability merge path should be brought up to at least that standard, prefer
 
 ### 4. Admission is audit-only by default for missing grants
 
-The docs say agent refs without a matching grant are “audit-only by default” unless `VGIT_ADMISSION_ENFORCE=1` is set. ([GitHub][4])
+The docs say agent refs without a matching grant are “audit-only by default” unless `JERYU_ADMISSION_ENFORCE=1` is set. ([GitHub][4])
 
 That may be reasonable for early rollout, but for an agent-first Git platform, the safe default should eventually flip:
 
@@ -210,7 +210,7 @@ The “dream” version needs a full race controller:
 
 ### 9. Sandbox isolation is not yet as strong as the README implies
 
-The README claims tightly constrained Docker containers and COW sandboxes. The actual `sandbox.rs` says strict mode sets `VGIT_SANDBOXED=1`, injects proxies, and comments that full network namespace isolation via `bwrap`/`unshare` would require more setup; the custom executor relies on the detonation lane and proxy-enforced egress control, while Docker executor pools provide container-level isolation. ([GitHub][1])
+The README claims tightly constrained Docker containers and COW sandboxes. The actual `sandbox.rs` says strict mode sets `JERYU_SANDBOXED=1`, injects proxies, and comments that full network namespace isolation via `bwrap`/`unshare` would require more setup; the custom executor relies on the detonation lane and proxy-enforced egress control, while Docker executor pools provide container-level isolation. ([GitHub][1])
 
 The custom executor also requires access to `/var/run/docker.sock` and bootstraps tools such as Docker inside the build environment. ([GitHub][13])
 
@@ -236,7 +236,7 @@ The TUI docs describe background workers with snapshot refresh around 1500ms and
 Polling is okay for MVP, but agents need lower-latency event streams. For the “best in the world” target, use:
 
 * GitLab webhooks
-* SSE/WebSocket from `vgit serve`
+* SSE/WebSocket from `jeryu serve`
 * incremental job trace streaming
 * local event bus
 * durable cursor offsets
@@ -293,7 +293,7 @@ created → planned → workspace_acquired → patching → validating
 → merged → released → archived
 ```
 
-The agent should never hold broad authority. It should request capabilities from `vgit`, and `vgit` should grant narrowly scoped powers.
+The agent should never hold broad authority. It should request capabilities from `jeryu`, and `jeryu` should grant narrowly scoped powers.
 
 ### 2. Introduce a “Merge Proof” artifact
 
@@ -368,7 +368,7 @@ commands:
     runner: build
 ```
 
-Agents can request `rust.nextest.package` with args; `vgit` renders safe commands.
+Agents can request `rust.nextest.package` with args; `jeryu` renders safe commands.
 
 ### 5. Build a repo world-model
 
@@ -556,7 +556,7 @@ Required evidence:
   ✗ branch head not bound to capability grant
 
 Next action:
-  vgit test audit --changed ... --failed ...
+  jeryu test audit --changed ... --failed ...
 ```
 
 Keybinding: `x` = explain blocker, `p` = print proof JSON, `r` = retry missing proof, `m` = request merge if safe.
@@ -586,7 +586,7 @@ job: 8812  test-rust-nextest-1
 kind: regression
 summary: unresolved import in cache_brain.rs
 first bad line: src/cache_brain.rs:142
-repro: cargo nextest run -p vgit -E 'test(/cache/)'
+repro: cargo nextest run -p jeryu -E 'test(/cache/)'
 retry: do not retry
 agent action: propose patch
 ```
@@ -653,7 +653,7 @@ These are the highest-leverage fixes.
 A command like:
 
 ```bash
-vgit autopilot fix --issue 123 --target main --budget 2h --risk medium
+jeryu autopilot fix --issue 123 --target main --budget 2h --risk medium
 ```
 
 It should:
@@ -670,7 +670,7 @@ It should:
 ### “Why can’t I merge?” as a first-class primitive
 
 ```bash
-vgit explain-blocker merge 42
+jeryu explain-blocker merge 42
 ```
 
 Should return:
@@ -737,7 +737,7 @@ For every MR:
 For any failed job:
 
 ```bash
-vgit job replay 12345 --local
+jeryu job replay 12345 --local
 ```
 
 This should reproduce:
@@ -764,7 +764,7 @@ disable-test     #814       pass    high   +2     12      rejected
 
 ### Policy-as-code
 
-Add `vgit.policy.toml`:
+Add `jeryu.policy.toml`:
 
 ```toml
 [merge]
@@ -892,7 +892,7 @@ Bottom line: **this repo has the right soul**. It is already thinking in terms o
 [6]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/capability.rs "JeRyu/src/capability.rs at main · jeppsontaylor/JeRyu · GitHub"
 [7]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/admission.rs "raw.githubusercontent.com"
 [8]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VTI.md "raw.githubusercontent.com"
-[9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [10]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/cli.rs "JeRyu/src/cli.rs at main · jeppsontaylor/JeRyu · GitHub"
 [11]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/cache_brain.rs "raw.githubusercontent.com"
 [12]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/test_runner.rs "JeRyu/src/test_runner.rs at main · jeppsontaylor/JeRyu · GitHub"

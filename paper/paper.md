@@ -42,7 +42,7 @@ Legacy Git forges were built around human-paced pull requests, broad human crede
 
 ## Architecture
 
-JeRyu is a Rust workspace with the `vgit` binary and proof-scoped support crates.
+JeRyu is a Rust workspace with the `jeryu` binary and proof-scoped support crates.
 
 Main surfaces:
 
@@ -228,26 +228,26 @@ Screenshot command:
 ```bash
 ./scripts/capture-tui-screenshots.sh
 just tui-screenshot-smoke
-vgit tui --capture --tab jobs --output paper/assets/vgit-tui-jobs-flow.png
-vgit tui --capture --tab tests --output paper/assets/vgit-tui-tests-vti.png
-vgit tui --capture --tab evidence --output paper/assets/vgit-tui-evidence.png
+jeryu tui --capture --tab jobs --output paper/assets/jeryu-tui-jobs-flow.png
+jeryu tui --capture --tab tests --output paper/assets/jeryu-tui-tests-vti.png
+jeryu tui --capture --tab evidence --output paper/assets/jeryu-tui-evidence.png
 ```
 
-The publication screenshot path uses `tui-capture`, which runs `vgit tui --screenshot` in a real PTY, parses the terminal state with `vt100`, and rasterizes the grid with pinned DejaVu Sans Mono, fixed geometry, a lifted dark background, and brightened colors. This avoids missing-glyph boxes from browser, SVG, ANSI-converter, or window-manager capture paths.
+The publication screenshot path uses `tui-capture`, which runs `jeryu tui --screenshot` in a real PTY, parses the terminal state with `vt100`, and rasterizes the grid with pinned DejaVu Sans Mono, fixed geometry, a lifted dark background, and brightened colors. This avoids missing-glyph boxes from browser, SVG, ANSI-converter, or window-manager capture paths.
 
 Generated figures:
 
-![TUI Jobs/Flow capture](assets/vgit-tui-jobs-flow.png)
+![TUI Jobs/Flow capture](assets/jeryu-tui-jobs-flow.png)
 
-![TUI Tests/VTI capture](assets/vgit-tui-tests-vti.png)
+![TUI Tests/VTI capture](assets/jeryu-tui-tests-vti.png)
 
-![TUI Evidence capture](assets/vgit-tui-evidence.png)
+![TUI Evidence capture](assets/jeryu-tui-evidence.png)
 
-![TUI Release capture](assets/vgit-tui-release.png)
+![TUI Release capture](assets/jeryu-tui-release.png)
 
-![TUI Mission capture](assets/vgit-tui-mission.png)
+![TUI Mission capture](assets/jeryu-tui-mission.png)
 
-![TUI Agents capture](assets/vgit-tui-agents.png)
+![TUI Agents capture](assets/jeryu-tui-agents.png)
 
 ## Implementation Contracts
 
@@ -276,14 +276,14 @@ JeRyu addresses these classes of problem by making runner authority, validation 
 
 The LaTeX paper includes a C4-style TikZ appendix diagram grounded in `docs/ARCHITECTURE.md`. It uses two panels:
 
-- system topology: interfaces, the five `vgit` planes, GitLab/Docker/Vault runtime substrate, and proof-scoped workspace crates
+- system topology: interfaces, the five `jeryu` planes, GitLab/Docker/Vault runtime substrate, and proof-scoped workspace crates
 - agent proof flow: intent, policy/admission, VTI planning, execution, evidence, merge/release decision, and TUI/API feedback
 
 The figure intentionally uses orthogonal rails, numbered flow markers, and separate control/proof/trust arrow styles so the architecture is readable in the IEEE PDF.
 
 ## Agent API Appendix
 
-The LaTeX paper now includes a full-page single-column API appendix. It documents every current agent-relevant `vgit` control surface:
+The LaTeX paper now includes a full-page single-column API appendix. It documents every current agent-relevant `jeryu` control surface:
 
 - CLI commands for lifecycle, pools, jobs, pipelines, cache, agents, shadow sync, VTI/tests, release, secrets, host, repo, and action discovery
 - exact CLI grammar from `src/cli.rs`, including all current flag-bearing forms and hidden protocol calls
@@ -294,9 +294,9 @@ The LaTeX paper now includes a full-page single-column API appendix. It document
 - HTTP engine routes: `GET /health`, `POST /hooks`, and `GET /cache/summary`
 - action registry contract: risk tiers, side effects, required grants, surfaces, and dry-run metadata
 
-The native MCP server in V3.01 exposes the canonical capability-backed tool surface through stdio JSON-RPC and loopback Streamable HTTP. It supports `vgit mcp serve`, `vgit mcp serve-http`, and `vgit mcp tools --json`; negotiates MCP protocol version `2025-11-25`; implements `initialize`, `notifications/initialized`, `ping`, `tools/list`, and `tools/call`; and maps each tool invocation back into the existing `AgentIntent` execution path.
+The native MCP server in V3.01 exposes the canonical capability-backed tool surface through stdio JSON-RPC and loopback Streamable HTTP. It supports `jeryu mcp serve`, `jeryu mcp serve-http`, and `jeryu mcp tools --json`; negotiates MCP protocol version `2025-11-25`; implements `initialize`, `notifications/initialized`, `ping`, `tools/list`, and `tools/call`; and maps each tool invocation back into the existing `AgentIntent` execution path.
 
-The MCP tool catalog is schema-bearing and registry-derived. It exposes `vgit.get_system_snapshot`, `vgit.explain_blockers`, `vgit.plan_validation`, `vgit.fetch_capsule`, `vgit.run_tests`, `vgit.propose_patch`, `vgit.race_patches`, and `vgit.request_merge`, with input schemas, output schemas, and MCP annotations for read-only, destructive, idempotent, and open-world behavior. Every tool call still traverses the same grant, evidence, GitLab, and merge/release gates as the Unix-socket capability API.
+The MCP tool catalog is schema-bearing and registry-derived. It exposes `jeryu.get_system_snapshot`, `jeryu.explain_blockers`, `jeryu.plan_validation`, `jeryu.fetch_capsule`, `jeryu.run_tests`, `jeryu.propose_patch`, `jeryu.race_patches`, and `jeryu.request_merge`, with input schemas, output schemas, and MCP annotations for read-only, destructive, idempotent, and open-world behavior. Every tool call still traverses the same grant, evidence, GitLab, and merge/release gates as the Unix-socket capability API.
 
 The Streamable HTTP transport is local by construction: it rejects non-loopback binds, rejects non-local `Origin` headers, requires `MCP-Protocol-Version` after initialization, validates `Mcp-Method` and `Mcp-Name`, issues ephemeral `Mcp-Session-Id` values, and supports `DELETE /mcp` session teardown. The server returns human-readable MCP `content` plus native `structuredContent`, so chat agents and structured orchestrators can consume the same policy result without losing audit detail.
 

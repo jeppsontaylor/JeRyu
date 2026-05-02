@@ -1,5 +1,5 @@
 //! Owner: CLI Dispatch
-//! Proof: `cargo check -p vgit`
+//! Proof: `cargo check -p jeryu`
 //! Invariants: All logic dispatches to domain modules; no business logic here
 //!
 //! Wires CLI commands to domain module functions.
@@ -8,19 +8,19 @@ use anyhow::Result;
 use std::path::PathBuf;
 
 use crate::cli::*;
-use vgit::*;
+use jeryu::*;
 
 // ---------------------------------------------------------------------------
 // Helpers
 
-/// Load secrets from vgit.env and build a GitlabClient.
+/// Load secrets from jeryu.env and build a GitlabClient.
 fn load_client() -> Result<(gitlab_client::GitlabClient, String)> {
     let env_path = config::env_file();
     dotenvy::from_path(&env_path).ok();
 
     let pat = std::env::var("GITLAB_PAT")
-        .map_err(|_| anyhow::anyhow!("GITLAB_PAT not found — run `vgit bootstrap` first"))?;
-    let webhook_secret = std::env::var("VGIT_WEBHOOK_SECRET").unwrap_or_default();
+        .map_err(|_| anyhow::anyhow!("GITLAB_PAT not found — run `jeryu bootstrap` first"))?;
+    let webhook_secret = std::env::var("JERYU_WEBHOOK_SECRET").unwrap_or_default();
 
     let url = format!("http://localhost:{}", config::GITLAB_HTTP_PORT);
     let client = gitlab_client::GitlabClient::new(&url, Some(pat));
@@ -33,7 +33,7 @@ fn load_client_optional() -> (gitlab_client::GitlabClient, String) {
     dotenvy::from_path(&env_path).ok();
 
     let pat = std::env::var("GITLAB_PAT").ok();
-    let webhook_secret = std::env::var("VGIT_WEBHOOK_SECRET").unwrap_or_default();
+    let webhook_secret = std::env::var("JERYU_WEBHOOK_SECRET").unwrap_or_default();
 
     let url = format!("http://localhost:{}", config::GITLAB_HTTP_PORT);
     let client = gitlab_client::GitlabClient::new(&url, pat);
@@ -174,17 +174,84 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
             let docker_ctl = docker::DockerCtl::connect()?;
 
             if capture {
-                vgit::tui::capture_tui_png(db, docker_ctl, client, &tab, &output, width, height)
+                jeryu::tui::capture_tui_png(db, docker_ctl, client, &tab, &output, width, height)
                     .await?;
-                println!("vgit TUI screenshot written: {}", output.display());
+                println!("jeryu TUI screenshot written: {}", output.display());
             } else if screenshot {
-                vgit::tui::run_tui_screenshot(db, docker_ctl, client, &tab, screenshot_hold_ms)
+                jeryu::tui::run_tui_screenshot(db, docker_ctl, client, &tab, screenshot_hold_ms)
                     .await?;
             } else if once {
-                vgit::tui::run_tui_once(db, docker_ctl, client).await?;
+                jeryu::tui::run_tui_once(db, docker_ctl, client).await?;
             } else {
                 // Start TUI (blocks until exit)
-                vgit::tui::run_tui(db, docker_ctl, client).await?;
+                jeryu::tui::run_tui(db, docker_ctl, client).await?;
+            }
+        }
+
+        // ---- Git Passthrough ---------------------------------------------
+        Commands::Git { args } => {
+            // Find system git but avoid infinite recursion if aliased.
+            let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
+            let status = std::process::Command::new(git_path)
+                .args(&args)
+                .status()?;
+            std::process::exit(status.code().unwrap_or(1));
+        }
+
+        // ---- Save --------------------------------------------------------
+        Commands::Save { message } => {
+            println!("Saving work...");
+            let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
+            std::process::Command::new(&git_path).args(["add", "."]).status()?;
+            let status = std::process::Command::new(&git_path).args(["commit", "-m", &message]).status()?;
+            if !status.success() {
+                println!("Failed to save changes.");
+            } else {
+                println!("✅ Work saved locally.");
+            }
+        }
+
+        // ---- Sync --------------------------------------------------------
+        Commands::Sync => {
+            println!("Syncing with remote...");
+            let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
+            let pull_status = std::process::Command::new(&git_path).args(["pull", "--rebase"]).status()?;
+            if pull_status.success() {
+                let push_status = std::process::Command::new(&git_path).args(["push"]).status()?;
+                if push_status.success() {
+                    println!("✅ Synced successfully.");
+                }
+            }
+        }
+
+        // ---- Undo --------------------------------------------------------
+        Commands::Undo => {
+            println!("Undoing last save...");
+            let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
+            let status = std::process::Command::new(&git_path).args(["reset", "HEAD~1", "--soft"]).status()?;
+            if status.success() {
+                println!("✅ Last commit undone (changes kept in staging).");
+            }
+        }
+
+        // ---- Ship --------------------------------------------------------
+        Commands::Ship => {
+            println!("Shipping code...");
+            let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
+            
+            // Push to remote
+            println!("Pushing to origin...");
+            std::process::Command::new(&git_path).args(["push", "origin", "HEAD"]).status()?;
+            
+            // Push to local shadow
+            println!("Promoting to local shadow runner...");
+            let shadow_status = std::process::Command::new(&git_path)
+                .args(["push", "shadow", "HEAD"])
+                .status();
+                
+            match shadow_status {
+                Ok(s) if s.success() => println!("✅ Shipped to remote and local shadow."),
+                _ => println!("✅ Shipped to remote (local shadow skip/fail)."),
             }
         }
 
@@ -208,8 +275,15 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
             println!("✅ Everything stopped.");
         }
 
-        // ---- Status ------------------------------------------------------
+        // ---- Status (Native wrapper) -------------------------------------
         Commands::Status => {
+            println!("━━━ JeRyu Status ━━━\n");
+            let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
+            std::process::Command::new(&git_path).args(["status"]).status()?;
+        }
+
+        // ---- System (formerly Status) ------------------------------------
+        Commands::System => {
             let db = state::Db::open().await?;
             let docker_ctl = docker::DockerCtl::connect()?;
 
@@ -218,7 +292,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
             let client = gitlab_client::GitlabClient::new(&url, None);
             let gitlab_ready = client.is_ready().await;
 
-            println!("━━━ vgit status ━━━\n");
+            println!("━━━ JeRyu system status ━━━\n");
             println!(
                 "  GitLab:  {} ({})",
                 if gitlab_ready {
@@ -263,7 +337,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                 .list_managed_containers()
                 .await
                 .unwrap_or_default();
-            println!("\n  Docker containers (vgit-managed): {}", managed.len());
+            println!("\n  Docker containers (jeryu-managed): {}", managed.len());
             for c in &managed {
                 let name = c
                     .names
@@ -711,7 +785,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                         force,
                         commit_sha,
                     };
-                    println!("━━━ vgit test run ━━━\n");
+                    println!("━━━ jeryu test run ━━━\n");
                     println!("  Project ID: {}", opts.project_id);
                     println!("  Command:    {}", opts.test_command);
                     let plan = test_runner::plan_test_run(&opts);
@@ -764,7 +838,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                         force: false,
                         commit_sha: String::new(),
                     };
-                    println!("━━━ vgit test plan ━━━\n");
+                    println!("━━━ jeryu test plan ━━━\n");
                     let plan = test_runner::plan_test_run(&opts);
                     println!("  Command:      {}", plan.command);
                     println!("  Risk Class:   {}", plan.risk_class);
@@ -953,7 +1027,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                         print!("{}", String::from_utf8_lossy(&output.stdout));
                     } else {
                         let value: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-                        println!("━━━ vgit test impact ━━━\n");
+                        println!("━━━ jeryu test impact ━━━\n");
                         println!("  Base/head:          {base}..{head}");
                         println!(
                             "  Release impacting:  {}",
@@ -1031,7 +1105,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                     } else if explain {
                         print!("{}", test_intel::explain::explain(&plan));
                     } else {
-                        println!("━━━ vgit test select ━━━\n");
+                        println!("━━━ jeryu test select ━━━\n");
                         println!("  Base:       {}", base);
                         println!("  Head:       {}", head);
                         println!("  Changed:    {} files", changed_paths.len());
@@ -1091,9 +1165,9 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                     emit_plan,
                     emit_skipped,
                 } => {
-                    let testmap_path = workspace.join(".vgit/testmap.toml");
+                    let testmap_path = workspace.join(".jeryu/testmap.toml");
                     if !testmap_path.exists() {
-                        anyhow::bail!("no .vgit/testmap.toml found at {}", testmap_path.display());
+                        anyhow::bail!("no .jeryu/testmap.toml found at {}", testmap_path.display());
                     }
 
                     let map = test_intel::testmap::load_testmap(&testmap_path)
@@ -1127,7 +1201,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                     } else if explain {
                         print!("{}", test_intel::testmap::explain_external_plan(&plan));
                     } else {
-                        println!("━━━ vgit test select-external ━━━\n");
+                        println!("━━━ jeryu test select-external ━━━\n");
                         println!("  Workspace: {}", workspace.display());
                         println!("  Base:      {}", base);
                         println!("  Head:      {}", head);
@@ -1200,7 +1274,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
 
                     let mut external_map = None;
                     if let Some(workspace_path) = workspace {
-                        let testmap_path = workspace_path.join(".vgit/testmap.toml");
+                        let testmap_path = workspace_path.join(".jeryu/testmap.toml");
                         if testmap_path.exists() {
                             external_map = match test_intel::testmap::load_testmap(&testmap_path) {
                                 Ok(m) => Some(m),
@@ -1269,7 +1343,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
 
                     let mut external_map = None;
                     if let Some(workspace_path) = workspace {
-                        let testmap_path = workspace_path.join(".vgit/testmap.toml");
+                        let testmap_path = workspace_path.join(".jeryu/testmap.toml");
                         if testmap_path.exists() {
                             external_map = match test_intel::testmap::load_testmap(&testmap_path) {
                                 Ok(m) => Some(m),
@@ -1386,7 +1460,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                         let json_value = test_intel::cache::explain_cache_json(&result);
                         println!("{}", serde_json::to_string_pretty(&json_value)?);
                     } else {
-                        println!("━━━ vgit test cache-status ━━━\n");
+                        println!("━━━ jeryu test cache-status ━━━\n");
                         println!("  Base: {}", base);
                         println!("  Head: {}", head);
                         println!("  Changed: {} files", changed_paths.len());
@@ -1507,7 +1581,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
         Commands::ShadowRemote(subcmd) => match subcmd {
             ShadowRemoteCommands::Status { repo, name } => {
                 let status = shadow::status(repo.as_deref(), &name)?;
-                println!("━━━ vgit shadow status ━━━\n");
+                println!("━━━ jeryu shadow status ━━━\n");
                 println!("  Repo:         {}", status.repo_root.display());
                 println!(
                     "  Head branch:  {}",
@@ -1732,7 +1806,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                     if json {
                         println!("{}", serde_json::to_string_pretty(&report)?);
                     } else {
-                        println!("━━━ vgit secrets status ━━━");
+                        println!("━━━ jeryu secrets status ━━━");
                         println!("  Vault:       {}", report.addr);
                         println!("  Initialized: {}", report.initialized);
                         println!("  Sealed:      {}", report.sealed);
@@ -1902,7 +1976,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
         // ---- Action list -------------------------------------------------
         Commands::Action(subcmd) => match subcmd {
             ActionCommands::List { json } => {
-                use vgit::tui::action_registry::{self, Surface};
+                use jeryu::tui::action_registry::{self, Surface};
                 if json {
                     let entries: Vec<serde_json::Value> = action_registry::REGISTRY
                         .iter()
@@ -1990,7 +2064,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
             let miss_count = db.count_selector_misses_since(&since).await.unwrap_or(0);
             let evidence = db.list_evidence_for_ref(project_id, &ref_name, 1).await?;
 
-            println!("━━━ vgit next — {ref_name} ━━━\n");
+            println!("━━━ jeryu next — {ref_name} ━━━\n");
 
             // Priority 1: recent job failures
             if let Some(rec) = evidence.first() {
@@ -2003,7 +2077,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                     &rec.commit_sha[..rec.commit_sha.len().min(12)]
                 );
                 println!(
-                    "    Action: vgit job explain --project-id {project_id} --job-id {}",
+                    "    Action: jeryu job explain --project-id {project_id} --job-id {}",
                     rec.job_id
                 );
                 println!();
@@ -2031,7 +2105,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                         rel.upstream_status
                     );
                     println!(
-                        "    Action: vgit release status --project-id {project_id} --ref-name {ref_name}"
+                        "    Action: jeryu release status --project-id {project_id} --ref-name {ref_name}"
                     );
                 } else if !canary_ok {
                     println!(
@@ -2039,7 +2113,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                         rel.canary_status
                     );
                     println!(
-                        "    Action: vgit release status --project-id {project_id} --ref-name {ref_name}"
+                        "    Action: jeryu release status --project-id {project_id} --ref-name {ref_name}"
                     );
                 } else {
                     println!(
@@ -2057,7 +2131,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
             if miss_count > 0 {
                 println!("  ● {miss_count} unrepaired selector miss(es) in last 7 days");
                 println!(
-                    "    Action: vgit test audit --changed <files> --failed <tests> --sha HEAD"
+                    "    Action: jeryu test audit --changed <files> --failed <tests> --sha HEAD"
                 );
                 println!();
             }
@@ -2074,7 +2148,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
         } => {
             let db = state::Db::open().await?;
 
-            println!("━━━ vgit explain-blocker {entity_type}:{entity_id} ━━━\n");
+            println!("━━━ jeryu explain-blocker {entity_type}:{entity_id} ━━━\n");
 
             match entity_type.as_str() {
                 "job" => {
@@ -2119,7 +2193,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                         }
                     } else {
                         println!("  No failure capsule found for job {entity_id}.");
-                        println!("  Try: vgit job trace --project-id <id> --job-id {entity_id}");
+                        println!("  Try: jeryu job trace --project-id <id> --job-id {entity_id}");
                     }
                 }
                 "release" => {
@@ -2163,7 +2237,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                             println!("  BLOCKER: production pipeline failed");
                         }
                         println!(
-                            "\n  Action: vgit release status --project-id {} --ref-name {}",
+                            "\n  Action: jeryu release status --project-id {} --ref-name {}",
                             rel.project_id, rel.ref_name
                         );
                     } else {
@@ -2178,13 +2252,13 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                     if miss_count > 0 {
                         println!("  BLOCKER: {miss_count} unrepaired test selector miss(es).");
                         println!(
-                            "  Action:  vgit test audit --changed <files> --failed <tests> --sha HEAD"
+                            "  Action:  jeryu test audit --changed <files> --failed <tests> --sha HEAD"
                         );
                     } else {
                         println!("  ✓ No selector misses.");
                     }
                     println!("\n  For full pipeline/approval status:");
-                    println!("    vgit pipeline explain --project-id <id> --pipeline-id <id>");
+                    println!("    jeryu pipeline explain --project-id <id> --pipeline-id <id>");
                 }
                 other => {
                     println!("  Unknown entity type '{other}'. Supported: job | release | merge");

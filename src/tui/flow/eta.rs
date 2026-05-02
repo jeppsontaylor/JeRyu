@@ -1,5 +1,5 @@
 //! Owner: Interactive TUI subsystem — flow ETA estimation
-//! Proof: `cargo nextest run -p vgit -- tui::flow`
+//! Proof: `cargo nextest run -p jeryu -- tui::flow`
 //! Invariants: ETA estimates remain advisory and never affect scheduling or release decisions.
 
 use super::model::{EtaConfidence, EtaEstimate};

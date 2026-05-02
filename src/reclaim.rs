@@ -1,5 +1,5 @@
 //! Owner: Storage Audit & GC
-//! Proof: `cargo test -p vgit -- reclaim`
+//! Proof: `cargo test -p jeryu -- reclaim`
 //! Invariants: GC never removes objects referenced by active managers; AutoGcReport is produced before any deletions; audit runs do not block the reconciliation loop
 
 use anyhow::{Context, Result};
@@ -41,7 +41,7 @@ pub async fn run_storage_audit() -> Result<()> {
     let mut gitlab_logs_cmd = Command::new("docker");
     gitlab_logs_cmd.args([
         "exec",
-        "vgit-gitlab",
+        "jeryu-gitlab",
         "sh",
         "-lc",
         "du -sh /var/log/gitlab/* 2>/dev/null | sort -h | tail -n 20",
@@ -80,7 +80,7 @@ pub async fn run_storage_audit() -> Result<()> {
 pub async fn run_aggressive_reclaim(apply: bool) -> Result<()> {
     let reclaim_toml = dirs::home_dir()
         .unwrap_or_default()
-        .join(".vgit/reclaim.toml");
+        .join(".jeryu/reclaim.toml");
     let mut exclusions = vec![];
     if reclaim_toml.exists()
         && let Ok(content) = tokio::fs::read_to_string(&reclaim_toml).await
@@ -126,7 +126,7 @@ pub async fn run_aggressive_reclaim(apply: bool) -> Result<()> {
             "exclusions_loaded": exclusions.len(),
             "targets": [
                 { "type": "gitlab_internal_logs", "filter": "truncate current logs + delete rotated logs", "estimated_bytes_freed": "Variable" },
-                { "type": "docker_container_json_logs", "filter": "truncate vgit-gitlab + vgit-managed runner logs", "estimated_bytes_freed": "Variable" },
+                { "type": "docker_container_json_logs", "filter": "truncate jeryu-gitlab + jeryu-managed runner logs", "estimated_bytes_freed": "Variable" },
                 { "type": "containers", "filter": "until=24h", "estimated_bytes_freed": cont_sz },
                 { "type": "images_dangling", "filter": "dangling=true", "estimated_bytes_freed": img_sz },
                 { "type": "images_unreferenced", "filter": "until=168h", "estimated_bytes_freed": "Unknown" },
@@ -156,7 +156,7 @@ pub async fn run_aggressive_reclaim(apply: bool) -> Result<()> {
         "exclusions": exclusions,
         "target_systems": ["docker_containers", "docker_images", "builder_cache"]
     });
-    db.append_event("host_reclaim", None, None, "vgit-cli", &payload.to_string())
+    db.append_event("host_reclaim", None, None, "jeryu-cli", &payload.to_string())
         .await?;
 
     truncate_gitlab_logs().await?;
@@ -264,7 +264,7 @@ find "{logs}/gitlab-rails" -type f \( -name '*_json.log' -o -name '*_client.log'
 async fn truncate_docker_json_logs() -> Result<()> {
     let script = r#"
 set -eu
-for cid in $(docker ps -aq --filter name=vgit-gitlab --filter label=vgit.managed=true); do
+for cid in $(docker ps -aq --filter name=jeryu-gitlab --filter label=jeryu.managed=true); do
   log_path=$(docker inspect --format '{{.LogPath}}' "$cid" 2>/dev/null || true)
   if [ -n "$log_path" ] && [ -f "$log_path" ]; then
     : > "$log_path" || true

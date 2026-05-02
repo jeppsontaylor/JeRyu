@@ -1,4 +1,4 @@
-I’m basing this on the three references you provided, not a live code audit. Taken as documented, **vgit is already far beyond a normal CLI/TUI**: it is a local delivery control plane with runner orchestration, release gating, failure evidence, test intelligence, SmartCache, Vault, and agent-facing capabilities. The biggest opportunity is not “add more commands.” The biggest opportunity is to make the system’s **causal state, safety gates, and available actions visible in one place** so a human or agent can answer:
+I’m basing this on the three references you provided, not a live code audit. Taken as documented, **jeryu is already far beyond a normal CLI/TUI**: it is a local delivery control plane with runner orchestration, release gating, failure evidence, test intelligence, SmartCache, Vault, and agent-facing capabilities. The biggest opportunity is not “add more commands.” The biggest opportunity is to make the system’s **causal state, safety gates, and available actions visible in one place** so a human or agent can answer:
 
 > What is happening? Why? What is blocked? What can I safely do next? What will happen if I do it?
 
@@ -21,7 +21,7 @@ The architecture is strong because it has several properties many agentic delive
 
 The major gap is that the system has **more intelligence than the UI and agent capability layer currently expose**. A lot of the good stuff exists in CLI commands, DB tables, release logic, event ledgers, and modules, but the operator-facing and agent-facing experience still feels like several separate tools rather than one omniscient command console.
 
-The dream version would make `vgit tui` feel like a **terminal-native mission control center** for CI, release, agents, cache, runners, evidence, and production safety.
+The dream version would make `jeryu tui` feel like a **terminal-native mission control center** for CI, release, agents, cache, runners, evidence, and production safety.
 
 ---
 
@@ -143,7 +143,7 @@ Effect: retries failed job
 Reversible: no
 Audit event: job_retry_requested
 Available when: job.status == failed
-CLI equivalent: vgit job retry 2 14445
+CLI equivalent: jeryu job retry 2 14445
 ```
 
 Then the TUI, CLI JSON, and agent capability layer can all speak the same action language.
@@ -158,7 +158,7 @@ This would unlock:
 * approval workflows
 * keyboard shortcuts that are self-documenting
 
-Right now, `vgit` has many controls. It needs an **action intelligence layer**.
+Right now, `jeryu` has many controls. It needs an **action intelligence layer**.
 
 ---
 
@@ -381,7 +381,7 @@ It should also show the exact command/action available:
 
 ```text
 Available action:
-  vgit release reconcile --project-id 2 --ref-name main
+  jeryu release reconcile --project-id 2 --ref-name main
 
 Unavailable action:
   promote-prod
@@ -589,7 +589,7 @@ Response:
       "artifact": "/path/to/gate-canary-e2e.json"
     }
   ],
-  "would_run": "vgit release promote-prod --project-id 2 --ref-name main"
+  "would_run": "jeryu release promote-prod --project-id 2 --ref-name main"
 }
 ```
 
@@ -874,10 +874,10 @@ Without correlation, the state is rich but harder to narrate.
 Webhook systems need operational tools:
 
 ```bash
-vgit webhook recent --json
-vgit webhook replay <event_id>
-vgit webhook dead-letter list
-vgit webhook explain <event_id>
+jeryu webhook recent --json
+jeryu webhook replay <event_id>
+jeryu webhook dead-letter list
+jeryu webhook explain <event_id>
 ```
 
 This would help debug “why didn’t release trigger?” and malformed/unhandled events.
@@ -887,10 +887,10 @@ This would help debug “why didn’t release trigger?” and malformed/unhandle
 There should be first-class controls for pausing automation:
 
 ```bash
-vgit automation pause release
-vgit automation pause auto-retry
-vgit automation pause supersedence
-vgit automation status
+jeryu automation pause release
+jeryu automation pause auto-retry
+jeryu automation pause supersedence
+jeryu automation status
 ```
 
 During incidents, operators may want GitLab up but automation stopped.
@@ -926,12 +926,12 @@ Likely low sensitivity, but still operational metadata. Consider auth or localho
 The docs mention env/secrets files and capability sockets. The system should have a permissions doctor:
 
 ```bash
-vgit host doctor --security
+jeryu host doctor --security
 ```
 
 It should check:
 
-* `vgit.env` permissions
+* `jeryu.env` permissions
 * Vault bootstrap files
 * SQLite permissions
 * capability socket permissions
@@ -945,7 +945,7 @@ This is the scary area. Make the trust boundary visible and auditable.
 
 ### 15. Scratch branch prefix policy
 
-The engine intentionally ignores `vgit-test-*` branches. That makes sense for test runs, but there should be controls preventing abuse or accidental permanent work under that prefix.
+The engine intentionally ignores `jeryu-test-*` branches. That makes sense for test runs, but there should be controls preventing abuse or accidental permanent work under that prefix.
 
 ---
 
@@ -983,9 +983,9 @@ The current 650ms polling is acceptable for now, but dream mode would use increm
 
 ---
 
-# 5. Dream TUI: “vgit Mission Control”
+# 5. Dream TUI: “jeryu Mission Control”
 
-The dream version of `vgit tui` should feel like a terminal-native command center where every entity is clickable/selectable, every action is explainable, and every blocker has a reason.
+The dream version of `jeryu tui` should feel like a terminal-native command center where every entity is clickable/selectable, every action is explainable, and every blocker has a reason.
 
 I would redesign it around this principle:
 
@@ -998,7 +998,7 @@ I would redesign it around this principle:
 Something like this:
 
 ```text
-┌ VGIT MISSION CONTROL ─ main/fa51a52 ─ ONLINE ─ PROD SAFE ─ 12:44:09 ─────────────┐
+┌ JERYU MISSION CONTROL ─ main/fa51a52 ─ ONLINE ─ PROD SAFE ─ 12:44:09 ─────────────┐
 │ GitLab ●  Docker ●  Vault ●  Webhooks ●  Cache ◐  Disk 71%  Runners 7/10  Agents 3 │
 ├───────────────────────────────┬───────────────────────────────┬──────────────────┤
 │ RELEASE CHAIN                 │ FLOW GRAPH                     │ ACTION CENTER    │
@@ -1304,7 +1304,7 @@ Shows:
 * disk pressure
 * reclaim plan
 * Docker storage
-* vgit DB size
+* jeryu DB size
 * runner directories
 * CAS/crate cache sizes
 * Vault/GitLab container health
@@ -1703,13 +1703,13 @@ VTI Plan for fa51a52
 Changed paths:
   src/release.rs
   src/state.rs
-  docs/VGIT_TUI.md
+  docs/JERYU_TUI.md
 
 Selected:
   release::tests
   state::tests::test_production_pipeline_tracking
   repo audit-agent-surface
-  cargo check -p vgit
+  cargo check -p jeryu
 
 Skipped:
   tui tests
@@ -1915,7 +1915,7 @@ Those ten would produce a huge leap in perceived intelligence and operational sa
 
 # 14. The dream end-state
 
-The dream `vgit tui` is not merely a dashboard.
+The dream `jeryu tui` is not merely a dashboard.
 
 It is a **real-time, policy-aware, agent-supervising, release-safe command console**.
 

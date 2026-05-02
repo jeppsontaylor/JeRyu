@@ -1,5 +1,5 @@
 //! Owner: Supply-Chain Detonation / Honey Token Detection
-//! Proof: `cargo test -p vgit -- honeypot`
+//! Proof: `cargo test -p jeryu -- honeypot`
 //! Invariants: Honey tokens are seeded before untrusted workload starts; Tripwire kills the target process on any touch; never remove paths from the watch list without an AER
 
 use notify::{EventKind, RecursiveMode, Watcher};
@@ -17,7 +17,7 @@ pub fn seed_sandbox(sandbox_dir: &str) -> Vec<PathBuf> {
     let aws_dir = base.join(".aws");
     if fs::create_dir_all(&aws_dir).is_ok() {
         let creds = aws_dir.join("credentials");
-        let fake_aws = "[default]\naws_access_key_id = AKIAIOSFODNN7VGITXYZ\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYVGITKEY";
+        let fake_aws = "[default]\naws_access_key_id = AKIAIOSFODNN7JERYUXYZ\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYJERYUKEY";
         if fs::write(&creds, fake_aws).is_ok() {
             tokens.push(creds);
         }
@@ -25,7 +25,7 @@ pub fn seed_sandbox(sandbox_dir: &str) -> Vec<PathBuf> {
 
     // 2. Decoy NPM registry token
     let npmrc = base.join(".npmrc");
-    let fake_npm = "//registry.npmjs.org/:_authToken=npm_vgit_decoy_trap_token_x1y2z3";
+    let fake_npm = "//registry.npmjs.org/:_authToken=npm_jeryu_decoy_trap_token_x1y2z3";
     if fs::write(&npmrc, fake_npm).is_ok() {
         tokens.push(npmrc);
     }
@@ -88,7 +88,7 @@ pub fn start_tripwire(
                 .status();
 
             // Drop a quarantine marker so `cleanup` knows to skip sandbox destruction
-            let marker = Path::new(&sandbox_dir).join(".vgit_quarantine");
+            let marker = Path::new(&sandbox_dir).join(".jeryu_quarantine");
             let _ = fs::write(
                 &marker,
                 format!("Quarantined due to touching: {:?}", tripped_paths),

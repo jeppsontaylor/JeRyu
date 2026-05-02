@@ -1,4 +1,4 @@
-I reviewed the repo through GitHub/raw source because `git clone` failed inside the execution container with a DNS resolution error for `github.com`. I did not compile or run the project locally, so this is a source-and-docs review, not a runtime validation. The most important framing correction: **JeRyu/vgit is not actually a fork of GitLab in the codebase sense.** It is a Rust control plane that boots and orchestrates a local GitLab CE + GitLab Runner + Docker + Vault stack, with agent-first APIs and automation layered on top. The README describes it as a “single-binary Rust control plane” that turns a local GitLab instance into an orchestration engine for autonomous agents, and the architecture docs similarly describe GitLab, Runner, Docker, Vault, and Postgres/SQLite as components managed by vgit. ([GitHub][1])
+I reviewed the repo through GitHub/raw source because `git clone` failed inside the execution container with a DNS resolution error for `github.com`. I did not compile or run the project locally, so this is a source-and-docs review, not a runtime validation. The most important framing correction: **JeRyu/jeryu is not actually a fork of GitLab in the codebase sense.** It is a Rust control plane that boots and orchestrates a local GitLab CE + GitLab Runner + Docker + Vault stack, with agent-first APIs and automation layered on top. The README describes it as a “single-binary Rust control plane” that turns a local GitLab instance into an orchestration engine for autonomous agents, and the architecture docs similarly describe GitLab, Runner, Docker, Vault, and Postgres/SQLite as components managed by jeryu. ([GitHub][1])
 
 ## Executive take
 
@@ -12,7 +12,7 @@ The biggest gap is that many of the “agent-first” ideas are present as **sur
 
 ## 1. It has the right high-level shape: Rust control plane + GitLab + runners + Vault + state
 
-The architecture is coherent. It divides the product into interface, control, state, execution, and intelligence planes, and wires local GitLab CE, Runner Managers, Vault, Docker, and the vgit HTTP service into one operational topology. ([GitHub][3])
+The architecture is coherent. It divides the product into interface, control, state, execution, and intelligence planes, and wires local GitLab CE, Runner Managers, Vault, Docker, and the jeryu HTTP service into one operational topology. ([GitHub][3])
 
 That is a strong foundation because an agent-first git system needs more than repository hosting. It needs:
 
@@ -145,7 +145,7 @@ For an autonomous system, “partial routing” is dangerous because agents will
 
 The docs and guardrails talk about strict network isolation and security-relevant sandbox modules. `AGENTS.md` even says strict network isolation uses unshare/bwrap. ([GitHub][2])
 
-But the actual `sandbox.rs` implementation shown through source review appears to set `VGIT_SANDBOXED=1` under strict mode and comments that full namespace isolation would require more setup. ([GitHub][13])
+But the actual `sandbox.rs` implementation shown through source review appears to set `JERYU_SANDBOXED=1` under strict mode and comments that full namespace isolation would require more setup. ([GitHub][13])
 
 That is the biggest “must fix.” For an agent-first autonomous coding system, the sandbox has to be real:
 
@@ -327,7 +327,7 @@ The repo already has the idea of racing patch hypotheses. That could become one 
 Dream behavior:
 
 ```text
-vgit agent race --task "fix parser panic" \
+jeryu agent race --task "fix parser panic" \
   --hypothesis "bounds check" \
   --hypothesis "parser state reset" \
   --hypothesis "tokenizer fallback"
@@ -425,7 +425,7 @@ Reason: same source+env+toolchain+policy
 
 ## 7. Replace polling with event streams
 
-Add a vgit event bus:
+Add a jeryu event bus:
 
 ```text
 /events?project=2&ref=main
@@ -472,11 +472,11 @@ Then an agent can ask:
 
 > “What do I need to test if I change `src/cache_brain.rs`?”
 
-And vgit can answer:
+And jeryu can answer:
 
 ```text
 Required:
-- cargo check -p vgit
+- cargo check -p jeryu
 - cache_brain unit tests
 - policy trust gate tests
 - state cache schema tests
@@ -706,7 +706,7 @@ This is where an agent-first git system can beat every existing forge.
 
 ## P0: correctness and trust
 
-1. **Make docs/code drift visible.** Add `vgit repo audit-docs` that compares docs constants, settings defaults, CLI commands, action registry entries, and source defaults.
+1. **Make docs/code drift visible.** Add `jeryu repo audit-docs` that compares docs constants, settings defaults, CLI commands, action registry entries, and source defaults.
 2. **Implement real capability auth.** Use UDS peer credentials locally and signed/mTLS identities remotely.
 3. **Make `RequestMerge` precise.** Either rename it to `EvaluateMergeRequest` or implement a real merge queue.
 4. **Finish `list_agents`.** It should show active branches, bots, issues, MRs, pipelines, grants, and token expiry.
@@ -862,7 +862,7 @@ That explanation is what current forges lack.
 
 Do not pitch it as a GitLab fork. Pitch it as:
 
-> **JeRyu/vgit: an agent-first delivery hypervisor for Git, CI, evidence, and release automation.**
+> **JeRyu/jeryu: an agent-first delivery hypervisor for Git, CI, evidence, and release automation.**
 
 Or:
 
@@ -915,8 +915,8 @@ JeRyu already has many of the nouns for this: agents, capabilities, runners, poo
 [5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/action_registry.rs "raw.githubusercontent.com"
 [6]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/VTI.md "raw.githubusercontent.com"
 [7]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/API.md "raw.githubusercontent.com"
-[8]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
-[9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[8]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
+[9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [10]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/gitlab_client.rs "raw.githubusercontent.com"
 [11]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/capability.rs "raw.githubusercontent.com"
 [12]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/agent.rs "raw.githubusercontent.com"

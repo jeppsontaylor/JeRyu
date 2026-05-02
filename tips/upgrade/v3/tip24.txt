@@ -1,6 +1,6 @@
 ## Bottom-line verdict
 
-JeRyu is a seriously ambitious Rust control plane for “agent-first GitLab,” and it already has several excellent primitives: runner pools, capability-style agent actions, proof lanes, SmartCache/Test Intel concepts, release gates, a TUI, evidence capsules, and GitLab webhook/custom-executor integration. The README frames `vgit` as a “Headless GitLab & Autonomous Agent Hypervisor” that orchestrates a local GitLab stack, runner pools, ephemeral identities, copy-on-write sandboxes, semantic CI, and release workflows. ([GitHub][1])
+JeRyu is a seriously ambitious Rust control plane for “agent-first GitLab,” and it already has several excellent primitives: runner pools, capability-style agent actions, proof lanes, SmartCache/Test Intel concepts, release gates, a TUI, evidence capsules, and GitLab webhook/custom-executor integration. The README frames `jeryu` as a “Headless GitLab & Autonomous Agent Hypervisor” that orchestrates a local GitLab stack, runner pools, ephemeral identities, copy-on-write sandboxes, semantic CI, and release workflows. ([GitHub][1])
 
 The biggest correction: **this does not look like a fork of GitLab itself**. It looks like a Rust sidecar/control plane that runs around GitLab CE, GitLab Runner, Docker, Vault, Postgres/SQLite, and GitLab APIs. That is not bad; in fact, it may be the better path. But the positioning should be precise: **“agent-first GitLab control plane / autonomous delivery hypervisor”**, not “GitLab fork,” unless you plan to actually fork GitLab Rails/Gitaly/Workhorse.
 
@@ -79,7 +79,7 @@ This is underrated. The best agent platforms will not merely “provide more con
 
 ### 1. The sandboxing story is currently the biggest gap
 
-The README claims strong isolation through copy-on-write sandboxes and constrained containers. ([GitHub][1]) But the actual sandbox module appears to only wrap `bash`, inject environment variables, and set `VGIT_SANDBOXED=1` when strict network isolation is requested. The code comments explicitly say bwrap/unshare-style isolation is not implemented there. ([GitHub][10])
+The README claims strong isolation through copy-on-write sandboxes and constrained containers. ([GitHub][1]) But the actual sandbox module appears to only wrap `bash`, inject environment variables, and set `JERYU_SANDBOXED=1` when strict network isolation is requested. The code comments explicitly say bwrap/unshare-style isolation is not implemented there. ([GitHub][10])
 
 This is the highest-priority fix.
 

@@ -1,4 +1,4 @@
-Yes. The right system for vgit is a **self-learning Test Impact Brain**: deterministic enough to trust, adaptive enough to learn, and integrated deeply enough that agents, GitLab, the local DB, SmartCache, admission hooks, and nightly E2E all reinforce one another.
+Yes. The right system for jeryu is a **self-learning Test Impact Brain**: deterministic enough to trust, adaptive enough to learn, and integrated deeply enough that agents, GitLab, the local DB, SmartCache, admission hooks, and nightly E2E all reinforce one another.
 
 The key principle: **AI should help maintain and explain the test-impact graph, but the actual skip/run decision should be deterministic, auditable, and policy-gated.**
 
@@ -12,7 +12,7 @@ The best pattern from modern build systems is:
 
 Nx, Pants, and Bazel all converge on this model. Nx uses Git changes plus a project graph to run only affected projects and their dependents; Pants supports `--changed-since` plus direct or transitive changed dependents; Bazel exposes query/action graphs for dependency-aware target reasoning; and Bazel-style target determinators exist specifically to compute affected targets between two Git commits. ([Nx][2])
 
-For vgit, I would build this as a native Rust subsystem:
+For jeryu, I would build this as a native Rust subsystem:
 
 ```text
 src/test_impact.rs      # planner, graph, risk, selection
@@ -36,9 +36,9 @@ witness.rs      -> signs selection receipts and cached test verdicts
 cache.rs        -> reuses build/test artifacts safely
 ```
 
-## The system to build: vgit Test Impact Brain
+## The system to build: jeryu Test Impact Brain
 
-Think of this as a **fifth intelligence layer inside vgit**, sitting between the current Change Impact Analysis and the CI Test Runner.
+Think of this as a **fifth intelligence layer inside jeryu**, sitting between the current Change Impact Analysis and the CI Test Runner.
 
 ```mermaid
 flowchart TD
@@ -70,27 +70,27 @@ flowchart TD
     P --> Q["Nightly validation + miss detection"]
 ```
 
-This should become the canonical flow for every PR, push, agent branch, and local `vgit test` invocation.
+This should become the canonical flow for every PR, push, agent branch, and local `jeryu test` invocation.
 
-## What vgit should learn from best-practice systems
+## What jeryu should learn from best-practice systems
 
 ### 1. Use affected-graph selection, not manually curated CI sprawl
 
 Nx’s affected mode determines changed files, maps them to projects, then runs tasks for those projects and dependents; it also recommends using the latest successful main commit as the base SHA in CI. ([Nx][2]) Pants does the same conceptually with `--changed-since` and `--changed-dependents=direct|transitive`. ([Pants][3])
 
-vgit already has the foundation: Git is the ledger, `impact.rs` already classifies changes, `git2` is already in the stack, and `state.rs` already stores persistent execution data. The missing piece is a **test dependency graph**.
+jeryu already has the foundation: Git is the ledger, `impact.rs` already classifies changes, `git2` is already in the stack, and `state.rs` already stores persistent execution data. The missing piece is a **test dependency graph**.
 
 ### 2. Use dynamic child pipelines instead of static huge pipelines
 
 GitLab supports generating a YAML file in one job and triggering a child pipeline from that generated artifact. GitLab explicitly calls this useful for generating pipelines based on changed content or building target/architecture matrices. ([GitLab Docs][4])
 
-That is exactly what vgit should do:
+That is exactly what jeryu should do:
 
 ```yaml
 plan-ci:
   stage: plan
   script:
-    - vgit test impact-plan \
+    - jeryu test impact-plan \
         --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA" \
         --head "$CI_COMMIT_SHA" \
         --out generated-ci.yml \
@@ -122,7 +122,7 @@ Use `cargo-nextest` for most Rust tests and keep raw `cargo test` only for docte
 
 Microsoft’s Test Impact Analysis stores a mapping between test cases and source code, runs only impacted tests, and recommends periodic full-test refreshes because the mapping must be regenerated regularly. ([Microsoft Learn][8]) Microsoft also recommends validating TIA by running impacted tests and all tests in sequence to confirm the selected subset catches the same failures. ([Microsoft Learn][9])
 
-That exact idea should be built into vgit:
+That exact idea should be built into jeryu:
 
 ```text
 PR path:        selected tests only, if confidence is high
@@ -228,14 +228,14 @@ CREATE TABLE test_selection_misses (
 );
 ```
 
-This makes the selector self-correcting: when a nightly full run finds a skipped test that fails, vgit records a **selection miss**, strengthens the missing dependency edge, and can open an agent task to fix the test map.
+This makes the selector self-correcting: when a nightly full run finds a skipped test that fails, jeryu records a **selection miss**, strengthens the missing dependency edge, and can open an agent task to fix the test map.
 
 ## The declarative test map
 
 Add a checked-in file:
 
 ```toml
-# .vgit/testmap.toml
+# .jeryu/testmap.toml
 
 [policy]
 default_mode = "selected"
@@ -281,7 +281,7 @@ command = "cargo fmt --all -- --check"
 depends_on = ["**/*.rs", "Cargo.toml"]
 
 [[target]]
-name = "clippy-vgit"
+name = "clippy-jeryu"
 kind = "lint"
 command = "cargo clippy --all-targets --all-features -- -D warnings"
 depends_on = ["src/**/*.rs", "tests/**/*.rs", "Cargo.toml", "Cargo.lock"]
@@ -290,7 +290,7 @@ risk_tier = "high"
 [[target]]
 name = "unit-decision"
 kind = "unit"
-command = "cargo nextest run -E 'binary(vgit) & test(/decision/)'"
+command = "cargo nextest run -E 'binary(jeryu) & test(/decision/)'"
 depends_on = ["src/decision.rs", "src/policy.rs"]
 risk_tier = "medium"
 
@@ -370,7 +370,7 @@ risk_tier = "critical"
 run_on = ["nightly", "release", "forced", "critical_change"]
 ```
 
-This gives humans and agents a simple declarative layer, while vgit can enrich it with static and observed edges.
+This gives humans and agents a simple declarative layer, while jeryu can enrich it with static and observed edges.
 
 ## The selector algorithm
 
@@ -470,7 +470,7 @@ First, **Cargo package graph**. Cargo can output workspace members and resolved 
 changed file -> package -> dependent packages -> tests for those packages
 ```
 
-Second, **target/test binary graph**. Cargo workspaces support package selection with `-p/--package` and `--workspace`. ([Rust Documentation][13]) vgit should discover:
+Second, **target/test binary graph**. Cargo workspaces support package selection with `-p/--package` and `--workspace`. ([Rust Documentation][13]) jeryu should discover:
 
 ```text
 src/main.rs
@@ -507,14 +507,14 @@ test target -> files/regions/symbols executed
 For Rust:
 
 ```bash
-cargo llvm-cov nextest --json --output-path target/vgit/coverage.json
+cargo llvm-cov nextest --json --output-path target/jeryu/coverage.json
 ```
 
 `cargo-llvm-cov` supports JSON export, and nextest documents the `cargo llvm-cov nextest` integration. ([Docs.rs][15])
 
 This dynamic graph is the closest equivalent to `pytest-testmon`, which selects affected tests by collecting dependencies between tests and executed code using coverage data, then comparing those dependencies against changes. ([Testmon][16])
 
-The vgit version should be stronger because it also has:
+The jeryu version should be stronger because it also has:
 
 ```text
 Git ledger
@@ -552,7 +552,7 @@ selected-e2e-if-needed
 selector-audit-if-sampled
 ```
 
-In GitLab, vgit generates the actual child YAML.
+In GitLab, jeryu generates the actual child YAML.
 
 Example generated pipeline for a `src/decision.rs` change:
 
@@ -565,7 +565,7 @@ fmt:
 
 clippy-decision:
   stage: lint
-  script: cargo clippy --package vgit --all-targets -- -D warnings
+  script: cargo clippy --package jeryu --all-targets -- -D warnings
 
 unit-decision:
   stage: test
@@ -587,7 +587,7 @@ fmt:
 
 clippy-pool:
   stage: lint
-  script: cargo clippy --package vgit --all-targets -- -D warnings
+  script: cargo clippy --package jeryu --all-targets -- -D warnings
 
 unit-pool:
   stage: test
@@ -610,7 +610,7 @@ stages: [docs]
 docs-check:
   stage: docs
   script:
-    - vgit docs check
+    - jeryu docs check
 ```
 
 No Rust tests.
@@ -651,7 +651,7 @@ Skip E2E when:
 5. isolated test file changes
 ```
 
-Your existing vgit has a huge advantage: full E2E can stay alive in the background through nightly scheduled pipelines, release gates, and random audit probes. That lets PRs be fast without deleting the safety net.
+Your existing jeryu has a huge advantage: full E2E can stay alive in the background through nightly scheduled pipelines, release gates, and random audit probes. That lets PRs be fast without deleting the safety net.
 
 ## Nightly full testing
 
@@ -666,50 +666,50 @@ Nightly should do four things:
 
 This is critical. Microsoft’s TIA docs explicitly recommend periodically running all tests because the test/source mapping needs regeneration. ([Microsoft Learn][8])
 
-In GitLab, scheduled pipelines can be detected with `CI_PIPELINE_SOURCE == "schedule"`; GitLab’s docs show schedule-specific rules. ([GitLab Docs][1]) In GitHub Actions, keep a scheduled workflow too if GitHub remains the outer public CI mirror; GitHub supports path filters for PR/push workflows, but vgit should be the real selector, not GitHub path filters. ([GitHub Docs][17])
+In GitLab, scheduled pipelines can be detected with `CI_PIPELINE_SOURCE == "schedule"`; GitLab’s docs show schedule-specific rules. ([GitLab Docs][1]) In GitHub Actions, keep a scheduled workflow too if GitHub remains the outer public CI mirror; GitHub supports path filters for PR/push workflows, but jeryu should be the real selector, not GitHub path filters. ([GitHub Docs][17])
 
 ## Local developer workflow
 
 Add these commands:
 
 ```bash
-vgit test impact --base main --head HEAD
+jeryu test impact --base main --head HEAD
 ```
 
 Shows what would run and why.
 
 ```bash
-vgit test selected --base main --head HEAD
+jeryu test selected --base main --head HEAD
 ```
 
 Runs selected tests locally.
 
 ```bash
-vgit test explain --file src/pool.rs
+jeryu test explain --file src/pool.rs
 ```
 
 Shows all tests connected to a file.
 
 ```bash
-vgit test why tests/pool_tests.rs
+jeryu test why tests/pool_tests.rs
 ```
 
 Shows why a test was selected.
 
 ```bash
-vgit test learn --from target/nextest/ci/junit.xml --coverage target/vgit/coverage.json
+jeryu test learn --from target/nextest/ci/junit.xml --coverage target/jeryu/coverage.json
 ```
 
 Imports observations.
 
 ```bash
-vgit test doctor
+jeryu test doctor
 ```
 
 Finds unmapped source files, stale coverage, flaky tests, overly broad mappings, and dead tests.
 
 ```bash
-vgit test nightly-plan
+jeryu test nightly-plan
 ```
 
 Prints the full validation plan and graph refresh work.
@@ -724,7 +724,7 @@ Admission policy:
 If an agent adds src/foo.rs and no test dependency covers src/foo.rs:
   deny merge or force broader lane.
 
-If an agent edits .vgit/testmap.toml:
+If an agent edits .jeryu/testmap.toml:
   require full selector audit.
 
 If an agent deletes tests:
@@ -745,13 +745,13 @@ AI should help with:
 6. Suggesting narrower dependencies when mappings are too broad.
 ```
 
-AI should **not** be allowed to silently skip tests. It proposes edges; vgit verifies them.
+AI should **not** be allowed to silently skip tests. It proposes edges; jeryu verifies them.
 
 ## SmartCache integration
 
 This can get you another major speedup.
 
-Bazel remote caching works because build actions have declared inputs, commands, environment, and outputs; cache hits reuse outputs from matching action hashes. ([Bazel][18]) vgit already has cache objects, cache verdicts, cache promotions, witness attestations, and action cache tables. Use that to cache test builds and possibly test verdicts.
+Bazel remote caching works because build actions have declared inputs, commands, environment, and outputs; cache hits reuse outputs from matching action hashes. ([Bazel][18]) jeryu already has cache objects, cache verdicts, cache promotions, witness attestations, and action cache tables. Use that to cache test builds and possibly test verdicts.
 
 For test results, be careful:
 
@@ -774,7 +774,7 @@ Unsafe by default:
   tests using time/network/randomness
 ```
 
-A test verdict can only be reused if vgit can prove:
+A test verdict can only be reused if jeryu can prove:
 
 ```text
 same test command
@@ -797,7 +797,7 @@ Do not let flaky tests destroy the selector. Track them separately.
 
 Nextest can retry failed tests and mark tests flaky when they pass on retry. ([Nexte.st][19]) GitLab’s own testing docs define flaky tests as tests that sometimes fail but pass if retried, and describe quarantine practices for tests blocking development. ([GitLab Docs][20])
 
-vgit should add:
+jeryu should add:
 
 ```sql
 CREATE TABLE flaky_tests (
@@ -836,14 +836,14 @@ artifacts:
   when: always
   paths:
     - target/nextest/ci/junit.xml
-    - target/vgit/test-selection.json
+    - target/jeryu/test-selection.json
   reports:
     junit: target/nextest/ci/junit.xml
 ```
 
-This gives vgit structured data to learn from and gives humans visible MR feedback.
+This gives jeryu structured data to learn from and gives humans visible MR feedback.
 
-## Concrete vgit module mapping
+## Concrete jeryu module mapping
 
 Initial default mappings for your repo should look like this:
 
@@ -860,7 +860,7 @@ Initial default mappings for your repo should look like this:
 | `src/exec.rs`, `src/sandbox.rs`, `src/honeypot.rs`, `src/capsule.rs`                | executor/sandbox tests, honeypot tests, failure capsule tests; E2E custom executor if enabled |
 | `src/cache*.rs`, `src/gateway/**`, `src/epoch.rs`, `src/taint.rs`, `src/witness.rs` | cache integration test, cache unit tests                                                      |
 | `src/release.rs`, `src/secrets.rs`                                                  | release/secrets unit, Vault integration if secret lifecycle changed                           |
-| `src/tui/**`                                                                        | `vgit tui --once`, state snapshot tests                                                       |
+| `src/tui/**`                                                                        | `jeryu tui --once`, state snapshot tests                                                       |
 | `tests/common/**`                                                                   | broaden to all integration tests                                                              |
 | `Cargo.toml`, `Cargo.lock`, `rust-toolchain*`                                       | at least all unit/integration; full if dependency touches Docker/GitLab/Tokio/sqlx            |
 | `.gitlab-ci.yml`, `.github/workflows/**`                                            | planner dry-run, CI smoke, selected code tests; full if core CI semantics changed             |
@@ -908,7 +908,7 @@ Run audit probes when:
 
 ## The “self-managing” loop
 
-This is the part that makes vgit special.
+This is the part that makes jeryu special.
 
 ```mermaid
 stateDiagram-v2
@@ -952,17 +952,17 @@ That gives you a ratcheting system: it gets faster where it proves itself and mo
 Build:
 
 ```text
-.vgit/testmap.toml
-vgit test impact-plan
-vgit test explain
-vgit test selected
+.jeryu/testmap.toml
+jeryu test impact-plan
+jeryu test explain
+jeryu test selected
 test_selection_plans table
 ```
 
 Replace static `cargo test --tests` in fast PR CI with:
 
 ```bash
-vgit test selected --base "$BASE" --head "$HEAD"
+jeryu test selected --base "$BASE" --head "$HEAD"
 ```
 
 Keep nightly full CI unchanged.
@@ -972,7 +972,7 @@ Keep nightly full CI unchanged.
 Build:
 
 ```text
-vgit test generate-pipeline --out generated-ci.yml
+jeryu test generate-pipeline --out generated-ci.yml
 src/test_pipeline.rs
 ```
 
@@ -997,8 +997,8 @@ This alone can improve Rust test execution before selective skipping. Nextest ad
 Nightly:
 
 ```bash
-cargo llvm-cov nextest --json --output-path target/vgit/coverage.json
-vgit test learn --coverage target/vgit/coverage.json --junit target/nextest/ci/junit.xml
+cargo llvm-cov nextest --json --output-path target/jeryu/coverage.json
+jeryu test learn --coverage target/jeryu/coverage.json --junit target/nextest/ci/junit.xml
 ```
 
 Store coverage-derived dependencies with lower initial confidence than manual edges.
@@ -1027,7 +1027,7 @@ cache epoch
 witness attestation
 ```
 
-Then vgit can skip not only by “unaffected,” but also by “already proven under same inputs.”
+Then jeryu can skip not only by “unaffected,” but also by “already proven under same inputs.”
 
 ## Updated CI strategy
 
@@ -1148,7 +1148,7 @@ Continuously audit that proof.
 Automatically repair the graph when the proof is wrong.
 ```
 
-That is how vgit can get to 10x–100x feedback improvements without turning CI into guesswork.
+That is how jeryu can get to 10x–100x feedback improvements without turning CI into guesswork.
 
 [1]: https://docs.gitlab.com/ci/jobs/job_rules/ "Specify when jobs run with rules | GitLab Docs"
 [2]: https://nx.dev/docs/features/ci-features/affected "Run Only Tasks Affected by a PR | Nx"

@@ -14,19 +14,19 @@ The highest-leverage change: **make the agent capability layer the primary produ
 
 ### 1. The overall architecture is unusually agent-aware
 
-The architecture doc describes vgit as a Rust control plane that sits across local GitLab, Runner, Docker, Vault, SQLite, CI semantics, webhook reconciliation, custom executor policy, release automation, SmartCache, VTI, failure evidence, an action registry, and a TUI. That is exactly the right conceptual layer for an agent-first development system: not “an agent that runs commands,” but “an agent operating through a constrained delivery substrate.” ([GitHub][1])
+The architecture doc describes jeryu as a Rust control plane that sits across local GitLab, Runner, Docker, Vault, SQLite, CI semantics, webhook reconciliation, custom executor policy, release automation, SmartCache, VTI, failure evidence, an action registry, and a TUI. That is exactly the right conceptual layer for an agent-first development system: not “an agent that runs commands,” but “an agent operating through a constrained delivery substrate.” ([GitHub][1])
 
 The five-plane split — interface, control, state, execution, and intelligence — is also good. It gives you a framework for deciding where new features belong, and it keeps you from dumping every agent function into a CLI command or background loop. ([GitHub][1])
 
 ### 2. VTI has the right safety posture
 
-The VTI docs describe a subsystem-aware test-selection system that maps changed paths to minimal test commands, supports internal hardcoded subsystem definitions plus external `.vgit/testmap.toml`, emits plan JSON/CI YAML/SQLite records, and runs a nightly oracle to detect selector misses. ([GitHub][2])
+The VTI docs describe a subsystem-aware test-selection system that maps changed paths to minimal test commands, supports internal hardcoded subsystem definitions plus external `.jeryu/testmap.toml`, emits plan JSON/CI YAML/SQLite records, and runs a nightly oracle to detect selector misses. ([GitHub][2])
 
 The important part: **failure modes fall back to full test execution**. The VTI doc says missing artifacts, unreadable plans, parser failure, low confidence, and unmapped files all fall back conservatively. That is exactly the right safety policy for test selection. Agents can optimize, but they must not silently skip validation. ([GitHub][2])
 
 ### 3. Failure capsules are a very strong primitive
 
-The architecture doc defines failure capsules as structured evidence records feeding `vgit job explain`, blocker explanation, capability `FetchCapsule`, retry logic, and the event/audit ledger. The visible `capsule.rs` structure includes job ID, pipeline ID, project ID, stage, exit code, commit SHA, ref, working directory, log snippet, repro script, environment, failure kind, summary, supersession, and retry ancestry. ([GitHub][1])
+The architecture doc defines failure capsules as structured evidence records feeding `jeryu job explain`, blocker explanation, capability `FetchCapsule`, retry logic, and the event/audit ledger. The visible `capsule.rs` structure includes job ID, pipeline ID, project ID, stage, exit code, commit SHA, ref, working directory, log snippet, repro script, environment, failure kind, summary, supersession, and retry ancestry. ([GitHub][1])
 
 That is one of the most important “agent-first” ideas in the repo. Agents do not need raw logs first; they need **failure evidence objects** with enough context to reproduce, classify, retry, bisect, or patch.
 
@@ -44,7 +44,7 @@ That is very close to the “agents should have direct access to testing and run
 
 ### 6. The repo already has several “world-class OSS” ingredients
 
-There is a license, code of conduct, contributing/security docs in the root, a substantial architecture doc, API doc, VTI doc, workspace metadata, and an agent index. The workspace is not tiny: it includes the main `vgit` package plus `cargo-witness`, `witness-rt`, `cargo-vrc`, `cargo-aer`, and `arc-bench`. ([GitHub][5])
+There is a license, code of conduct, contributing/security docs in the root, a substantial architecture doc, API doc, VTI doc, workspace metadata, and an agent index. The workspace is not tiny: it includes the main `jeryu` package plus `cargo-witness`, `witness-rt`, `cargo-vrc`, `cargo-aer`, and `arc-bench`. ([GitHub][5])
 
 That said, having those files is not the same as being world-class yet. More on that below.
 
@@ -211,7 +211,7 @@ Add:
 * Test quarantine with automatic revalidation.
 * Test impact explanations agents can cite in MR comments.
 * Language plugins for Rust, Python, TypeScript, Go, Java, etc.
-* A local `vgit vti audit` that shows false skips, misses, confidence drift, and coverage holes.
+* A local `jeryu vti audit` that shows false skips, misses, confidence drift, and coverage holes.
 
 The current VTI path-map model is good because it is understandable and safe. The next step is to make it learn.
 

@@ -2,7 +2,7 @@ I did attempt to clone/download it locally, but this environment couldn’t reso
 
 ## Executive take
 
-JeRyu is **very cool and directionally right**: it is not really a literal GitLab source-code fork; it is a Rust `vgit` control plane/hypervisor that wraps a local GitLab CE stack, runner pools, Docker, Vault, state DB, CI intelligence, agent workflow primitives, and a TUI. The README frames it as “Headless GitLab & Autonomous Agent Hypervisor,” a single Rust binary for “God Mode” control over CI/CD, issues, runners, sandboxes, and agents; the API docs confirm it boots GitLab CE Docker images and exposes CLI, TUI, webhook, custom-executor, Unix-socket capability, state, release, secrets, and GitLab REST surfaces. ([GitHub][1])
+JeRyu is **very cool and directionally right**: it is not really a literal GitLab source-code fork; it is a Rust `jeryu` control plane/hypervisor that wraps a local GitLab CE stack, runner pools, Docker, Vault, state DB, CI intelligence, agent workflow primitives, and a TUI. The README frames it as “Headless GitLab & Autonomous Agent Hypervisor,” a single Rust binary for “God Mode” control over CI/CD, issues, runners, sandboxes, and agents; the API docs confirm it boots GitLab CE Docker images and exposes CLI, TUI, webhook, custom-executor, Unix-socket capability, state, release, secrets, and GitLab REST surfaces. ([GitHub][1])
 
 My blunt product read: **this is already more agent-first than most GitHub/GitLab automation layers**, because it treats the repo as an autonomous control system instead of just a place to host code. But it is **not yet the world’s #1 agent-native Git platform**. The substrate is strong; the missing pieces are the closed-loop agent brain, hardened capability security, verifiable merge/release evidence, semantic repo intelligence, real multi-agent coordination, and an interface that makes agent behavior explainable and safely steerable.
 
@@ -20,7 +20,7 @@ The `lib.rs` module map is also clean. It separates engine, release, state, exec
 
 The CLI includes lifecycle commands, pool/job/pipeline/cache controls, agent commands, shadow sync, test planning/running, release commands, capability server, and hidden server-hook/custom-executor commands. The API docs describe every major surface—CLI, TUI, webhooks, Unix capability API, Git server hook, custom executor, action registry, state, settings, GitLab client, release, and secrets. ([GitHub][4])
 
-That is a huge positive. The big problem with GitHub/GitLab for agents is that agents have to infer state from slow, human-shaped APIs. JeRyu is already thinking in terms of **machine-facing surfaces**: `vgit next`, `explain-blocker`, `job explain`, `pipeline doctor`, `test plan`, capability intents, and JSON outputs. ([GitHub][5])
+That is a huge positive. The big problem with GitHub/GitLab for agents is that agents have to infer state from slow, human-shaped APIs. JeRyu is already thinking in terms of **machine-facing surfaces**: `jeryu next`, `explain-blocker`, `job explain`, `pipeline doctor`, `test plan`, capability intents, and JSON outputs. ([GitHub][5])
 
 ### 3. The agent workflow primitives are promising
 
@@ -30,7 +30,7 @@ The `spawn_race` idea is especially strong. Multiple hypothesis branches racing 
 
 ### 4. Smart test selection is pointed in the right direction
 
-VTI is one of the best parts of the repo. It maps changed files to minimal validation, handles docs-only changes, global invalidators, subsystem rules, external `.vgit/testmap.toml` rules, selected jobs, emitted GitLab YAML, JSON plans, skipped-job metadata, and a nightly oracle for selector misses. The VTI docs explicitly call selector misses the highest-severity VTI bug class and persist them in state. ([GitHub][7])
+VTI is one of the best parts of the repo. It maps changed files to minimal validation, handles docs-only changes, global invalidators, subsystem rules, external `.jeryu/testmap.toml` rules, selected jobs, emitted GitLab YAML, JSON plans, skipped-job metadata, and a nightly oracle for selector misses. The VTI docs explicitly call selector misses the highest-severity VTI bug class and persist them in state. ([GitHub][7])
 
 This is vital. Autonomous coding dies when every patch requires a full slow pipeline, but unsafe skipping is catastrophic. VTI’s “selected tests plus self-auditing oracle” is a strong foundation.
 
@@ -100,7 +100,7 @@ The dream version should automatically track each hypothesis, score it, choose a
 
 ### 7. Custom executor sandboxing has a scary comment
 
-`sandbox.rs` declares strict network isolation as an invariant, but the implementation comment says full `bwrap`/`unshare` network namespace isolation is not active in that code path because proxy connectivity would require bridge setup; it instead uses a `VGIT_SANDBOXED` env marker and relies on Docker executor pools, honeypot tripwires, and proxy-enforced egress controls. ([GitHub][13])
+`sandbox.rs` declares strict network isolation as an invariant, but the implementation comment says full `bwrap`/`unshare` network namespace isolation is not active in that code path because proxy connectivity would require bridge setup; it instead uses a `JERYU_SANDBOXED` env marker and relies on Docker executor pools, honeypot tripwires, and proxy-enforced egress controls. ([GitHub][13])
 
 That may be acceptable for an experimental local stack, but it is not enough for untrusted agent code. The “untrusted” lane needs real isolation: rootless containers, seccomp/AppArmor, user namespaces, read-only mounts, egress policy, no host Docker socket, no privileged DIND except explicitly trusted build pools, deterministic secrets denial, and artifact quarantine.
 
@@ -260,12 +260,12 @@ The current sandbox comment makes this one of the biggest safety upgrades. ([Git
 Add:
 
 ```bash
-vgit agent run --project-id 2 --task "fix flaky cache taint test"
-vgit agent resume <session>
-vgit agent pause <session>
-vgit agent revoke <session>
-vgit agent explain <session> --json
-vgit agent handoff <session> --to human
+jeryu agent run --project-id 2 --task "fix flaky cache taint test"
+jeryu agent resume <session>
+jeryu agent pause <session>
+jeryu agent revoke <session>
+jeryu agent explain <session> --json
+jeryu agent handoff <session> --to human
 ```
 
 The loop should be:
@@ -420,8 +420,8 @@ Use webhooks, periodic reconciliation, and API deltas to keep it current. Then T
 Agents need context with token budgets. Add:
 
 ```bash
-vgit context build --task <id> --budget 120k --json
-vgit context explain --file src/engine.rs --symbol handle_webhook
+jeryu context build --task <id> --budget 120k --json
+jeryu context explain --file src/engine.rs --symbol handle_webhook
 ```
 
 A context pack should include relevant files, symbol summaries, call graph, tests, recent failures, ownership, policies, branch history, and known hazards. This is where GitHub/GitLab are still weak: they expose repos, not **task-shaped context**.
@@ -701,7 +701,7 @@ The dream agent-first Git platform should provide:
 ### P1 — Real autonomous loop
 
 * Add durable `agent_sessions`.
-* Add `vgit agent run/resume/pause/revoke/explain`.
+* Add `jeryu agent run/resume/pause/revoke/explain`.
 * Store plans, observations, actions, evidence, and outcomes.
 * Add context-pack generation.
 * Upgrade failure capsules.
@@ -714,7 +714,7 @@ The dream agent-first Git platform should provide:
 * Upgrade VTI with semantic/coverage/history signals.
 * Add calibrated VTI confidence.
 * Add automatic selector-miss learning.
-* Make `vgit next` richer and agent-specific.
+* Make `jeryu next` richer and agent-specific.
 
 ### P3 — Mission-control TUI
 
@@ -761,7 +761,7 @@ Do that, and this could become something far more interesting than a GitLab fork
 [6]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/agent.rs "JeRyu/src/agent.rs at main · jeppsontaylor/JeRyu · GitHub"
 [7]: https://github.com/jeppsontaylor/JeRyu/blob/main/docs/VTI.md "JeRyu/docs/VTI.md at main · jeppsontaylor/JeRyu · GitHub"
 [8]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/decision.rs "JeRyu/src/decision.rs at main · jeppsontaylor/JeRyu · GitHub"
-[9]: https://github.com/jeppsontaylor/JeRyu/blob/main/docs/VGIT_TUI.md "JeRyu/docs/VGIT_TUI.md at main · jeppsontaylor/JeRyu · GitHub"
+[9]: https://github.com/jeppsontaylor/JeRyu/blob/main/docs/JERYU_TUI.md "JeRyu/docs/JERYU_TUI.md at main · jeppsontaylor/JeRyu · GitHub"
 [10]: https://github.com/jeppsontaylor/JeRyu/blob/main/AGENTS.md "JeRyu/AGENTS.md at main · jeppsontaylor/JeRyu · GitHub"
 [11]: https://github.com/jeppsontaylor/JeRyu/blob/main/MISSION.md "JeRyu/MISSION.md at main · jeppsontaylor/JeRyu · GitHub"
 [12]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/capability.rs "JeRyu/src/capability.rs at main · jeppsontaylor/JeRyu · GitHub"

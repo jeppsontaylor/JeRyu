@@ -4,7 +4,7 @@ I attempted a local `git clone`, but the execution environment could not resolve
 
 ## Top-line verdict
 
-JeRyu is **not really a GitLab fork** in the traditional sense. It reads like a Rust “agent control plane” that wraps a local GitLab CE + GitLab Runner + Docker/Vault/DB stack. The README describes `vgit` as a “single-binary Rust control plane” for turning local GitLab into an orchestrator for autonomous agents, with features like agent identity, sandboxing, runner orchestration, semantic CI, release watching, and a TUI. ([GitHub][1])
+JeRyu is **not really a GitLab fork** in the traditional sense. It reads like a Rust “agent control plane” that wraps a local GitLab CE + GitLab Runner + Docker/Vault/DB stack. The README describes `jeryu` as a “single-binary Rust control plane” for turning local GitLab into an orchestrator for autonomous agents, with features like agent identity, sandboxing, runner orchestration, semantic CI, release watching, and a TUI. ([GitHub][1])
 
 The strongest idea is excellent: **treat Git hosting as an agent operating system**, not just a place to store commits. The repo already thinks in the right primitives: capability grants, agent intents, runner pools, evidence capsules, targeted test intelligence, risk gates, release gates, and a TUI meant to explain what autonomous agents are doing. The current code/docs also show a lot of ambition: five architectural planes, GitLab webhook processing, custom executor lifecycle, state/evidence storage, VTI test selection, capability API, action registry, release automation, and TUI panels. ([GitHub][2])
 
@@ -131,7 +131,7 @@ Minimum production design:
 
 ## 2. Admission enforcement appears opt-in
 
-The architecture doc says agent refs are allowed/audited by default if no grant exists, and `VGIT_ADMISSION_ENFORCE=1` turns missing ledger entries into denials. The code also reads `VGIT_ADMISSION_ENFORCE` and only treats it as enforce mode when it equals `1`. ([GitHub][2])
+The architecture doc says agent refs are allowed/audited by default if no grant exists, and `JERYU_ADMISSION_ENFORCE=1` turns missing ledger entries into denials. The code also reads `JERYU_ADMISSION_ENFORCE` and only treats it as enforce mode when it equals `1`. ([GitHub][2])
 
 For a lab, audit-only is fine. For the flagship agent-first Git system, this should flip:
 
@@ -193,7 +193,7 @@ That makes sense as a stub, but it cannot be the real merge gate. A true agent-f
 
 The README advertises APFS/OverlayFS sandboxing, and the architecture docs mention fast clone/reflink sandbox responsibilities. ([GitHub][1])
 
-But `src/sandbox.rs` currently describes “Workload Sandbox (Network-Namespace Isolation)” while the implementation runs `bash`, sets `VGIT_SANDBOXED=1`, injects proxy environment variables, and comments that full `bwrap`/`unshare` isolation would require more setup; it relies on Docker executor pools, honeypot tripwires, and proxy-enforced egress control for security boundaries. ([GitHub][10])
+But `src/sandbox.rs` currently describes “Workload Sandbox (Network-Namespace Isolation)” while the implementation runs `bash`, sets `JERYU_SANDBOXED=1`, injects proxy environment variables, and comments that full `bwrap`/`unshare` isolation would require more setup; it relies on Docker executor pools, honeypot tripwires, and proxy-enforced egress control for security boundaries. ([GitHub][10])
 
 That is a major gap. For serious autonomous coding, agents must execute in sandboxes that are actually isolated:
 
@@ -548,15 +548,15 @@ The system should remember:
 
 ## 7. Repo constitution
 
-Add a `.vgit/` policy layer:
+Add a `.jeryu/` policy layer:
 
-* `.vgit/agents.toml`: allowed agents, models, budgets.
-* `.vgit/capabilities.toml`: grants, path scopes, risk tiers.
-* `.vgit/testmap.toml`: test selection.
-* `.vgit/release.toml`: gates, environments, rollback.
-* `.vgit/security.toml`: secret/network/filesystem policy.
-* `.vgit/review.toml`: reviewer requirements.
-* `.vgit/style.toml`: code/doc preferences.
+* `.jeryu/agents.toml`: allowed agents, models, budgets.
+* `.jeryu/capabilities.toml`: grants, path scopes, risk tiers.
+* `.jeryu/testmap.toml`: test selection.
+* `.jeryu/release.toml`: gates, environments, rollback.
+* `.jeryu/security.toml`: secret/network/filesystem policy.
+* `.jeryu/review.toml`: reviewer requirements.
+* `.jeryu/style.toml`: code/doc preferences.
 
 Agents should read the constitution before touching code.
 
@@ -665,6 +665,6 @@ The repo already has the right bones: Rust control plane, capability API, action
 [8]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/action_registry.rs "raw.githubusercontent.com"
 [9]: https://github.com/jeppsontaylor/JeRyu/blob/main/.github/workflows/rust.yml "JeRyu/.github/workflows/rust.yml at main · jeppsontaylor/JeRyu · GitHub"
 [10]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/sandbox.rs "raw.githubusercontent.com"
-[11]: https://github.com/jeppsontaylor/JeRyu/blob/main/docs/VGIT_TUI.md "JeRyu/docs/VGIT_TUI.md at main · jeppsontaylor/JeRyu · GitHub"
+[11]: https://github.com/jeppsontaylor/JeRyu/blob/main/docs/JERYU_TUI.md "JeRyu/docs/JERYU_TUI.md at main · jeppsontaylor/JeRyu · GitHub"
 [12]: https://github.com/jeppsontaylor/JeRyu/blob/main/src/admission.rs "JeRyu/src/admission.rs at main · jeppsontaylor/JeRyu · GitHub"
 

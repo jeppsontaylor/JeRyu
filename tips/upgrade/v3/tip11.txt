@@ -2,7 +2,7 @@ I couldn’t complete a local `git clone` or run the build/tests from this envir
 
 ## Bottom line
 
-JeRyu is **not really a GitLab fork** in the conventional sense. It is a Rust control plane around a local GitLab CE + GitLab Runner + Docker + Vault + Postgres/SQLite stack. The repo describes `vgit` as a single-binary Rust control plane for local GitLab that bypasses the web UI for agent workflows, with runner lifecycle control, CoW sandboxing, ephemeral bot users, custom executor support, semantic CI/CD, and security/isolation features. ([GitHub][1])
+JeRyu is **not really a GitLab fork** in the conventional sense. It is a Rust control plane around a local GitLab CE + GitLab Runner + Docker + Vault + Postgres/SQLite stack. The repo describes `jeryu` as a single-binary Rust control plane for local GitLab that bypasses the web UI for agent workflows, with runner lifecycle control, CoW sandboxing, ephemeral bot users, custom executor support, semantic CI/CD, and security/isolation features. ([GitHub][1])
 
 The **strongest idea** is excellent: make the forge itself agent-operable. Instead of asking an agent to drive GitLab/GitHub like a slow human through web/API fragments, JeRyu creates a typed command surface for agents: task spawning, branch/MR workflows, capability intents, risk gates, smart test selection, failure capsules, runner pools, release gates, and a supervisory TUI. That is exactly the right direction.
 
@@ -26,7 +26,7 @@ The action registry declares action IDs, labels, risk tiers, surfaces, side-effe
 The `capsule` module captures structured failure evidence: environment, log snippet, repro script, pipeline/ref/commit/workdir, failure kind, and classification helpers. This is exactly what autonomous coding systems need: not just “job failed,” but a machine-readable reproducibility packet. ([GitHub][6])
 
 **6. VTI smart test selection is one of the best ideas in the repo.**
-The VTI docs describe a subsystem-aware planner that maps changed files to selected tests, supports external `.vgit/testmap.toml`, emits GitLab child pipeline YAML and plan JSON, and has a nightly oracle for selector misses. It also defaults to full execution on failure modes, which is the right safety posture. ([GitHub][7])
+The VTI docs describe a subsystem-aware planner that maps changed files to selected tests, supports external `.jeryu/testmap.toml`, emits GitLab child pipeline YAML and plan JSON, and has a nightly oracle for selector misses. It also defaults to full execution on failure modes, which is the right safety posture. ([GitHub][7])
 
 **7. The state/audit model is ambitious and mostly right.**
 The state layer supports Postgres-primary with SQLite fallback and stores runner state, jobs/pipelines, audit events, release attempts, failure capsules, shadow sync, secrets, cache state, test plans, and selector misses. For agent fleets, durable state plus append-friendly ledgers is mandatory. ([GitHub][8])
@@ -63,7 +63,7 @@ The current architecture depends on GitLab CE, GitLab Runner, GitLab REST APIs, 
 
 ### 3. “Strict sandbox” is currently not strict
 
-The sandbox module says strict network isolation would use `unshare`/`bwrap`, but the implementation currently just sets `VGIT_SANDBOXED=1` and runs `bash`; the code comment says true namespace isolation is not implemented yet. This is the biggest security gap in the repo. ([GitHub][13])
+The sandbox module says strict network isolation would use `unshare`/`bwrap`, but the implementation currently just sets `JERYU_SANDBOXED=1` and runs `bash`; the code comment says true namespace isolation is not implemented yet. This is the biggest security gap in the repo. ([GitHub][13])
 
 **Improvement:** make real isolation a P0 requirement:
 
@@ -94,9 +94,9 @@ The decision module has a typed risk gate and merge gate, which is good. But the
 
 ### 5. Admission control defaults are too soft
 
-The admission hook records decisions and can deny agent ref updates if `VGIT_ADMISSION_ENFORCE=1`, but without that variable agent refs are audit-only by default. For an agent-first forge, ungranted agent writes should be denied by default, with audit-only reserved for setup/debug. ([GitHub][15])
+The admission hook records decisions and can deny agent ref updates if `JERYU_ADMISSION_ENFORCE=1`, but without that variable agent refs are audit-only by default. For an agent-first forge, ungranted agent writes should be denied by default, with audit-only reserved for setup/debug. ([GitHub][15])
 
-**Improvement:** make “deny unless active grant” the default for all `refs/heads/agent/*`, `refs/heads/agents/*`, `refs/heads/vgit/*`, and any bot-owned namespace. Add an explicit `--admission-audit-only` dev mode.
+**Improvement:** make “deny unless active grant” the default for all `refs/heads/agent/*`, `refs/heads/agents/*`, `refs/heads/jeryu/*`, and any bot-owned namespace. Add an explicit `--admission-audit-only` dev mode.
 
 ### 6. Cache correctness has risky holes
 
@@ -423,7 +423,7 @@ telemetry: waiting
 e2e: not started
 prod: blocked
 blocker: missing c-validation.json
-next action: vgit release doctor --version ci-a1b2c3d4
+next action: jeryu release doctor --version ci-a1b2c3d4
 rollback ready: yes
 ```
 
@@ -503,7 +503,7 @@ The most important shift is this: **do not build an AI wrapper around GitLab. Bu
 [7]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VTI.md "raw.githubusercontent.com"
 [8]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/state.rs "raw.githubusercontent.com"
 [9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/cache_brain.rs "raw.githubusercontent.com"
-[10]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VGIT_TUI.md "raw.githubusercontent.com"
+[10]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
 [11]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/AGENTS.md "raw.githubusercontent.com"
 [12]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/agent.rs "raw.githubusercontent.com"
 [13]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/sandbox.rs "raw.githubusercontent.com"

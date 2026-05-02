@@ -1,5 +1,5 @@
 //! Owner: VTI Test Intelligence subsystem — plan cache
-//! Proof: `cargo nextest run -p vgit -- test_intel::cache`
+//! Proof: `cargo nextest run -p jeryu -- test_intel::cache`
 //! Invariants: Cached plans are keyed by inputs that affect test selection and expire on stale evidence.
 //! Test result caching via content-addressed witness hashes.
 //!

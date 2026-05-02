@@ -2,17 +2,17 @@
 
 use anyhow::Result;
 use std::sync::Once;
-use vgit::config;
-use vgit::gitlab_client::{GitlabClient, Project};
-use vgit::state::Pool;
+use jeryu::config;
+use jeryu::gitlab_client::{GitlabClient, Project};
+use jeryu::state::Pool;
 
 static TEST_TIMEOUT_OVERRIDE: Once = Once::new();
 
 fn ensure_fast_pool_shutdown() {
     TEST_TIMEOUT_OVERRIDE.call_once(|| {
-        if std::env::var_os("VGIT_POOL_SHUTDOWN_TIMEOUT_SECS").is_none() {
+        if std::env::var_os("JERYU_POOL_SHUTDOWN_TIMEOUT_SECS").is_none() {
             unsafe {
-                std::env::set_var("VGIT_POOL_SHUTDOWN_TIMEOUT_SECS", "30");
+                std::env::set_var("JERYU_POOL_SHUTDOWN_TIMEOUT_SECS", "30");
             }
         }
     });
@@ -20,7 +20,7 @@ fn ensure_fast_pool_shutdown() {
 
 pub async fn create_ephemeral_pool(
     client: &GitlabClient,
-    db: &vgit::state::Db,
+    db: &jeryu::state::Db,
 ) -> anyhow::Result<(String, i64)> {
     ensure_fast_pool_shutdown();
     let suffix = uuid::Uuid::new_v4()
@@ -28,10 +28,10 @@ pub async fn create_ephemeral_pool(
         .chars()
         .take(8)
         .collect::<String>();
-    let pool_name = format!("vgit-e2e-pool-{suffix}");
+    let pool_name = format!("jeryu-e2e-pool-{suffix}");
     let runner = client
         .create_runner(
-            &format!("vgit-{pool_name}"),
+            &format!("jeryu-{pool_name}"),
             &["e2e-test"],
             true,
             "instance_type",
@@ -58,13 +58,13 @@ pub async fn create_ephemeral_pool(
 
 pub async fn cleanup_ephemeral_pool(
     client: &GitlabClient,
-    db: &vgit::state::Db,
+    db: &jeryu::state::Db,
     pool_name: &str,
     runner_id: i64,
 ) {
-    let docker = vgit::docker::DockerCtl::connect().ok();
+    let docker = jeryu::docker::DockerCtl::connect().ok();
     if let Some(docker) = docker.as_ref() {
-        let _ = vgit::pool::drain_pool(db, docker, client, pool_name).await;
+        let _ = jeryu::pool::drain_pool(db, docker, client, pool_name).await;
     }
     let _ = client.delete_runner(runner_id).await;
     let _ = db.delete_pool(pool_name).await;

@@ -1,5 +1,5 @@
 //! Owner: Runner Telemetry subsystem
-//! Proof: `cargo nextest run -p vgit -- telemetry`
+//! Proof: `cargo nextest run -p jeryu -- telemetry`
 //! Invariants: Telemetry is append-friendly, non-secret, and stable enough for agent reasoning.
 //! Runner telemetry and observability.
 //!

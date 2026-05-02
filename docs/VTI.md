@@ -1,11 +1,11 @@
-# VTI.md — Vgit Test Intelligence: Complete Smart Test Selection Reference
+# VTI.md — Jeryu Test Intelligence: Complete Smart Test Selection Reference
 
 > Version: 3.0.1
 > Last updated: 2026-04-27
 > Source modules: `src/test_intel/` (planner, testmap, subsystem, ci_gen, explain, cache, nightly)
 > Audience: External agents, reviewers, and contributors requiring full VTI context.
 
-VTI (Vgit Test Intelligence) is a subsystem-aware smart test selection system that maps changed source files to the minimal set of tests required to validate the change. In V3.01, internal plans can emit proof receipts and the default merge gate blocks when required receipt evidence is missing or bound to a different head SHA. VTI reduces CI latency only when it can explain the validation it selected or skipped.
+VTI (Jeryu Test Intelligence) is a subsystem-aware smart test selection system that maps changed source files to the minimal set of tests required to validate the change. In V3.01, internal plans can emit proof receipts and the default merge gate blocks when required receipt evidence is missing or bound to a different head SHA. VTI reduces CI latency only when it can explain the validation it selected or skipped.
 
 ---
 
@@ -28,7 +28,7 @@ flowchart TD
     end
 
     subgraph External["External Planner (dougx)"]
-        Router -->|dougx changes| LoadTestmap["testmap.rs:<br/>load .vgit/testmap.toml"]
+        Router -->|dougx changes| LoadTestmap["testmap.rs:<br/>load .jeryu/testmap.toml"]
         LoadTestmap --> MapFiles["Match changed files<br/>to subsystem → jobs"]
         MapFiles --> ExtFallback{Unmapped files<br/>or massive diff?}
         ExtFallback -->|Yes| ExtFull["mode: full"]
@@ -43,7 +43,7 @@ flowchart TD
         ExtSelect --> Plan
         Plan --> GitlabYAML["GitLab child<br/>pipeline YAML"]
         Plan --> StateDB["State DB<br/>test_plans table"]
-        Plan --> VTIPlanFile["target/vgit/<br/>vti-plan.json"]
+        Plan --> VTIPlanFile["target/jeryu/<br/>vti-plan.json"]
     end
 
     subgraph Runtime["Runtime Execution"]
@@ -57,7 +57,7 @@ flowchart TD
 The architecture operates in two fundamentally different modes:
 
 1. **Internal Planner** (`planner.rs`): For changes within the JeRyu codebase itself — uses hardcoded subsystem definitions in `subsystem.rs`.
-2. **External Planner** (`testmap.rs`): For changes in external workspaces (currently `dougx`) — uses `.vgit/testmap.toml` declarative configuration.
+2. **External Planner** (`testmap.rs`): For changes in external workspaces (currently `dougx`) — uses `.jeryu/testmap.toml` declarative configuration.
 
 ---
 
@@ -129,7 +129,7 @@ If ALL changed files match these patterns, VTI marks the change as `docs_only` (
 
 Output: `TestPlan { mode, selected_tests, skipped_subsystems, confidence, fallback_reason }`.
 
-V3.01 adds `TestPlan::receipt(base_sha, head_sha)`, which produces a `VtiReceipt` with a stable receipt id, policy version, mode, confidence, selected tests, skipped subsystems, changed paths, fallback reason, and optional base/head identity. `vgit test select --emit-receipt <path>` writes this receipt as JSON. Merge proof can require the receipt and reject stale or missing receipt evidence.
+V3.01 adds `TestPlan::receipt(base_sha, head_sha)`, which produces a `VtiReceipt` with a stable receipt id, policy version, mode, confidence, selected tests, skipped subsystems, changed paths, fallback reason, and optional base/head identity. `jeryu test select --emit-receipt <path>` writes this receipt as JSON. Merge proof can require the receipt and reject stale or missing receipt evidence.
 
 ### 2.6 Subsystem Force-Full Triggers
 
@@ -159,7 +159,7 @@ For basename-level patterns (no `/` in pattern), matching occurs against the fil
 
 ### 4.1 testmap.toml Schema
 
-Located at `<workspace>/.vgit/testmap.toml`. Declares subsystem boundaries for an external workspace:
+Located at `<workspace>/.jeryu/testmap.toml`. Declares subsystem boundaries for an external workspace:
 
 ```toml
 [metadata]
@@ -231,7 +231,7 @@ The external planner can emit three artifacts:
   "selected_tests": [
     {
       "subsystem": "pool",
-      "command": "cargo nextest run -p vgit -E 'test(/pool|docker|runner/)'",
+      "command": "cargo nextest run -p jeryu -E 'test(/pool|docker|runner/)'",
       "integration_tests": ["pool_tests", "job_tests"],
       "tags": ["build", "docker-build"]
     }
@@ -273,12 +273,12 @@ The external planner can emit three artifacts:
 
 In the `dougx` workspace, the VTI plan flows through a runtime interception architecture:
 
-1. **`plan-tests` job** (in `.gitlab-ci.yml` lint stage): Compiles `vgit`, runs `vgit test select-external --workspace .`, emits `target/vgit/vti-plan.json` as artifact.
+1. **`plan-tests` job** (in `.gitlab-ci.yml` lint stage): Compiles `jeryu`, runs `jeryu test select-external --workspace .`, emits `target/jeryu/vti-plan.json` as artifact.
 
 2. **Downstream test jobs**: Each test job's runner invokes `cargo run -p veox-testctl -- ci-job <job_name>`.
 
 3. **veox-testctl `run_ci_job`** (in `dougx/apps/veox-testctl/src/ci.rs`):
-   - Reads `target/vgit/vti-plan.json` before test execution begins
+   - Reads `target/jeryu/vti-plan.json` before test execution begins
    - If `mode == "selected"` and the current job is NOT in `selected_jobs`:
      - Logs `"VTI Smart Skip: intelligently bypassing job..."`
      - Writes a pseudo-green `JobRecord` to `testing/status/ci/jobs_latest.json` (telemetry parity)
@@ -286,15 +286,15 @@ In the `dougx` workspace, the VTI plan flows through a runtime interception arch
    - If `mode == "full"` or job IS in `selected_jobs`:
      - Proceeds with normal test execution
 
-4. **Artifact handoff**: Test jobs must include `plan-tests` in their `needs:` array to receive the `target/vgit/vti-plan.json` artifact. Jobs without this dependency execute fully (graceful fallback).
+4. **Artifact handoff**: Test jobs must include `plan-tests` in their `needs:` array to receive the `target/jeryu/vti-plan.json` artifact. Jobs without this dependency execute fully (graceful fallback).
 
 ### 6.3 Relevant dougx CI Files
 
 | File | Role |
 | --- | --- |
-| `ci/gitlab/06-vti-selection.yml` | `plan-tests` job: compiles vgit, scans diff, emits plan artifact |
+| `ci/gitlab/06-vti-selection.yml` | `plan-tests` job: compiles jeryu, scans diff, emits plan artifact |
 | `apps/veox-testctl/src/ci.rs` | Runtime skip interceptor |
-| `ci/gitlab/00-templates.yml` | Optional artifact inheritance schemas for `target/vgit/vti-plan.json` |
+| `ci/gitlab/00-templates.yml` | Optional artifact inheritance schemas for `target/jeryu/vti-plan.json` |
 | `ci/gitlab/02-test-rust.yml` | Test implementations using VTI artifact |
 | `ci/gitlab/04-test-shell-e2e.yml` | E2E tests using VTI artifact |
 | `ci/gitlab/09-nightly-research.yml` | Nightly oracle `nightly-vti-teacher` job |
@@ -322,7 +322,7 @@ Components:
 - **rustc_version**: output of `rustc --version`
 - **epoch**: cache invalidation epoch from `EpochManager`
 
-This cache key is used by `vgit test cache-status` to show which tests can be safely skipped based on input identity.
+This cache key is used by `jeryu test cache-status` to show which tests can be safely skipped based on input identity.
 
 ---
 
@@ -336,8 +336,8 @@ The nightly oracle (`test_intel/nightly.rs`) is a self-healing mechanism that de
 
 ```mermaid
 flowchart TD
-    Nightly["nightly-vti-teacher<br/>(ci/gitlab/09-nightly-research.yml)"] --> Build["Compile vgit<br/>from JeRyu"]
-    Build --> Audit["vgit test audit<br/>--workspace ."]
+    Nightly["nightly-vti-teacher<br/>(ci/gitlab/09-nightly-research.yml)"] --> Build["Compile jeryu<br/>from JeRyu"]
+    Build --> Audit["jeryu test audit<br/>--workspace ."]
     Audit --> GetChanges["Get previous day's<br/>changed files"]
     GetChanges --> GetFailed["Parse failed tests<br/>from testing/status/ci/jobs"]
     GetFailed --> Simulate["Simulate VTI plan<br/>(without actual skipping)"]
@@ -365,12 +365,12 @@ Misses are persisted through the configured state backend via `state::record_sel
 
 ```bash
 # Run selector audit against actual test results
-vgit test audit --changed src/pool.rs,src/docker.rs --all-tests pool_tests,cache_test --failed pool_tests --sha HEAD
+jeryu test audit --changed src/pool.rs,src/docker.rs --all-tests pool_tests,cache_test --failed pool_tests --sha HEAD
 
 # Learn from audit and get suggestions
-vgit test learn --changed src/pool.rs --all-tests pool_tests --failed pool_tests --sha HEAD --json
+jeryu test learn --changed src/pool.rs --all-tests pool_tests --failed pool_tests --sha HEAD --json
 
-# Check selector miss count (used by vgit next)
+# Check selector miss count (used by jeryu next)
 # Internal: db.count_selector_misses_since(since)
 ```
 
@@ -399,7 +399,7 @@ When running audit externally (against `dougx`), use `--workspace .` to ensure `
 When a push hook arrives at the engine:
 
 ```
-Push Hook → normalize ref → skip vgit-test-* → impact analysis
+Push Hook → normalize ref → skip jeryu-test-* → impact analysis
 → if changed_paths exist → planner::plan_tests(changed_paths)
 → db.record_test_plan(plan) + db.record_test_plan_item(items)
 → event ledger: impact_decision
@@ -408,7 +408,7 @@ Push Hook → normalize ref → skip vgit-test-* → impact analysis
 ### 10.2 CLI-Triggered Selection
 
 ```
-vgit test select --base origin/main --head HEAD
+jeryu test select --base origin/main --head HEAD
 → git diff --name-only base head
 → planner::plan_tests(changed_paths)
 → optional: emit GitLab YAML, emit JSON plan
@@ -417,11 +417,11 @@ vgit test select --base origin/main --head HEAD
 ### 10.3 External CI Pipeline Selection
 
 ```
-vgit test select-external --workspace /home/ubuntu/dougx
-→ load .vgit/testmap.toml
+jeryu test select-external --workspace /home/ubuntu/dougx
+→ load .jeryu/testmap.toml
 → git diff --name-only base head (in workspace)
 → testmap::plan_from_testmap(map, changed_paths)
-→ emit target/vgit/vti-plan.json
+→ emit target/jeryu/vti-plan.json
 → veox-testctl ci-job <name> reads plan → skip or execute
 ```
 
@@ -431,11 +431,11 @@ vgit test select-external --workspace /home/ubuntu/dougx
 
 | Failure Point | Behavior |
 | --- | --- |
-| `plan-tests` job fails to compile vgit | Catches error, emits `{"mode": "full"}` — all tests run normally |
+| `plan-tests` job fails to compile jeryu | Catches error, emits `{"mode": "full"}` — all tests run normally |
 | Changed file not mapped to any subsystem (external) | Triggers `mode: full` — safety fallback |
 | GitLab `needs:` array missing `plan-tests` | Job never downloads `vti-plan.json`, executes fully |
 | `vti-plan.json` absent or unparseable | `veox-testctl` skips evaluation, job executes fully |
-| `vgit test audit` run without `--workspace` in dougx | Uses internal planner rules, pollutes DB with bad misses |
+| `jeryu test audit` run without `--workspace` in dougx | Uses internal planner rules, pollutes DB with bad misses |
 | Global invalidator changed (Cargo.toml, etc.) | Forces `mode: full` — all tests mandatory |
 | `force_full_paths` trigger in subsystem | Forces `mode: full` for entire plan |
 
@@ -465,7 +465,7 @@ All failure modes default to **full execution** — VTI never silently drops tes
 
 | File | Purpose |
 | --- | --- |
-| `.vgit/testmap.toml` | Subsystem boundary declarations for VTI |
+| `.jeryu/testmap.toml` | Subsystem boundary declarations for VTI |
 | `apps/veox-testctl/src/ci.rs` | Runtime job interceptor (`run_ci_job`) |
 | `ci/gitlab/06-vti-selection.yml` | `plan-tests` CI job manifest |
 | `ci/gitlab/00-templates.yml` | Artifact inheritance for VTI plan |
@@ -481,15 +481,15 @@ VTI spans two repositories:
 
 | Surface | Owner | Consumer | Invariant |
 | --- | --- | --- | --- |
-| `.vgit/testmap.toml` | dougx | JeRyu | JeRyu reads, never writes |
+| `.jeryu/testmap.toml` | dougx | JeRyu | JeRyu reads, never writes |
 | `ci.rs` runtime interceptor | dougx | — | Reads VTI plan, decides skip/execute |
 | VTI planner/testmap modules | JeRyu | dougx CI | Produces plan consumed at runtime |
 | Selector miss database | JeRyu | Nightly oracle | Append-only; queried for learning |
 
 If testmap.toml schema changes in dougx, validate locally:
 ```bash
-cargo check -p vgit --message-format=json
-cargo test -p vgit -- test_intel -- --nocapture
+cargo check -p jeryu --message-format=json
+cargo test -p jeryu -- test_intel -- --nocapture
 ```
 
 ---

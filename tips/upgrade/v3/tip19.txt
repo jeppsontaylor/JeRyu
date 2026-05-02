@@ -1,4 +1,4 @@
-I attempted to clone the repo locally, but the execution environment could not resolve `github.com`, so I reviewed it through GitHub’s source/raw views instead. Blunt read: **JeRyu is not really a GitLab fork in the traditional sense**. It is much closer to a **Rust agent-control plane on top of GitLab**: GitLab remains the Git substrate, while `vgit` acts as the scheduler, policy engine, executor, cache brain, release controller, and agent interface. That is the right direction. Rebuilding all of GitLab would be a trap; owning the decision layer is where the leverage is. The README describes it as a “Headless GitLab & Autonomous Agent Hypervisor” and a single-binary Rust control plane for turning local GitLab into an orchestration engine for autonomous AI agents. ([GitHub][1])
+I attempted to clone the repo locally, but the execution environment could not resolve `github.com`, so I reviewed it through GitHub’s source/raw views instead. Blunt read: **JeRyu is not really a GitLab fork in the traditional sense**. It is much closer to a **Rust agent-control plane on top of GitLab**: GitLab remains the Git substrate, while `jeryu` acts as the scheduler, policy engine, executor, cache brain, release controller, and agent interface. That is the right direction. Rebuilding all of GitLab would be a trap; owning the decision layer is where the leverage is. The README describes it as a “Headless GitLab & Autonomous Agent Hypervisor” and a single-binary Rust control plane for turning local GitLab into an orchestration engine for autonomous AI agents. ([GitHub][1])
 
 ## Bottom-line assessment
 
@@ -30,7 +30,7 @@ The Rust workspace is also well segmented. Besides the main binary, it contains 
 
 ## 3. The CLI surface is broad and agent-oriented
 
-The `vgit` CLI exposes commands for initialization, serving, TUI, status, pool/job/pipeline operations, cache, logs, agents, shadow branches, tests, releases, secrets, progress, repo/host introspection, hidden executor/server hooks, capabilities, next-action selection, blocker explanation, and action listing. That is the correct shape for a system that wants both humans and agents to use the same operational substrate. ([GitHub][6])
+The `jeryu` CLI exposes commands for initialization, serving, TUI, status, pool/job/pipeline operations, cache, logs, agents, shadow branches, tests, releases, secrets, progress, repo/host introspection, hidden executor/server hooks, capabilities, next-action selection, blocker explanation, and action listing. That is the correct shape for a system that wants both humans and agents to use the same operational substrate. ([GitHub][6])
 
 The test command tree is also promising: `run`, `plan`, `batch`, `results`, `retry`, `failed`, `impact`, `select`, `select-external`, `audit`, `learn`, and `cache-status`. That is much more agent-friendly than the usual “run CI and parse logs” workflow. ([GitHub][6])
 
@@ -527,14 +527,14 @@ This is where GitHub/GitLab feel ancient today.
 
 Every UI action should have a stable machine contract:
 
-* `vgit action list --json`
-* `vgit next --json`
-* `vgit explain-blocker --json`
-* `vgit evidence get --json`
-* `vgit test plan --json`
-* `vgit merge request-evidence --json`
-* `vgit release status --json`
-* `vgit policy explain --json`
+* `jeryu action list --json`
+* `jeryu next --json`
+* `jeryu explain-blocker --json`
+* `jeryu evidence get --json`
+* `jeryu test plan --json`
+* `jeryu merge request-evidence --json`
+* `jeryu release status --json`
+* `jeryu policy explain --json`
 
 Agents should never need to scrape HTML, parse giant logs, or guess what buttons mean.
 
@@ -545,7 +545,7 @@ Make “race hypotheses” a flagship feature.
 A user should be able to say:
 
 ```text
-vgit agent race --issue 123 --hypotheses 5 --budget "$8" --timeout 45m
+jeryu agent race --issue 123 --hypotheses 5 --budget "$8" --timeout 45m
 ```
 
 The system should:
@@ -771,7 +771,7 @@ Likely cause: changed witness API without updating exec call site
 First seen: SHA abc123
 Superseded by: none
 Repro:
-  cargo test -p vgit witness::...
+  cargo test -p jeryu witness::...
 
 Related:
 - cap_7712 similar failure in src/cache_brain.rs

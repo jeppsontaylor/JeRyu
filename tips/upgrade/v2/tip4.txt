@@ -2,7 +2,7 @@ I tried to clone it directly into the sandbox, but this environment could not re
 
 ## Executive take
 
-**This is a legitimately interesting foundation.** The strongest part of JeRyu / `vgit` is not “AI code generation”; it is that it sits close to GitLab, runners, Docker, SQLite, Vault, custom executor hooks, CI logs, test selection, and release gates. That is exactly where an agent-first dev system should live. The docs frame `vgit` as a Rust control plane over local GitLab, GitLab Runner, Docker, Vault, SQLite, SmartCache, VTI, failure evidence, release automation, action registry, settings, and a TUI. The architecture explicitly divides the system into interface, control, state, execution, and intelligence planes. ([GitHub][1])
+**This is a legitimately interesting foundation.** The strongest part of JeRyu / `jeryu` is not “AI code generation”; it is that it sits close to GitLab, runners, Docker, SQLite, Vault, custom executor hooks, CI logs, test selection, and release gates. That is exactly where an agent-first dev system should live. The docs frame `jeryu` as a Rust control plane over local GitLab, GitLab Runner, Docker, Vault, SQLite, SmartCache, VTI, failure evidence, release automation, action registry, settings, and a TUI. The architecture explicitly divides the system into interface, control, state, execution, and intelligence planes. ([GitHub][1])
 
 My blunt read: **the infrastructure substrate is promising; the intelligence and authority layer is still early.** The repo itself admits this in `MISSION.md`: runner/state/GitLab client/agent-management paths are more mature than the semantic CI paths, while the missing layer is the decision system: supersedence with reusable proof, semantic impact tied to safe required checks, flake memory, causal explanations, and policy-driven agent authority. ([GitHub][2])
 
@@ -26,7 +26,7 @@ The workspace metadata also includes agent validation profiles such as inner-loo
 
 ### 3. VTI is pointed in the right direction
 
-VTI has the correct shape: changed files map to subsystems, subsystems map to tests/jobs, global invalidators force full runs, docs-only changes can skip heavy validation, and external repos can provide `.vgit/testmap.toml`. The docs also state safety fallbacks: external unmapped files trigger full execution, missing artifacts run full, invalid plans run full, and global invalidators run full. ([GitHub][5])
+VTI has the correct shape: changed files map to subsystems, subsystems map to tests/jobs, global invalidators force full runs, docs-only changes can skip heavy validation, and external repos can provide `.jeryu/testmap.toml`. The docs also state safety fallbacks: external unmapped files trigger full execution, missing artifacts run full, invalid plans run full, and global invalidators run full. ([GitHub][5])
 
 The nightly oracle concept is especially important. Selector misses are defined as tests VTI would have skipped but that actually failed, and the docs say misses are persisted and used for learning suggestions. That is the right feedback loop for selective testing. ([GitHub][5])
 
@@ -78,7 +78,7 @@ Also, `ListAllowedActions` is hardcoded in `capability.rs`, which will drift fro
 
 `API.md` documents only a smaller `AgentIntent` enum for the capability API, while `capability.rs` contains a larger set of active intents. ([GitHub][6])
 
-The README lists `vgit shadow ensure`, while the API/CLI surface uses `shadow-remote ensure`. ([GitHub][10])
+The README lists `jeryu shadow ensure`, while the API/CLI surface uses `shadow-remote ensure`. ([GitHub][10])
 
 Architecture/settings say webhook bind defaults to `127.0.0.1:9777`, while the API section says the engine server binds `0.0.0.0:9777`. ([GitHub][1])
 
@@ -102,7 +102,7 @@ That is a high-risk leak path. GitLab-related env vars can contain sensitive pro
 
 The README says each agent task runs in a tightly constrained Docker container, and the architecture describes custom executor/security primitives. ([GitHub][10])
 
-But `sandbox.rs` shows that strict isolation currently sets `VGIT_SANDBOXED=1` and runs `bash`; comments say real namespace isolation via `bwrap`/`unshare` would require more setup and that Docker executor pools provide container-level isolation elsewhere. ([GitHub][14])
+But `sandbox.rs` shows that strict isolation currently sets `JERYU_SANDBOXED=1` and runs `bash`; comments say real namespace isolation via `bwrap`/`unshare` would require more setup and that Docker executor pools provide container-level isolation elsewhere. ([GitHub][14])
 
 `exec.rs` also bootstraps tools using `apt-get` and requires `/var/run/docker.sock`, which is powerful and dangerous if the workload is untrusted. ([GitHub][15])
 
@@ -256,10 +256,10 @@ Then superseded pipelines can be canceled while still preserving valid proof. Th
 Agents need live, structured logs, not just trace tails. Build:
 
 ```text
-vgit logs stream --pipeline X --json
-vgit artifact fetch --job X --name junit
-vgit failure cluster --pipeline X
-vgit repro capsule --job X --container
+jeryu logs stream --pipeline X --json
+jeryu artifact fetch --job X --name junit
+jeryu failure cluster --pipeline X
+jeryu repro capsule --job X --container
 ```
 
 The API should expose streaming events over JSON-RPC/gRPC/WebSocket/MCP. The current capability API is one JSON request and one JSON response. ([GitHub][6])
@@ -269,7 +269,7 @@ The API should expose streaming events over JSON-RPC/gRPC/WebSocket/MCP. The cur
 Selective testing often fails politically because branch protection expects fixed checks. JeRyu should create one stable required check:
 
 ```text
-vgit/required-proof
+jeryu/required-proof
 ```
 
 Inside that check, VTI can run selected tests, skip irrelevant jobs, reuse proofs, and explain every skip. The external world sees a stable required check; agents see the internal proof graph.
@@ -278,7 +278,7 @@ This would make VTI compatible with strict branch protection and avoid fake gree
 
 ### 5. A first-class policy engine
 
-Add `.vgit/policy.toml` or OPA/Rego-like rules:
+Add `.jeryu/policy.toml` or OPA/Rego-like rules:
 
 ```toml
 [merge]
@@ -319,14 +319,14 @@ Then retry decisions can stop being log-string heuristics and become probability
 
 ### 7. Automatic testmap generation and repair
 
-For world-class VTI, `.vgit/testmap.toml` should not be hand-maintained forever. Add:
+For world-class VTI, `.jeryu/testmap.toml` should not be hand-maintained forever. Add:
 
 ```text
-vgit testmap init
-vgit testmap infer --from-coverage lcov.xml
-vgit testmap learn --from-history
-vgit testmap validate --mutation-sample
-vgit testmap suggest --misses last-30d
+jeryu testmap init
+jeryu testmap infer --from-coverage lcov.xml
+jeryu testmap learn --from-history
+jeryu testmap validate --mutation-sample
+jeryu testmap suggest --misses last-30d
 ```
 
 The nightly oracle already points toward this, but it should become a complete feedback loop. ([GitHub][5])
@@ -355,13 +355,13 @@ The race scaffolding exists, but the system should know when to spawn variants, 
 Add:
 
 ```text
-vgit init-repo
-vgit detect
-vgit doctor repo
-vgit testmap init
-vgit policy init
-vgit branch-protection plan
-vgit install-hooks
+jeryu init-repo
+jeryu detect
+jeryu doctor repo
+jeryu testmap init
+jeryu policy init
+jeryu branch-protection plan
+jeryu install-hooks
 ```
 
 It should detect language, package manager, CI system, test commands, coverage tools, protected branches, GitLab project ID, required checks, and repo-specific risk areas.

@@ -1,5 +1,5 @@
 //! Owner: Interactive TUI subsystem — pipeline graph rendering
-//! Proof: `cargo nextest run -p vgit -- tui::graph`
+//! Proof: `cargo nextest run -p jeryu -- tui::graph`
 //! Invariants: Graph rendering is deterministic and never mutates pipeline or release state.
 use crate::state::JobEvent;
 use std::collections::BTreeMap;

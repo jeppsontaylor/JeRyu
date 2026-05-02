@@ -2,7 +2,7 @@ I reviewed the docs and a representative set of the implementation files. One ca
 
 ## Bottom line
 
-**This is a very strong concept and a surprisingly coherent prototype.** The core idea is exactly right: make GitLab, runners, test selection, logs, failure evidence, and merge gates available as a typed control plane for agents instead of making agents scrape a web UI or blindly run local shell commands. The README frames `vgit` as a single-binary Rust control plane for turning local GitLab into an autonomous agent orchestration engine, and the architecture explicitly splits the system into interface, control, state, execution, and intelligence planes. That is the right mental model. ([GitHub][1])
+**This is a very strong concept and a surprisingly coherent prototype.** The core idea is exactly right: make GitLab, runners, test selection, logs, failure evidence, and merge gates available as a typed control plane for agents instead of making agents scrape a web UI or blindly run local shell commands. The README frames `jeryu` as a single-binary Rust control plane for turning local GitLab into an autonomous agent orchestration engine, and the architecture explicitly splits the system into interface, control, state, execution, and intelligence planes. That is the right mental model. ([GitHub][1])
 
 But the current code is **not yet safe enough or complete enough to be “the only repo an agent-first developer needs.”** The biggest issue is that the docs describe an ambitious agent-first GitLab control plane, while several dangerous or important paths are partial, optimistic, or not yet wired together. The repo itself acknowledges some of this: capability routing is partial, logs are polling rather than websocket/streaming, several graph/progress values are heuristic, secrets are still tied to `dougx`, and the custom executor assumes Docker socket access in some flows. ([GitHub][2])
 
@@ -157,10 +157,10 @@ Change → Plan → Execution → Evidence → Verdict → Merge/Reject/Rollback
 Each step should be addressable by stable IDs and queryable by agents. Example:
 
 ```bash
-vgit proof for-mr 42 --json
-vgit proof explain skipped-test test_cache_hit_abc
-vgit proof verify --mr 42
-vgit proof diff --old sha1 --new sha2
+jeryu proof for-mr 42 --json
+jeryu proof explain skipped-test test_cache_hit_abc
+jeryu proof verify --mr 42
+jeryu proof diff --old sha1 --new sha2
 ```
 
 A merge should not be “allowed because the bot thinks so.” It should be allowed because a proof receipt exists and verifies against policy.
@@ -226,10 +226,10 @@ The race concept is excellent, but it needs to become real:
 Add commands like:
 
 ```bash
-vgit bisect failure --job 123
-vgit repair suggest --capsule 456
-vgit repair attempt --capsule 456 --strategy minimal
-vgit repair race --capsule 456 --n 5
+jeryu bisect failure --job 123
+jeryu repair suggest --capsule 456
+jeryu repair attempt --capsule 456 --strategy minimal
+jeryu repair race --capsule 456 --n 5
 ```
 
 Agents should not just read logs; they should be able to run controlled diagnosis loops.
@@ -325,7 +325,7 @@ Raw shell commands are flexible but unsafe and hard to reason about. Prefer stru
 ```json
 {
   "kind": "cargo_nextest",
-  "package": "vgit",
+  "package": "jeryu",
   "filter": "test(/pool|runner/)",
   "profile": "ci",
   "timeout_secs": 600

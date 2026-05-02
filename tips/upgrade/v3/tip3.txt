@@ -1,4 +1,4 @@
-I attempted to clone the repo locally, but the execution container could not resolve `github.com`, so I could not run or build it. I reviewed the repository through GitHub’s source browser/raw files instead. The most important framing correction: **JeRyu is not really a GitLab fork right now. It is a Rust `vgit` control plane that orchestrates a local/headless GitLab stack, runners, sandboxes, agents, cache, test planning, release flows, and a TUI.** That is actually a better direction than forking GitLab, but the branding should be clearer. The README calls it a “Headless GitLab & Autonomous Agent Hypervisor,” with Rust as the single-binary control plane around GitLab, Docker, agents, CI, and sandboxes. ([GitHub][1]) The mission doc is even more explicit: Git remains the ledger, GitLab is the first substrate rather than the final product, Rust owns orchestration/policy/safety, and agents operate inside explicit capability boundaries. ([GitHub][2])
+I attempted to clone the repo locally, but the execution container could not resolve `github.com`, so I could not run or build it. I reviewed the repository through GitHub’s source browser/raw files instead. The most important framing correction: **JeRyu is not really a GitLab fork right now. It is a Rust `jeryu` control plane that orchestrates a local/headless GitLab stack, runners, sandboxes, agents, cache, test planning, release flows, and a TUI.** That is actually a better direction than forking GitLab, but the branding should be clearer. The README calls it a “Headless GitLab & Autonomous Agent Hypervisor,” with Rust as the single-binary control plane around GitLab, Docker, agents, CI, and sandboxes. ([GitHub][1]) The mission doc is even more explicit: Git remains the ledger, GitLab is the first substrate rather than the final product, Rust owns orchestration/policy/safety, and agents operate inside explicit capability boundaries. ([GitHub][2])
 
 My bottom-line assessment: **this is a very promising agent-first DevOps substrate, but it is not yet the world’s best agent-first Git option.** The infrastructure imagination is strong. The agent intelligence layer, evidence model, sandbox guarantees, merge safety, and TUI still need major hardening. The repo’s own mission doc basically agrees: it says the infrastructure/agent substrate is “mostly real,” while decision-making and intelligent CI are still partially scaffolded. ([GitHub][2])
 
@@ -124,7 +124,7 @@ Anything else creates a path for stale-green merges, accidental merges, or adver
 
 ### 3. The sandbox security claims currently exceed the implementation
 
-`sandbox.rs` declares a Workload Sandbox with network namespace isolation and says strict network isolation uses `unshare`/`bwrap`. ([GitHub][17]) But the actual strict isolation branch starts `bash`, sets `VGIT_SANDBOXED=1`, and comments that full `bwrap`/`unshare` would require more setup; it relies instead on Docker pools, honeypot, and proxy behavior. ([GitHub][17]) The executor does useful CoW cloning and honeypot handling, but that is not the same as strong process/network/filesystem isolation. ([GitHub][15])
+`sandbox.rs` declares a Workload Sandbox with network namespace isolation and says strict network isolation uses `unshare`/`bwrap`. ([GitHub][17]) But the actual strict isolation branch starts `bash`, sets `JERYU_SANDBOXED=1`, and comments that full `bwrap`/`unshare` would require more setup; it relies instead on Docker pools, honeypot, and proxy behavior. ([GitHub][17]) The executor does useful CoW cloning and honeypot handling, but that is not the same as strong process/network/filesystem isolation. ([GitHub][15])
 
 For an agent-first coding system, this is a critical issue. Agents will run untrusted code, dependencies, test scripts, generated scripts, and maybe adversarial repo content. The sandbox should be upgraded before broad autonomous operation.
 
@@ -142,7 +142,7 @@ The repo knows this. The mission doc explicitly calls out missing commit superse
 
 ### 6. The CI orchestration is clever but branch-heavy
 
-The test runner creates ephemeral `vgit-test-*` branches, dynamically writes `.gitlab-ci.yml`, triggers pipelines, waits, cancels older branch-create pipelines, deletes branches, and records execution. ([GitHub][14]) ([GitHub][14]) ([GitHub][14]) That works, but it is not the ideal agent-native interface.
+The test runner creates ephemeral `jeryu-test-*` branches, dynamically writes `.gitlab-ci.yml`, triggers pipelines, waits, cancels older branch-create pipelines, deletes branches, and records execution. ([GitHub][14]) ([GitHub][14]) ([GitHub][14]) That works, but it is not the ideal agent-native interface.
 
 For world-class performance, agents should be able to request a test run as a structured job spec without committing temporary CI YAML into branches. GitLab can remain the substrate, but JeRyu should expose a faster internal execution path.
 
@@ -304,7 +304,7 @@ Container sandbox: medium isolation
 MicroVM sandbox: high isolation
 ```
 
-Do not let users think `VGIT_SANDBOXED=1` is isolation.
+Do not let users think `JERYU_SANDBOXED=1` is isolation.
 
 ### P1: Create an agent-native API, not just a CLI
 
@@ -456,7 +456,7 @@ The current ephemeral branch + dynamic `.gitlab-ci.yml` approach is clever but h
 Build a native execution planner:
 
 ```text
-vgit test run --spec test-spec.json
+jeryu test run --spec test-spec.json
 ```
 
 Where `test-spec.json` includes:
@@ -520,7 +520,7 @@ Add:
 
 ### P2: Make policy-as-code central
 
-Add a `vgit-policy.toml` or Rego/Cedar-style policy layer.
+Add a `jeryu-policy.toml` or Rego/Cedar-style policy layer.
 
 Examples:
 
@@ -777,7 +777,7 @@ Secrets accessed: none
 Network: crates.io only
 Sandbox: container + seccomp
 Risk: medium-low
-Policy: vgit-policy@def456
+Policy: jeryu-policy@def456
 Decision: allow merge
 ```
 

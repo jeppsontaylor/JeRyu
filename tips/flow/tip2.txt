@@ -2,7 +2,7 @@ Below is the build spec I would hand to an implementation agent. The core idea i
 
 ---
 
-# vgit TUI “Flow Board” Specification
+# jeryu TUI “Flow Board” Specification
 
 ## 1. Product goal
 
@@ -25,7 +25,7 @@ Parallel jobs should be stacked vertically under the same stage. Sequential flow
 Use the current top bar, but make the main screen a full-width flow chart.
 
 ```text
-vgit God Mode | GitLab: ● ONLINE | Flow: main #407 ci-54c658a | ETA green: 08m12s | ETA canary: 14m30s | follow: latest
+jeryu God Mode | GitLab: ● ONLINE | Flow: main #407 ci-54c658a | ETA green: 08m12s | ETA canary: 14m30s | follow: latest
 
 Runs:  [#407 ● main ci-54c658 1/5 running]  [#405 ⟲ stale]  [#403 ⟲ stale]  [#400 ⟲ stale]
 
@@ -37,11 +37,11 @@ Runs:  [#407 ● main ci-54c658 1/5 running]  [#405 ⟲ stale]  [#403 ⟲ stale]
                                                                                    │ │ +1 pending          │
                                                                                    │ └─────────────────────┘
 
-CURRENT: build-enclave-server running on vgit-e2e-pool-d5a6f67c | critical path | trace heartbeat 4s ago | ETA to next stage: 00m20s
+CURRENT: build-enclave-server running on jeryu-e2e-pool-d5a6f67c | critical path | trace heartbeat 4s ago | ETA to next stage: 00m20s
 BLOCKING: test-local-rc, publish-rc-dry-run, test-local-built are pending behind build-enclave-server
 
 Inspector: build-enclave-server
-Status: running 99% estimated | Job #12345 | Pipeline #407 | Runner: vgit-e2e-pool-d5a6f67c
+Status: running 99% estimated | Job #12345 | Pipeline #407 | Runner: jeryu-e2e-pool-d5a6f67c
 Queue: 0s | Elapsed: 12m44s | Expected: 12m58s p80 | Remaining: ~20s | Confidence: B
 Actions: [Enter] details [t] trace [d] doctor [c] cancel [r] retry failed [/] search [?] help
 ```
@@ -837,7 +837,7 @@ Project      2
 Pipeline     #407
 Job          #12345
 Stage        build
-Runner       vgit-e2e-pool-d5a6f67c
+Runner       jeryu-e2e-pool-d5a6f67c
 Pool         build
 Tags         build,docker-build
 Queue        0s
@@ -962,7 +962,7 @@ Recommended safety rule:
 
 ```text
 Read-only actions: always enabled.
-Write actions: require `vgit tui --actions` or `VGIT_TUI_ACTIONS=1`.
+Write actions: require `jeryu tui --actions` or `JERYU_TUI_ACTIONS=1`.
 Destructive actions: require confirmation modal.
 ```
 
@@ -971,7 +971,7 @@ Confirmation modal should show the exact equivalent CLI command:
 ```text
 Confirm cancel?
 
-vgit job cancel 2 12345
+jeryu job cancel 2 12345
 
 Press y to confirm, Esc to abort.
 ```
@@ -988,7 +988,7 @@ The Flow Board is the CEO view. Pipeline Detail is the engineer table.
 Pipeline #407 main ci-54c658a
 
 Stage        Lane              Job                    Status     ETA       Runner              Queue  Elapsed
-build        release-critical  build-enclave-server   running    :20       vgit-e2e-pool...    0s     12m44s
+build        release-critical  build-enclave-server   running    :20       jeryu-e2e-pool...    0s     12m44s
 test         release-critical  test-local-rc          pending    3m40s     default             --     --
 test         release-critical  publish-rc-dry-run     pending    2m10s     default             --     --
 test         extended          test-live-public        pending    6m20s     default             --     --

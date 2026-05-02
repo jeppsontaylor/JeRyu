@@ -1,8 +1,8 @@
 //! Owner: User settings subsystem
-//! Proof: `cargo nextest run -p vgit -- settings`
+//! Proof: `cargo nextest run -p jeryu -- settings`
 //! Invariants: Settings merges are deterministic and never silently discard explicit user configuration.
 //!
-//! Loads `~/.vgit/settings.json`, creating it with defaults on first run.
+//! Loads `~/.jeryu/settings.json`, creating it with defaults on first run.
 //! All tunables that were previously env vars live here instead.
 
 use anyhow::Result;
@@ -62,7 +62,7 @@ pub struct VaultSettings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct WebhookSettings {
-    /// Bind address for the vgit webhook/API server.
+    /// Bind address for the jeryu webhook/API server.
     /// Defaults to 127.0.0.1 for local-only access.
     pub bind: String,
 }
@@ -109,7 +109,7 @@ pub struct SccacheSettings {
 #[serde(default)]
 pub struct ReleaseSettings {
     /// Path to the release artifact repository root on disk.
-    /// Equivalent to the old VGIT_RELEASE_REPO_ROOT env var.
+    /// Equivalent to the old JERYU_RELEASE_REPO_ROOT env var.
     pub repo_root: Option<String>,
     /// Default GitLab project ID for release tracking.
     pub default_project_id: i64,
@@ -119,7 +119,7 @@ pub struct ReleaseSettings {
 #[serde(default)]
 pub struct ShadowSettings {
     /// Optional upstream git remote URL for cross-push during shadow sync.
-    /// Equivalent to the old VGIT_UPSTREAM_URL env var.
+    /// Equivalent to the old JERYU_UPSTREAM_URL env var.
     pub upstream_url: Option<String>,
 }
 
@@ -127,7 +127,7 @@ pub struct ShadowSettings {
 #[serde(default)]
 pub struct SandboxSettings {
     /// Enable strict network namespace isolation in the custom executor sandbox.
-    /// Equivalent to the old VGIT_STRICT_SANDBOX env var (presence = enabled).
+    /// Equivalent to the old JERYU_STRICT_SANDBOX env var (presence = enabled).
     pub strict_network_isolation: bool,
 }
 
@@ -164,7 +164,7 @@ impl Default for VaultSettings {
     fn default() -> Self {
         Self {
             image: "hashicorp/vault:1.17.5".into(),
-            container_name: "vgit-vault".into(),
+            container_name: "jeryu-vault".into(),
             http_port: 18200,
             mount: "secret".into(),
             prefix: "veox".into(),
@@ -244,11 +244,11 @@ impl Default for TuiSettings {
 pub fn settings_path() -> std::path::PathBuf {
     dirs::home_dir()
         .expect("cannot determine home directory")
-        .join(".vgit")
+        .join(".jeryu")
         .join("settings.json")
 }
 
-/// Load settings from `~/.vgit/settings.json`.
+/// Load settings from `~/.jeryu/settings.json`.
 /// Creates the file with defaults if it does not exist.
 /// Unknown keys are ignored (forward-compat); missing keys use defaults (back-compat).
 pub fn load() -> Result<Settings> {

@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Currently, only the latest `main` branch of vgit is supported with security updates. 
+Currently, only the latest `main` branch of jeryu is supported with security updates. 
 
 ## Reporting a Vulnerability
 

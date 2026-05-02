@@ -1,5 +1,5 @@
 //! Owner: Taint Tracking (Detonation Lane)
-//! Proof: `cargo test -p vgit -- taint`
+//! Proof: `cargo test -p jeryu -- taint`
 //! Invariants: Taint graph is append-only; purges are recorded events, not deletes; cross-pipeline taint propagation requires a valid plan_id
 
 use anyhow::Result;

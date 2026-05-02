@@ -1,4 +1,4 @@
-Absolutely — this system is *already* unusually ambitious. My strongest read is that `vgit` is not merely a GitLab helper; it is becoming a **local delivery operating system for agents and humans**. The architecture has real depth: typed control surfaces, runner pools, release gates, test intelligence, failure evidence, SmartCache, Vault-backed secrets, and a TUI that is trying to become an operational nerve center.
+Absolutely — this system is *already* unusually ambitious. My strongest read is that `jeryu` is not merely a GitLab helper; it is becoming a **local delivery operating system for agents and humans**. The architecture has real depth: typed control surfaces, runner pools, release gates, test intelligence, failure evidence, SmartCache, Vault-backed secrets, and a TUI that is trying to become an operational nerve center.
 
 The biggest opportunity is this: the backend is much more powerful than the human/agent interface currently exposes. The system has the ingredients for a world-class command center, but the visible UI and capability API are still behind the orchestration engine.
 
@@ -146,7 +146,7 @@ Better response shape:
   "message": "RequestMerge is recognized but not currently implemented.",
   "data": {
     "intent": "RequestMerge",
-    "recommended_surface": "vgit agent merge"
+    "recommended_surface": "jeryu agent merge"
   }
 }
 ```
@@ -266,7 +266,7 @@ The docs are strong, but the system should generate a machine-readable action ma
 Something like:
 
 ```bash
-vgit surface list --json
+jeryu surface list --json
 ```
 
 Output:
@@ -274,7 +274,7 @@ Output:
 ```json
 [
   {
-    "command": "vgit job retry <project_id> <job_id>",
+    "command": "jeryu job retry <project_id> <job_id>",
     "category": "job",
     "mutates": true,
     "risk": "low",
@@ -284,7 +284,7 @@ Output:
     "preflight_available": true
   },
   {
-    "command": "vgit release promote-prod",
+    "command": "jeryu release promote-prod",
     "category": "release",
     "mutates": true,
     "risk": "high",
@@ -301,7 +301,7 @@ This would be incredibly useful for agents, TUI command palettes, docs validatio
 
 Examples:
 
-* `vgit shadow sync-now` is currently a placeholder.
+* `jeryu shadow sync-now` is currently a placeholder.
 * MR Hook is logged but has no active behavior.
 * Audit TUI tab is placeholder.
 * Capability `ProposePatch`, `RacePatches`, `RequestMerge` are deferred.
@@ -313,7 +313,7 @@ Those should all be exposed as “known but inactive” surfaces. Placeholders a
 The docs correctly warn that custom executor commands and server hook commands are not general-purpose APIs. But I would go further:
 
 ```bash
-vgit exec run ...
+jeryu exec run ...
 ```
 
 should probably detect direct human/agent invocation unless required runner environment variables exist, and print something like:
@@ -562,7 +562,7 @@ The `events` table is one of the most important assets in the architecture. It s
 * event tape in the Flow tab
 * release timeline
 * agent activity timeline
-* “why did vgit do that?” explanations
+* “why did jeryu do that?” explanations
 
 Every major operation should have a correlation ID:
 
@@ -758,7 +758,7 @@ Hypothesis B: failure caused by cache taint
 Hypothesis C: failure caused by changed API signature
 ```
 
-`vgit` could then:
+`jeryu` could then:
 
 1. Create three scratch branches.
 2. Apply three candidate patches.
@@ -964,7 +964,7 @@ or:
 Command Center
 ```
 
-The current title `vgit God Mode` is fun, but for a serious deployment console, I would consider a name that emphasizes control and safety rather than omnipotence.
+The current title `jeryu God Mode` is fun, but for a serious deployment console, I would consider a name that emphasizes control and safety rather than omnipotence.
 
 ---
 
@@ -974,7 +974,7 @@ Something like this:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ VGIT COMMAND CENTER  project:dougx  ref:main  sha:fa51a52  role:operator     │
+│ JERYU COMMAND CENTER  project:dougx  ref:main  sha:fa51a52  role:operator     │
 │ GitLab ●  Docker ●  Vault ●  Cache ●  Runners 7/8  Disk 68%  Release: v123   │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ Critical Path: Push → Impact → Build → Unit → Integration → Canary → Prod    │
@@ -1031,7 +1031,7 @@ Data freshness
 Example:
 
 ```text
-VGIT COMMAND CENTER | project:2 dougx | main@fa51a52 | role:trusted-operator
+JERYU COMMAND CENTER | project:2 dougx | main@fa51a52 | role:trusted-operator
 GitLab ONLINE | Docker OK | Vault OK | Cache DEGRADED | Runners 6/8 | Queue 3 | Disk 82% WARN
 Release ci-fa51a52 | Canary running | Prod blocked | data fresh 2s
 ```
@@ -1221,7 +1221,7 @@ Available actions:
   reconcile release
 ```
 
-This pane would make `vgit` feel intelligent.
+This pane would make `jeryu` feel intelligent.
 
 ---
 
@@ -1299,7 +1299,7 @@ Example:
 > promote prod
 
 Command:
-  vgit release promote-prod --project-id 2 --ref-name main --version ci-fa51a52
+  jeryu release promote-prod --project-id 2 --ref-name main --version ci-fa51a52
 
 Status:
   BLOCKED
@@ -2106,7 +2106,7 @@ Next:
 This should be available in:
 
 ```bash
-vgit release explain
+jeryu release explain
 ```
 
 and the TUI.
@@ -2146,7 +2146,7 @@ Likely owner:
   state.rs
 
 Suggested proof:
-  rtk cargo test -p vgit -- state::tests::test_production_pipeline_tracking release::tests -- --nocapture
+  rtk cargo test -p jeryu -- state::tests::test_production_pipeline_tracking release::tests -- --nocapture
 ```
 
 That would be unbelievably useful.
@@ -2195,7 +2195,7 @@ Changed:
   src/state.rs
 
 Required:
-  cargo check -p vgit
+  cargo check -p jeryu
   release::tests
   state::tests::test_production_pipeline_tracking
   repo audit-agent-surface
@@ -2402,7 +2402,7 @@ This is important for trust. Agents and humans both need to know when the system
 * Add preflight for mutating actions.
 * Add TUI Inspector pane.
 * Add command palette.
-* Add CLI `vgit surface list --json`.
+* Add CLI `jeryu surface list --json`.
 * Add blocked action explanations.
 
 ## Phase 3: Make the TUI realtime and causal
@@ -2440,7 +2440,7 @@ This is important for trust. Agents and humans both need to know when the system
 
 # 20. The dream version in one sentence
 
-The dream `vgit tui` is not just a dashboard; it is a **realtime, evidence-backed command console** where every pipeline, job, release gate, agent task, cache decision, secret lifecycle step, and operational action is visible, explainable, color-coded by risk, and safely executable through preflighted controls.
+The dream `jeryu tui` is not just a dashboard; it is a **realtime, evidence-backed command console** where every pipeline, job, release gate, agent task, cache decision, secret lifecycle step, and operational action is visible, explainable, color-coded by risk, and safely executable through preflighted controls.
 
 The backend architecture is already pointed in that direction. The next leap is to make the UI and capability layer expose the same intelligence the engine already has.
 

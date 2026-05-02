@@ -1,5 +1,5 @@
 //! Owner: Interactive TUI subsystem — flow graph builder
-//! Proof: `cargo nextest run -p vgit -- tui::flow`
+//! Proof: `cargo nextest run -p jeryu -- tui::flow`
 //! Invariants: Flow graphs are derived from job events and preserve lane/column classification deterministically.
 
 use super::model::{

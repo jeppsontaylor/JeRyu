@@ -1,5 +1,5 @@
 //! Owner: Build Witness (Cacheability Classification)
-//! Proof: `cargo test -p vgit -- witness`
+//! Proof: `cargo test -p jeryu -- witness`
 //! Invariants: is_cacheable=false when Cargo.lock is missing; uncacheable_reasons is always populated when is_cacheable=false; Docker and integration witnesses are never cacheable
 
 use anyhow::Result;

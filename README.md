@@ -1,68 +1,78 @@
-# vgit — Agent-First GitLab Control Plane
+<div align="center">
+  <pre>
+      __     ___                 
+   _ / /___ / _ \__ __ __ __     
+  // // -_) |   / // // // /     
+ \___/\__/__|_\_\_, / \_,_/      
+               /___/             
+  </pre>
+  <h3>The Git-Compatible Version Control Layer for the AI Era</h3>
+</div>
 
-`vgit` is a single-binary Rust control plane designed to turn a local GitLab instance into a high-performance orchestration engine for autonomous AI agents. 
+---
 
-It gives supervised agents typed control over issues, branches, runners, validation, evidence, merge gates, release gates, and TUI review surfaces without relying on the GitLab Web UI as the primary automation boundary.
+`JeRyu` is a single-binary Rust control plane that seamlessly wraps Git, injecting autonomous AI orchestration without breaking your existing muscle memory or tooling. It provides a phased migration path from traditional Git workflows to an intelligent, agent-driven CI/CD ecosystem.
 
-## 🚀 One-Click Quickstart
+## 🚀 The JeRyu Promise
 
-Get your autonomous environment running from zero in seconds:
+The product strategy is simple: **JeRyu wraps Git first, then replaces it.**
+
+1. **Passthrough Layer**: Type `git status` or `git commit`. The command flows through JeRyu, wrapping the system's Git binary securely. Your muscle memory is preserved.
+2. **Native Wrappers**: Start using `jeryu save` (add + commit), `jeryu sync` (pull --rebase + push), and `jeryu undo`.
+3. **Dual-Use Sync**: Type `jeryu ship` to instantly push to your normal origin remote AND a local `shadow` CI remote simultaneously, kicking off isolated AI pipelines effortlessly.
+
+## ⚡ Quickstart
+
+Get your autonomous environment running in less than 60 seconds.
+
+Our interactive installer works flawlessly on macOS and Linux. It will automatically check for dependencies (Git, Rust, Build Tools) and offer to install them for you.
 
 ```bash
-# 1. Build and install the binary
-cargo install --path .
+# Clone the repository
+git clone git@github.com:jeppsontaylor/JeRyu.git
+cd JeRyu
 
-# 2. Initialize the entire stack (GitLab + DB + Runners + Smoke Test)
-vgit init
-
-# 3. Start the engine and process automated jobs
-vgit serve
+# Run the interactive installer
+chmod +x install.sh
+./install.sh
 ```
 
-## ✨ Key Features
+During installation, you will be prompted to select a global installation (`/usr/local/bin`) or a local one (`~/.cargo/bin`).
 
-- **Autonomous Control Plane**: Rust coordinates runner lifecycle, job execution, validation proof, and release evidence.
-- **Fail-Closed Sandbox Modes**: Soft local execution is explicit; strict network isolation uses available `bwrap`/`unshare` backends and fails closed when unavailable.
-- **Ephemeral Matrix Identities**: Dynamically provisions one-time GitLab Bot Users for every agent task, ensuring clear Git attribution and Least Privilege.
-- **Custom Executor Control**: Intercepts CI prepare, run, and cleanup phases to attach cache, sandbox, honeypot, and evidence behavior.
-- **Proof-Scoped CI/CD**: Uses VTI receipts, conservative fallback, capability grants, and merge gates so smart test skipping remains auditable.
-- **Extreme Memory Tuning**: Re-configured GitLab Omnibus to run headless on as little as 1.2GB of RAM.
+### 🛠 The Shell Shim
 
-## 🛠 Command Reference
+To achieve the seamless Git compatibility layer, add this shim to your `~/.bashrc` or `~/.zshrc`:
 
-- `vgit init`: Full setup of secrets, Docker containers, and default runner pools.
-- `vgit serve`: Starts the engine and scaling reconciliation loop.
-- `vgit status`: Comprehensive health check of GitLab, pools, managed containers, recent jobs, and cache footprint.
-- `vgit cache status`: Show cache and disk-footprint details before large validation runs.
-- `vgit local cargo --repo /home/ubuntu/dougx -- check`: Run a repo-local Cargo command through vgit-owned cache roots instead of the worktree `target/` directory.
-- `vgit release status --ref-name main` (legacy alias: `--ref`): Inspect the latest release attempt, canary state, and evidence paths. Add `--json` for automation.
-- `vgit release watch --ref-name main` (legacy alias: `--ref`): Continuously refresh the same release view in-place.
-- `vgit shadow status --repo <path>`: Inspect the remote layout for a repository that should shadow to GitLab.
-- `vgit shadow ensure --repo <path> --url <gitlab-url>`: Create or update a dedicated shadow remote.
-- `vgit shadow push --repo <path>`: Push the current HEAD or `--mirror` to the configured shadow remote.
-- `vgit agent spawn`: Launch a new autonomous agent with a unique identity and sandbox.
-- `vgit pool scale`: Manually override runner manager counts.
-- `vgit test plan --command "<cmd>"`: Preview inferred runner class, timeout, and tags before dispatch.
-- `vgit test impact --base <sha> --head <sha>`: Ask the project impact policy which jobs, full-build gates, and canary release gates the diff requires.
-- `vgit test run --command "<cmd>"`: Run a single validation command through a GitLab pipeline. If `--tags` is omitted, vgit infers a smart runner class from the command.
-- `vgit test batch --command "<cmd>" --command "<cmd2>" ...`: Dispatch multiple commands in parallel through separate GitLab pipelines.
-- `vgit serve`: When a release-impacting protected `main` full build turns green, the engine records the release attempt and triggers the exact-SHA `release-execution` GitLab pipeline with `VGIT_CANARY_APPROVED=1`.
-- `vgit down`: Gracefully drain all runners and stop the GitLab stack.
+```bash
+git() {
+    if command -v jeryu >/dev/null 2>&1; then
+        command jeryu git "$@"
+    else
+        command git "$@"
+    fi
+}
+```
 
-For runner cache rollouts, drain and recreate each pool after updating the runner config template so new cache mounts take effect. For cleanup, use `vgit cache status` first and `vgit cache gc --dry-run` before deleting anything by hand; that GC now reports and can reclaim nested `target/nextest/extract/*` scratch trees under Cargo target roots.
+Reload your shell (`source ~/.bashrc`) and type `git status`. You're now running JeRyu!
+
+## 🪄 Magic Commands Reference
+
+JeRyu introduces several "magic" commands designed to simplify version control into a fast, intent-driven experience:
+
+- `jeryu save "message"`: Instantly stages all changes and commits them locally.
+- `jeryu sync`: Pulls from remote with rebase, and pushes local changes back up.
+- `jeryu undo`: Rolls back the last commit but keeps all changes staged and ready.
+- `jeryu ship`: Pushes your branch to your primary `origin` remote AND automatically promotes it to your local runner's `shadow` remote to execute AI validation logic.
+- `jeryu system`: Opens the JeRyu system dashboard to monitor runner pools, Vault, and the GitLab control plane.
+- `jeryu tui`: Launches the powerful JeRyu Terminal User Interface for live pipeline monitoring.
 
 ## 🏗 Architecture
 
-`vgit` is built on a modern async Rust stack:
+JeRyu isn't just a CLI; it's a massive autonomous control plane built on a modern async Rust stack:
+
 - **Tokio**: High-concurrency runtime.
-- **Axum**: Webhook receiver and API bridge.
-- **Bollard**: Native Docker API integration.
-- **SQLx + Postgres/SQLite**: Postgres-primary state for concurrent agent fleets with SQLite fallback for local development and tests.
-- **Git2-RS**: Semantic repository and diff analysis.
+- **SQLx + Postgres/SQLite**: State persistence for concurrent agent fleets.
+- **Agent Intelligence**: VTI smart test selection, shadow remotes, and risk-gated merge decisions.
+- **Fail-Closed Sandbox**: Strict network isolation using `bwrap`/`unshare` to isolate untrusted AI tasks safely.
 
-## 🛡 Security & Isolation
-
-Each agent task is associated with scoped identity, branch, validation, and evidence records. `vgit` manages project access tokens and capability grants, and strict sandbox requests fail closed unless an isolation backend is available.
-
----
-Built for proof-carrying agent delivery.
+For a full breakdown of the engine, read our [Architecture Guide](docs/ARCHITECTURE.md).

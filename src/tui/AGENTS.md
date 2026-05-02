@@ -9,8 +9,8 @@
 ## Proof Commands
 
 ```bash
-cargo check -p vgit --message-format=json
-cargo test -p vgit -- tui
+cargo check -p jeryu --message-format=json
+cargo test -p jeryu -- tui
 ```
 
 Change type: `leaf-bugfix`. Promote to `cross-module` if `app.rs` state types change.

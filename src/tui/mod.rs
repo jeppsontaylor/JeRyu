@@ -1,5 +1,5 @@
 //! Owner: Interactive TUI subsystem (module root)
-//! Proof: `cargo nextest run -p vgit -- tui`
+//! Proof: `cargo nextest run -p jeryu -- tui`
 //! Invariants: TUI entry points preserve terminal cleanup and keep operational actions policy-gated.
 pub mod action_registry;
 pub mod app;
@@ -73,7 +73,7 @@ pub async fn run_tui_once(
     let mut terminal = Terminal::new(backend)?;
     terminal.draw(|f| ui::draw(f, &mut app))?;
     println!(
-        "vgit TUI smoke render ok (live jobs: {})",
+        "jeryu TUI smoke render ok (live jobs: {})",
         app.state.recent_jobs.len()
     );
     Ok(())

@@ -6,7 +6,7 @@ I reviewed the repo from GitHub and the three docs you called out. One caveat: I
 
 But it is **not yet safe or complete enough to be “the only thing an agent-first developer needs.”** The biggest issue is that the project currently mixes visionary architecture with partially wired implementation. The most serious gap is **control-plane trust**: the agent capability API, merge request gating, VTI skip semantics, and sandbox/security model need to become much more rigorous before agents should be allowed to act autonomously.
 
-I would frame this as an **agent-first GitLab control plane**, not yet a GitLab fork. The README describes `vgit` as a “Headless GitLab & Autonomous Agent Hypervisor” that manages local GitLab, runners, sandboxes, bot users, custom executors, semantic CI/CD, and low-memory GitLab operation. That positioning is compelling. ([GitHub][1])
+I would frame this as an **agent-first GitLab control plane**, not yet a GitLab fork. The README describes `jeryu` as a “Headless GitLab & Autonomous Agent Hypervisor” that manages local GitLab, runners, sandboxes, bot users, custom executors, semantic CI/CD, and low-memory GitLab operation. That positioning is compelling. ([GitHub][1])
 
 ---
 
@@ -151,7 +151,7 @@ default_branch = "main"
 release_root = "/path/to/repo"
 
 [vti]
-testmap = ".vgit/testmap.toml"
+testmap = ".jeryu/testmap.toml"
 
 [secrets]
 namespace = "projects/my-repo"
@@ -195,7 +195,7 @@ That may be a doc mismatch, but it matters. In an agent-control system, accident
 
 ## 8. `RunTests` is too ad hoc for a world-class test substrate
 
-The capability implementation generates a CI YAML snippet with `image: rust:latest`, a `vgit` tag, and generic Rust commands. ([GitHub][7])
+The capability implementation generates a CI YAML snippet with `image: rust:latest`, a `jeryu` tag, and generic Rust commands. ([GitHub][7])
 
 It also appears to trigger a pipeline but ignore the trigger result by converting it with `.ok()`, then returns success after branch/file update. ([GitHub][7])
 

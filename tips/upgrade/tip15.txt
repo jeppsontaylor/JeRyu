@@ -1,4 +1,4 @@
-Based on the API, architecture, and TUI docs, my overall read is this: **JeRyu/vgit is already much more than a CLI wrapper. It is close to becoming an agent-operable delivery operating system.** The biggest remaining opportunity is not “add more commands.” It is to make the whole system **object-centric, action-aware, explainable, and visibly safe**.
+Based on the API, architecture, and TUI docs, my overall read is this: **JeRyu/jeryu is already much more than a CLI wrapper. It is close to becoming an agent-operable delivery operating system.** The biggest remaining opportunity is not “add more commands.” It is to make the whole system **object-centric, action-aware, explainable, and visibly safe**.
 
 The best future version would let a human or agent select any object — job, pipeline, MR, release attempt, cache entry, pool, secret set, test plan — and immediately see:
 
@@ -124,7 +124,7 @@ Concrete dream capabilities:
 
 ## 3.2 Reasoning Capabilities
 
-The agent should be able to ask vgit to produce judgments without acting:
+The agent should be able to ask jeryu to produce judgments without acting:
 
 | Capability                   | Purpose                                                       |
 | ---------------------------- | ------------------------------------------------------------- |
@@ -210,7 +210,7 @@ Example:
 }
 ```
 
-That would turn vgit into a true agent command center.
+That would turn jeryu into a true agent command center.
 
 ---
 
@@ -237,7 +237,7 @@ A deferred action should return something like:
   "data": {
     "implemented": false,
     "status": "deferred",
-    "recommended_surface": "vgit agent spawn/list/merge"
+    "recommended_surface": "jeryu agent spawn/list/merge"
   }
 }
 ```
@@ -369,7 +369,7 @@ Options:
 * separate operational cleanup from audit retention
 * include actor and source
 * include redaction policy
-* expose audit verification in `vgit host doctor` or `vgit repo audit-agent-surface`
+* expose audit verification in `jeryu host doctor` or `jeryu repo audit-agent-surface`
 
 ## 4.6 TUI Pane State and Visible Layout Are Out of Sync
 
@@ -420,8 +420,8 @@ Columns and lanes are inferred from job-name substring matching. That is useful 
 
 Better options:
 
-* `.vgit/jobmap.toml`
-* CI variables such as `VGIT_LANE=security`
+* `.jeryu/jobmap.toml`
+* CI variables such as `JERYU_LANE=security`
 * job artifact metadata
 * GitLab job tags
 * generated child pipeline metadata
@@ -471,7 +471,7 @@ ETA currently uses lane-based defaults:
 * ReleaseExecution: 120s
 * Other: 90s
 
-That is acceptable as a placeholder, but vgit already stores historical job timing in `ci_job_runs` and test history in `test_executions`. The TUI should show ETA confidence:
+That is acceptable as a placeholder, but jeryu already stores historical job timing in `ci_job_runs` and test history in `test_executions`. The TUI should show ETA confidence:
 
 ```text
 ETA 6m 20s · confidence high · based on 23 previous runs
@@ -486,7 +486,7 @@ The dream version should use one of:
 
 * byte-range incremental trace fetching
 * cached trace offsets
-* SSE/WebSocket proxy from vgit
+* SSE/WebSocket proxy from jeryu
 * local polling with diff/append semantics
 * adaptive polling based on job state and terminal focus
 
@@ -516,26 +516,26 @@ The Release Watch pane should not merely say evidence path exists. It should say
 
 There appears to be a possible inconsistency:
 
-* The API lifecycle for `vgit init` says it starts GitLab.
+* The API lifecycle for `jeryu init` says it starts GitLab.
 * The architecture bootstrapping lifecycle says it starts GitLab CE and Vault containers.
-* The secrets section has `vgit secrets init` for bootstrapping Vault.
+* The secrets section has `jeryu secrets init` for bootstrapping Vault.
 
-That should be clarified. Operators need to know whether Vault is started by `vgit init`, `vgit secrets init`, or both.
+That should be clarified. Operators need to know whether Vault is started by `jeryu init`, `jeryu secrets init`, or both.
 
 ## 4.14 `shadow sync-now` Is a Placeholder
 
-A command named `sync-now` that only tells the user to ensure `vgit serve` is running will surprise both humans and agents.
+A command named `sync-now` that only tells the user to ensure `jeryu serve` is running will surprise both humans and agents.
 
 I would either implement it or rename it to something explicit like:
 
 ```text
-vgit shadow request-sync
+jeryu shadow request-sync
 ```
 
 or:
 
 ```text
-vgit shadow sync-now
+jeryu shadow sync-now
 # should enqueue a sync request consumed by serve
 ```
 
@@ -622,7 +622,7 @@ The current TUI is a dashboard. The dream TUI is a **command console**.
 A high-power default screen could look like this:
 
 ```text
-┌ VGIT CONTROL PLANE ─────────────────────────────────────────────────────────────┐
+┌ JERYU CONTROL PLANE ─────────────────────────────────────────────────────────────┐
 │ GitLab ONLINE  Vault OK  Cache OK  Root 71%  Pools 5/10  Ref main  SHA fa51a52 │
 │ Release ci-fa51a52  Canary E2E-PASSED  Prod NOT TRIGGERED  ETA 8m · conf med  │
 ├───────────────┬───────────────────────────────────────────────┬────────────────┤
@@ -820,7 +820,7 @@ main #528 canceled · superseded by fa51a52
 main #530 running · current SHA fa51a52
 ```
 
-This helps developers trust that vgit is conserving capacity intentionally.
+This helps developers trust that jeryu is conserving capacity intentionally.
 
 ## 7.3 Show Critical Path
 
@@ -1390,19 +1390,19 @@ For example:
 
 ```text
 Agent: GetSituation
-vgit: release blocked by failed e2e job
+jeryu: release blocked by failed e2e job
 
 Agent: FetchCapsule(job 531)
-vgit: infrastructure timeout, retry allowed
+jeryu: infrastructure timeout, retry allowed
 
 Agent: SimulateAction(RetryJob 531)
-vgit: safe, first retry, will record retry decision
+jeryu: safe, first retry, will record retry decision
 
 Agent: RetryJob(531)
-vgit: retried, audit event 9912
+jeryu: retried, audit event 9912
 
 Agent: WatchObject(pipeline 531)
-vgit: running, ETA 4m, confidence medium
+jeryu: running, ETA 4m, confidence medium
 ```
 
 That is the right shape.
@@ -1462,7 +1462,7 @@ Then every interface can use it:
 * risk gate reporting
 * future web dashboard
 
-This would make vgit feel less like a collection of commands and more like a coherent control plane.
+This would make jeryu feel less like a collection of commands and more like a coherent control plane.
 
 ---
 

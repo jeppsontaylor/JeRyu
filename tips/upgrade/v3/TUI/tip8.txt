@@ -10,7 +10,7 @@ JeRyu currently presents itself as a single-binary Rust control plane for local 
 
 The current API surface is mostly three things:
 
-1. **CLI API** through `vgit` subcommands.
+1. **CLI API** through `jeryu` subcommands.
 2. **Capability API** through a structured `AgentIntent` enum.
 3. **Action registry** used by CLI/TUI/capability surfaces.
 
@@ -182,7 +182,7 @@ The TUI should not be reading scattered DB/GitLab/Docker state directly. It shou
 I would introduce a daemon API like this:
 
 ```text
-vgitd
+jeryud
 ├─ JSON-RPC over Unix socket
 ├─ optional HTTP/WebSocket bridge
 ├─ MCP server for coding agents
@@ -438,7 +438,7 @@ I would redesign the entire TUI around a persistent four-zone layout:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ vgit  GitLab:OK  Agents:3  CI:7q/4run  Release:blocked  Sec:1  Cache:82%   │
+│ jeryu  GitLab:OK  Agents:3  CI:7q/4run  Release:blocked  Sec:1  Cache:82%   │
 ├───────────────┬───────────────────────────────────────────────┬────────────┤
 │ Attention     │ Main Workspace                                │ Inspector  │
 │ Queue         │                                               │ Why/Action │
@@ -926,7 +926,7 @@ The current TUI has a live log polling loop and snapshot sync, which is enough f
 World-class behavior should feel event-driven:
 
 ```text
-connected: vgitd event stream seq=184921
+connected: jeryud event stream seq=184921
 last event: 0.2s ago
 sync: live
 ```

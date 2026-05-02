@@ -1,5 +1,5 @@
 //! Owner: VTI Test Intelligence subsystem — nightly oracle
-//! Proof: `cargo nextest run -p vgit -- test_intel::nightly`
+//! Proof: `cargo nextest run -p jeryu -- test_intel::nightly`
 //! Invariants: Nightly comparisons preserve full-suite evidence for calibrating skip safety.
 //! Nightly Oracle — Self-healing test selector auditing.
 //!

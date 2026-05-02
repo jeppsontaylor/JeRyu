@@ -1,5 +1,5 @@
 //! Owner: Cache Decision Brain (Trust + Taint + Epoch Integration)
-//! Proof: `cargo test -p vgit -- cache_brain`
+//! Proof: `cargo test -p jeryu -- cache_brain`
 //! Invariants: Cache hits require matching trust tier; tainted objects never produce hits; epoch mismatch forces miss; all three checks must pass before a hit is returned
 
 use anyhow::Result;

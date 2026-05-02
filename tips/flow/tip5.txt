@@ -1,4 +1,4 @@
-## North-star design: **VGIT Flow Deck**
+## North-star design: **JERYU Flow Deck**
 
 Your current TUI is good for “what jobs exist.” The upgraded TUI should answer a harder executive question:
 
@@ -19,7 +19,7 @@ Parallel jobs stack vertically inside each phase. The critical path is highlight
 The first view should not be a list. It should be a **flow map**.
 
 ```text
-vgit God Mode │ GitLab ● ONLINE │ Containers 10 │ Release main ci-54c658eac9c3 │ Flow Deck
+jeryu God Mode │ GitLab ● ONLINE │ Containers 10 │ Release main ci-54c658eac9c3 │ Flow Deck
 
 ┌─ Release Command Bar ─────────────────────────────────────────────────────────────┐
 │ main@54c658e  Pipeline #407  State: running  Green ETA: 03m  Release ETA: 18m    │
@@ -80,13 +80,13 @@ Best for:
 Command:
 
 ```bash
-vgit tui
+jeryu tui
 ```
 
 Optional explicit mode:
 
 ```bash
-vgit tui --mode flow
+jeryu tui --mode flow
 ```
 
 ## 2.2 Pipeline Drilldown
@@ -110,7 +110,7 @@ Command from TUI: select pipeline node, press `Enter`.
 CLI equivalent:
 
 ```bash
-vgit pipeline flow 407 --project-id 2
+jeryu pipeline flow 407 --project-id 2
 ```
 
 ## 2.3 Job Drilldown
@@ -163,7 +163,7 @@ Next required event: pipeline #407 must pass release-critical jobs
 
 ## 2.5 Event Timeline / Time Machine
 
-This is where vgit can become truly special because you already have an append-only event ledger.
+This is where jeryu can become truly special because you already have an append-only event ledger.
 
 ```text
 Time ──────────────────────────────────────────────────────────────────────────────▶
@@ -477,7 +477,7 @@ Use Unicode line drawing:
 Add an ASCII fallback:
 
 ```bash
-vgit tui --ascii
+jeryu tui --ascii
 ```
 
 ASCII fallback connectors:
@@ -729,13 +729,13 @@ release::latest_release_attempt(...)
 
 ## From pipeline explain / doctor
 
-Do not shell out to `vgit pipeline explain`.
+Do not shell out to `jeryu pipeline explain`.
 
 Refactor the logic behind:
 
 ```bash
-vgit pipeline explain
-vgit pipeline doctor
+jeryu pipeline explain
+jeryu pipeline doctor
 ```
 
 into reusable functions:
@@ -1067,8 +1067,8 @@ Or:
 Pending reason:
   no matching runner for tags: build,docker-build
 Recommended:
-  vgit pool resume build
-  vgit pool scale build 2
+  jeryu pool resume build
+  jeryu pool scale build 2
 ```
 
 ---
@@ -1343,7 +1343,7 @@ ID: #912
 Status: running
 Stage: build
 Pool: build
-Runner: vgit-runner-a5bf67c
+Runner: jeryu-runner-a5bf67c
 Queued: 4.1s
 Elapsed: 11m42s
 Expected: 12m20s
@@ -1804,7 +1804,7 @@ src/tui/flow/palette.rs
 
 Acceptance:
 
-* `vgit tui --once` renders the flow graph.
+* `jeryu tui --once` renders the flow graph.
 * Columns fit wide terminal.
 * Compact mode works for narrow terminal.
 * Selection highlight works.
@@ -1863,18 +1863,18 @@ Acceptance:
 Add:
 
 ```bash
-vgit tui --mode flow
-vgit tui --mode classic
-vgit tui --project-id 2 --ref-name main
-vgit tui --pipeline-id 407
-vgit tui --ascii
-vgit tui --once
+jeryu tui --mode flow
+jeryu tui --mode classic
+jeryu tui --project-id 2 --ref-name main
+jeryu tui --pipeline-id 407
+jeryu tui --ascii
+jeryu tui --once
 ```
 
 Add a non-interactive debug command:
 
 ```bash
-vgit pipeline flow <PIPELINE_ID> --project-id <ID> --json
+jeryu pipeline flow <PIPELINE_ID> --project-id <ID> --json
 ```
 
 This helps agents and tests.
@@ -2096,7 +2096,7 @@ fn renders_parallel_tests_stacked() {
 
 ## Golden output tests
 
-For `vgit tui --once --ascii`, compare text snapshots.
+For `jeryu tui --once --ascii`, compare text snapshots.
 
 Test cases:
 
@@ -2115,7 +2115,7 @@ Test cases:
 
 The first great version should satisfy these:
 
-1. `vgit tui` defaults to Flow Deck.
+1. `jeryu tui` defaults to Flow Deck.
 2. Header shows current release, current blocker, green ETA, release ETA.
 3. Active pipelines render left-to-right.
 4. Parallel tests stack vertically.
@@ -2135,7 +2135,7 @@ The first great version should satisfy these:
 The end-state TUI should feel like this:
 
 ```text
-vgit Flow Deck │ main@54c658e │ Pipeline #407 │ Green ETA 03m │ Release ETA 18m │ Blocker build-enclave-server
+jeryu Flow Deck │ main@54c658e │ Pipeline #407 │ Green ETA 03m │ Release ETA 18m │ Blocker build-enclave-server
 
 ┌ Source ─┬ Admission ─┬ Pipeline ─┬ Queue ─┬ Build ───────┬ Tests ──────────────┬ Gates ─────┬ Release ───────┐
 │ 54c658e │ ✓ hook     │ #407 ●    │ ○ 4    │ ● enclave    │ ○ unit x4           │ ⏸ risk     │ ⏸ canary       │

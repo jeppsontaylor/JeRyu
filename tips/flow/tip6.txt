@@ -1,6 +1,6 @@
 Below is the TUI design I would hand to an implementation agent as the target spec. The core idea is: **make the default dashboard a live left-to-right delivery flow map**, not a status table. The CEO should be able to glance at it and answer: “Where are we? What is running? What is blocked? What is next? When do we go green? When can we release?”
 
-# vgit TUI “Flow Command Center” Specification
+# jeryu TUI “Flow Command Center” Specification
 
 ## 1. Product Goal
 
@@ -21,7 +21,7 @@ The flow must support:
 7. **Keyboard-driven drilldown into pipeline, stage, job, runner, logs, failure capsule, and release gate**
 8. **Action controls**: retry, cancel, play manual job, pause/resume pool, scale pool, inspect evidence
 9. **Responsive terminal behavior**
-10. **Enough internal structure that agents can build it against the existing `vgit` architecture**
+10. **Enough internal structure that agents can build it against the existing `jeryu` architecture**
 
 ---
 
@@ -43,7 +43,7 @@ Replace this with:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────────────────────┐
-│ vgit God Mode │ GitLab ● ONLINE │ Runners 10 │ Release ci-54c... [STALE] │ ETA Green 07:12 │
+│ jeryu God Mode │ GitLab ● ONLINE │ Runners 10 │ Release ci-54c... [STALE] │ ETA Green 07:12 │
 │ Now: build-enclave-server 99% │ Current blocker: publish-rc-dry-run pending │ Risk: Low      │
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
 │ Git Flow: main ci-54c...                                                                     │
@@ -1400,7 +1400,7 @@ or:
 
 # 23. Pipeline Doctor Integration
 
-The existing `vgit pipeline doctor` and `vgit pipeline explain` features should become inspector views.
+The existing `jeryu pipeline doctor` and `jeryu pipeline explain` features should become inspector views.
 
 In the TUI:
 
@@ -1428,7 +1428,7 @@ Trace health:
 - build-enclave-server active, last output 2s ago
 ```
 
-Do not shell out to `vgit pipeline doctor`. Call the same internal functions or extract them into reusable functions under `explain.rs` / release diagnostics.
+Do not shell out to `jeryu pipeline doctor`. Call the same internal functions or extract them into reusable functions under `explain.rs` / release diagnostics.
 
 ---
 
@@ -2076,14 +2076,14 @@ Render them to text and compare to golden output.
 Existing:
 
 ```bash
-vgit tui --once
+jeryu tui --once
 ```
 
 Add:
 
 ```bash
-vgit tui --once --view flow
-vgit tui --once --fixture tests/fixtures/tui/running_parallel.json
+jeryu tui --once --view flow
+jeryu tui --once --fixture tests/fixtures/tui/running_parallel.json
 ```
 
 ---
@@ -2092,7 +2092,7 @@ vgit tui --once --fixture tests/fixtures/tui/running_parallel.json
 
 The implementation is successful when:
 
-1. `vgit tui` opens directly into the flow dashboard.
+1. `jeryu tui` opens directly into the flow dashboard.
 2. The center of the screen shows a left-to-right pipeline flow.
 3. Jobs in the same stage are stacked vertically.
 4. Running jobs show elapsed time and ETA.
@@ -2116,7 +2116,7 @@ The implementation is successful when:
 This is the final target visual language:
 
 ```text
-vgit God Mode │ GitLab ● ONLINE │ Runners 10 │ Cache ● │ Release ci-54c658 [CANARY] │ ETA Green 07:12
+jeryu God Mode │ GitLab ● ONLINE │ Runners 10 │ Cache ● │ Release ci-54c658 [CANARY] │ ETA Green 07:12
 Now ▶ build-enclave-server 99% │ Next ◌ publish-rc-dry-run │ Pending 4 │ Blocker none │ Risk low
 
 main      ● #400 ✓ ───── ● #403 ✓ ───── ● #405 ✓ ───── ● #407 ▶
@@ -2146,5 +2146,5 @@ Active Runs                                                        Inspector
 [Tab] panes │ [←/→] stage │ [↑/↓] job │ [Enter] drill │ [End] current │ [l] logs │ [r] retry │ [?] help
 ```
 
-That is the view that makes `vgit` feel like an autonomous delivery operating system instead of a CI status dashboard.
+That is the view that makes `jeryu` feel like an autonomous delivery operating system instead of a CI status dashboard.
 
