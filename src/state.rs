@@ -642,6 +642,8 @@ pub(crate) fn backend_sql_owned(backend: StateBackend, sql: String) -> String {
     }
 }
 
+static DB_INSTANCE: tokio::sync::OnceCell<Db> = tokio::sync::OnceCell::const_new();
+
 impl Db {
     /// Expose the backend-neutral SQL pool for manager modules.
     pub fn pool(&self) -> AnyPool {
@@ -661,22 +663,27 @@ impl Db {
         backend_sql_owned(self.backend, sql)
     }
 
-    /// Open the configured database and run migrations.
+    /// Open the configured database and run migrations. Uses a global connection pool.
     pub async fn open() -> Result<Self> {
-        install_default_drivers();
-        dotenvy::from_path(config::env_file()).ok();
-        if let Some(database_url) = config::database_url() {
-            return Self::open_url(&database_url).await;
-        }
+        let db = DB_INSTANCE
+            .get_or_try_init(|| async {
+                install_default_drivers();
+                dotenvy::from_path(config::env_file()).ok();
+                if let Some(database_url) = config::database_url() {
+                    return Self::open_url(&database_url).await;
+                }
 
-        let db_path = config::db_path();
-        if let Some(parent) = db_path.parent() {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("creating db directory: {}", parent.display()))?;
-        }
+                let db_path = config::db_path();
+                if let Some(parent) = db_path.parent() {
+                    std::fs::create_dir_all(parent)
+                        .with_context(|| format!("creating db directory: {}", parent.display()))?;
+                }
 
-        let database_url = format!("sqlite:{}?mode=rwc", db_path.display());
-        Self::open_url(&database_url).await
+                let database_url = format!("sqlite:{}?mode=rwc", db_path.display());
+                Self::open_url(&database_url).await
+            })
+            .await?;
+        Ok(db.clone())
     }
 
     /// Open a database URL directly.

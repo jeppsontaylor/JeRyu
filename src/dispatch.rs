@@ -401,7 +401,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                 }
             }
 
-            if let Ok(Some(secret_set)) = db.latest_release_secret_set("dougx").await {
+            if let Ok(Some(secret_set)) = db.latest_release_secret_set(&crate::cli::infer_repo_name()).await {
                 println!("\n  Latest release secret set:");
                 println!(
                     "    {} {} [{}] {}",
@@ -1838,7 +1838,7 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                         println!("  Prefix:      {}", report.prefix);
                         println!("  Bootstrap:   {}", report.bootstrap_file);
                         println!("  Env file:    {}", report.env_file);
-                        if let Some(secret_set) = db.latest_release_secret_set("dougx").await? {
+                        if let Some(secret_set) = db.latest_release_secret_set(&crate::cli::infer_repo_name()).await? {
                             println!("\n  Latest release secret set:");
                             println!("    Version:   {}", secret_set.version);
                             println!("    Target:    {}", secret_set.target);
@@ -1855,9 +1855,6 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                     version,
                     target,
                 } => {
-                    if repo != "dougx" {
-                        anyhow::bail!("only --repo dougx is supported right now");
-                    }
                     let target = target.parse::<secrets::SecretTarget>()?;
                     let (repo_root, deploy_env, runtime_env) = secrets::default_release_paths();
                     let outcome = secrets::rotate_release_secrets(
@@ -1877,9 +1874,6 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                     version,
                     target,
                 } => {
-                    if repo != "dougx" {
-                        anyhow::bail!("only --repo dougx is supported right now");
-                    }
                     let target = target.parse::<secrets::SecretTarget>()?;
                     let (repo_root, deploy_env, runtime_env) = secrets::default_release_paths();
                     let path = secrets::finalize_release_secrets(
@@ -1895,9 +1889,6 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                     println!("Finalized runtime env: {}", path.display());
                 }
                 SecretsCommands::Report { repo, version } => {
-                    if repo != "dougx" {
-                        anyhow::bail!("only --repo dougx is supported right now");
-                    }
                     let (repo_root, _, _) = secrets::default_release_paths();
                     let path =
                         secrets::build_release_secret_report(&db, &repo_root, &repo, &version)
@@ -1905,9 +1896,6 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                     println!("Release report: {}", path.display());
                 }
                 SecretsCommands::Recover { repo, version } => {
-                    if repo != "dougx" {
-                        anyhow::bail!("only --repo dougx is supported right now");
-                    }
                     let (repo_root, _, _) = secrets::default_release_paths();
                     secrets::recover_release_secrets(&db, &repo_root, &repo, &version).await?;
                 }

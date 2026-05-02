@@ -30,7 +30,7 @@ pub enum ReleaseError {
     CiSchemaFailed { stderr: String },
 }
 
-const DEFAULT_REPO_ROOT: &str = "/home/ubuntu/dougx";
+const DEFAULT_REPO_ROOT: &str = ".";
 pub const DEFAULT_RELEASE_PROJECT_ID: i64 = 2;
 
 fn repo_root() -> PathBuf {

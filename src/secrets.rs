@@ -43,7 +43,7 @@ pub enum SecretError {
     CommandFailed(String, Option<i32>),
 }
 
-const DEFAULT_REPO_ROOT: &str = "/home/ubuntu/dougx";
+const DEFAULT_REPO_ROOT: &str = ".";
 const OPS_POLICY_NAME: &str = "jeryu-release-ops";
 const OPS_DISPLAY_NAME: &str = "jeryu-release-control-plane";
 

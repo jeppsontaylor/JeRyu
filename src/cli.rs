@@ -597,7 +597,7 @@ pub(crate) enum TestCommands {
         base: String,
         #[arg(long)]
         head: String,
-        #[arg(long, default_value = "/home/ubuntu/dougx")]
+        #[arg(long, default_value = ".")]
         repo_root: PathBuf,
         #[arg(long, default_value_t = false)]
         json: bool,
@@ -784,6 +784,13 @@ pub(crate) enum ReleaseCommands {
     },
 }
 
+pub fn infer_repo_name() -> String {
+    std::env::current_dir()
+        .ok()
+        .and_then(|p| p.file_name().map(|s| s.to_string_lossy().to_string()))
+        .unwrap_or_else(|| "jeryu".to_string())
+}
+
 #[derive(Subcommand)]
 pub(crate) enum SecretsCommands {
     /// Bootstrap and initialize the jeryu-managed Vault.
@@ -795,7 +802,7 @@ pub(crate) enum SecretsCommands {
     },
     /// Rotate release-scoped secrets and render release envs.
     Rotate {
-        #[arg(long, default_value = "dougx")]
+        #[arg(long, default_value_t = infer_repo_name())]
         repo: String,
         #[arg(long)]
         version: String,
@@ -804,7 +811,7 @@ pub(crate) enum SecretsCommands {
     },
     /// Finalize a previously rotated secret set after promotion succeeds.
     Finalize {
-        #[arg(long, default_value = "dougx")]
+        #[arg(long, default_value_t = infer_repo_name())]
         repo: String,
         #[arg(long)]
         version: String,
@@ -813,14 +820,14 @@ pub(crate) enum SecretsCommands {
     },
     /// Regenerate the release handoff report from current artifacts.
     Report {
-        #[arg(long, default_value = "dougx")]
+        #[arg(long, default_value_t = infer_repo_name())]
         repo: String,
         #[arg(long)]
         version: String,
     },
     /// Print recovery instructions for a release bundle.
     Recover {
-        #[arg(long, default_value = "dougx")]
+        #[arg(long, default_value_t = infer_repo_name())]
         repo: String,
         #[arg(long)]
         version: String,
