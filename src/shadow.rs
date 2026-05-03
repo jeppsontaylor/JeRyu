@@ -231,7 +231,12 @@ pub async fn run_shadow_loop(db: Db, client: GitlabClient) {
                     config.last_success_at = Some(chrono::Utc::now().to_rfc3339());
                 }
                 Ok(false) => {
-                    // No new commits, stay ok
+                    // No new commits. Clear an explicit sync request so status
+                    // does not remain stuck at "sync_requested" after a no-op run.
+                    if forced {
+                        config.status = "idle".to_string();
+                        config.error_msg = None;
+                    }
                 }
                 Err(e) => {
                     warn!("Shadow sync failed for {}: {:#}", source_dir, e);
