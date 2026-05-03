@@ -13,8 +13,20 @@ use std::path::PathBuf;
 // ---------------------------------------------------------------------------
 
 /// Root data directory for jeryu state on the host.
+///
+/// Checks `~/.jeryu` first (including symlinks). Falls back to `~/.vgit`
+/// during migration from the GITWRATH era. If neither exists, defaults to
+/// `~/.jeryu` so a fresh bootstrap creates the canonical path.
 pub fn data_dir() -> PathBuf {
-    dirs_home().join(".jeryu")
+    let jeryu_dir = dirs_home().join(".jeryu");
+    if jeryu_dir.exists() {
+        return jeryu_dir;
+    }
+    let vgit_dir = dirs_home().join(".vgit");
+    if vgit_dir.exists() {
+        return vgit_dir;
+    }
+    jeryu_dir
 }
 
 /// Where jeryu.env lives (secrets file).
