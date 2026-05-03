@@ -45,7 +45,30 @@ pub enum CacheError {
 const MIN_GITLAB_ARTIFACT_SIZE_MB: u64 = 4096;
 const POOL_TARGET_LEASE_FALLBACK_TTL_SECS: u64 = 2 * 60 * 60;
 const NEXTEST_EXTRACT_FALLBACK_TTL_SECS: u64 = 2 * 60 * 60;
-pub const ROOT_DISK_HEADROOM_MIN_FREE_BYTES: u64 = 50 * 1024 * 1024 * 1024;
+pub const ROOT_DISK_HEADROOM_MIN_FREE_BYTES: u64 = 80 * 1024 * 1024 * 1024;
+pub const ROOT_DISK_WARNING_MIN_FREE_BYTES: u64 = ROOT_DISK_HEADROOM_MIN_FREE_BYTES;
+pub const ROOT_DISK_CRITICAL_MIN_FREE_BYTES: u64 = 60 * 1024 * 1024 * 1024;
+pub const ROOT_DISK_EMERGENCY_MIN_FREE_BYTES: u64 = 40 * 1024 * 1024 * 1024;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DiskPressureLevel {
+    Nominal,
+    Warning,
+    Critical,
+    Emergency,
+}
+
+pub fn root_disk_pressure_level(available_bytes: u64) -> DiskPressureLevel {
+    if available_bytes < ROOT_DISK_EMERGENCY_MIN_FREE_BYTES {
+        DiskPressureLevel::Emergency
+    } else if available_bytes < ROOT_DISK_CRITICAL_MIN_FREE_BYTES {
+        DiskPressureLevel::Critical
+    } else if available_bytes < ROOT_DISK_WARNING_MIN_FREE_BYTES {
+        DiskPressureLevel::Warning
+    } else {
+        DiskPressureLevel::Nominal
+    }
+}
 
 pub struct SmartCache {
     db: crate::state::Db,
@@ -489,7 +512,7 @@ impl SmartCache {
 
         checks.push(HostDoctorCheck {
             id: "root-disk-free".to_string(),
-            ok: cache.root_fs.available_bytes >= gb_to_bytes(50.0),
+            ok: cache.root_fs.available_bytes >= ROOT_DISK_EMERGENCY_MIN_FREE_BYTES,
             detail: format!(
                 "{} free on {}",
                 human_bytes(cache.root_fs.available_bytes),
@@ -1271,15 +1294,14 @@ impl CacheManager {
         is_critical: bool,
         is_emergency: bool,
     ) -> Result<()> {
-        // Emergency (>80%): 15m threshold, 20 GB cap, evict active Rust caches too.
-        // Critical (>65%): 2h threshold, 60 GB cap, preserve active Rust caches.
-        // Warning (>50%): 4h threshold, 120 GB cap, preserve active Rust caches.
-        // Normal: 12h threshold, no cap, preserve everything.
-        // NOTE: keep_active_managers=true at warning/critical preserves Rust target/ caches
-        // that CI jobs depend on for acceleration — evicting them causes 15+ min full rebuilds.
-        // Only at emergency do we sacrifice cache for disk space.
+        // Pressure tiers are derived from free root bytes:
+        // - warning: free space is below 80 GiB
+        // - critical: free space is below 60 GiB
+        // - emergency: free space is below 40 GiB
+        // Automatic GC keeps active managers intact; the engine handles pausing and draining
+        // the build/default pools before this path tries to reclaim inactive cache state.
         let (older_than, max_cache_gb, keep_active) = if is_emergency {
-            ("15m".to_string(), Some(20.0_f64), false)
+            ("15m".to_string(), Some(20.0_f64), true)
         } else if is_critical {
             ("2h".to_string(), Some(60.0_f64), true)
         } else if is_warning {
@@ -1392,6 +1414,26 @@ mod tests {
         set_env_var("JERYU_POOL_CARGO_LEASE_FALLBACK_SECS", "7");
         assert_eq!(pool_target_lease_fallback_ttl(), Duration::from_secs(7));
         remove_env_var("JERYU_POOL_CARGO_LEASE_FALLBACK_SECS");
+    }
+
+    #[test]
+    fn root_disk_pressure_levels_follow_free_space_thresholds() {
+        assert_eq!(
+            root_disk_pressure_level(ROOT_DISK_WARNING_MIN_FREE_BYTES),
+            DiskPressureLevel::Nominal
+        );
+        assert_eq!(
+            root_disk_pressure_level(ROOT_DISK_WARNING_MIN_FREE_BYTES - 1),
+            DiskPressureLevel::Warning
+        );
+        assert_eq!(
+            root_disk_pressure_level(ROOT_DISK_CRITICAL_MIN_FREE_BYTES - 1),
+            DiskPressureLevel::Critical
+        );
+        assert_eq!(
+            root_disk_pressure_level(ROOT_DISK_EMERGENCY_MIN_FREE_BYTES - 1),
+            DiskPressureLevel::Emergency
+        );
     }
 
     #[tokio::test]

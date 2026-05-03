@@ -312,6 +312,12 @@ pub async fn run_auto_gc(
     );
     let mut report = AutoGcReport::default();
 
+    if is_emergency {
+        warn!(
+            "disk pressure emergency: build/default pools should already be paused and draining before host GC"
+        );
+    }
+
     // 1. Prune orphan runner/veox volumes via Bollard API (NOT shell scripts).
     // This cross-references all volumes against running containers.
     match docker.prune_orphan_runner_volumes().await {
