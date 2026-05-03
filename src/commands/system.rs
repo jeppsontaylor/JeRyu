@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::dispatch::load_client;
+use anyhow::Result;
 use jeryu::{config, docker, gitlab_client, pool, release, secrets, state};
 
 pub async fn execute_down() -> Result<()> {
@@ -25,7 +25,9 @@ pub async fn execute_down() -> Result<()> {
 pub fn execute_status() -> Result<()> {
     println!("━━━ JeRyu Status ━━━\n");
     let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
-    std::process::Command::new(&git_path).args(["status"]).status()?;
+    std::process::Command::new(&git_path)
+        .args(["status"])
+        .status()?;
     Ok(())
 }
 
@@ -125,14 +127,14 @@ pub async fn execute_system_status() -> Result<()> {
         }
     }
 
-    if let Ok(Some(secret_set)) = db.latest_release_secret_set(&crate::cli::infer_repo_name()).await {
+    if let Ok(Some(secret_set)) = db
+        .latest_release_secret_set(&crate::cli::infer_repo_name())
+        .await
+    {
         println!("\n  Latest release secret set:");
         println!(
             "    {} {} [{}] {}",
-            secret_set.version,
-            secret_set.target,
-            secret_set.status,
-            secret_set.authority_name
+            secret_set.version, secret_set.target, secret_set.status, secret_set.authority_name
         );
     }
 

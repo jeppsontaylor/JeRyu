@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
 use anyhow::Result;
-use std::sync::Once;
 use jeryu::config;
 use jeryu::gitlab_client::{GitlabClient, Project};
 use jeryu::state::Pool;
+use std::sync::Once;
 
 static TEST_TIMEOUT_OVERRIDE: Once = Once::new();
 

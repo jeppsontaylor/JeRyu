@@ -1,6 +1,6 @@
-use anyhow::Result;
 use crate::cli::PipelineCommands;
-use crate::dispatch::{load_client, fetch_ci_job_runs};
+use crate::dispatch::{fetch_ci_job_runs, load_client};
+use anyhow::Result;
 use jeryu::{release, state};
 
 pub(crate) async fn execute_pipeline_commands(subcmd: PipelineCommands) -> Result<()> {
@@ -12,8 +12,7 @@ pub(crate) async fn execute_pipeline_commands(subcmd: PipelineCommands) -> Resul
             json,
         } => {
             let report =
-                release::build_pipeline_explain_report(&client, project_id, pipeline_id)
-                    .await?;
+                release::build_pipeline_explain_report(&client, project_id, pipeline_id).await?;
             if json {
                 println!("{}", serde_json::to_string_pretty(&report)?);
             } else {
@@ -26,8 +25,7 @@ pub(crate) async fn execute_pipeline_commands(subcmd: PipelineCommands) -> Resul
             json,
         } => {
             let report =
-                release::build_pipeline_doctor_report(&client, project_id, pipeline_id)
-                    .await?;
+                release::build_pipeline_doctor_report(&client, project_id, pipeline_id).await?;
             if json {
                 println!("{}", serde_json::to_string_pretty(&report)?);
             } else {

@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::cli::PoolCommands;
+use anyhow::Result;
 use jeryu::{docker, pool, state};
 
 pub(crate) async fn execute_pool_commands(subcmd: PoolCommands) -> Result<()> {
@@ -33,7 +33,10 @@ pub(crate) async fn execute_pool_commands(subcmd: PoolCommands) -> Result<()> {
         }
         PoolCommands::Scale { name, count } => {
             let started = pool::scale_pool_to(&db, &docker_ctl, &client, &name, count).await?;
-            println!("✅ Pool '{}' scaled to {} (started {} new)", name, count, started);
+            println!(
+                "✅ Pool '{}' scaled to {} (started {} new)",
+                name, count, started
+            );
         }
         PoolCommands::Pause { name } => {
             pool::pause_pool(&db, &client, &name).await?;

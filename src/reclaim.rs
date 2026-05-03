@@ -156,8 +156,14 @@ pub async fn run_aggressive_reclaim(apply: bool) -> Result<()> {
         "exclusions": exclusions,
         "target_systems": ["docker_containers", "docker_images", "builder_cache"]
     });
-    db.append_event("host_reclaim", None, None, "jeryu-cli", &payload.to_string())
-        .await?;
+    db.append_event(
+        "host_reclaim",
+        None,
+        None,
+        "jeryu-cli",
+        &payload.to_string(),
+    )
+    .await?;
 
     truncate_gitlab_logs().await?;
     truncate_docker_json_logs().await?;

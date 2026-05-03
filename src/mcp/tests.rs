@@ -29,7 +29,11 @@ async fn spawn_http_server() -> (String, tokio::task::JoinHandle<()>) {
 #[test]
 fn manifest_includes_capability_tools() {
     let manifest = tool_manifest();
-    assert!(manifest.iter().any(|tool| tool["name"] == "jeryu.run_tests"));
+    assert!(
+        manifest
+            .iter()
+            .any(|tool| tool["name"] == "jeryu.run_tests")
+    );
     assert!(
         manifest
             .iter()

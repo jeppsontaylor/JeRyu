@@ -1,6 +1,6 @@
-use anyhow::Result;
 use crate::cli::JobCommands;
 use crate::dispatch::load_client;
+use anyhow::Result;
 use jeryu::{logs, state};
 
 pub(crate) async fn execute_job_commands(subcmd: JobCommands) -> Result<()> {

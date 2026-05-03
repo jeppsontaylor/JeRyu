@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::cli::HostCommands;
+use anyhow::Result;
 use jeryu::{cache, reclaim, state};
 
 pub(crate) async fn execute_host_commands(subcmd: HostCommands) -> Result<()> {
@@ -22,9 +22,7 @@ pub(crate) async fn execute_host_commands(subcmd: HostCommands) -> Result<()> {
         }
         HostCommands::Reclaim { mode, plan, apply } => {
             if mode != "aggressive" {
-                anyhow::bail!(
-                    "Only --mode aggressive is currently supported for host reclaim."
-                );
+                anyhow::bail!("Only --mode aggressive is currently supported for host reclaim.");
             }
             if !plan && !apply {
                 anyhow::bail!("You must specify either --plan or --apply.");

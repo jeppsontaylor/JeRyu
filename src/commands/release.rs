@@ -1,6 +1,6 @@
-use anyhow::Result;
 use crate::cli::ReleaseCommands;
 use crate::dispatch::load_client;
+use anyhow::Result;
 use jeryu::{release, state};
 
 pub(crate) async fn execute_release_commands(subcmd: ReleaseCommands) -> Result<()> {
@@ -73,10 +73,9 @@ pub(crate) async fn execute_release_commands(subcmd: ReleaseCommands) -> Result<
         } => {
             let (client, _) = load_client()?;
             let db = state::Db::open().await?;
-            let pipeline_id = release::trigger_production_promotion(
-                &db, &client, project_id, &ref_name, version,
-            )
-            .await?;
+            let pipeline_id =
+                release::trigger_production_promotion(&db, &client, project_id, &ref_name, version)
+                    .await?;
             println!("Triggered production-promotion pipeline {pipeline_id}");
         }
         ReleaseCommands::Preflight { ssh_host, json } => {

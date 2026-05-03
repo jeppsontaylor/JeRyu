@@ -1,7 +1,7 @@
 use anyhow::Result;
+use jeryu::config;
 use std::time::Duration;
 use tokio::time::sleep;
-use jeryu::config;
 
 mod common;
 

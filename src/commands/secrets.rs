@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::cli::SecretsCommands;
+use anyhow::Result;
 use jeryu::{secrets, state};
 
 pub(crate) async fn execute_secrets_commands(subcmd: SecretsCommands) -> Result<()> {
@@ -27,7 +27,10 @@ pub(crate) async fn execute_secrets_commands(subcmd: SecretsCommands) -> Result<
                 println!("  Prefix:      {}", report.prefix);
                 println!("  Bootstrap:   {}", report.bootstrap_file);
                 println!("  Env file:    {}", report.env_file);
-                if let Some(secret_set) = db.latest_release_secret_set(&crate::cli::infer_repo_name()).await? {
+                if let Some(secret_set) = db
+                    .latest_release_secret_set(&crate::cli::infer_repo_name())
+                    .await?
+                {
                     println!("\n  Latest release secret set:");
                     println!("    Version:   {}", secret_set.version);
                     println!("    Target:    {}", secret_set.target);
@@ -80,8 +83,7 @@ pub(crate) async fn execute_secrets_commands(subcmd: SecretsCommands) -> Result<
         SecretsCommands::Report { repo, version } => {
             let (repo_root, _, _) = secrets::default_release_paths();
             let path =
-                secrets::build_release_secret_report(&db, &repo_root, &repo, &version)
-                    .await?;
+                secrets::build_release_secret_report(&db, &repo_root, &repo, &version).await?;
             println!("Release report: {}", path.display());
         }
         SecretsCommands::Recover { repo, version } => {

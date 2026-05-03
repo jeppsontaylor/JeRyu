@@ -6,7 +6,6 @@
 
 use anyhow::Result;
 
-
 use crate::cli::*;
 use jeryu::*;
 
@@ -210,7 +209,9 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
         // ---- Job ---------------------------------------------------------
         Commands::Job(subcmd) => crate::commands::job::execute_job_commands(subcmd).await?,
 
-        Commands::Pipeline(subcmd) => crate::commands::pipeline::execute_pipeline_commands(subcmd).await?,
+        Commands::Pipeline(subcmd) => {
+            crate::commands::pipeline::execute_pipeline_commands(subcmd).await?
+        }
 
         // ---- Cache -------------------------------------------------------
         Commands::Cache(subcmd) => {
@@ -472,9 +473,13 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
         },
 
         // ---- Release ----------------------------------------------------
-        Commands::Release(subcmd) => crate::commands::release::execute_release_commands(subcmd).await?,
+        Commands::Release(subcmd) => {
+            crate::commands::release::execute_release_commands(subcmd).await?
+        }
         // ---- Secrets ----------------------------------------------------
-        Commands::Secrets(subcmd) => crate::commands::secrets::execute_secrets_commands(subcmd).await?,
+        Commands::Secrets(subcmd) => {
+            crate::commands::secrets::execute_secrets_commands(subcmd).await?
+        }
 
         // ---- Progress ---------------------------------------------------
         Commands::Progress {

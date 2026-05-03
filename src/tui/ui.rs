@@ -344,7 +344,10 @@ fn draw_event_console(f: &mut Frame, app: &App, area: Rect) {
     let _now = chrono::Utc::now();
 
     // Collect event entries
-    let events: Vec<(&str, &str, Color, &str)> = app.state.recent_jobs.iter()
+    let events: Vec<(&str, &str, Color, &str)> = app
+        .state
+        .recent_jobs
+        .iter()
         .take(20)
         .map(|job| {
             let ts = job.received_at.get(11..19).unwrap_or("--:--:--");
@@ -659,8 +662,18 @@ fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
     );
     // TUI v2 — Live Runners metric tile
     let feed_count = app.state.runner_feeds.len();
-    let feed_running = app.state.runner_feeds.iter().filter(|f| f.status == "running").count();
-    let feed_failed = app.state.runner_feeds.iter().filter(|f| f.status == "failed").count();
+    let feed_running = app
+        .state
+        .runner_feeds
+        .iter()
+        .filter(|f| f.status == "running")
+        .count();
+    let feed_failed = app
+        .state
+        .runner_feeds
+        .iter()
+        .filter(|f| f.status == "failed")
+        .count();
     draw_metric_tile(
         f,
         metric_cols[4],
@@ -675,7 +688,6 @@ fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
             Color::DarkGray
         },
     );
-
 
     draw_attention_queue(f, app, body_cols[0]);
     draw_proof_lanes(f, app, body_cols[1]);
@@ -1187,7 +1199,7 @@ fn draw_jobs_tab(f: &mut Frame, app: &mut App, area: Rect) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(12), // Pipeline progress
-            Constraint::Min(8),    // Job matrix
+            Constraint::Min(8),     // Job matrix
             Constraint::Length(10), // Inspector
         ])
         .split(cols[1]);
@@ -1203,13 +1215,25 @@ fn draw_jobs_tab(f: &mut Frame, app: &mut App, area: Rect) {
 
 fn feed_line_color(line: &str) -> Color {
     let lower = line.to_ascii_lowercase();
-    if lower.contains("error") || lower.contains("failed") || lower.contains("fatal") || lower.contains("panicked") {
+    if lower.contains("error")
+        || lower.contains("failed")
+        || lower.contains("fatal")
+        || lower.contains("panicked")
+    {
         Color::Red
     } else if lower.contains("warning") || lower.contains("warn") {
         Color::Yellow
-    } else if lower.contains("compiling") || lower.contains("running") || lower.contains("downloading") || lower.contains("fetching") {
+    } else if lower.contains("compiling")
+        || lower.contains("running")
+        || lower.contains("downloading")
+        || lower.contains("fetching")
+    {
         Color::Cyan
-    } else if lower.contains("finished") || lower.contains("test result: ok") || lower.contains("passed") || lower.contains("... ok") {
+    } else if lower.contains("finished")
+        || lower.contains("test result: ok")
+        || lower.contains("passed")
+        || lower.contains("... ok")
+    {
         Color::Green
     } else if line.starts_with('[') && line.len() > 10 {
         // Timestamp prefix — dim it
@@ -1235,7 +1259,11 @@ fn draw_live_runner_feed(f: &mut Frame, app: &App, area: Rect) {
     let active_idx = app.state.active_feed_index;
     let is_cycling = app.feed_pinned.is_none();
 
-    let cycle_label = if is_cycling { "⟳ cycling 5s" } else { "⏸ pinned" };
+    let cycle_label = if is_cycling {
+        "⟳ cycling 5s"
+    } else {
+        "⏸ pinned"
+    };
     let runner_label = if feeds.is_empty() {
         "no runners".to_string()
     } else {
@@ -1243,7 +1271,10 @@ fn draw_live_runner_feed(f: &mut Frame, app: &App, area: Rect) {
     };
 
     let block = Block::default()
-        .title(format!(" Live Runner Feed ── {} ── {} ", cycle_label, runner_label))
+        .title(format!(
+            " Live Runner Feed ── {} ── {} ",
+            cycle_label, runner_label
+        ))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Cyan));
     let inner = block.inner(area);
@@ -1274,7 +1305,7 @@ fn draw_live_runner_feed(f: &mut Frame, app: &App, area: Rect) {
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(2),  // Runner header
+            Constraint::Length(2), // Runner header
             Constraint::Min(4),    // Log content
             Constraint::Length(1), // Runner indicator strip
         ])
@@ -1292,7 +1323,9 @@ fn draw_live_runner_feed(f: &mut Frame, app: &App, area: Rect) {
         ),
         Span::styled(
             format!(" │ {} ", &feed.job_name),
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             format!("│ ⏱ {} ", format_elapsed(feed.elapsed_secs)),
@@ -1303,28 +1336,30 @@ fn draw_live_runner_feed(f: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(Color::DarkGray),
         ),
     ];
-    f.render_widget(
-        Paragraph::new(Line::from(header_spans)),
-        rows[0],
-    );
+    f.render_widget(Paragraph::new(Line::from(header_spans)), rows[0]);
 
     // Log content with color coding
-    let log_lines: Vec<Line> = feed.log_tail.lines().map(|line| {
-        let color = feed_line_color(line);
-        let style = if color == Color::Red || color == Color::Green {
-            Style::default().fg(color).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(color)
-        };
-        Line::from(Span::styled(line.to_string(), style))
-    }).collect();
+    let log_lines: Vec<Line> = feed
+        .log_tail
+        .lines()
+        .map(|line| {
+            let color = feed_line_color(line);
+            let style = if color == Color::Red || color == Color::Green {
+                Style::default().fg(color).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(color)
+            };
+            Line::from(Span::styled(line.to_string(), style))
+        })
+        .collect();
 
     let total_lines = log_lines.len() as u16;
     let visible_height = rows[1].height;
     let scroll_offset = if app.feed_follow_tail {
         total_lines.saturating_sub(visible_height)
     } else {
-        app.feed_scroll_offset.min(total_lines.saturating_sub(visible_height))
+        app.feed_scroll_offset
+            .min(total_lines.saturating_sub(visible_height))
     };
 
     f.render_widget(
@@ -1337,12 +1372,20 @@ fn draw_live_runner_feed(f: &mut Frame, app: &App, area: Rect) {
     for (i, f_entry) in feeds.iter().enumerate() {
         let is_active = i == active_idx;
         let dot_color = status_color(&f_entry.status);
-        let dot = if f_entry.status == "running" || f_entry.status == "pending" { "●" } else if f_entry.status == "failed" { "✕" } else { "○" };
+        let dot = if f_entry.status == "running" || f_entry.status == "pending" {
+            "●"
+        } else if f_entry.status == "failed" {
+            "✕"
+        } else {
+            "○"
+        };
         let name = short_text(&f_entry.runner_name, 12);
         if is_active {
             indicator_spans.push(Span::styled(
                 format!("{dot} {name} "),
-                Style::default().fg(dot_color).add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+                Style::default()
+                    .fg(dot_color)
+                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
             ));
         } else {
             indicator_spans.push(Span::styled(
@@ -1368,10 +1411,7 @@ fn draw_pipeline_progress(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(block, area);
 
     let Some(ref progress) = app.state.pipeline_progress_view else {
-        f.render_widget(
-            Paragraph::new("  No active pipeline"),
-            inner,
-        );
+        f.render_widget(Paragraph::new("  No active pipeline"), inner);
         return;
     };
 
@@ -1381,7 +1421,9 @@ fn draw_pipeline_progress(f: &mut Frame, app: &App, area: Rect) {
     lines.push(Line::from(vec![
         Span::styled(
             format!("  #{} ", progress.pipeline_id),
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             format!("{}@{}", progress.ref_name, progress.sha_short),
@@ -1396,10 +1438,18 @@ fn draw_pipeline_progress(f: &mut Frame, app: &App, area: Rect) {
             "success" => ("●", Color::Green),
             "running" => {
                 // Animated indicator
-                if tick % 4 < 2 { ("◉", Color::Cyan) } else { ("◎", Color::Cyan) }
+                if tick % 4 < 2 {
+                    ("◉", Color::Cyan)
+                } else {
+                    ("◎", Color::Cyan)
+                }
             }
             "failed" => {
-                if tick % 4 < 2 { ("✕", Color::Red) } else { ("✕", Color::LightRed) }
+                if tick % 4 < 2 {
+                    ("✕", Color::Red)
+                } else {
+                    ("✕", Color::LightRed)
+                }
             }
             _ => ("○", Color::Yellow),
         };
@@ -1435,26 +1485,45 @@ fn draw_pipeline_progress(f: &mut Frame, app: &App, area: Rect) {
                 Style::default().fg(Color::White),
             ),
             Span::styled(bar, Style::default().fg(icon_color)),
-            Span::styled(format!(" {:<5}", count_label), Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                format!(" {:<5}", count_label),
+                Style::default().fg(Color::DarkGray),
+            ),
         ]));
     }
 
     // Overall progress bar
     lines.push(Line::from(""));
     let overall_bar = meter_bar(progress.overall_pct, 20);
-    let eta_label = progress.eta_remaining_secs.map(|secs| {
-        if secs >= 3600 {
-            format!("ETA ~{}h{}m ({})", secs / 3600, (secs % 3600) / 60, progress.eta_confidence)
-        } else if secs >= 60 {
-            format!("ETA ~{}m{}s ({})", secs / 60, secs % 60, progress.eta_confidence)
-        } else {
-            format!("ETA ~{}s ({})", secs, progress.eta_confidence)
-        }
-    }).unwrap_or_else(|| "ETA unknown".into());
+    let eta_label = progress
+        .eta_remaining_secs
+        .map(|secs| {
+            if secs >= 3600 {
+                format!(
+                    "ETA ~{}h{}m ({})",
+                    secs / 3600,
+                    (secs % 3600) / 60,
+                    progress.eta_confidence
+                )
+            } else if secs >= 60 {
+                format!(
+                    "ETA ~{}m{}s ({})",
+                    secs / 60,
+                    secs % 60,
+                    progress.eta_confidence
+                )
+            } else {
+                format!("ETA ~{}s ({})", secs, progress.eta_confidence)
+            }
+        })
+        .unwrap_or_else(|| "ETA unknown".into());
 
     lines.push(Line::from(vec![
         Span::styled(format!("  {overall_bar}"), Style::default().fg(Color::Cyan)),
-        Span::styled(format!("  {eta_label}"), Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("  {eta_label}"),
+            Style::default().fg(Color::DarkGray),
+        ),
     ]));
 
     f.render_widget(Paragraph::new(lines), inner);
@@ -1489,20 +1558,26 @@ fn draw_job_matrix(f: &mut Frame, app: &App, area: Rect) {
     let tick = app.tick_count;
     let mut lines: Vec<Line> = Vec::new();
     for (stage_name, jobs) in groups.iter().take(inner.height as usize) {
-        let mut spans: Vec<Span> = vec![
-            Span::styled(
-                format!("  {:<14}", short_text(stage_name, 14)),
-                Style::default().fg(Color::DarkGray),
-            ),
-        ];
+        let mut spans: Vec<Span> = vec![Span::styled(
+            format!("  {:<14}", short_text(stage_name, 14)),
+            Style::default().fg(Color::DarkGray),
+        )];
         for job in jobs.iter().take(20) {
             let (dot, color) = match job.status.as_str() {
                 "success" => ("●", Color::Green),
                 "running" => {
-                    if tick % 4 < 2 { ("●", Color::Cyan) } else { ("◌", Color::Cyan) }
+                    if tick % 4 < 2 {
+                        ("●", Color::Cyan)
+                    } else {
+                        ("◌", Color::Cyan)
+                    }
                 }
                 "failed" => {
-                    if tick % 6 < 3 { ("●", Color::Red) } else { ("●", Color::LightRed) }
+                    if tick % 6 < 3 {
+                        ("●", Color::Red)
+                    } else {
+                        ("●", Color::LightRed)
+                    }
                 }
                 "pending" | "created" => ("○", Color::Yellow),
                 "canceled" => ("○", Color::DarkGray),
@@ -3342,7 +3417,9 @@ fn draw_help_overlay(f: &mut Frame, app: &App) {
     let mut lines: Vec<Line> = vec![
         Line::from(Span::styled(
             format!(" Keyboard Shortcuts — {tab_name} Tab"),
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
         help_row("1-9", "Switch to tab N"),
@@ -3404,7 +3481,9 @@ fn help_row(key: &str, desc: &str) -> Line<'static> {
     Line::from(vec![
         Span::styled(
             format!("  {key:<12}"),
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled(desc.to_string(), Style::default().fg(Color::White)),
     ])

@@ -1,8 +1,8 @@
 use anyhow::Result;
+use jeryu::state::Pool;
 use std::sync::LazyLock;
 use tokio::sync::Mutex;
 use tokio::time::{Duration, sleep};
-use jeryu::state::Pool;
 
 mod common;
 

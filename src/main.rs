@@ -15,8 +15,8 @@
 #![allow(dead_code)]
 
 pub mod cli;
-pub mod dispatch;
 pub mod commands;
+pub mod dispatch;
 
 use anyhow::Result;
 use clap::Parser;

@@ -545,7 +545,7 @@ Auto-rollback: armed
 
 ## Product/API features that would make this feel magical
 
-### `gitwrath next --json`
+### `jeryu next --json`
 
 Returns the highest-value next action:
 
@@ -558,31 +558,31 @@ Returns the highest-value next action:
 }
 ```
 
-### `gitwrath explain --why-skipped <job>`
+### `jeryu explain --why-skipped <job>`
 
 Explains skipped jobs with confidence, evidence, and fallback rules.
 
-### `gitwrath agent spawn --goal "..."`
+### `jeryu agent spawn --goal "..."`
 
 Creates an agent task with a bounded lease, branch, issue, MR, and budget.
 
-### `gitwrath patch apply --dry-run --constraints policy.toml`
+### `jeryu patch apply --dry-run --constraints policy.toml`
 
 Applies a patch bundle and shows policy violations before committing.
 
-### `gitwrath validate --diff HEAD~1..HEAD --proof`
+### `jeryu validate --diff HEAD~1..HEAD --proof`
 
 Produces the full validation proof: selected tests, skipped tests, risk, gates.
 
-### `gitwrath race --hypotheses patchA patchB patchC`
+### `jeryu race --hypotheses patchA patchB patchC`
 
 Runs multiple hypotheses and auto-merges the winner only if the proof passes.
 
-### `gitwrath merge --proof !42`
+### `jeryu merge --proof !42`
 
 Merges only if the proof is complete, signed, and bound to the MR head SHA.
 
-### `gitwrath replay agent/task-123`
+### `jeryu replay agent/task-123`
 
 Replays the entire autonomous session: decisions, patches, tests, failures, fixes.
 

@@ -31,7 +31,7 @@ pub struct ShadowStatus {
 pub fn status(repo: Option<&Path>, target_remote: &str) -> Result<ShadowStatus> {
     let repo_root = open_repo(repo)?;
     let head_branch = get_head_branch(&repo_root).ok();
-    
+
     let remotes = list_remotes(&repo_root).unwrap_or_default();
     let target_exists = remotes.iter().any(|remote| remote.name == target_remote);
 
@@ -46,7 +46,7 @@ pub fn status(repo: Option<&Path>, target_remote: &str) -> Result<ShadowStatus> 
 
 pub fn ensure_remote(repo: Option<&Path>, name: &str, url: &str) -> Result<()> {
     let repo_root = open_repo(repo)?;
-    
+
     let remotes = list_remotes(&repo_root).unwrap_or_default();
     if remotes.iter().any(|r| r.name == name) {
         run_git(&repo_root, ["remote", "set-url", name, url])?;
@@ -85,11 +85,11 @@ fn open_repo(repo: Option<&Path>) -> Result<PathBuf> {
         .current_dir(path)
         .output()
         .context("failed to discover git repository")?;
-        
+
     if !output.status.success() {
         bail!("failed to discover git repository from {}", path.display());
     }
-    
+
     let root = String::from_utf8_lossy(&output.stdout).trim().to_string();
     Ok(PathBuf::from(root))
 }
@@ -99,7 +99,7 @@ fn get_head_branch(repo_root: &Path) -> Result<String> {
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
         .current_dir(repo_root)
         .output()?;
-        
+
     if !output.status.success() {
         bail!("Failed to resolve HEAD branch");
     }
@@ -115,22 +115,22 @@ fn list_remotes(repo_root: &Path) -> Result<Vec<RemoteStatus>> {
         .args(["remote", "-v"])
         .current_dir(repo_root)
         .output()?;
-        
+
     if !output.status.success() {
         return Ok(Vec::new());
     }
-    
+
     let out_str = String::from_utf8_lossy(&output.stdout);
     let mut names = std::collections::HashSet::new();
     let mut remotes = Vec::new();
-    
+
     for line in out_str.lines() {
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() >= 2 {
             names.insert(parts[0].to_string());
         }
     }
-    
+
     for name in names {
         // Find fetch url
         let mut fetch_url = None;
@@ -145,16 +145,18 @@ fn list_remotes(repo_root: &Path) -> Result<Vec<RemoteStatus>> {
                 }
             }
         }
-        
-        let push_url = push_url.or_else(|| fetch_url.clone()).unwrap_or_else(|| "(none)".to_string());
-        
+
+        let push_url = push_url
+            .or_else(|| fetch_url.clone())
+            .unwrap_or_else(|| "(none)".to_string());
+
         remotes.push(RemoteStatus {
             name,
             fetch_url,
             push_url,
         });
     }
-    
+
     Ok(remotes)
 }
 
@@ -258,17 +260,17 @@ async fn sync_once(_db: &Db, client: &GitlabClient, config: &mut ShadowSyncConfi
 
     tokio::task::spawn_blocking(move || -> Result<ShadowPushOutcome> {
         let repo_root = PathBuf::from(&source_dir);
-        
+
         let output = std::process::Command::new("git")
             .args(["rev-parse", "HEAD"])
             .current_dir(&repo_root)
             .output()
             .context("failed to run git rev-parse")?;
-            
+
         if !output.status.success() {
             bail!("failed to resolve HEAD in {}", source_dir);
         }
-        
+
         let head_sha = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
         if let Some(ref pushed_sha) = last_pushed_sha
@@ -297,7 +299,11 @@ async fn sync_once(_db: &Db, client: &GitlabClient, config: &mut ShadowSyncConfi
             .current_dir(&repo_root)
             .output()?;
         let head_branch_name = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let head_name = if head_branch_name == "HEAD" { "HEAD" } else { &head_branch_name };
+        let head_name = if head_branch_name == "HEAD" {
+            "HEAD"
+        } else {
+            &head_branch_name
+        };
 
         let refspec = format!("+{}:refs/heads/{}", head_name, target_branch);
 
@@ -306,7 +312,7 @@ async fn sync_once(_db: &Db, client: &GitlabClient, config: &mut ShadowSyncConfi
             .current_dir(&repo_root)
             .status()
             .context("failed to execute push command")?;
-            
+
         if !push_status.success() {
             bail!("failed to push to shadow remote");
         }

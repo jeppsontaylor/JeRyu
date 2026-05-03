@@ -1,13 +1,13 @@
 use anyhow::Result;
-use sqlx::Row;
-use std::os::unix::fs::PermissionsExt;
-use std::sync::{LazyLock, Mutex};
-use tempfile::TempDir;
 use jeryu::cache_brain::{BuildUnit, BuildUnitType, CacheBrain};
 use jeryu::epoch::EpochManager;
 use jeryu::explain::{CacheVerdict, MissReason};
 use jeryu::policy::TrustTier;
 use jeryu::taint::TaintManager;
+use sqlx::Row;
+use std::os::unix::fs::PermissionsExt;
+use std::sync::{LazyLock, Mutex};
+use tempfile::TempDir;
 
 static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
@@ -363,7 +363,8 @@ async fn local_cargo_wrapper_smoke_without_sccache() -> Result<()> {
     set_env_var("HOME", repo.path());
     remove_env_var("JERYU_CARGO_CACHE");
 
-    let result = jeryu::local::run_cargo(repo.path().to_path_buf(), vec!["check".to_string()]).await;
+    let result =
+        jeryu::local::run_cargo(repo.path().to_path_buf(), vec!["check".to_string()]).await;
 
     match original_path {
         Some(value) => set_env_var("PATH", value),
@@ -388,7 +389,8 @@ async fn local_cargo_wrapper_smoke_with_sccache_shim() -> Result<()> {
     set_env_var("HOME", repo.path());
     remove_env_var("JERYU_CARGO_CACHE");
 
-    let result = jeryu::local::run_cargo(repo.path().to_path_buf(), vec!["check".to_string()]).await;
+    let result =
+        jeryu::local::run_cargo(repo.path().to_path_buf(), vec!["check".to_string()]).await;
 
     match original_path {
         Some(value) => set_env_var("PATH", value),
@@ -431,7 +433,9 @@ async fn cache_status_report_exposes_local_and_pool_cargo_bytes() -> Result<()> 
     std::fs::write(pool_sccache.join("d"), vec![0_u8; 8])?;
 
     let db = setup_production_db().await?;
-    let report = jeryu::cache::SmartCache::new(db).status_report(None).await?;
+    let report = jeryu::cache::SmartCache::new(db)
+        .status_report(None)
+        .await?;
     let json = serde_json::to_value(&report)?;
     assert!(report.local_cargo_target_bytes > 0);
     assert!(report.local_cargo_sccache_bytes > 0);

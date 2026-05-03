@@ -1,6 +1,6 @@
 use anyhow::Result;
-use tokio::time::{Duration, sleep};
 use jeryu::agent;
+use tokio::time::{Duration, sleep};
 
 mod common;
 

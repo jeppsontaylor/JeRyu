@@ -92,7 +92,9 @@ pub fn render_agent_index(check: bool) -> Result<()> {
         let json_current = fs::read_to_string(&json_path).unwrap_or_default();
         let markdown_current = fs::read_to_string(&markdown_path).unwrap_or_default();
         if !compare_generated_index(&json_current, &json_text, &markdown_current, &markdown_text) {
-            bail!("agent index drift detected; run `cargo run -p jeryu -- repo render-agent-index`");
+            bail!(
+                "agent index drift detected; run `cargo run -p jeryu -- repo render-agent-index`"
+            );
         }
         return Ok(());
     }

@@ -1,8 +1,8 @@
-use anyhow::Result;
-use std::path::PathBuf;
 use crate::cli::TestCommands;
 use crate::dispatch::load_client;
+use anyhow::Result;
 use jeryu::{state, test_intel, test_runner};
+use std::path::PathBuf;
 
 pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
     let (client, _) = load_client()?;
@@ -167,8 +167,7 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             pipeline_id,
             project_id,
         } => {
-            let results =
-                test_runner::pipeline_results(&client, project_id, pipeline_id).await?;
+            let results = test_runner::pipeline_results(&client, project_id, pipeline_id).await?;
 
             let passed = results.iter().filter(|r| r.passed).count();
             let failed = results.iter().filter(|r| r.status == "failed").count();
@@ -208,8 +207,7 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
                 job_name, pipeline_id
             );
             let result =
-                test_runner::retry_job_by_name(&client, project_id, pipeline_id, &job_name)
-                    .await?;
+                test_runner::retry_job_by_name(&client, project_id, pipeline_id, &job_name).await?;
 
             if result.passed {
                 println!("✅ Job '{}' passed on retry!", job_name);
@@ -221,8 +219,7 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             pipeline_id,
             project_id,
         } => {
-            let results =
-                test_runner::pipeline_results(&client, project_id, pipeline_id).await?;
+            let results = test_runner::pipeline_results(&client, project_id, pipeline_id).await?;
 
             let failed: Vec<_> = results
                 .into_iter()
@@ -327,9 +324,8 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             emit_plan,
             emit_receipt,
         } => {
-            let cwd = repo_root.unwrap_or_else(|| {
-                std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-            });
+            let cwd = repo_root
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
             // Get changed files via git diff
             let diff_output = std::process::Command::new("git")
@@ -426,8 +422,8 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
                 anyhow::bail!("no .jeryu/testmap.toml found at {}", testmap_path.display());
             }
 
-            let map = test_intel::testmap::load_testmap(&testmap_path)
-                .map_err(|e| anyhow::anyhow!(e))?;
+            let map =
+                test_intel::testmap::load_testmap(&testmap_path).map_err(|e| anyhow::anyhow!(e))?;
 
             // Get changed files via git diff
             let diff_output = std::process::Command::new("git")
@@ -477,8 +473,7 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
 
             // Emit artifacts
             if let Some(gitlab_path) = emit_gitlab {
-                let yaml =
-                    test_intel::testmap::emit_external_gitlab_yaml(&plan, Some(&workspace));
+                let yaml = test_intel::testmap::emit_external_gitlab_yaml(&plan, Some(&workspace));
                 if let Some(parent) = gitlab_path.parent() {
                     std::fs::create_dir_all(parent)?;
                 }

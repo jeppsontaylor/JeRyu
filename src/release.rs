@@ -2032,7 +2032,10 @@ pub async fn trigger_production_promotion(
         ("JERYU_RELEASE_VERSION", release_version.as_str()),
     ];
     if !release_pipeline_id_str.is_empty() {
-        trigger_vars.push(("JERYU_RELEASE_PIPELINE_ID", release_pipeline_id_str.as_str()));
+        trigger_vars.push((
+            "JERYU_RELEASE_PIPELINE_ID",
+            release_pipeline_id_str.as_str(),
+        ));
     }
     let pipeline_id = client
         .trigger_pipeline(project_id, ref_name, trigger_vars)

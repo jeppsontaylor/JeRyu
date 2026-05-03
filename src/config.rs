@@ -14,19 +14,9 @@ use std::path::PathBuf;
 
 /// Root data directory for jeryu state on the host.
 ///
-/// Checks `~/.jeryu` first (including symlinks). Falls back to `~/.vgit`
-/// during migration from the GITWRATH era. If neither exists, defaults to
-/// `~/.jeryu` so a fresh bootstrap creates the canonical path.
+/// Defaults to `~/.jeryu` so a fresh bootstrap creates the canonical path.
 pub fn data_dir() -> PathBuf {
-    let jeryu_dir = dirs_home().join(".jeryu");
-    if jeryu_dir.exists() {
-        return jeryu_dir;
-    }
-    let vgit_dir = dirs_home().join(".vgit");
-    if vgit_dir.exists() {
-        return vgit_dir;
-    }
-    jeryu_dir
+    dirs_home().join(".jeryu")
 }
 
 /// Where jeryu.env lives (secrets file).
@@ -538,7 +528,9 @@ pub struct ShadowConfig {
     pub max_blocking_seconds_on_push: u64,
 }
 
-fn default_max_blocking_seconds() -> u64 { 5 }
+fn default_max_blocking_seconds() -> u64 {
+    5
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct ProofConfig {
@@ -592,7 +584,9 @@ pub struct IsolationConfig {
     pub default_network_egress: String,
 }
 
-fn default_egress() -> String { "block".to_string() }
+fn default_egress() -> String {
+    "block".to_string()
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct ExceptionsConfig {
@@ -622,7 +616,11 @@ pub fn load_jeryu_workspace_config<T: serde::de::DeserializeOwned + Default>(
     let path = repo_root.join(".jeryu").join(filename);
     if let Ok(contents) = std::fs::read_to_string(&path) {
         toml::from_str(&contents).unwrap_or_else(|err| {
-            eprintln!("Warning: Failed to parse {}, using defaults: {}", path.display(), err);
+            eprintln!(
+                "Warning: Failed to parse {}, using defaults: {}",
+                path.display(),
+                err
+            );
             T::default()
         })
     } else {

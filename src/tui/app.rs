@@ -945,7 +945,9 @@ impl App {
                 interval.tick().await;
 
                 // Find running jobs
-                let running_jobs = db_feed.recent_job_events(50).await
+                let running_jobs = db_feed
+                    .recent_job_events(50)
+                    .await
                     .unwrap_or_default()
                     .into_iter()
                     .filter(|j| j.status == "running")
@@ -954,10 +956,7 @@ impl App {
 
                 let mut feeds = Vec::new();
                 for job in &running_jobs {
-                    let log_tail = match gitlab_feed
-                        .job_trace(job.project_id, job.job_id)
-                        .await
-                    {
+                    let log_tail = match gitlab_feed.job_trace(job.project_id, job.job_id).await {
                         Ok(trace) => {
                             let lines: Vec<&str> = trace.lines().collect();
                             let start = lines.len().saturating_sub(FEED_MAX_LINES);
@@ -973,7 +972,10 @@ impl App {
                     feeds.push(RunnerFeed {
                         runner_name: job.pool_name.clone().unwrap_or_else(|| "unknown".into()),
                         job_id: job.job_id,
-                        job_name: job.job_name.clone().unwrap_or_else(|| format!("job-{}", job.job_id)),
+                        job_name: job
+                            .job_name
+                            .clone()
+                            .unwrap_or_else(|| format!("job-{}", job.job_id)),
                         pipeline_id: job.pipeline_id.unwrap_or(0),
                         status: job.status.clone(),
                         elapsed_secs: elapsed,
@@ -1310,9 +1312,8 @@ impl App {
             }
         }
         if let Some(pinned) = self.feed_pinned {
-            self.state.active_feed_index = pinned.min(
-                self.state.runner_feeds.len().saturating_sub(1),
-            );
+            self.state.active_feed_index =
+                pinned.min(self.state.runner_feeds.len().saturating_sub(1));
             self.state.feed_auto_cycle = false;
         }
 

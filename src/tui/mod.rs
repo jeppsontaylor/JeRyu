@@ -704,7 +704,9 @@ async fn run_loop(
                 KeyCode::Char('N') if app.active_tab == crate::tui::app::ActiveTab::Jobs => {
                     app.feed_prev();
                 }
-                KeyCode::Char('g') if app.active_tab == crate::tui::app::ActiveTab::Jobs && !app.maximize_logs => {
+                KeyCode::Char('g')
+                    if app.active_tab == crate::tui::app::ActiveTab::Jobs && !app.maximize_logs =>
+                {
                     app.feed_follow_toggle();
                 }
                 // TUI v2 — Interactive actions

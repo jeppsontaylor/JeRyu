@@ -80,12 +80,12 @@
   belowskip=2.2em
 }
 \makeatletter
-\newlength{\gitwrathlistingcaptiongap}
-\setlength{\gitwrathlistingcaptiongap}{0.9\baselineskip}
-\let\gitwrath@orig@lst@makecaption\lst@makecaption
+\newlength{\jeryulistingcaptiongap}
+\setlength{\jeryulistingcaptiongap}{0.9\baselineskip}
+\let\jeryu@orig@lst@makecaption\lst@makecaption
 \def\lst@makecaption#1#2{%
-  \gitwrath@orig@lst@makecaption{#1}{#2}%
-  \par\nobreak\vskip\gitwrathlistingcaptiongap\nobreak
+  \jeryu@orig@lst@makecaption{#1}{#2}%
+  \par\nobreak\vskip\jeryulistingcaptiongap\nobreak
 }
 \makeatother
 
