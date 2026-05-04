@@ -1,0 +1,973 @@
+Absolutely. After studying the repo, the best design is **not** “literally run the same Git command twice in the same worktree.” That would break commands like `commit`, `rebase`, `merge`, `reset`, `checkout`, `tag -d`, etc. The brilliant version is:
+
+> **User/agent types `git …` normally. JeRyu’s Git shim runs real Git once, then automatically mirrors/queues the JeRyu shadow action when the repo has `.jeryu` enabled. Normal Git always remains the source of truth. Shadow work is automatic, observable, recoverable, and non-blocking by default.**
+
+This gives the human and the agent exactly the experience you want: **zero new muscle memory, zero “remember to run jeryu,” normal Git still works, and JeRyu shadows everything safely.**
+
+## What JeRyu does today
+
+JeRyu already has most of the skeleton for this. The README describes JeRyu as a single Rust binary that wraps Git while preserving normal Git muscle memory, with `jeryu save`, `jeryu sync`, `jeryu undo`, and `jeryu ship`; `jeryu ship` is already intended to push to normal `origin` and a local `shadow` CI remote. ([GitHub][1])
+
+The current install flow is interactive: clone the repo, run `install.sh`, build the release binary, choose global or local install, then manually paste a shell function into `.bashrc`/`.zshrc`. ([GitHub][1]) The installer itself prompts for missing Git/build/Rust dependencies, builds with `cargo build --release`, installs the binary, and prints the manual shell shim. 
+
+The current shell shim is global, not repo-aware: it sends every `git …` command to `jeryu git …` whenever `jeryu` exists. ([GitHub][1]) But the current `jeryu git` implementation is pure passthrough: it resolves `JERYU_SYSTEM_GIT` or defaults to `/usr/bin/git`, runs that Git with the args, and exits with Git’s status. `jeryu ship` separately pushes `origin HEAD`, then attempts `shadow HEAD`, treating shadow failure as a skip/fail rather than blocking the primary push. 
+
+The repo also already has `Shadow` and `ShadowRemote` command surfaces in the CLI: DB-backed shadow sync, repo-local `shadow-remote status/ensure/push`, and test selection for external workspaces with `.jeryu/testmap.toml`.  The `shadow.rs` module already makes remote ensure/push idempotent-ish, discovers repo roots through Git, pushes the current branch or mirror, runs a background sync loop, tracks failures, and uses exponential backoff. 
+
+There is already repo-local `.jeryu` parsing infrastructure in `config.rs`: `load_jeryu_workspace_config(repo_root, filename)` reads files from `repo_root/.jeryu/<filename>`, and there are loaders for `shadow.toml`, `proof.toml`, `agent.toml`, and `sandbox.toml`.  Global settings live under `~/.jeryu/settings.json`, created with defaults on first run. 
+
+So the big missing layer is not raw capability. It is **activation, repo-aware interception, safe command classification, remote SSH bootstrap, and reconciliation.**
+
+# The best design: JeRyu Ghost Git
+
+Call the feature internally **Ghost Git** or **Shadow Git**.
+
+The UX should be:
+
+```bash
+# One-time local install
+curl -fsSL https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/install.sh | bash -s -- --yes --activate-git
+
+# One-time per repo
+cd my-repo
+jeryu repo activate --server jeryu@big-runner-box --yes
+
+# From then on, humans and agents only do this:
+git status
+git add .
+git commit -m "work"
+git push
+```
+
+Behind the scenes:
+
+1. `git …` resolves to JeRyu’s installed Git shim.
+2. The shim finds the real system Git path.
+3. It discovers the repo root.
+4. If no `.jeryu` is present, it immediately execs real Git.
+5. If `.jeryu` is present and trusted, it runs real Git first.
+6. If real Git succeeds, JeRyu performs the shadow action appropriate to the command.
+7. If shadow fails, normal Git still succeeded; JeRyu records the failure and retries/reconciles later unless the repo explicitly asks to block.
+
+That is the “set and forget” version.
+
+# Do not use a shell function as the final install
+
+The README’s current shell function is okay for a prototype, but not for agents. Shell functions are fragile because non-interactive shells, automation runners, IDE terminals, and agent subprocesses often do not load `.bashrc`/`.zshrc`.
+
+The brilliant install should create a **real executable shim named `git`** earlier in `PATH`.
+
+Example layout:
+
+```text
+~/.jeryu/bin/git              # tiny shim executable or script
+~/.jeryu/bin/jeryu            # optional symlink to actual binary
+~/.jeryu/config.json          # install config
+~/.jeryu/system-git           # absolute path to real Git
+~/.jeryu/trusted-repos.json   # repos allowed to run shadow mode
+```
+
+The installer adds exactly one PATH line:
+
+```bash
+export PATH="$HOME/.jeryu/bin:$PATH"
+```
+
+Then `~/.jeryu/bin/git` calls:
+
+```bash
+exec jeryu git "$@"
+```
+
+But **inside `jeryu git`**, JeRyu must avoid recursion by using the captured real Git path, not `git` from PATH.
+
+The installer should detect and save the real Git path before installing the shim:
+
+```bash
+SYSTEM_GIT="$(command -v git)"
+mkdir -p "$HOME/.jeryu/bin"
+printf '%s\n' "$SYSTEM_GIT" > "$HOME/.jeryu/system-git"
+```
+
+Then every JeRyu Git operation uses this order:
+
+```text
+JERYU_SYSTEM_GIT env var
+~/.jeryu/system-git
+/usr/bin/git
+/bin/git
+xcrun -f git on macOS
+```
+
+# Repo opt-in: `.jeryu`, but with trust protection
+
+You said: “If `.jeryu` is defined in their repo.” I would define that as:
+
+```text
+repo/.jeryu/shadow.toml exists
+```
+
+or:
+
+```text
+repo/.jeryu/config.toml exists with [git].mode = "shadow"
+```
+
+I would not make a bare `.jeryu/` directory enough by itself, because the repo already uses `.jeryu/testmap.toml` for external test selection. Accidentally turning on Git shadowing because a test map exists would be surprising. 
+
+Recommended repo config:
+
+```toml
+# .jeryu/shadow.toml
+
+enabled = true
+mode = "after-success"          # run real git first, then shadow
+remote = "shadow"
+on_error = "warn"               # warn | quiet | block-push | fail
+timeout_ms = 2500
+sync = "queue"                  # queue | immediate
+mirror_tags = true
+mirror_deleted_refs = false
+
+[server]
+kind = "ssh"
+host = "jeryu@big-runner-box"
+project = "my-repo"
+
+[push]
+block_primary = false
+force_strategy = "force-with-lease"
+```
+
+Security point: a repo-controlled `.jeryu/shadow.toml` must not be able to silently exfiltrate code to an arbitrary attacker-controlled remote. So activation should also write a global trust record:
+
+```json
+{
+  "/Users/taylor/code/my-repo": {
+    "trusted_at": "2026-05-04T00:00:00Z",
+    "repo_id": "sha256-of-origin-url-or-root",
+    "shadow_remote": "ssh://jeryu@big-runner-box/...",
+    "mode": "shadow"
+  }
+}
+```
+
+Then behavior is:
+
+```text
+.jeryu present + trusted repo      => full shadow mode
+.jeryu present + untrusted repo    => normal Git only; print one concise trust hint
+no .jeryu                         => normal Git only
+JERYU_DISABLE=1                   => normal Git only
+```
+
+For your own repos, `jeryu repo activate --yes` makes this invisible. For random cloned repos, it prevents a nasty surprise.
+
+# The core change: make `jeryu git` a smart proxy
+
+Right now `jeryu git` is just passthrough. It should become the central smart proxy.
+
+Conceptual flow:
+
+```rust
+pub fn execute_git_proxy(args: &[String]) -> Result<i32> {
+    let system_git = resolve_system_git();
+
+    if should_bypass(args) {
+        return exec_system_git(system_git, args);
+    }
+
+    let repo = discover_repo_root(&system_git, current_dir());
+
+    if repo.is_none() {
+        return exec_system_git(system_git, args);
+    }
+
+    let repo = repo.unwrap();
+
+    if !repo_has_jeryu_shadow_config(&repo) || !repo_is_trusted(&repo) {
+        return exec_system_git(system_git, args);
+    }
+
+    let before = snapshot_repo_state(&system_git, &repo);
+    let primary = run_system_git(&system_git, args);
+
+    if !primary.success {
+        return Ok(primary.code);
+    }
+
+    let after = snapshot_repo_state(&system_git, &repo);
+    let plan = classify_shadow_action(args, before, after, &repo);
+
+    run_or_enqueue_shadow_action(plan, repo)?;
+
+    Ok(primary.code)
+}
+```
+
+The critical rule:
+
+> **Primary Git owns the exit code. Shadow is non-blocking unless the repo explicitly says to block.**
+
+That preserves user trust. Their `git push` should not suddenly fail because the JeRyu server is having a bad day, unless they configured that.
+
+# How to classify Git commands
+
+This is where the brilliance happens. Do not “run all commands twice” naively. Run the real Git command once, then mirror the resulting state.
+
+## Commands that should just pass through
+
+Examples:
+
+```text
+git status
+git log
+git diff
+git show
+git rev-parse
+git config --get …
+git remote -v
+git branch --list
+```
+
+Action:
+
+```text
+Run real Git.
+Optionally record audit/event metadata.
+No shadow push needed.
+```
+
+## Commands that create or move local commits/refs
+
+Examples:
+
+```text
+git commit
+git commit --amend
+git merge
+git rebase
+git reset
+git checkout
+git switch
+git branch
+git tag
+git cherry-pick
+git revert
+```
+
+Action:
+
+```text
+Run real Git.
+If HEAD/ref changed, enqueue shadow sync.
+Do not block.
+```
+
+This uses the existing shadow sync pattern, but the enqueue should be immediate and repo-local:
+
+```bash
+jeryu shadow sync-now --source "$repo"
+```
+
+or an internal API equivalent.
+
+## `git push`
+
+This is the most important command.
+
+Action:
+
+```text
+Run user's real git push exactly as requested.
+If it succeeds, push the same resulting branch/ref to shadow.
+If shadow fails, return success by default, record failure, retry later.
+```
+
+For current branch:
+
+```bash
+real git push origin HEAD
+jeryu shadow-remote push --repo "$repo" --name shadow
+```
+
+For custom refspecs, preserve intent as much as possible:
+
+```text
+git push origin feature:main
+=> shadow push HEAD/feature to corresponding configured shadow namespace
+```
+
+But to avoid dangerous mistakes, I would start with a conservative mapping:
+
+```text
+If command pushed current branch or no explicit refspec:
+    mirror current branch to shadow
+If command pushed tags:
+    mirror tags if mirror_tags = true
+If command deleted remote refs:
+    mirror deletion only if mirror_deleted_refs = true
+If command is complex:
+    enqueue full reconciliation instead of guessing
+```
+
+## `git pull`, `git fetch`
+
+Action:
+
+```text
+Run real Git.
+If local HEAD/ref changed, enqueue shadow sync.
+Do not push shadow immediately unless configured.
+```
+
+## `git clone`
+
+This is special because there is no repo root before the command.
+
+Action:
+
+```text
+Run real Git clone.
+Inspect cloned repo.
+If cloned repo contains .jeryu/shadow.toml and the repo is trusted or auto-trust policy allows it, activate.
+Otherwise do nothing.
+```
+
+For your use case, this is fantastic for agents: they clone, and if the repo is already a JeRyu repo, it lights up automatically.
+
+## `git init`
+
+Action:
+
+```text
+Run real Git init.
+If .jeryu exists in that directory, activate local shadow config.
+```
+
+# Shadow should have a journal and reconciler
+
+This is the “set and forget” safety net.
+
+Every successful primary Git command in a `.jeryu` repo should record a small event:
+
+```json
+{
+  "id": "uuid",
+  "time": "2026-05-04T12:34:56Z",
+  "repo": "/path/to/repo",
+  "command": ["push"],
+  "branch_before": "main",
+  "head_before": "abc123",
+  "branch_after": "main",
+  "head_after": "def456",
+  "primary_status": 0,
+  "shadow_status": "queued"
+}
+```
+
+Store it in one of:
+
+```text
+repo/.git/jeryu/events.jsonl
+~/.jeryu/events/<repo-id>.jsonl
+existing JeRyu DB shadow_sync_configs
+```
+
+I would prefer **`~/.jeryu` plus DB** for durable state, and only use `.git/jeryu.lock` for repo-local locking.
+
+Then a reconciler ensures:
+
+```text
+For each trusted .jeryu repo:
+    Check current branch/HEAD.
+    Check shadow last pushed SHA.
+    If shadow is behind, push/update shadow.
+    If shadow has diverged unexpectedly, quarantine and explain.
+```
+
+This prevents one bad network hiccup from making JeRyu unreliable.
+
+# Failure behavior
+
+This is the policy I recommend.
+
+## Default mode: never break normal Git
+
+```text
+Primary Git fails:
+    return primary failure; do not shadow
+
+Primary Git succeeds, shadow succeeds:
+    return 0
+
+Primary Git succeeds, shadow fails:
+    return 0
+    print concise warning to stderr unless quiet
+    record failure
+    retry in background/reconciler
+```
+
+Example output:
+
+```text
+jeryu: shadow sync queued; remote unavailable, will retry
+```
+
+No drama. No cognitive load.
+
+## Optional strict mode
+
+For teams that want JeRyu to become a gate:
+
+```toml
+on_error = "block-push"
+max_blocking_seconds_on_push = 5
+```
+
+Then only `git push` waits briefly for shadow. This maps nicely to the existing `ShadowConfig.max_blocking_seconds_on_push` field. 
+
+Behavior:
+
+```text
+git commit         => never block
+git status         => never block
+git push           => wait up to N seconds for shadow
+shadow succeeds    => return 0
+shadow times out   => either warn or fail, per config
+```
+
+# What happens if normal and shadow disagree?
+
+This is the make-or-break part.
+
+## Disagreement types
+
+### 1. Shadow is behind
+
+Common. Network failed or server was down.
+
+Mitigation:
+
+```text
+Reconciler pushes current HEAD to shadow.
+Status becomes healthy.
+```
+
+### 2. Shadow has a different commit than local expected
+
+Could happen after rebase/amend/force push.
+
+Mitigation:
+
+```text
+Use force-with-lease to update shadow only if shadow still equals JeRyu’s last recorded shadow SHA.
+If lease fails, do not overwrite.
+Push local state to a quarantine ref.
+Mark shadow as diverged.
+```
+
+Example quarantine ref:
+
+```text
+refs/jeryu/quarantine/main/2026-05-04T123456Z
+```
+
+Then:
+
+```bash
+jeryu shadow doctor
+```
+
+can show:
+
+```text
+Shadow diverged:
+  local main:  def456
+  shadow main: 999aaa
+  expected:    abc123
+
+Suggested action:
+  jeryu shadow repair --repo . --strategy adopt-local
+```
+
+### 3. Primary push succeeded, shadow push failed
+
+Default:
+
+```text
+Normal Git remains success.
+Shadow records failure.
+Retry later.
+```
+
+If strict:
+
+```text
+Fail only if configured and only after bounded timeout.
+```
+
+### 4. Shadow push succeeded, primary push failed
+
+This should not happen, because shadow should only run after primary success.
+
+Mitigation:
+
+```text
+Primary first, always.
+No shadow on primary failure.
+```
+
+### 5. Agent runs many Git commands concurrently
+
+Mitigation:
+
+```text
+Use a per-repo lock only around shadow snapshot/enqueue/push.
+Do not lock primary Git beyond what Git already does.
+```
+
+Lock path:
+
+```text
+repo/.git/jeryu.lock
+```
+
+### 6. Shadow server unavailable for hours
+
+Mitigation:
+
+```text
+Queue events.
+Exponential backoff.
+Health status visible through `jeryu shadow status`.
+No normal Git breakage.
+```
+
+The current shadow loop already has backoff and status/error tracking, so this builds on existing behavior. 
+
+# SSH server install: the simple version
+
+You want:
+
+> “Install via SSH onto a server they point to, in case JeRyu needs to run on a larger remote server with runners.”
+
+The UX should be:
+
+```bash
+jeryu server install jeryu@big-runner-box --yes
+```
+
+Then inside any repo:
+
+```bash
+jeryu repo activate --server jeryu@big-runner-box --yes
+```
+
+Or one command:
+
+```bash
+jeryu repo activate --server jeryu@big-runner-box --install-server --yes
+```
+
+What it does:
+
+1. SSH to server.
+2. Detect OS and architecture.
+3. Install dependencies: Git, Docker, build tools/Rust if building from source.
+4. Install `jeryu`.
+5. Run `jeryu init` / bootstrap as needed.
+6. Start `jeryu serve` as a user systemd service.
+7. Create or select a shadow project/repo on the server.
+8. Add local `shadow` remote.
+9. Write `.jeryu/shadow.toml`.
+10. Trust the repo in `~/.jeryu/trusted-repos.json`.
+11. Push initial mirror/current branch.
+12. Print one success message.
+
+Desired success output:
+
+```text
+✅ JeRyu shadow enabled
+
+Normal Git remains unchanged.
+Shadow remote: ssh://jeryu@big-runner-box/jeryu/my-repo.git
+Server:        jeryu@big-runner-box
+Mode:          non-blocking shadow
+
+Use Git normally:
+  git commit -m "work"
+  git push
+```
+
+## Remote install command options
+
+```bash
+jeryu server install HOST \
+  --yes \
+  --user-service \
+  --runners auto \
+  --disk-budget 400G \
+  --gitlab-port 8929 \
+  --ssh-port 2224
+```
+
+## Repo activation options
+
+```bash
+jeryu repo activate \
+  --server jeryu@big-runner-box \
+  --remote-name shadow \
+  --mode after-success \
+  --on-error warn \
+  --yes
+```
+
+## One-line installer should support SSH too
+
+Upgrade `install.sh` to accept:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/install.sh | bash -s -- \
+  --yes \
+  --activate-git \
+  --ssh jeryu@big-runner-box \
+  --server
+```
+
+Current `install.sh` is too interactive for this goal; it should keep interactive mode, but gain non-interactive flags. 
+
+# Installer changes I would make
+
+## 1. Add non-interactive flags
+
+```text
+--yes
+--prefix ~/.jeryu
+--install-dir ~/.jeryu/bin
+--activate-git
+--system
+--user
+--server
+--ssh user@host
+--no-shell-edit
+--print-shell-line
+--uninstall
+```
+
+## 2. Install the Git shim automatically
+
+Create:
+
+```bash
+~/.jeryu/bin/git
+```
+
+with:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "${JERYU_DISABLE:-}" = "1" ]; then
+  exec "$(cat "$HOME/.jeryu/system-git")" "$@"
+fi
+
+exec "$HOME/.jeryu/bin/jeryu" git "$@"
+```
+
+Better long-term: make this a tiny Rust binary or symlink `git -> jeryu-git-shim`.
+
+## 3. Add shell PATH only if needed
+
+Append once:
+
+```bash
+export PATH="$HOME/.jeryu/bin:$PATH"
+```
+
+to the detected shell profile. Do not ask the user to paste a function.
+
+## 4. Add `jeryu doctor`
+
+After install:
+
+```bash
+jeryu doctor --install
+```
+
+It should verify:
+
+```text
+real Git path saved
+shim Git path first in PATH
+jeryu binary executable
+Docker available if server/local runners are requested
+SSH server reachable if configured
+repo .jeryu config valid if run inside repo
+shadow remote present if repo activated
+```
+
+## 5. Add `jeryu uninstall`
+
+This matters for trust. Users should know the system is reversible:
+
+```bash
+jeryu uninstall --git-shim
+```
+
+It removes the PATH line or shim and leaves repos untouched.
+
+# Recommended CLI additions
+
+Add these:
+
+```text
+jeryu install git-shim
+jeryu install doctor
+jeryu server install <ssh-host>
+jeryu server doctor <ssh-host>
+jeryu repo activate
+jeryu repo trust
+jeryu repo untrust
+jeryu shadow doctor
+jeryu shadow repair
+jeryu shadow reconcile
+```
+
+The repo already has `RepoCommands`, `ShadowCommands`, and `ShadowRemoteCommands`; this can fit cleanly without disturbing the rest of the architecture. 
+
+# Implementation plan
+
+## Phase 1: Safe repo-aware Git proxy
+
+Replace current `execute_git_passthrough` with smart behavior:
+
+```text
+src/commands/git.rs
+src/git_proxy.rs
+```
+
+Keep raw passthrough available:
+
+```bash
+jeryu git --raw status
+JERYU_DISABLE=1 git status
+```
+
+Important: `execute_git_passthrough` currently calls `std::process::exit` immediately after system Git. That must change for shadow mode, because JeRyu needs to do post-success work before exiting. 
+
+## Phase 2: Installer Git shim
+
+Update `install.sh`:
+
+```text
+detect real git
+install jeryu
+install ~/.jeryu/bin/git
+add PATH
+run doctor
+```
+
+## Phase 3: Repo activation
+
+Add:
+
+```bash
+jeryu repo activate --server HOST --yes
+```
+
+It should:
+
+```text
+discover repo root
+create .jeryu/shadow.toml
+ensure shadow remote
+register DB shadow sync config
+trust repo globally
+perform initial push
+```
+
+This reuses existing `shadow::ensure_remote`, `shadow::push_remote`, and DB-backed shadow sync machinery. 
+
+## Phase 4: SSH server install
+
+Add remote bootstrap:
+
+```bash
+jeryu server install user@host --yes
+```
+
+Implementation can start as shell-over-SSH:
+
+```bash
+ssh user@host 'curl -fsSL .../install.sh | bash -s -- --yes --server'
+```
+
+Then improve later with binary copy if local build exists.
+
+## Phase 5: Reconciler and repair
+
+Add:
+
+```bash
+jeryu shadow reconcile --repo .
+jeryu shadow doctor --repo .
+jeryu shadow repair --repo . --strategy adopt-local
+```
+
+This converts failure from scary to boring.
+
+# Problems to avoid
+
+## Recursion
+
+Problem:
+
+```text
+git shim -> jeryu git -> calls git -> shim -> jeryu git -> …
+```
+
+Mitigation:
+
+```text
+Always call saved system Git path.
+Set JERYU_GIT_SHIM_ACTIVE=1.
+If already active, bypass to system Git.
+```
+
+## Global surprise
+
+Problem: Current README shim affects every repo globally.
+
+Mitigation:
+
+```text
+No .jeryu config => pure system Git.
+.jeryu config but untrusted => pure system Git + one trust hint.
+Trusted .jeryu repo => shadow mode.
+```
+
+## Non-interactive agents missing shell setup
+
+Problem: Shell functions often are not loaded.
+
+Mitigation:
+
+```text
+Use PATH executable shim, not function.
+```
+
+## Shadow remote exfiltration
+
+Problem: A malicious repo could include `.jeryu/shadow.toml` pointing to its server.
+
+Mitigation:
+
+```text
+Require global trust for shadow pushing.
+Never store secrets in repo .jeryu.
+Confirm/trust during `jeryu repo activate`.
+```
+
+## Double-running destructive Git commands
+
+Problem:
+
+```bash
+git commit
+git commit
+```
+
+would create nothing or fail the second time.
+
+Mitigation:
+
+```text
+Run primary Git once.
+Mirror resulting state, not the literal command.
+```
+
+## Push refspec complexity
+
+Problem:
+
+```bash
+git push origin HEAD:refs/heads/release
+git push --delete origin branch
+git push --tags
+```
+
+Mitigation:
+
+```text
+Classify simple cases directly.
+For complex cases, enqueue reconciliation.
+Mirror deletes only if explicitly enabled.
+```
+
+## Latency on `git status`
+
+Problem: Users and agents run `git status` constantly.
+
+Mitigation:
+
+```text
+Fast path read-only commands.
+No DB open for read-only commands.
+Config cache by repo root.
+Keep status overhead near invisible.
+```
+
+## Shadow server downtime
+
+Problem: Remote runners/server unavailable.
+
+Mitigation:
+
+```text
+Default non-blocking.
+Journal events.
+Retry with backoff.
+Expose health via `jeryu shadow status`.
+```
+
+## Divergent shadow history
+
+Problem: Shadow was updated elsewhere or prior push was stale.
+
+Mitigation:
+
+```text
+Use force-with-lease.
+Never raw force unless explicitly requested.
+Quarantine unexpected refs.
+Require repair command for dangerous reconciliation.
+```
+
+# My strongest recommendation
+
+Build the first version around this invariant:
+
+> **Real Git is authoritative. JeRyu shadows after success. Shadow must never make normal Git worse by default.**
+
+That gives you the magic install and the agent compatibility without creating fear.
+
+The “brilliant” user experience is:
+
+```bash
+# install once
+curl -fsSL https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/install.sh | bash -s -- --yes --activate-git
+
+# activate once per repo/server
+jeryu repo activate --server jeryu@big-runner-box --yes
+
+# forever after
+git commit -m "..."
+git push
+```
+
+No new command vocabulary for the working agent. No human thinking. Normal Git stays normal. JeRyu becomes the invisible shadow control plane.
+
+[1]: https://github.com/jeppsontaylor/JeRyu "GitHub - jeppsontaylor/JeRyu: Git sucks, and will never keep up with the future (fixing...) · GitHub"
+

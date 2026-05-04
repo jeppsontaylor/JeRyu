@@ -1,74 +1,75 @@
+//! Owner: CLI Git wrappers
+//! Proof: `cargo test -p jeryu -- git_passthrough`
+//! Invariants: These wrappers never terminate the process directly; `main` owns final exit handling.
+
 use anyhow::Result;
+use jeryu::{git, state};
 
-pub fn execute_git_passthrough(args: &[String]) -> Result<()> {
-    let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
-    let status = std::process::Command::new(&git_path).args(args).status()?;
-    std::process::exit(status.code().unwrap_or(1));
+fn code_from_result(code: i32) -> i32 {
+    code
 }
 
-pub fn execute_save(message: &str) -> Result<()> {
+pub async fn execute_git_passthrough(db: Option<&state::Db>, args: &[String]) -> Result<i32> {
+    git::executor::execute_git(db, args).await
+}
+
+pub async fn execute_save(db: Option<&state::Db>, message: &str) -> Result<i32> {
     println!("Saving work...");
-    let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
-    std::process::Command::new(&git_path)
-        .args(["add", "."])
-        .status()?;
-    let status = std::process::Command::new(&git_path)
-        .args(["commit", "-m", message])
-        .status()?;
-    if !status.success() {
-        println!("Failed to save changes.");
-    } else {
+    let add_code = git::executor::execute_git(db, &["add".into(), ".".into()]).await?;
+    if add_code != 0 {
+        println!("Failed to stage changes.");
+        return Ok(code_from_result(add_code));
+    }
+
+    let commit_code =
+        git::executor::execute_git(db, &["commit".into(), "-m".into(), message.into()]).await?;
+    if commit_code == 0 {
         println!("✅ Work saved locally.");
+    } else {
+        println!("Failed to save changes.");
     }
-    Ok(())
+    Ok(code_from_result(commit_code))
 }
 
-pub fn execute_sync() -> Result<()> {
+pub async fn execute_sync(db: Option<&state::Db>) -> Result<i32> {
     println!("Syncing with remote...");
-    let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
-    let pull_status = std::process::Command::new(&git_path)
-        .args(["pull", "--rebase"])
-        .status()?;
-    if pull_status.success() {
-        let push_status = std::process::Command::new(&git_path)
-            .args(["push"])
-            .status()?;
-        if push_status.success() {
-            println!("✅ Synced successfully.");
-        }
+    let pull_code = git::executor::execute_git(db, &["pull".into(), "--rebase".into()]).await?;
+    if pull_code != 0 {
+        return Ok(code_from_result(pull_code));
     }
-    Ok(())
+
+    let push_code = git::executor::execute_git(db, &["push".into()]).await?;
+    if push_code == 0 {
+        println!("✅ Synced successfully.");
+    }
+    Ok(code_from_result(push_code))
 }
 
-pub fn execute_undo() -> Result<()> {
+pub async fn execute_undo(db: Option<&state::Db>) -> Result<i32> {
     println!("Undoing last save...");
-    let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
-    let status = std::process::Command::new(&git_path)
-        .args(["reset", "HEAD~1", "--soft"])
-        .status()?;
-    if status.success() {
+    let code =
+        git::executor::execute_git(db, &["reset".into(), "HEAD~1".into(), "--soft".into()]).await?;
+    if code == 0 {
         println!("✅ Last commit undone (changes kept in staging).");
     }
-    Ok(())
+    Ok(code)
 }
 
-pub fn execute_ship() -> Result<()> {
+pub async fn execute_ship(db: Option<&state::Db>) -> Result<i32> {
     println!("Shipping code...");
-    let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
-
-    println!("Pushing to origin...");
-    std::process::Command::new(&git_path)
-        .args(["push", "origin", "HEAD"])
-        .status()?;
+    let origin_code =
+        git::executor::execute_git(db, &["push".into(), "origin".into(), "HEAD".into()]).await?;
+    if origin_code != 0 {
+        return Ok(origin_code);
+    }
 
     println!("Promoting to local shadow runner...");
-    let shadow_status = std::process::Command::new(&git_path)
-        .args(["push", "shadow", "HEAD"])
-        .status();
-
-    match shadow_status {
-        Ok(s) if s.success() => println!("✅ Shipped to remote and local shadow."),
-        _ => println!("✅ Shipped to remote (local shadow skip/fail)."),
+    let shadow_code =
+        git::executor::execute_git(db, &["push".into(), "shadow".into(), "HEAD".into()]).await?;
+    if shadow_code == 0 {
+        println!("✅ Shipped to remote and local shadow.");
+    } else {
+        println!("✅ Shipped to remote (local shadow skip/fail).");
     }
-    Ok(())
+    Ok(0)
 }

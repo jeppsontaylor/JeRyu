@@ -1,0 +1,1049 @@
+I studied the live repo through its GitHub file surfaces and the GitHub connector. I was not able to `git clone` inside the sandbox because outbound DNS resolution failed, so the review below is based on the live repository files, docs, and code paths I could inspect directly.
+
+The biggest recommendation is this: **do not literally run `git <command>` and `jeryu git <command>` as two separate mutating commands.** That would either recurse through the shell shim or run destructive/history-changing commands twice. The winning architecture is: **`jeryu git` becomes the universal dual-lane executor: real Git executes exactly once, while JeRyu records, mirrors, explains, and triggers agents/runners as a sidecar.** The current README shell shim already routes `git "$@"` into `jeryu git "$@"`, and the current `jeryu git` implementation only shells out to system Git and exits with Git’s status.  
+
+## The north-star mission I would put in `MISSION.md`
+
+**JeRyu exists to make Git agent-native without making humans relearn Git.**
+
+**Git remains the universal commit ledger. JeRyu becomes the Rust control plane around it: every Git command stays compatible, while JeRyu records intent, mirrors outcomes, triggers the right proof, explains risk, and gives autonomous agents bounded authority to act.**
+
+**The north star: a developer or agent can type any Git command and trust that JeRyu will run real Git exactly as expected, while automatically deciding what changed, what proof is missing, what work is obsolete, what can be safely skipped, and when escalation is required.**
+
+**JeRyu wins by being invisible when Git should be invisible, and decisive when Git is not enough.**
+
+The existing mission is thoughtful, especially around Git as the ledger of truth, Rust owning orchestration/policy, and agents operating inside explicit capability bounds. But it currently reads more like a CI/control-plane thesis than a crisp “AI-native Git replacement” product promise. It also still frames GitLab as the first substrate and emphasizes missing CI intelligence primitives, which are valuable, but the new north star should lead with universal Git compatibility plus agent-safe automation. 
+
+---
+
+## Executive diagnosis
+
+JeRyu already has surprisingly strong foundations for an ambitious AI-ready Git layer: a Rust single-binary CLI, GitLab bootstrap/control, runner pools, webhook ingestion, state persistence, capability APIs, MCP, VTI smart-test planning, evidence capsules, risk gates, and a Ratatui TUI. The README positions it as a Git-compatible layer that “wraps Git first, then replaces it,” and the architecture docs split the system into interface, control, state, execution, and intelligence planes.  
+
+The current weak point is that the Git compatibility story is still thin. `src/commands/git.rs` is basically a passthrough wrapper around a Git binary. It does not yet record command intent, classify risk, emit events, trigger runners, mirror outcomes, or expose a parity/evidence layer. The “AI-ready Git replacement” promise is therefore ahead of the Git shim implementation. 
+
+There is also a strategic mismatch: public docs, CLI command names, serve startup, and the TUI still emphasize `shadow` remotes and shadow sync, while your new direction is broader and cleaner: automatically observe and process **all** Git commands through `jeryu git`. The README says `jeryu ship` pushes to origin and local `shadow`; `cli.rs` still has `Shadow` and `ShadowRemote` command families; `dispatch.rs` starts `shadow::run_shadow_loop`; and `src/shadow.rs` implements a polling remote-mirroring loop.    
+
+The fastest path to leveling this up is to replace the “shadow remote” product story with a **Universal Git Sidecar**: every Git command is run once through real Git, then JeRyu captures before/after state, records a durable event, classifies risk, triggers the correct runner/agent workflow, and shows parity in the TUI.
+
+---
+
+## The core architecture change: Universal Git Dual-Run
+
+### What the system should do
+
+`jeryu git <args>` should have two lanes:
+
+**Lane 1: Real Git lane.**
+Run the exact system Git command once, preserving Git behavior: current working directory, stdin/stdout/stderr, TTY behavior, pager behavior, environment variables, hooks, exit status, and signal behavior. This lane is sacred. If JeRyu breaks Git muscle memory, adoption dies.
+
+**Lane 2: JeRyu sidecar lane.**
+In parallel where safe, and after the command where necessary, JeRyu records command intent/outcome, classifies risk, updates state, mirrors when configured, triggers runners, produces evidence, and exposes the result to agents/TUI/API.
+
+For read-only commands like `status`, `diff`, `log`, and `show`, the sidecar can run concurrently because it does not mutate the repo. For mutating commands like `commit`, `merge`, `rebase`, `reset`, `checkout`, `switch`, `push`, and `pull`, the sidecar should capture pre-state, let real Git mutate once, then capture post-state and act on the result. Running mutating Git commands twice is unsafe.
+
+### What not to do
+
+Do not implement the shell as:
+
+```bash
+git "$@" & jeryu git "$@"
+```
+
+That will recurse under the README shim and will double-run mutations. The shim should continue to route `git` to `jeryu git`, but `jeryu git` itself should internally run real Git exactly once and JeRyu sidecar work separately. The current shim makes this especially important because `git()` is defined as `command jeryu git "$@"`. 
+
+---
+
+## High-priority issues to fix
+
+### 1. `jeryu git` is currently only passthrough
+
+Current implementation:
+
+```rust
+pub fn execute_git_passthrough(args: &[String]) -> Result<()> {
+    let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
+    let status = std::process::Command::new(&git_path).args(args).status()?;
+    std::process::exit(status.code().unwrap_or(1));
+}
+```
+
+That preserves some compatibility, but it does not deliver the internal JeRyu value layer. It should become a Git command orchestrator that records command events, classifies command risk, captures before/after repo state, triggers validation, and updates the TUI/API. 
+
+### 2. Hard-coded `/usr/bin/git` will break portability
+
+`commands/git.rs` defaults to `/usr/bin/git`, while `shadow.rs` frequently uses `Command::new("git")`. This is inconsistent and brittle, especially for macOS, Homebrew, Nix, Windows/WSL, and custom Git installs.  
+
+Fix: centralize Git resolution in one module:
+
+```rust
+src/git/runner.rs
+```
+
+Resolution order should be:
+
+1. `JERYU_SYSTEM_GIT`, if set and not pointing to `jeryu`.
+2. Installer-recorded path in `~/.jeryu/settings.json`.
+3. `command -v git` captured before the shell shim is installed.
+4. Known fallbacks only as last resort.
+
+The installer should write the resolved Git path into settings or export `JERYU_SYSTEM_GIT` before defining the shell function.
+
+### 3. Native Git wrappers swallow failures
+
+`execute_save`, `execute_sync`, and `execute_ship` do not consistently propagate failure. For example, `execute_save` does not check `git add .` before committing; `execute_sync` returns `Ok(())` even if pull or push fails; and `execute_ship` prints success for remote push even though the origin push status is not checked before continuing. 
+
+Fix: all wrappers must return the correct exit code. These commands are developer trust boundaries.
+
+Suggested behavior:
+
+```text
+jeryu save
+  git add .
+  if add fails: exit add code
+  git commit -m <message>
+  exit commit code
+
+jeryu sync
+  git pull --rebase
+  if pull fails: exit pull code
+  git push
+  exit push code
+
+jeryu ship
+  deprecated alias for: jeryu git push + wait/observe proof
+```
+
+### 4. The “shadow” story conflicts with the new product direction
+
+The README, CLI, dispatch, serve lifecycle, settings, docs, and TUI still speak in terms of `shadow` remotes or shadow sync. That made sense for an earlier internal mirroring model. It now creates confusion because the better model is “every Git command becomes observable and agent-operable.”     
+
+Fix: keep shadow compatibility for one release, but hide/deprecate it publicly.
+
+Rename conceptually:
+
+```text
+shadow remote        -> mirror target
+shadow sync          -> Git sidecar mirror
+jeryu ship           -> jeryu git push + proof watch
+ShadowSettings       -> GitSettings / MirrorSettings
+shadow_sync_configs  -> git_mirror_targets or legacy_shadow_sync_configs
+```
+
+### 5. `dispatch.rs` has too much business logic
+
+The file says it wires commands to modules and has “no business logic,” but it contains substantial command behavior for serve, shadow commands, action listing, `next`, and `explain-blocker`. The package metadata also says `main.rs` should be dispatcher only and business logic should live in modules.  
+
+Fix: make `dispatch.rs` boring. It should call:
+
+```rust
+commands::git::execute(...)
+commands::shadow::execute(...)
+commands::next::execute(...)
+commands::explain_blocker::execute(...)
+commands::serve::execute(...)
+commands::action::execute(...)
+```
+
+This makes the codebase easier for agents to patch safely.
+
+### 6. `main.rs` has registry setup that should move out
+
+`main.rs` contains a large `witness_rt::register_cells(...)` block. It is initialization, but it makes main noisy and undermines the “dispatcher only” invariant. Move it to:
+
+```rust
+src/witness_registry.rs
+// or
+src/witness/mod.rs::register_all_cells()
+```
+
+Then `main.rs` becomes:
+
+```rust
+jeryu::witness::register_all_cells();
+jeryu::settings::init()?;
+dispatch::run(cli).await
+```
+
+The current main path initializes tracing, registers witness cells, initializes settings, and delegates to dispatch. 
+
+### 7. Supersedence is typed but underused
+
+`decision.rs` defines `SupersedenceAction::{Cancel, Preserve, Degrade, Ignore}`, but `engine.rs` always creates `SupersedenceAction::Cancel` for older pending/running/created pipelines on the same ref. That misses your own roadmap’s idea of partial reuse, degradation, and preservation.  
+
+Fix: add a real policy function:
+
+```rust
+pub fn decide_supersedence(input: SupersedenceInput) -> SupersedenceDecision
+```
+
+Rules:
+
+```text
+Cancel    old full/integration jobs made obsolete by new head
+Preserve  completed evidence still valid for unchanged impact graph
+Degrade   expensive non-gating jobs after newer commit arrives
+Ignore    release/prod/protected/manual jobs that must not auto-cancel
+```
+
+### 8. Push hook branch-creation handling is incomplete
+
+In `engine.rs`, branch creation with all-zero `before` is logged as “semantic evaluation bypassed,” but the function still continues into supersedence and impact planning using the all-zero before SHA. That can produce noisy or incorrect impact behavior. 
+
+Fix:
+
+```rust
+if payload.before == ZERO_SHA {
+    record_branch_created_event(...);
+    maybe_plan_from_merge_base_or_default(...);
+    return;
+}
+```
+
+Or explicitly route to a branch-create policy.
+
+### 9. Capability API needs Git-native intents
+
+The current capability API supports patch proposal, race patches, tests, capsules, merge requests, blockers, snapshots, action listing, and validation planning. It does not yet expose Git command events or Git-sidecar control, which will be essential if agents are meant to operate JeRyu as a Git replacement. 
+
+Add intents:
+
+```rust
+AgentIntent::GetGitSnapshot { repo_root: Option<String> }
+AgentIntent::GetGitCommandEvent { event_id: i64 }
+AgentIntent::ExplainGitCommand { event_id: i64 }
+AgentIntent::ApproveGitRisk { request_id: String, grant: CapabilityGrantProof }
+AgentIntent::TriggerValidationForGitEvent { event_id: i64, scope: String }
+```
+
+---
+
+## File-by-file action plan
+
+### `src/commands/git.rs`
+
+Replace almost everything with a thin wrapper around a new Git compatibility module.
+
+Current file should become:
+
+```rust
+pub async fn execute_git(args: &[String], opts: GitCliOptions) -> Result<ExitCode> {
+    jeryu::git::run(args, opts).await
+}
+```
+
+Add strict exit propagation for `save`, `sync`, `undo`, and `ship`, or reimplement them as composed calls through the same Git runner.
+
+### Add `src/git/mod.rs`
+
+New module root:
+
+```rust
+pub mod api;
+pub mod classify;
+pub mod event;
+pub mod mirror;
+pub mod policy;
+pub mod redact;
+pub mod runner;
+pub mod snapshot;
+```
+
+### Add `src/git/runner.rs`
+
+Responsibilities:
+
+```text
+- Resolve the real Git binary.
+- Ensure it is not resolving back to jeryu.
+- Spawn Git with inherited stdio by default.
+- Preserve cwd/env/TTY behavior.
+- Return exact status/signal.
+- Support capture mode only when explicitly requested.
+```
+
+### Add `src/git/classify.rs`
+
+Classify all common Git commands:
+
+```rust
+enum GitCommandClass {
+    ReadOnly,
+    WorktreeMutation,
+    IndexMutation,
+    HistoryMutation,
+    RefMutation,
+    NetworkRead,
+    NetworkWrite,
+    Destructive,
+    Unknown,
+}
+
+enum GitRiskTier {
+    ReadOnly,
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+```
+
+Examples:
+
+```text
+status/log/diff/show                      -> ReadOnly
+add/rm/restore/stash                      -> Index/Worktree mutation
+commit/amend/merge/rebase/cherry-pick     -> History mutation
+fetch/clone                               -> Network read
+push                                      -> Network write
+push --force/reset --hard/clean -fdx       -> Critical
+```
+
+### Add `src/git/event.rs`
+
+Durable event model:
+
+```rust
+pub struct GitCommandEvent {
+    pub id: Option<i64>,
+    pub request_id: String,
+    pub actor: String,
+    pub cwd: PathBuf,
+    pub repo_root: Option<PathBuf>,
+    pub argv_redacted: Vec<String>,
+    pub argv_hash: String,
+    pub command_class: GitCommandClass,
+    pub risk_tier: GitRiskTier,
+    pub started_at: DateTime<Utc>,
+    pub finished_at: Option<DateTime<Utc>>,
+    pub exit_code: Option<i32>,
+    pub head_before: Option<String>,
+    pub head_after: Option<String>,
+    pub branch_before: Option<String>,
+    pub branch_after: Option<String>,
+    pub dirty_before: Option<bool>,
+    pub dirty_after: Option<bool>,
+    pub sidecar_status: GitSidecarStatus,
+}
+```
+
+This becomes the backbone for TUI, MCP, runners, explainability, and agent audit.
+
+### Add `src/git/policy.rs`
+
+Policy for human vs agent execution:
+
+```text
+Human default:
+  run Git exactly once
+  record sidecar
+  warn on risky commands
+  sidecar failure never changes Git exit status unless strict mode
+
+Agent default:
+  run read-only and low-risk commands
+  require grants for destructive/ref-rewriting commands
+  record every action with actor/request_id
+  block critical operations without explicit capability grant
+```
+
+### Add `src/git/mirror.rs`
+
+Move the useful parts of `src/shadow.rs` here, but change the framing:
+
+```text
+old: shadow remote
+new: optional mirror target
+```
+
+The mirror should run as a consequence of Git events, especially successful push/commit events, not as a default always-on polling loop.
+
+### `src/shadow.rs`
+
+Do not delete immediately. Deprecate it.
+
+Recommended transition:
+
+```rust
+//! Deprecated compatibility wrapper.
+//! Use crate::git::mirror instead.
+```
+
+Keep legacy CLI paths hidden for one release, then remove.
+
+### `src/settings.rs`
+
+Replace:
+
+```rust
+pub shadow: ShadowSettings
+```
+
+with:
+
+```rust
+pub git: GitSettings
+pub mirror: MirrorSettings
+```
+
+Keep `shadow` as optional backward-compatible config for one release.
+
+Suggested schema:
+
+```rust
+pub struct GitSettings {
+    pub system_git: Option<String>,
+    pub mode: GitSidecarMode, // off | record | mirror | strict
+    pub record_read_only: bool,
+    pub agent_destructive_policy: DestructivePolicy,
+    pub human_destructive_policy: DestructivePolicy,
+    pub event_retention_days: u32,
+}
+
+pub struct MirrorSettings {
+    pub enabled: bool,
+    pub targets: Vec<MirrorTarget>,
+    pub mirror_on_push: bool,
+    pub mirror_on_commit: bool,
+}
+```
+
+Also change settings parse behavior. The file claims deterministic settings and no silent discard of explicit user config, but `load()` currently falls back to defaults on parse error. That is dangerous for a control plane. Better: fail with a clear error unless an emergency env var is set. 
+
+### `src/state.rs`
+
+Add migrations/tables:
+
+```sql
+git_command_events
+git_command_effects
+git_mirror_targets
+git_sidecar_runs
+git_risk_approvals
+```
+
+Minimum table:
+
+```sql
+CREATE TABLE git_command_events (
+  id INTEGER PRIMARY KEY,
+  request_id TEXT NOT NULL,
+  actor TEXT NOT NULL,
+  repo_root TEXT,
+  cwd TEXT NOT NULL,
+  argv_redacted_json TEXT NOT NULL,
+  argv_hash TEXT NOT NULL,
+  command_name TEXT,
+  command_class TEXT NOT NULL,
+  risk_tier TEXT NOT NULL,
+  head_before TEXT,
+  head_after TEXT,
+  branch_before TEXT,
+  branch_after TEXT,
+  dirty_before INTEGER,
+  dirty_after INTEGER,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  exit_code INTEGER,
+  sidecar_status TEXT NOT NULL,
+  sidecar_error TEXT
+);
+```
+
+Add typed DB methods only. Preserve the invariant that callers do not write raw SQL. 
+
+### `src/engine.rs`
+
+Add Git event ingestion as a first-class engine path.
+
+Current engine ingests GitLab webhooks, handles push/pipeline/job events, cancels superseded pipelines, records impact decisions, and records VTI plans. That is good, but it means intelligence starts after GitLab sees activity. With universal `jeryu git`, JeRyu can know about local commits, rebases, resets, pushes, and branch changes earlier. 
+
+Add:
+
+```rust
+pub async fn handle_git_command_event(state: SharedState, event: GitCommandEvent)
+```
+
+Behavior:
+
+```text
+commit/history mutation   -> compute impact plan locally if possible
+push success              -> trigger runner/agent proof path
+force push                -> require/record risk approval
+rebase/reset              -> invalidate prior local evidence
+read-only                 -> record only, optional TUI feed
+```
+
+### `src/decision.rs`
+
+Add Git policy types:
+
+```rust
+pub enum GitCommandRiskAction {
+    Allow,
+    Warn,
+    RequireGrant,
+    Deny,
+}
+
+pub struct GitCommandPolicyDecision {
+    pub action: GitCommandRiskAction,
+    pub reason: String,
+    pub required_grant: Option<GrantRequirement>,
+}
+```
+
+Also implement real supersedence policy instead of always canceling. The existing typed enums are a strong foundation; they just need to be used. 
+
+### `src/capability.rs` and `src/mcp.rs`
+
+Add Git event/snapshot tools. The capability server already uses structured `AgentIntent` payloads and 0600 Unix socket permissions, which is the right shape. It should become the canonical agent surface for Git command state too. 
+
+Add MCP tools:
+
+```text
+git_snapshot
+git_recent_commands
+git_explain_command
+git_approve_risk
+git_trigger_validation
+```
+
+### `src/tui/app.rs`
+
+Add Git sidecar state:
+
+```rust
+pub struct TuiStateSnapshot {
+    ...
+    pub git_snapshot: Option<GitSnapshot>,
+    pub recent_git_commands: Vec<GitCommandEventView>,
+    pub pending_git_risks: Vec<GitRiskApprovalView>,
+    pub mirror_status: Vec<MirrorTargetStatus>,
+}
+```
+
+The current TUI snapshot already carries pools, jobs, pipelines, flow, live logs, shadow summary, cache metrics, evidence, release state, and audit events. Replace `shadow_summary` with Git/mirror/sidecar status. 
+
+### `src/tui/ui.rs`
+
+Add a Git-focused surface. Either make it a new top-level tab or replace/repurpose one existing tab.
+
+I would add:
+
+```rust
+ActiveTab::Git
+```
+
+Then the TUI tabs become:
+
+```text
+Mission | Git | Release | Jobs | Agents | Tests | Pools | Cache | Evidence | Secrets
+```
+
+The current TUI has nine tabs and an action-first Mission screen. The docs also state that the active pane state includes Pools/Pipelines/Jobs even though only Jobs is visibly represented in the active Flow layout, which is a UI consistency issue worth cleaning up. 
+
+### `src/tui/action_registry.rs`
+
+The action registry is already a strong idea: it is the single source of truth for TUI, CLI, and capability actions. But `side_effect_class()` and `required_grant()` are inferred by matching action IDs, which can drift as actions grow. 
+
+Change `ActionEntry` to include:
+
+```rust
+pub side_effect_class: SideEffectClass,
+pub required_grant: GrantRequirement,
+```
+
+Add Git actions:
+
+```text
+open_git_event          read-only
+git_parity_report       read-only
+git_trigger_validation  ci_execution, agent_task
+git_pause_sidecar       local_state, agent_task
+approve_destructive_git git_write, merge_approval or production_approval
+```
+
+### `docs/ARCHITECTURE.md`
+
+Update aggressively.
+
+Current architecture still says `jeryu ship` dual-syncs to a local `shadow` remote, and the serve lifecycle says it spawns the shadow sync loop. It also shows a version of `5.0.0`, while the workspace package version is `3.0.1`, and it omits `crates/tui-capture` from the workspace crate list despite `Cargo.toml` including it.  
+
+Replace section 2 with:
+
+```text
+Git Compatibility Layer & Universal Sidecar
+
+1. Passthrough compatibility:
+   `jeryu git <args>` executes real Git once and preserves exact Git behavior.
+
+2. Sidecar observability:
+   JeRyu records command intent/outcome, repo before/after state, risk tier,
+   and proof requirements.
+
+3. Agent/runners:
+   Successful Git events trigger VTI, runner pipelines, evidence capture,
+   mirror targets, and risk gates according to policy.
+
+4. Migration:
+   Shadow remotes are legacy mirror targets, not the product model.
+```
+
+### `README.md`
+
+Change the public pitch.
+
+Current README says:
+
+```text
+JeRyu wraps Git first, then replaces it.
+Dual-Use Sync: jeryu ship pushes origin and local shadow.
+```
+
+Keep the first line. Replace the shadow section with:
+
+```text
+Universal Git Sidecar:
+Use Git exactly as before. JeRyu runs real Git once, records every command,
+triggers the right proof, and gives agents a safe API over the result.
+```
+
+Update the shell shim to prevent recursion and record real Git path during install.
+
+### `install.sh`
+
+Before defining shell function:
+
+```bash
+export JERYU_SYSTEM_GIT="$(command -v git)"
+```
+
+But avoid capturing `jeryu` or a function. In shell install, use:
+
+```bash
+JERYU_REAL_GIT="$(command -v git)"
+case "$JERYU_REAL_GIT" in
+  *jeryu*) echo "Could not resolve real git";;
+esac
+```
+
+Better: installer writes real Git path to `~/.jeryu/settings.json`.
+
+---
+
+## TUI upgrades that would make JeRyu feel “next-gen”
+
+The TUI already has a polished structure: Mission tab, Release, Jobs/Flow, Agents, Tests, Pools, Cache, Evidence, Secrets, command palette, event console, live logs, and background refresh workers. 
+
+What it needs for the new Git mission is a **Git Command Cockpit**.
+
+### New Git tab layout
+
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│ Git Sidecar: ON  Mode: record+mirror  Repo: JeRyu  Branch: main      │
+├─────────────────────────────────────────────────────────────────────┤
+│ Last Command                                                        │
+│  git push origin HEAD                                               │
+│  Real Git:  PASS exit=0  1.42s                                      │
+│  JeRyu:     PASS recorded, impact planned, runner triggered          │
+│  Risk:      network_write / medium                                  │
+├─────────────────────┬─────────────────────┬─────────────────────────┤
+│ Parity              │ Proof               │ Agent Queue              │
+│ local HEAD abc123   │ VTI plan selected   │ runner #104 pending      │
+│ origin/main abc123  │ evidence pending    │ capsule none             │
+│ mirror ok           │ blockers none       │ next: wait proof         │
+├─────────────────────┴─────────────────────┴─────────────────────────┤
+│ Recent Git Commands                                                  │
+│ PASS commit  "fix runner"       head 91a.. -> abc..  triggered VTI    │
+│ PASS push    origin main        abc.. == remote       runner #104     │
+│ WARN reset   --hard HEAD~1      high risk          human approved     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Mission tab changes
+
+The Mission tab should include:
+
+```text
+Git Sidecar: ON / degraded / strict / off
+Last Git command: PASS / FAIL / RISK
+Parity: clean / drift / mirror lag
+Next proof: VTI / runner / evidence / merge gate
+```
+
+The current Mission screen is already action-first, with top signal, next action, readiness, metrics, attention queue, proof stack, and action stack. It should treat Git sidecar health as a first-class readiness dimension. 
+
+### Fix TUI key/action drift
+
+The TUI footer for Jobs mentions `c:cancel`, but the action registry does not list a `cancel_job` action. Either wire it through the registry or remove it from the footer. The registry should be the source of truth for visible key hints.  
+
+### Make terminal cleanup RAII-safe
+
+`run_tui()` manually enables raw mode and alternate screen, then restores them after `run_loop`. If an error occurs between setup and cleanup, terminal state can be left broken. Add a `TerminalGuard` that restores raw mode, alternate screen, mouse capture, and cursor in `Drop`. 
+
+### Split the TUI monolith
+
+`src/tui/ui.rs` is doing too much rendering. Split into:
+
+```text
+src/tui/tabs/mission.rs
+src/tui/tabs/git.rs
+src/tui/tabs/release.rs
+src/tui/tabs/jobs.rs
+src/tui/tabs/agents.rs
+src/tui/tabs/tests.rs
+src/tui/tabs/cache.rs
+src/tui/tabs/evidence.rs
+src/tui/tabs/secrets.rs
+src/tui/widgets/header.rs
+src/tui/widgets/footer.rs
+src/tui/widgets/event_console.rs
+```
+
+Move demo fixtures out of `app.rs` into:
+
+```text
+src/tui/fixtures.rs
+```
+
+Move PNG capture code out of `mod.rs` into:
+
+```text
+src/tui/capture.rs
+```
+
+There is already a `crates/tui-capture` workspace member, so the custom capture/glyph/PNG code should either use that crate or be isolated.  
+
+---
+
+## API improvements
+
+### Add a Git observability API
+
+Create one shared Rust API consumed by CLI, TUI, MCP, and capability server:
+
+```rust
+pub struct GitObservabilityApi {
+    db: Db,
+}
+
+impl GitObservabilityApi {
+    pub async fn recent_events(&self, repo: Option<&Path>, limit: usize) -> Result<Vec<GitCommandEventView>>;
+    pub async fn snapshot(&self, repo: Option<&Path>) -> Result<GitSnapshot>;
+    pub async fn explain(&self, event_id: i64) -> Result<GitCommandExplanation>;
+    pub async fn approve_risk(&self, request: GitRiskApproval) -> Result<GitRiskApprovalReceipt>;
+}
+```
+
+### Add structured explanations
+
+For every Git command, JeRyu should be able to answer:
+
+```text
+What did the user/agent ask Git to do?
+Did real Git succeed?
+What changed in HEAD, branch, index, worktree, remotes?
+What proof did JeRyu trigger?
+What is blocked?
+What should happen next?
+```
+
+This directly supports the existing roadmap primitives: evidence capsules, risk gates, impact graph, confidence gate, and structured causal explanations. 
+
+### Add durable nonce/replay protection
+
+`capability.rs` tracks nonces in process memory with a `OnceLock<Mutex<HashSet<String>>>`. That prevents replay only until restart and is not enough for serious agent governance. Store nonces/idempotency keys in the DB with expiry. 
+
+---
+
+## Test plan to add
+
+### `tests/git_passthrough.rs`
+
+Goal: prove JeRyu never breaks Git basics.
+
+Cases:
+
+```text
+jeryu git status          matches git status exit behavior
+jeryu git diff            preserves stdout
+jeryu git log --oneline   preserves pager-disabled output in non-TTY
+jeryu git bad-command     exits like Git
+jeryu git --version       works
+```
+
+### `tests/git_no_double_mutation.rs`
+
+Use a fake Git binary that increments a counter and records argv.
+
+Cases:
+
+```text
+commit runs real git exactly once
+reset --hard runs real git exactly once
+push runs real git exactly once
+rebase runs real git exactly once
+```
+
+This is the most important test for your new model.
+
+### `tests/git_shim_recursion.rs`
+
+Install a temporary shell function or wrapper environment and ensure:
+
+```text
+git status -> jeryu git status -> real git status
+```
+
+does not recurse and does not resolve `JERYU_SYSTEM_GIT` to `jeryu`.
+
+### `tests/git_event_recording.rs`
+
+Create a temp repo and run:
+
+```text
+jeryu git commit -m "x"
+```
+
+Assert DB has:
+
+```text
+argv redacted
+class = history_mutation
+risk = medium
+head_before != head_after
+exit_code = 0
+sidecar_status = success
+```
+
+### `tests/git_risk_policy.rs`
+
+Cases:
+
+```text
+agent + reset --hard       requires grant
+agent + clean -fdx         requires grant
+agent + push --force       requires grant
+human + push --force       allowed but warning event recorded
+strict mode + sidecar fail exits nonzero
+record mode + sidecar fail preserves Git exit code
+```
+
+### `tests/git_redaction.rs`
+
+Assert tokens are never stored:
+
+```text
+https://oauth2:TOKEN@example.com/repo.git
+https://user:pass@example.com/repo.git
+GIT_ASKPASS values
+Authorization-like env vars
+```
+
+This matters because `shadow.rs` currently constructs PAT-bearing push URLs. 
+
+### `tests/git_mirror.rs`
+
+Cases:
+
+```text
+successful push records mirror pending
+mirror failure does not alter Git exit in record mode
+mirror failure does alter exit in strict mode
+mirror target stores redacted URL
+```
+
+### `tests/state_git_events_sqlite.rs` and Postgres proof
+
+The repo is Postgres-primary with SQLite fallback. Add migration tests for both. The architecture docs describe Postgres as primary and SQLite fallback, so this feature should not be SQLite-only. 
+
+### `tests/tui_git_tab.rs`
+
+Use Ratatui `TestBackend` or capture mode.
+
+Assert:
+
+```text
+Git tab renders with empty state
+Git tab renders recent command
+Git tab renders pending risk approval
+Mission tab shows Git sidecar degraded when sidecar error exists
+```
+
+### `tests/action_registry_git.rs`
+
+Assert:
+
+```text
+all Git actions have side_effect_class
+all mutating Git actions require grant
+all TUI-visible Git actions have labels/key hints
+all capability-visible Git actions serialize contract fields
+```
+
+The action registry already has uniqueness and mutating-grant tests; extend them. 
+
+### Documentation tests
+
+Add a simple script or test that checks:
+
+```text
+Cargo.toml version == docs architecture version marker
+workspace members in docs match Cargo.toml
+README does not present shadow remote as primary flow
+ARCHITECTURE does not present shadow sync as primary flow
+```
+
+This catches the current mismatch between package version `3.0.1`, architecture `5.0.0`, and workspace member lists.  
+
+---
+
+## Deprecation/removal list
+
+Do not rip these out immediately, but stop making them the public story.
+
+| Area                        | Action                                                                                    |
+| --------------------------- | ----------------------------------------------------------------------------------------- |
+| `jeryu ship`                | Keep as alias for `jeryu git push` plus proof watch. Mark old shadow behavior deprecated. |
+| `Commands::Shadow`          | Hide from help or mark legacy.                                                            |
+| `Commands::ShadowRemote`    | Hide from help or rename to `git mirror`.                                                 |
+| `src/shadow.rs`             | Move useful code to `src/git/mirror.rs`; leave compatibility wrapper.                     |
+| `settings.shadow`           | Keep backward-compatible read, migrate to `settings.git` / `settings.mirror`.             |
+| `shadow_sync_configs`       | Keep migration, introduce `git_mirror_targets`.                                           |
+| README shadow wording       | Replace with Universal Git Sidecar.                                                       |
+| Architecture shadow section | Replace with Git Sidecar + optional mirror target.                                        |
+| TUI `shadow_summary`        | Replace with Git sidecar/mirror/parity summary.                                           |
+
+---
+
+## Suggested implementation phases
+
+### Phase 1: Make Git passthrough production-grade
+
+Files:
+
+```text
+src/git/runner.rs
+src/git/classify.rs
+src/commands/git.rs
+src/settings.rs
+install.sh
+tests/git_passthrough.rs
+tests/git_no_double_mutation.rs
+tests/git_shim_recursion.rs
+```
+
+Acceptance criteria:
+
+```text
+Every Git command still behaves like Git.
+No mutating command runs twice.
+Real Git path is portable.
+Exit codes are preserved.
+```
+
+### Phase 2: Add Git event ledger
+
+Files:
+
+```text
+src/git/event.rs
+src/git/snapshot.rs
+src/state.rs
+src/engine.rs
+tests/git_event_recording.rs
+tests/state_git_events_sqlite.rs
+```
+
+Acceptance criteria:
+
+```text
+Every command creates a durable event.
+Before/after HEAD and branch are recorded where possible.
+Sidecar failure does not break human Git in record mode.
+```
+
+### Phase 3: Replace shadow with mirror targets
+
+Files:
+
+```text
+src/git/mirror.rs
+src/shadow.rs
+src/settings.rs
+src/cli.rs
+src/dispatch.rs
+docs/ARCHITECTURE.md
+README.md
+```
+
+Acceptance criteria:
+
+```text
+Shadow is no longer the primary product story.
+Mirror is optional.
+Push events can trigger mirror/runners.
+Old shadow commands still work but are hidden/deprecated.
+```
+
+### Phase 4: Agent-safe Git API
+
+Files:
+
+```text
+src/capability.rs
+src/mcp.rs
+src/tui/action_registry.rs
+src/decision.rs
+tests/git_risk_policy.rs
+tests/action_registry_git.rs
+```
+
+Acceptance criteria:
+
+```text
+Agents can inspect Git state.
+Agents cannot run destructive Git without grants.
+Git risk approvals are durable and explainable.
+```
+
+### Phase 5: TUI Git Cockpit
+
+Files:
+
+```text
+src/tui/app.rs
+src/tui/ui.rs
+src/tui/tabs/git.rs
+src/tui/widgets/*
+docs/JERYU_TUI.md
+tests/tui_git_tab.rs
+```
+
+Acceptance criteria:
+
+```text
+TUI shows last Git command, parity, sidecar status, mirror status, proof status, and pending risk approvals.
+Mission tab treats Git sidecar health as first-class readiness.
+```
+
+---
+
+## The product principle I would enforce everywhere
+
+**JeRyu must never surprise a developer about what Git did. It should only add intelligence around Git.**
+
+That means:
+
+```text
+Git exit status remains truth for the foreground command.
+JeRyu sidecar status is additional evidence.
+Humans can keep working even if sidecar is degraded.
+Agents must obey sidecar policy before risky writes.
+Every command is explainable after the fact.
+```
+
+That is the path to making this feel like the #1 AI-ready Git replacement: not “Git but with magic,” but **Git with a durable brain, proof system, agent API, and live mission control.**
+

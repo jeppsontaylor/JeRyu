@@ -250,6 +250,10 @@ pub fn recommend_retry(capsule: &FailureCapsule) -> RetryDecision {
     }
 }
 
+pub fn is_branch_creation_push(before_sha: &str) -> bool {
+    before_sha == "0000000000000000000000000000000000000000"
+}
+
 pub fn evaluate_risk_gate(
     trust_tier: TrustTier,
     successful_jobs: usize,

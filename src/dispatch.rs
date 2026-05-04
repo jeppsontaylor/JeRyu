@@ -94,7 +94,7 @@ fn infer_runner_pool(runner: &str) -> Option<&'static str> {
 // Dispatch
 // ---------------------------------------------------------------------------
 
-pub(crate) async fn run(cli: Cli) -> Result<()> {
+pub(crate) async fn run(cli: Cli) -> Result<i32> {
     match cli.command {
         // ---- Init --------------------------------------------------------
         Commands::Init | Commands::Bootstrap => {
@@ -188,11 +188,26 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
         }
 
         // ---- Git Operations ----------------------------------------------
-        Commands::Git { args } => crate::commands::git::execute_git_passthrough(&args)?,
-        Commands::Save { message } => crate::commands::git::execute_save(&message)?,
-        Commands::Sync => crate::commands::git::execute_sync()?,
-        Commands::Undo => crate::commands::git::execute_undo()?,
-        Commands::Ship => crate::commands::git::execute_ship()?,
+        Commands::Git { args } => {
+            let db = state::Db::open().await.ok();
+            return crate::commands::git::execute_git_passthrough(db.as_ref(), &args).await;
+        }
+        Commands::Save { message } => {
+            let db = state::Db::open().await.ok();
+            return crate::commands::git::execute_save(db.as_ref(), &message).await;
+        }
+        Commands::Sync => {
+            let db = state::Db::open().await.ok();
+            return crate::commands::git::execute_sync(db.as_ref()).await;
+        }
+        Commands::Undo => {
+            let db = state::Db::open().await.ok();
+            return crate::commands::git::execute_undo(db.as_ref()).await;
+        }
+        Commands::Ship => {
+            let db = state::Db::open().await.ok();
+            return crate::commands::git::execute_ship(db.as_ref()).await;
+        }
 
         // ---- Down --------------------------------------------------------
         Commands::Down => crate::commands::system::execute_down().await?,
@@ -471,6 +486,16 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
                 }
             }
         },
+
+        // ---- Mirror -----------------------------------------------------
+        Commands::Mirror(subcmd) => {
+            crate::commands::mirror::execute_mirror_commands(subcmd).await?
+        }
+
+        // ---- Settings ---------------------------------------------------
+        Commands::Settings(subcmd) => {
+            crate::commands::settings::execute_settings_commands(subcmd).await?
+        }
 
         // ---- Release ----------------------------------------------------
         Commands::Release(subcmd) => {
@@ -828,5 +853,5 @@ pub(crate) async fn run(cli: Cli) -> Result<()> {
         }
     }
 
-    Ok(())
+    Ok(0)
 }

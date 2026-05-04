@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-27T14:12:20.103842141+00:00",
+  "generated_at": "2026-05-04T01:44:58.185473596+00:00",
   "repo_root": "/home/ubuntu/JeRyu",
   "token_budget_path": "token-budget.toml",
   "entries": [
@@ -180,11 +180,210 @@
       "widening_rules": []
     },
     {
+      "id": "cargo_cache",
+      "path": "src/cargo_cache.rs",
+      "owner": "Cargo cache layout and local agent helpers",
+      "proof": "`cargo test -p jeryu -- cargo_cache`",
+      "invariants": "Cache keys are deterministic; target dirs stay scoped by repo/project, toolchain, and host triple; active leases are never collected.",
+      "default_change_type": "leaf-bugfix",
+      "proof_lanes": [
+        "check",
+        "unit"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
+      ],
+      "widening_rules": []
+    },
+    {
       "id": "cli",
       "path": "src/cli.rs",
       "owner": "CLI Definitions",
       "proof": "`cargo check -p jeryu`",
       "invariants": "All types are pub(crate); main.rs is the only consumer",
+      "default_change_type": "leaf-bugfix",
+      "proof_lanes": [
+        "check",
+        "unit"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "commands::git",
+      "path": "src/commands/git.rs",
+      "owner": "CLI Git wrappers",
+      "proof": "`cargo test -p jeryu -- git_passthrough`",
+      "invariants": "These wrappers never terminate the process directly; `main` owns final exit handling.",
+      "default_change_type": "api-change",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "commands::host",
+      "path": "src/commands/host.rs",
+      "owner": "",
+      "proof": "",
+      "invariants": "",
+      "default_change_type": "leaf-bugfix",
+      "proof_lanes": [
+        "check",
+        "unit"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "commands::job",
+      "path": "src/commands/job.rs",
+      "owner": "",
+      "proof": "",
+      "invariants": "",
+      "default_change_type": "leaf-bugfix",
+      "proof_lanes": [
+        "check",
+        "unit"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "commands::mod",
+      "path": "src/commands/mod.rs",
+      "owner": "",
+      "proof": "",
+      "invariants": "",
+      "default_change_type": "leaf-bugfix",
+      "proof_lanes": [
+        "check",
+        "unit"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "commands::pipeline",
+      "path": "src/commands/pipeline.rs",
+      "owner": "",
+      "proof": "",
+      "invariants": "",
+      "default_change_type": "leaf-bugfix",
+      "proof_lanes": [
+        "check",
+        "unit"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "commands::pool",
+      "path": "src/commands/pool.rs",
+      "owner": "",
+      "proof": "",
+      "invariants": "",
+      "default_change_type": "api-change",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "commands::release",
+      "path": "src/commands/release.rs",
+      "owner": "",
+      "proof": "",
+      "invariants": "",
+      "default_change_type": "release-change",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "commands::secrets",
+      "path": "src/commands/secrets.rs",
+      "owner": "",
+      "proof": "",
+      "invariants": "",
+      "default_change_type": "security-relevant",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration",
+        "security"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo test -p jeryu -- secrets exec honeypot admission"
+      ],
+      "widening_rules": [
+        "security-relevant modules widen to security proof lanes"
+      ]
+    },
+    {
+      "id": "commands::system",
+      "path": "src/commands/system.rs",
+      "owner": "",
+      "proof": "",
+      "invariants": "",
+      "default_change_type": "leaf-bugfix",
+      "proof_lanes": [
+        "check",
+        "unit"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "commands::test",
+      "path": "src/commands/test.rs",
+      "owner": "",
+      "proof": "",
+      "invariants": "",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
         "check",
@@ -454,18 +653,22 @@
       "owner": "GitLab REST Client subsystem",
       "proof": "`cargo nextest run -p jeryu -- gitlab_client`",
       "invariants": "HTTP calls preserve GitLab semantics, redact tokens, and surface status-specific failures.",
-      "default_change_type": "api-change",
+      "default_change_type": "cross-module",
       "proof_lanes": [
         "check",
         "unit",
-        "integration"
+        "integration",
+        "full"
       ],
       "proof_commands": [
         "cargo check -p jeryu --message-format=json",
         "cargo nextest run -p jeryu --lib",
-        "cargo test -p jeryu --test '*' -- --test-threads=1"
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo nextest run -p jeryu"
       ],
-      "widening_rules": []
+      "widening_rules": [
+        "cross-module changes widen to the full integration ring"
+      ]
     },
     {
       "id": "honeypot",
@@ -527,6 +730,23 @@
       "widening_rules": []
     },
     {
+      "id": "local",
+      "path": "src/local.rs",
+      "owner": "Local agent command wrappers",
+      "proof": "`cargo test -p jeryu -- local`",
+      "invariants": "Local Cargo commands reuse jeryu-owned caches by default and never leave stale leases on the happy path.",
+      "default_change_type": "leaf-bugfix",
+      "proof_lanes": [
+        "check",
+        "unit"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
+      ],
+      "widening_rules": []
+    },
+    {
       "id": "logs",
       "path": "src/logs.rs",
       "owner": "Logging & Observability subsystem",
@@ -559,6 +779,91 @@
         "cargo check -p jeryu --message-format=json",
         "cargo nextest run -p jeryu --lib",
         "cargo test -p jeryu --test '*' -- --test-threads=1"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "mcp",
+      "path": "src/mcp.rs",
+      "owner": "MCP adapter for external coding agents",
+      "proof": "`cargo check -p jeryu` and `cargo test -p jeryu mcp`",
+      "invariants": "MCP is a transport adapter over the existing capability policy;",
+      "default_change_type": "leaf-bugfix",
+      "proof_lanes": [
+        "check",
+        "unit"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "mcp::core",
+      "path": "src/mcp/core.rs",
+      "owner": "MCP adapter for external coding agents",
+      "proof": "`cargo check -p jeryu --message-format=json` and `cargo test -p jeryu --lib mcp`",
+      "invariants": "MCP request handling must remain a thin adapter over the capability policy;",
+      "default_change_type": "leaf-bugfix",
+      "proof_lanes": [
+        "check",
+        "unit"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "mcp::http",
+      "path": "src/mcp/http.rs",
+      "owner": "MCP adapter for external coding agents",
+      "proof": "`cargo check -p jeryu --message-format=json` and `cargo test -p jeryu --lib mcp`",
+      "invariants": "HTTP transport is loopback-only, validates MCP session headers, and routes",
+      "default_change_type": "leaf-bugfix",
+      "proof_lanes": [
+        "check",
+        "unit"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "mcp::tests",
+      "path": "src/mcp/tests.rs",
+      "owner": "MCP adapter for external coding agents",
+      "proof": "`cargo check -p jeryu --message-format=json` and `cargo test -p jeryu --lib mcp`",
+      "invariants": "These tests guard the adapter behavior and must not mutate policy state.",
+      "default_change_type": "leaf-bugfix",
+      "proof_lanes": [
+        "check",
+        "unit"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "mcp::tools",
+      "path": "src/mcp/tools.rs",
+      "owner": "MCP adapter for external coding agents",
+      "proof": "`cargo check -p jeryu --message-format=json` and `cargo test -p jeryu --lib mcp`",
+      "invariants": "The MCP tool catalog must stay in sync with the capability-surface registry",
+      "default_change_type": "leaf-bugfix",
+      "proof_lanes": [
+        "check",
+        "unit"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -719,7 +1024,7 @@
       "path": "src/shadow.rs",
       "owner": "Shadow Remote Mirroring",
       "proof": "`cargo test -p jeryu -- shadow`",
-      "invariants": "Mirror operations are idempotent; push failures do not block the primary pipeline; git2 errors are always surfaced via anyhow context",
+      "invariants": "Mirror operations are idempotent; push failures do not block the primary pipeline; git commands are used natively.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
         "check",

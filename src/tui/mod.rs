@@ -829,6 +829,11 @@ async fn run_loop(
                         app.active_tab = t;
                     }
                 }
+                KeyCode::Char('0') => {
+                    if let Some(t) = crate::tui::app::ActiveTab::from_number(10) {
+                        app.active_tab = t;
+                    }
+                }
                 _ => {}
             }
         }
@@ -854,6 +859,7 @@ fn execute_palette_action(app: &mut App) {
         "tab_cache" => app.active_tab = app::ActiveTab::Cache,
         "tab_evidence" => app.active_tab = app::ActiveTab::Evidence,
         "tab_secrets" => app.active_tab = app::ActiveTab::Secrets,
+        "tab_git" => app.active_tab = app::ActiveTab::Git,
         "toggle_audit_ledger" => {
             app.evidence_view_mode = match app.evidence_view_mode {
                 app::EvidenceViewMode::Capsules => app::EvidenceViewMode::AuditLedger,
@@ -910,6 +916,7 @@ mod tests {
             app::ActiveTab::Cache,
             app::ActiveTab::Evidence,
             app::ActiveTab::Secrets,
+            app::ActiveTab::Git,
         ] {
             app.active_tab = tab;
             draw_once(&mut app)?;
@@ -970,6 +977,8 @@ mod tests {
         assert_eq!(app.active_tab, app::ActiveTab::Evidence);
         app.cycle_tab_next();
         assert_eq!(app.active_tab, app::ActiveTab::Secrets);
+        app.cycle_tab_next();
+        assert_eq!(app.active_tab, app::ActiveTab::Git);
         app.cycle_tab_next();
         assert_eq!(app.active_tab, app::ActiveTab::Mission);
 

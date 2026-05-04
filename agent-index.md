@@ -1,6 +1,6 @@
 # Agent Index
 
-Generated: `2026-04-27T14:12:20.103842141+00:00`
+Generated: `2026-05-04T01:44:58.185473596+00:00`
 
 | Module | Change Type | Proof Commands | Owner |
 |---|---|---|---|
@@ -14,7 +14,18 @@ Generated: `2026-04-27T14:12:20.103842141+00:00`
 | `src/cache_proxy.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Cache Proxy (sccache TCP Proxy) |
 | `src/capability.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Capability API (Structured AgentIntent Payloads) |
 | `src/capsule.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Failure Capsule subsystem |
+| `src/cargo_cache.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Cargo cache layout and local agent helpers |
 | `src/cli.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | CLI Definitions |
+| `src/commands/git.rs` | `api-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | CLI Git wrappers |
+| `src/commands/host.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | - |
+| `src/commands/job.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | - |
+| `src/commands/mod.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | - |
+| `src/commands/pipeline.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | - |
+| `src/commands/pool.rs` | `api-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | - |
+| `src/commands/release.rs` | `release-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | - |
+| `src/commands/secrets.rs` | `security-relevant` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo test -p jeryu -- secrets exec honeypot admission | - |
+| `src/commands/system.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | - |
+| `src/commands/test.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | - |
 | `src/config.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Configuration & Templates subsystem |
 | `src/decision.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Agent Decision Engine (Risk Gates, Supersedence, Impact Classification) |
 | `src/dispatch.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | CLI Dispatch |
@@ -29,12 +40,18 @@ Generated: `2026-04-27T14:12:20.103842141+00:00`
 | `src/gateway/npm.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Cache Gateway subsystem — npm registry proxy |
 | `src/gateway/oci.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Cache Gateway subsystem — OCI image proxy |
 | `src/gateway/singleflight.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Cache Gateway subsystem — singleflight deduplication |
-| `src/gitlab_client.rs` | `api-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | GitLab REST Client subsystem |
+| `src/gitlab_client.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | GitLab REST Client subsystem |
 | `src/honeypot.rs` | `security-relevant` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo test -p jeryu -- secrets exec honeypot admission | Supply-Chain Detonation / Honey Token Detection |
 | `src/impact.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Change Impact Analysis |
 | `src/lib.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | jeryu crate root (see module map below) |
+| `src/local.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Local agent command wrappers |
 | `src/logs.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Logging & Observability subsystem |
 | `src/main.rs` | `api-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | CLI dispatcher — no business logic |
+| `src/mcp.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | MCP adapter for external coding agents |
+| `src/mcp/core.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | MCP adapter for external coding agents |
+| `src/mcp/http.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | MCP adapter for external coding agents |
+| `src/mcp/tests.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | MCP adapter for external coding agents |
+| `src/mcp/tools.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | MCP adapter for external coding agents |
 | `src/policy.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Trust Policy (TrustTier, Cache Promotion Gates) |
 | `src/pool.rs` | `api-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | Runner Fleet / Pool Management |
 | `src/reclaim.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Storage Audit & GC |

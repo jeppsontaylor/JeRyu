@@ -26,6 +26,7 @@ pub enum ActiveTab {
     Pools,
     Cache,
     Evidence,
+    Git,
     Secrets,
 }
 
@@ -41,6 +42,7 @@ impl ActiveTab {
             7 => Some(Self::Cache),
             8 => Some(Self::Evidence),
             9 => Some(Self::Secrets),
+            10 => Some(Self::Git),
             _ => None,
         }
     }
@@ -182,6 +184,7 @@ pub struct TuiStateSnapshot {
     pub secret_audit_events: Vec<crate::state::SecretAuditEvent>,
     pub agent_pipelines: Vec<crate::state::TrackedPipeline>,
     pub recent_audit_events: Vec<crate::state::EventLog>,
+    pub recent_git_events: Vec<crate::state::GitCommandEventRecord>,
     // TUI v2 — live runner feeds:
     pub runner_feeds: Vec<RunnerFeed>,
     pub active_feed_index: usize,
@@ -748,6 +751,7 @@ impl App {
                     payload: "{\"reason\": \"security_gate_failed\"}".into(),
                 },
             ],
+            recent_git_events: vec![],
             runner_feeds: vec![
                 RunnerFeed {
                     runner_name: "trusted-01".into(),
@@ -1156,6 +1160,9 @@ impl App {
                 if let Ok(events) = db.get_events(50).await {
                     snap.recent_audit_events = events;
                 }
+                if let Ok(events) = db.recent_git_command_events(30).await {
+                    snap.recent_git_events = events;
+                }
                 snap.last_sync_at = Some(chrono::Utc::now());
 
                 // Storage Metrics background queries
@@ -1492,7 +1499,8 @@ impl App {
             ActiveTab::Pools => ActiveTab::Cache,
             ActiveTab::Cache => ActiveTab::Evidence,
             ActiveTab::Evidence => ActiveTab::Secrets,
-            ActiveTab::Secrets => ActiveTab::Mission,
+            ActiveTab::Secrets => ActiveTab::Git,
+            ActiveTab::Git => ActiveTab::Mission,
         };
     }
 

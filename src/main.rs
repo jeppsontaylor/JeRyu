@@ -97,5 +97,9 @@ async fn main() -> Result<()> {
     // Load ~/.jeryu/settings.json (creates with defaults on first run).
     jeryu::settings::init()?;
 
-    dispatch::run(cli).await
+    let exit_code = dispatch::run(cli).await?;
+    if exit_code != 0 {
+        std::process::exit(exit_code);
+    }
+    Ok(())
 }

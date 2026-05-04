@@ -134,6 +134,14 @@ pub(crate) enum Commands {
     #[command(subcommand)]
     ShadowRemote(ShadowRemoteCommands),
 
+    /// Manage repo mirror operations.
+    #[command(subcommand)]
+    Mirror(MirrorCommands),
+
+    /// Repair or reset user settings.
+    #[command(subcommand)]
+    Settings(SettingsCommands),
+
     /// Run tests through the CI pipeline (agent-friendly).
     #[command(subcommand)]
     Test(TestCommands),
@@ -520,6 +528,48 @@ pub(crate) enum ShadowRemoteCommands {
         branch: Option<String>,
         #[arg(long, default_value_t = false)]
         mirror: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub(crate) enum MirrorCommands {
+    /// Show the current remote layout for a repository.
+    Status {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+        #[arg(long, default_value = "shadow")]
+        name: String,
+    },
+    /// Create or update the mirror remote URL.
+    Ensure {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+        #[arg(long, default_value = "shadow")]
+        name: String,
+        #[arg(long)]
+        url: String,
+    },
+    /// Push the current HEAD or a mirror to the mirror remote.
+    Push {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+        #[arg(long, default_value = "shadow")]
+        name: String,
+        #[arg(long)]
+        branch: Option<String>,
+        #[arg(long, default_value_t = false)]
+        mirror: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub(crate) enum SettingsCommands {
+    /// Validate settings and repair a corrupt file backup if present.
+    Repair,
+    /// Reset `~/.jeryu/settings.json` to defaults.
+    Reset {
+        #[arg(long, default_value_t = false)]
+        force: bool,
     },
 }
 

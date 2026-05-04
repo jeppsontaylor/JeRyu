@@ -182,11 +182,12 @@ async fn handle_push_event(state: SharedState, payload: PushHookPayload) {
     }
 
     // For demonstration, we simply log the semantic diff hook activation.
-    if payload.before == "0000000000000000000000000000000000000000" {
+    if crate::decision::is_branch_creation_push(&payload.before) {
         debug!(
             project_id = payload.project_id,
             "semantic evaluation bypassed: branch creation event"
         );
+        return;
     }
 
     if let Err(e) = handle_supersedence(&state, payload.project_id, &ref_name, &payload.after).await

@@ -213,6 +213,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         ActiveTab::Pools => draw_pools_tab(f, app, chunks[1]),
         ActiveTab::Cache => draw_cache_dashboard(f, app, chunks[1]),
         ActiveTab::Evidence => draw_evidence_tab(f, app, chunks[1]),
+        ActiveTab::Git => draw_git_tab(f, app, chunks[1]),
         ActiveTab::Secrets => draw_secrets_tab(f, app, chunks[1]),
     }
 
@@ -275,6 +276,7 @@ fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
         ("Cache", ActiveTab::Cache, 7),
         ("Evidence", ActiveTab::Evidence, 8),
         ("Secrets", ActiveTab::Secrets, 9),
+        ("Git", ActiveTab::Git, 10),
     ];
 
     let mut spans: Vec<Span> = vec![
@@ -399,7 +401,7 @@ fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
     } else if app.active_tab == ActiveTab::Jobs {
         " f:freeze  n/N:runner  g:follow  c:cancel  r:retry  d:del  Enter:logs  ?:help  q:quit"
     } else {
-        " ^K:palette  Tab:cycle  1-9:tab  ↑↓:select  Enter:inspect  F5:refresh  ?:help  q:quit"
+        " ^K:palette  Tab:cycle  1-0:tab  ↑↓:select  Enter:inspect  F5:refresh  ?:help  q:quit"
     };
     let p = Paragraph::new(help)
         .block(Block::default().borders(Borders::TOP))
@@ -2663,6 +2665,64 @@ fn draw_secrets_tab(f: &mut Frame, app: &App, area: Rect) {
 }
 
 // ---------------------------------------------------------------------------
+// Tab 10 — Git
+// ---------------------------------------------------------------------------
+
+fn draw_git_tab(f: &mut Frame, app: &App, area: Rect) {
+    let rows: Vec<ListItem> = app
+        .state
+        .recent_git_events
+        .iter()
+        .map(|event| {
+            let ts = event.created_at.get(..16).unwrap_or(&event.created_at);
+            let status = if event.exit_code == 0 {
+                "success"
+            } else {
+                "failed"
+            };
+            ListItem::new(Line::from(vec![
+                Span::styled(format!("{} ", ts), Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    format!("{:<12} ", event.command_class),
+                    Style::default().fg(Color::Cyan),
+                ),
+                Span::styled(
+                    format!("{:<5} ", status),
+                    Style::default().fg(status_color(status)),
+                ),
+                Span::styled(
+                    format!("{:<7} ", event.mirror_status),
+                    Style::default().fg(Color::Magenta),
+                ),
+                Span::styled(
+                    event.argv_redacted.clone(),
+                    Style::default().fg(Color::White),
+                ),
+            ]))
+        })
+        .collect();
+
+    let body = if rows.is_empty() {
+        List::new(vec![ListItem::new("  No git commands recorded yet.")])
+    } else {
+        List::new(rows)
+    };
+
+    f.render_widget(
+        body.block(
+            Block::default()
+                .title(format!(
+                    " [ Git Command Ledger ({}) ] ",
+                    app.state.recent_git_events.len()
+                ))
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Cyan)),
+        ),
+        area,
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Shared renderers (preserved from previous version)
 // ---------------------------------------------------------------------------
 
@@ -3411,6 +3471,7 @@ fn draw_help_overlay(f: &mut Frame, app: &App) {
         ActiveTab::Pools => "Pools",
         ActiveTab::Cache => "Cache",
         ActiveTab::Evidence => "Evidence",
+        ActiveTab::Git => "Git",
         ActiveTab::Secrets => "Secrets",
     };
 
@@ -3422,7 +3483,7 @@ fn draw_help_overlay(f: &mut Frame, app: &App) {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
-        help_row("1-9", "Switch to tab N"),
+        help_row("1-0", "Switch to tab N"),
         help_row("Tab", "Cycle to next tab"),
         help_row("Ctrl-K", "Open command palette"),
         help_row("?", "Toggle this help overlay"),

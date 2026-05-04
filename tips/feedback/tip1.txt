@@ -1,0 +1,1252 @@
+I studied the repo through GitHub/API inspection. The biggest strategic finding is exciting but very clear: **JeRyu’s docs and product story already point toward “Git-compatible AI-era version control,” but the current implementation of `jeryu git …` is still only a thin system-Git passthrough.** The next level is not deleting everything called “shadow” immediately; it is replacing “shadow Git” with a **Git Command Mirror**: every Git command becomes a structured, observable, policy-aware JeRyu event while system Git remains compatibility-perfect.
+
+## Executive diagnosis
+
+JeRyu already has a strong foundation: a Rust single-binary control plane, GitLab runner orchestration, state storage, a Ratatui TUI, action registry, capability/MCP surfaces, VTI, failure evidence, and agent workflows. The README’s public promise says JeRyu wraps Git first, then replaces it, preserving `git` muscle memory through `jeryu git`, native wrappers, and `jeryu ship` pushing to both origin and a shadow CI remote. 
+
+But the implementation has not yet caught up to that promise. `cli.rs` defines `Git { args }` as a passthrough command, and `dispatch.rs` routes it directly to `commands::git::execute_git_passthrough(&args)`.   That function currently just resolves `JERYU_SYSTEM_GIT` or defaults to `/usr/bin/git`, invokes Git with the provided args, and exits with Git’s status. It does **not** run JeRyu-side orchestration, does **not** mirror commands, does **not** record a structured event, and does **not** trigger runners or agents. 
+
+So my strongest recommendation is:
+
+> **Make `jeryu git …` the root product primitive. Everything else should hang off a typed Git command event ledger.**
+
+That lets you keep the magic shell shim, preserve exact Git behavior, and make every normal Git command a launch point for JeRyu’s AI/CI/evidence machinery.
+
+---
+
+# Proposed north-star mission
+
+I would replace or front-load the current mission with this:
+
+> **JeRyu’s mission is to make Git agent-native: every Git command becomes a typed, observable, policy-aware event that preserves perfect Git compatibility while automatically launching the right AI, CI, evidence, cache, and safety workflows. Git remains the universal ledger; JeRyu becomes the command plane that understands intent, proves outcomes, and lets humans and agents ship at machine speed.**
+
+Short public tagline:
+
+> **Same Git. Verified intent. Autonomous proof.**
+
+Sharper product thesis:
+
+> **The #1 AI-ready Git replacement is not a new syntax. It is zero-friction Git compatibility plus automatic intelligence on every command.**
+
+The current `MISSION.md` is thoughtful and already identifies the right pain: redundant pipelines, brittle selective testing, flaky infrastructure, weak explainability, and human-centric approval/credential models.  I would not discard it. I would refocus it around the new “Git Event Plane” concept so the mission is clearly about version-control replacement, not only GitLab CI control.
+
+---
+
+# Core architecture change: Command Mirror, not “shadow git”
+
+Your idea is directionally right: agents and users should not need to remember separate “shadow” commands. But the safe implementation should not literally and blindly run every command as:
+
+```bash
+git <command> &
+jeryu git <command> &
+```
+
+That can recurse, duplicate mutations, and create divergence. The right primitive is:
+
+```text
+user types: git <args>
+shell shim calls: jeryu git <args>
+
+JeRyu does:
+1. run real system git with exact compatibility
+2. in parallel or causally-after-success, run JeRyu sidecar behavior
+3. record both outcomes in a durable event ledger
+```
+
+The distinction matters. For read-only commands, true parallel sidecar work is safe. For destructive or ref-mutating commands, JeRyu must preserve Git semantics and avoid creating a state where origin failed but JeRyu’s internal mirror succeeded.
+
+I would introduce three mirror modes:
+
+| Mode            | Behavior                                                               | Best for                                                  |
+| --------------- | ---------------------------------------------------------------------- | --------------------------------------------------------- |
+| `observe`       | Run system Git only; record JeRyu event and update TUI/state.          | Default for unknown/destructive commands.                 |
+| `after-success` | Run Git first; if Git succeeds, trigger JeRyu mirror/CI/agent sidecar. | Safe default for `push`, `commit`, `merge`, `rebase`.     |
+| `parallel`      | Run Git and JeRyu sidecar concurrently; reconcile outcomes.            | Read-only commands and explicit fast-path push workflows. |
+
+This gives you the “all Git commands automatically activate JeRyu” behavior without corrupting repositories or surprising users.
+
+---
+
+# Critical issues to fix immediately
+
+## 1. `jeryu git …` is not currently dual-run
+
+Current behavior is just:
+
+```rust
+let git_path = std::env::var("JERYU_SYSTEM_GIT").unwrap_or_else(|_| "/usr/bin/git".into());
+let status = std::process::Command::new(&git_path).args(args).status()?;
+std::process::exit(status.code().unwrap_or(1));
+```
+
+That is compatibility-only, not JeRyu-aware. 
+
+**Fix:** create a `DualGitExecutor` that runs system Git and a JeRyu sidecar event path. Preserve system Git’s stdout, stderr, exit status, and behavior by default. JeRyu metadata should not pollute stdout unless explicitly requested, because scripts depend on Git output.
+
+## 2. `execute_ship` can claim success even when origin push fails
+
+`execute_ship` runs `git push origin HEAD` but does not check whether that push succeeded before printing success-ish output after the shadow push attempt. 
+
+That is a P0 trust bug. Shipping must fail loudly if origin fails.
+
+**Fix:** make origin push canonical. In default mode:
+
+```text
+origin push fails  -> command fails, no JeRyu mirror push unless explicit --parallel/--force-mirror
+origin succeeds    -> JeRyu mirror/runner trigger may run
+JeRyu sidecar fails -> Git exit remains successful, but JeRyu records sidecar failure and TUI shows divergence
+```
+
+## 3. `save`, `sync`, and `undo` swallow failures
+
+`execute_save`, `execute_sync`, and `execute_undo` return `Ok(())` even when underlying Git operations fail, except for process-spawn errors. 
+
+**Fix:** all Git wrapper commands should return a typed outcome:
+
+```rust
+pub struct GitCommandOutcome {
+    pub git_exit_code: i32,
+    pub jeryu_sidecar_status: SidecarStatus,
+    pub event_id: Option<i64>,
+}
+```
+
+Then `main` exits with the right code.
+
+## 4. Hard-coded `/usr/bin/git` is fragile
+
+The installer asks users to add a shell function that routes `git` to `jeryu git`, but the runtime fallback is `/usr/bin/git`.  That is brittle on macOS, Homebrew installs, Nix, Windows/MSYS, custom Git locations, and any environment where `/usr/bin/git` is a shim.
+
+**Fix:** during install, resolve the real Git path **before** installing the shell shim and write it to `~/.jeryu/settings.json` or export `JERYU_SYSTEM_GIT`. Also add runtime recursion protection so JeRyu never resolves itself as Git.
+
+## 5. `std::process::exit` inside `commands::git` blocks cleanup and testing
+
+`execute_git_passthrough` exits from inside a command module.  This prevents dispatch/main from doing cleanup, telemetry flushing, and structured error handling.
+
+**Fix:** command modules should return `Result<ExitCode>` or `Result<i32>`. Let `main` be the only place that exits.
+
+## 6. Existing shadow sync should be deprecated, not deleted immediately
+
+`shadow.rs` is still wired into `serve`; `dispatch.rs` spawns `shadow::run_shadow_loop`, and `shadow.rs` owns remote mirroring/status/push logic.   Removing it immediately would break documented behavior and TUI summary state.
+
+**Fix:** freeze it as a compatibility layer, then migrate it into the new Git Command Mirror. Rename the product concept from “shadow” to “JeRyu mirror” or “AI validation remote.”
+
+## 7. `shadow.rs` has security and correctness problems
+
+`shadow.rs` shells out to plain `git`, not the configured system Git. It force-pushes with `+...:refs/heads/...`, optionally pushes to an upstream URL, and embeds a PAT into an HTTP push URL. 
+
+Problems:
+
+* It may use the wrong Git binary.
+* Force-push semantics need explicit policy.
+* PAT-in-argv can leak via process listings.
+* Upstream and shadow outcomes can diverge.
+* There is no first-class event ledger tying mirror actions back to the user’s original Git command.
+
+**Fix:** move all Git process execution through one `git::system` layer, avoid secrets in process args where possible, and write every mirror action to a `git_command_events` / `git_mirror_jobs` ledger.
+
+---
+
+# Proposed implementation: new Git Event Plane
+
+Add a new module tree:
+
+```text
+src/git/
+  mod.rs
+  system.rs
+  classify.rs
+  event.rs
+  executor.rs
+  mirror.rs
+  policy.rs
+  display.rs
+```
+
+Keep `src/commands/git.rs`, but make it a thin CLI wrapper.
+
+## `src/git/system.rs`
+
+Responsibilities:
+
+* Resolve the real Git binary.
+* Prevent recursion through the shell shim.
+* Support `JERYU_SYSTEM_GIT`.
+* Support settings-based path.
+* Validate with `git --version`.
+* Provide one canonical function for all code that shells out to Git.
+
+Suggested API:
+
+```rust
+pub struct SystemGit {
+    pub path: PathBuf,
+}
+
+impl SystemGit {
+    pub fn resolve(settings: &Settings) -> anyhow::Result<Self>;
+    pub async fn run(&self, cwd: &Path, args: &[String]) -> anyhow::Result<GitProcessOutput>;
+}
+```
+
+Files to update:
+
+* `src/commands/git.rs`
+* `src/shadow.rs`
+* `install.sh`
+* `src/settings.rs`
+
+## `src/git/classify.rs`
+
+Classify commands so JeRyu knows how to mirror them safely.
+
+```rust
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum GitCommandClass {
+    ReadOnly,
+    LocalMutation,
+    RefMutation,
+    NetworkRead,
+    NetworkWrite,
+    Destructive,
+    Unknown,
+}
+```
+
+Examples:
+
+* `status`, `log`, `show`, `diff`, `branch --list`: `ReadOnly`
+* `add`, `commit`, `restore`, `checkout`, `switch`: `LocalMutation`
+* `merge`, `rebase`, `reset`: `RefMutation` or `Destructive` depending args
+* `fetch`, `ls-remote`: `NetworkRead`
+* `push`: `NetworkWrite`
+* `clean -fdx`, `reset --hard`, `rebase --abort`: `Destructive`
+
+Unknown commands should still pass through to Git, but JeRyu should run sidecar in `observe` mode only.
+
+## `src/git/event.rs`
+
+Create the canonical event model:
+
+```rust
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GitCommandEvent {
+    pub request_id: String,
+    pub cwd: PathBuf,
+    pub args: Vec<String>,
+    pub class: GitCommandClass,
+    pub mirror_mode: MirrorMode,
+    pub actor: GitActor,
+    pub started_at: DateTime<Utc>,
+    pub before: GitSnapshot,
+    pub after: Option<GitSnapshot>,
+    pub git_exit_code: Option<i32>,
+    pub sidecar_status: SidecarStatus,
+}
+```
+
+This is the heart of the product. The event ledger turns normal Git usage into agent-visible intent.
+
+## `src/git/executor.rs`
+
+This should replace the direct passthrough.
+
+Behavior:
+
+1. Build event with command classification.
+2. Capture pre-command HEAD/branch/remotes when safe.
+3. Run system Git and sidecar according to mirror mode.
+4. Preserve stdout/stderr/exit code.
+5. Record post-command snapshot.
+6. Trigger VTI/runners/agents where appropriate.
+7. Return the system Git exit code.
+
+Important: do not print JeRyu banners by default. The shell shim must be safe for scripts.
+
+## `src/git/mirror.rs`
+
+Responsibilities:
+
+* Decide what JeRyu does for each command.
+* On `push`, trigger internal validation.
+* On `commit`, record new commit metadata and maybe precompute VTI plan.
+* On `status`, optionally enrich TUI/state without stdout changes.
+* On `merge/rebase`, record before/after topology.
+* On `tag`, record release intent candidate.
+* On `clone`, optionally register repo with JeRyu.
+
+This can initially call existing `shadow` functionality behind the scenes. Later, it should fully replace the shadow loop.
+
+## `src/git/policy.rs`
+
+For agents, policy matters. A human typing `git reset --hard` can pass through. An agent doing the same should require explicit authority.
+
+Policy inputs:
+
+* actor type: human shell, MCP agent, capability agent, CI runner
+* command class
+* repo path
+* branch/ref
+* configured trust tier
+* destructive args
+* whether command writes to origin or JeRyu mirror
+
+Outputs:
+
+* allow
+* allow but observe only
+* require grant
+* deny
+* ask confirmation, for interactive human TTY only
+
+---
+
+# State schema additions
+
+`state.rs` is already the durable source of truth, and Cargo metadata says state mutations should go through `state::Db`.  Add these tables.
+
+## `git_command_events`
+
+Fields:
+
+* `id`
+* `request_id`
+* `cwd`
+* `repo_root`
+* `args_json`
+* `command_name`
+* `command_class`
+* `mirror_mode`
+* `actor`
+* `started_at`
+* `finished_at`
+* `git_exit_code`
+* `jeryu_status`
+* `before_head`
+* `after_head`
+* `branch`
+* `remotes_json`
+* `stdout_tail_redacted`
+* `stderr_tail_redacted`
+* `policy_verdict`
+* `created_by_agent_task_id`
+* `replay_of_event_id`
+
+## `git_ref_updates`
+
+Fields:
+
+* `event_id`
+* `ref_name`
+* `old_sha`
+* `new_sha`
+* `remote`
+* `update_kind`
+
+## `git_mirror_jobs`
+
+Fields:
+
+* `event_id`
+* `mode`
+* `status`
+* `primary_remote`
+* `jeryu_remote`
+* `started_at`
+* `finished_at`
+* `error`
+* `triggered_pipeline_id`
+* `triggered_agent_task_id`
+
+## `git_command_artifacts`
+
+Optional later:
+
+* `event_id`
+* `kind`: `vti_plan`, `failure_capsule`, `runner_trace`, `patch_summary`
+* `path_or_json`
+
+This lets the TUI and agents answer: “What did the user/agent do, what did Git do, what did JeRyu do, and what proof exists?”
+
+---
+
+# Settings changes
+
+`settings.rs` currently has `shadow.upstream_url` but no Git mirror settings.  Add:
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GitSettings {
+    pub system_git_path: Option<String>,
+    pub primary_remote_name: String,
+    pub jeryu_remote_name: String,
+    pub mirror_mode: GitMirrorMode,
+    pub sidecar_timeout_ms: u64,
+    pub capture_output_max_bytes: usize,
+    pub fail_on_jeryu_error: bool,
+    pub agent_dual_run_enabled: bool,
+    pub destructive_policy: DestructiveGitPolicy,
+}
+```
+
+Defaults:
+
+```text
+primary_remote_name = "origin"
+jeryu_remote_name = "jeryu"
+mirror_mode = "after_success"
+sidecar_timeout_ms = 1500
+capture_output_max_bytes = 65536
+fail_on_jeryu_error = false
+agent_dual_run_enabled = true
+destructive_policy = "observe_for_humans_require_grant_for_agents"
+```
+
+Migration:
+
+* Keep `shadow.upstream_url` for one release.
+* Add warning: `shadow.upstream_url is deprecated; use git.mirror_upstream_url`.
+* Convert `shadow` terminology in user-facing docs to “JeRyu mirror.”
+
+---
+
+# CLI changes
+
+## Modify existing command
+
+```bash
+jeryu git <args...>
+```
+
+Add hidden or advanced flags before trailing args:
+
+```bash
+jeryu git --no-jeryu <args...>
+jeryu git --jeryu-only <args...>
+jeryu git --mirror-mode observe|after-success|parallel <args...>
+jeryu git --json-event <args...>
+```
+
+Because Clap trailing args can make this tricky, another approach is:
+
+```bash
+jeryu git --mode after-success -- push origin main
+```
+
+But the shell shim should continue to call:
+
+```bash
+command jeryu git "$@"
+```
+
+## Replace `jeryu ship`
+
+`jeryu ship` should become a convenience wrapper over:
+
+```bash
+jeryu git --mirror-mode after-success push origin HEAD
+```
+
+or:
+
+```bash
+jeryu git --mirror-mode parallel push origin HEAD
+```
+
+depending on settings.
+
+Do not maintain separate push logic in `execute_ship`. That is how drift happens.
+
+## Add repo-local setup command
+
+```bash
+jeryu git setup
+```
+
+or:
+
+```bash
+jeryu repo connect-git
+```
+
+It should:
+
+* detect origin
+* create/update JeRyu mirror remote
+* verify auth
+* write repo-local `.jeryu/config.toml`
+* run a harmless mirror smoke test
+
+---
+
+# Agent and MCP upgrades
+
+The MCP tool manifest currently exposes capability-backed tools like `fetch_capsule`, `get_system_snapshot`, `explain_blockers`, `plan_validation`, `run_tests`, `propose_patch`, `race_patches`, and `request_merge`.  Capability intents similarly include patch/test/merge/system actions, but no direct Git command intent. 
+
+Add these actions to the action registry and MCP layer:
+
+```text
+git_plan_command
+git_execute_command
+git_replay_sidecar
+git_get_event
+git_list_events
+git_explain_divergence
+git_retry_mirror
+```
+
+But be careful: `git_execute_command` must be policy-gated. Agents should not get unrestricted shell-like Git access.
+
+Recommended agent policy:
+
+* Read-only Git commands: allowed.
+* Local mutation commands: require `agent_task`.
+* Network writes: require `agent_task` plus ref scope.
+* Destructive commands: require explicit destructive grant.
+* Merge/release-affecting commands: require merge/production approval.
+
+Update files:
+
+* `src/tui/action_registry.rs`
+* `src/mcp/tools.rs`
+* `src/capability.rs`
+* `src/admission.rs`
+* `docs/API.md`
+* `docs/ARCHITECTURE.md`
+
+---
+
+# Shadow migration plan
+
+I would not delete `shadow.rs` yet. I would convert it in stages.
+
+## Phase 1: Compatibility wrapper
+
+Keep:
+
+```bash
+jeryu shadow ...
+jeryu shadow-remote ...
+```
+
+But mark user-facing docs as legacy.
+
+Internally:
+
+* move shared Git execution to `src/git/system.rs`
+* make `shadow::push_remote` call the new Git mirror layer
+* stop adding new features to old shadow sync
+
+## Phase 2: Rename product surface
+
+Docs should say:
+
+* “JeRyu mirror remote,” not “shadow remote”
+* “mirror validation,” not “shadow pipeline”
+* “Git Command Mirror,” not “shadow Git”
+
+## Phase 3: Remove background sync loop
+
+`serve` currently spawns `shadow::run_shadow_loop`.  Once `jeryu git push` reliably triggers mirror validation, remove automatic polling sync or keep it only as recovery:
+
+```text
+git command event missed? background reconciler repairs mirror.
+```
+
+## Phase 4: Schema migration
+
+Migrate:
+
+```text
+shadow_sync_configs
+```
+
+to:
+
+```text
+git_mirror_targets
+git_mirror_jobs
+```
+
+Then make old commands aliases.
+
+---
+
+# TUI improvements
+
+The TUI is already a serious asset. It has a mission tab, release tab, jobs, agents, tests, pools, cache, evidence, secrets, command palette, event console, live logs, runner feeds, and demo fixtures.   Rendering is currently concentrated in `src/tui/ui.rs`, and the action registry is already the right foundation for policy-aware UI actions.  
+
+## Add a “Git Ops” tab
+
+This should become the most important tab for the new mission.
+
+Show:
+
+* latest Git commands
+* command class
+* actor: human, agent, CI, MCP
+* Git exit status
+* JeRyu sidecar status
+* mirror mode
+* origin remote status
+* JeRyu mirror status
+* triggered pipeline
+* VTI plan
+* evidence capsule link
+* divergence warnings
+
+Example row:
+
+```text
+12:04:31  push origin main   network-write  git:PASS  jeryu:RUNNING  mirror:after-success  pipeline:#8123
+12:02:10  commit -m fix      local-mutation git:PASS  jeryu:PASS     vti:planned          sha:9c3f2d4
+11:58:44  reset --hard       destructive    git:PASS  jeryu:OBSERVE  policy:human-tty
+```
+
+## Add Git command inspector
+
+On `Enter`, show:
+
+* full command
+* cwd/repo
+* before HEAD
+* after HEAD
+* branch
+* changed refs
+* remotes touched
+* output tails, redacted
+* sidecar timeline
+* runner jobs triggered
+* policy decision
+* agent grants
+
+## Add divergence banner
+
+Top signal should surface:
+
+```text
+Origin push succeeded, JeRyu mirror failed.
+Action: retry mirror sidecar, inspect credentials, or disable mirror for this repo.
+```
+
+This is exactly the kind of explainability that will make JeRyu feel trustworthy.
+
+## Split TUI files
+
+`src/tui/mod.rs` currently contains terminal setup, screenshot capture, PNG rendering, glyph drawing, run loop, cache maintenance, and helpers.  I would split:
+
+```text
+src/tui/
+  mod.rs
+  app.rs
+  events.rs
+  action_registry.rs
+  capture.rs
+  run_loop.rs
+  tabs/
+    mission.rs
+    release.rs
+    jobs.rs
+    agents.rs
+    tests.rs
+    pools.rs
+    cache.rs
+    evidence.rs
+    secrets.rs
+    git_ops.rs
+  widgets/
+    status_badge.rs
+    metric_tile.rs
+    event_console.rs
+    command_palette.rs
+    log_view.rs
+    git_event_table.rs
+```
+
+This keeps future extensibility without losing functionality.
+
+## Move cache maintenance out of TUI
+
+`run_tui` starts `cache_maintenance_loop`.  A dashboard launching maintenance side effects is surprising. The TUI should mostly observe by default.
+
+Better:
+
+* `serve` owns background maintenance.
+* TUI can show cache pressure.
+* TUI can offer an explicit action: `Run cache GC`.
+* That action goes through the action registry and policy confirmation.
+
+---
+
+# File-by-file change plan
+
+## P0: Git correctness and safety
+
+### Touch: `src/commands/git.rs`
+
+Replace with thin wrappers:
+
+* `execute_git_passthrough` calls `git::executor::run_passthrough`.
+* `execute_save`, `execute_sync`, `execute_undo`, `execute_ship` reuse the same Git event path.
+* No internal `std::process::exit`.
+* Propagate failures.
+
+Remove duplicated `git_path` lookup from every function.
+
+### Add: `src/git/mod.rs`
+
+Exports:
+
+```rust
+pub mod classify;
+pub mod display;
+pub mod event;
+pub mod executor;
+pub mod mirror;
+pub mod policy;
+pub mod system;
+```
+
+### Add: `src/git/system.rs`
+
+Central Git binary resolution.
+
+### Add: `src/git/classify.rs`
+
+Command classification.
+
+### Add: `src/git/event.rs`
+
+Typed event model.
+
+### Add: `src/git/executor.rs`
+
+Dual executor.
+
+### Add: `src/git/mirror.rs`
+
+Sidecar/mirror behavior.
+
+### Add: `src/git/policy.rs`
+
+Agent/human policy.
+
+### Touch: `src/lib.rs`
+
+Add:
+
+```rust
+pub mod git;
+```
+
+Update crate root docs away from “CI/CD Control Plane” only and toward “Git-compatible agent-native command plane.” Current crate root language still frames JeRyu primarily as a GitLab pipeline orchestrator. 
+
+### Touch: `src/dispatch.rs`
+
+Change Git command dispatch to return an exit code or structured outcome.
+
+### Touch: `src/main.rs`
+
+Make `main` own final process exit code.
+
+---
+
+## P1: State ledger
+
+### Touch: `src/state.rs`
+
+Add migrations and DB methods:
+
+* `record_git_command_started`
+* `record_git_command_finished`
+* `record_git_ref_updates`
+* `record_git_mirror_job_started`
+* `record_git_mirror_job_finished`
+* `list_recent_git_events`
+* `get_git_event`
+* `list_git_events_for_ref`
+* `list_git_divergences`
+
+### Add tests in `src/state.rs`
+
+* SQLite migration creates all new tables.
+* Postgres placeholder conversion still works.
+* event insert/update round trip.
+* mirror job round trip.
+* ref update round trip.
+
+---
+
+## P2: Settings and installer
+
+### Touch: `src/settings.rs`
+
+Add `GitSettings`.
+
+Keep `ShadowSettings` temporarily but mark deprecated.
+
+### Touch: `install.sh`
+
+Before installing JeRyu or telling the user to add the shim:
+
+* detect real Git path
+* write it to settings or tell user to export it
+* avoid relying on `/usr/bin/git`
+
+Also add Fish and PowerShell snippets later.
+
+### Touch: `README.md`
+
+Replace shell shim section with:
+
+* safe shim
+* how JeRyu avoids recursion
+* how to disable sidecar
+* how to run pure Git if needed
+
+---
+
+## P3: Shadow compatibility
+
+### Touch: `src/shadow.rs`
+
+* Replace all `Command::new("git")` with `git::system::SystemGit`.
+* Stop embedding PAT in process args if possible.
+* Record mirror jobs in the new ledger.
+* Rename display strings from `shadow` to `mirror` where user-facing.
+* Keep old CLI names as aliases.
+
+### Touch: `src/cli.rs`
+
+Add new command group:
+
+```rust
+GitMirror(GitMirrorCommands)
+```
+
+or:
+
+```bash
+jeryu mirror status
+jeryu mirror ensure
+jeryu mirror push
+jeryu mirror retry
+```
+
+Keep `shadow` hidden or deprecated.
+
+---
+
+## P4: Agent/MCP integration
+
+### Touch: `src/tui/action_registry.rs`
+
+Add:
+
+* `git_list_events`
+* `git_get_event`
+* `git_explain_divergence`
+* `git_retry_mirror`
+* `git_execute_readonly`
+* `git_execute_write`
+
+Map side effect classes correctly.
+
+### Touch: `src/capability.rs`
+
+Add:
+
+```rust
+AgentIntent::GitListEvents
+AgentIntent::GitGetEvent { event_id }
+AgentIntent::GitExplainDivergence { event_id }
+AgentIntent::GitRetryMirror { event_id }
+AgentIntent::GitExecute { args, cwd, mode }
+```
+
+Gate `GitExecute` hard.
+
+### Touch: `src/mcp/tools.rs`
+
+Expose safe Git tools first:
+
+* list events
+* get event
+* explain divergence
+* retry mirror sidecar
+
+Delay raw `git_execute` until policy is strong.
+
+---
+
+## P5: TUI Git Ops cockpit
+
+### Add: `src/tui/tabs/git_ops.rs`
+
+Render recent Git events.
+
+### Add: `src/tui/widgets/git_event_table.rs`
+
+Reusable table.
+
+### Touch: `src/tui/app.rs`
+
+Add:
+
+```rust
+pub git_events: Vec<GitCommandEventView>,
+pub selected_git_event_index: usize,
+pub git_divergence_count: usize,
+```
+
+### Touch: `src/tui/ui.rs`
+
+Either add tab rendering directly or split into tab modules.
+
+### Touch: `src/tui/action_registry.rs`
+
+Add TUI actions:
+
+* open Git event
+* retry mirror sidecar
+* copy ref
+* filter failures/divergence
+
+---
+
+# Test plan
+
+## Unit tests
+
+### `src/git/classify.rs`
+
+Add tests:
+
+```text
+status_is_read_only
+log_is_read_only
+diff_is_read_only
+add_is_local_mutation
+commit_is_local_mutation
+push_is_network_write
+fetch_is_network_read
+reset_soft_is_ref_mutation
+reset_hard_is_destructive
+clean_fdx_is_destructive
+unknown_command_is_unknown_observe_only
+```
+
+### `src/git/system.rs`
+
+Add tests:
+
+```text
+uses_jeryu_system_git_env
+settings_path_overrides_default
+rejects_jeryu_binary_as_system_git
+does_not_resolve_shell_function
+falls_back_to_path_git
+```
+
+### `src/commands/git.rs`
+
+Add tests with fake Git binary:
+
+```text
+passthrough_preserves_exit_code
+save_fails_when_add_fails
+save_fails_when_commit_fails
+sync_fails_when_pull_fails
+sync_fails_when_push_fails
+ship_fails_when_origin_push_fails
+ship_records_jeryu_sidecar_failure_without_claiming_full_success
+```
+
+### `src/shadow.rs`
+
+Add:
+
+```text
+push_remote_uses_configured_git
+push_remote_detached_head_requires_branch
+ensure_remote_idempotent
+push_refspec_is_correct
+mirror_push_records_failure
+```
+
+## Integration tests
+
+Create `tests/git_mirror.rs`.
+
+Use temporary directories:
+
+* local worktree
+* bare `origin.git`
+* bare `jeryu.git`
+* fake or real Git binary
+
+Tests:
+
+```text
+jeryu_git_status_matches_git_status
+jeryu_git_commit_records_event
+jeryu_git_push_origin_success_triggers_mirror_after_success
+origin_failure_does_not_mirror_in_after_success_mode
+parallel_mode_records_divergence_when_one_remote_fails
+no_jeryu_flag_runs_pure_git_and_records_nothing
+json_event_outputs_machine_readable_event
+```
+
+## Golden compatibility tests
+
+For common commands, assert `jeryu git <cmd>` behaves like `git <cmd>`:
+
+* exit code
+* stdout
+* stderr, except optional JeRyu diagnostics only when verbose mode enabled
+
+Commands:
+
+```text
+status
+log --oneline
+diff
+add
+commit
+branch
+checkout
+switch
+merge
+rebase
+fetch
+pull
+push
+tag
+rev-parse
+```
+
+## TUI tests
+
+* `jeryu tui --once` still renders.
+* `jeryu tui --capture --tab git-ops` renders.
+* Git divergence event appears in Git Ops tab.
+* Secrets are redacted in command output tails.
+* Command palette includes Git Ops actions.
+
+## Agent/MCP tests
+
+* `tools/list` contains Git event tools.
+* read-only Git tool does not require grant.
+* write Git tool requires grant.
+* destructive command is denied without destructive grant.
+* nonce/idempotency behavior still passes.
+
+---
+
+# Documentation changes
+
+## `MISSION.md`
+
+Add near the top:
+
+```md
+## North Star
+
+**JeRyu makes Git agent-native: every Git command becomes a typed, observable, policy-aware event that preserves Git compatibility while automatically launching the right AI, CI, evidence, cache, and safety workflows.**
+```
+
+Add a new section:
+
+```md
+## The Git Event Plane
+
+JeRyu does not ask users or agents to abandon Git first. It captures normal Git intent, preserves Git’s exact behavior, and attaches autonomous proof workflows to each command.
+```
+
+## `README.md`
+
+Change the promise from:
+
+```text
+Passthrough Layer
+Native Wrappers
+Dual-Use Sync
+```
+
+to:
+
+```text
+1. Compatibility: every Git command works.
+2. Observability: every Git command becomes a typed event.
+3. Automation: JeRyu sidecars trigger validation, agents, evidence, and policy.
+4. Replacement path: teams move from Git muscle memory to JeRyu-native workflows without breaking tools.
+```
+
+## `docs/ARCHITECTURE.md`
+
+Update Section 2 from “Git Compatibility Layer & Dual-Use Pipeline” to:
+
+```md
+## Git Event Plane & Command Mirror
+```
+
+Include:
+
+* command classification
+* mirror modes
+* event ledger
+* runner/agent triggers
+* divergence handling
+
+Also fix the TUI module map mismatch: docs mention `graph.rs`, but `src/tui/mod.rs` currently exposes `action_registry`, `app`, `events`, `flow`, and `ui`.  
+
+## `docs/API.md`
+
+Add Git event APIs:
+
+* list recent Git events
+* inspect Git event
+* retry mirror sidecar
+* explain divergence
+
+## `docs/JERYU_TUI.md`
+
+Add Git Ops tab docs.
+
+## `AGENTS.md`
+
+Add policy:
+
+* Agents should call `jeryu git …`, not raw `git`, unless explicitly bypassing JeRyu.
+* Destructive Git commands require grants.
+* Network writes must be scoped to allowed refs/remotes.
+
+---
+
+# Simplifications without loss of extensibility
+
+## 1. Collapse `ship`, `shadow push`, and Git push mirror into one engine
+
+Today:
+
+* `execute_ship` has separate origin/shadow push logic.
+* `shadow_remote push` has separate push logic.
+* `shadow_loop` has separate sync logic.
+
+Future:
+
+* all push-like behavior goes through `git::mirror`.
+
+This reduces bugs and makes future policies easier.
+
+## 2. Make action registry the one control surface
+
+The action registry is already a strong design.  Extend it to Git actions instead of scattering permissions across CLI/TUI/MCP.
+
+## 3. Move TUI screenshot/PNG code out of `mod.rs`
+
+This does not remove functionality. It makes the TUI easier to maintain and test.
+
+## 4. Keep GitLab-first, but stop making GitLab sound like the product
+
+The product is JeRyu’s Git/agent command plane. GitLab is the first execution substrate. This aligns with the current mission’s “GitLab is the first infrastructure substrate, not the product itself.” 
+
+## 5. Treat “shadow” as an implementation detail
+
+The user should think:
+
+```text
+Git command -> JeRyu mirror -> proof/agents/runners
+```
+
+Not:
+
+```text
+I must separately manage shadow Git.
+```
+
+---
+
+# Priority roadmap
+
+## P0: Trust and correctness
+
+Do first:
+
+* fix `execute_ship`
+* propagate Git failures
+* remove internal `std::process::exit`
+* resolve real Git safely
+* add command classification
+* add basic event ledger
+* add tests for exit compatibility
+
+## P1: Command Mirror MVP
+
+Implement:
+
+* `observe`
+* `after-success`
+* sidecar event recording
+* `push` mirror trigger
+* TUI summary of latest Git events
+
+## P2: Agent-aware Git
+
+Implement:
+
+* action registry Git actions
+* MCP Git event tools
+* capability-gated write/destructive Git commands
+
+## P3: TUI Git Ops
+
+Implement:
+
+* Git Ops tab
+* divergence inspector
+* retry mirror sidecar action
+* event filtering/search
+
+## P4: Shadow deprecation
+
+Implement:
+
+* migrate shadow settings/schema
+* hide/deprecate `shadow` commands
+* remove background shadow loop or make it recovery-only
+
+## P5: Public polish
+
+Implement:
+
+* mission rewrite
+* README rewrite
+* architecture diagrams
+* demo GIF/screenshot
+* “Why JeRyu over GitHub Actions/GitLab CI?” page
+* “AI agents should never call raw Git again” developer guide
+
+---
+
+# The key product decision
+
+The winning move is this:
+
+> **Do not ask users or agents to learn a new workflow first. Make normal Git commands become JeRyu events automatically.**
+
+That means `git push` should still feel like `git push`, but behind the scenes JeRyu should know:
+
+* who pushed
+* what changed
+* which refs moved
+* what validation is required
+* what can be skipped safely
+* which agent can help
+* which runner should start
+* what evidence proves the result
+* whether origin and JeRyu diverged
+
+Once that works, JeRyu stops being “a GitLab control plane with a Git wrapper” and becomes what the README is already reaching for: **the Git-compatible version control layer for the AI era.**
+

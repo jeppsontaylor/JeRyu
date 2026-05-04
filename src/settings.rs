@@ -18,6 +18,8 @@ use std::sync::OnceLock;
 pub struct Settings {
     pub gitlab: GitlabSettings,
     pub vault: VaultSettings,
+    pub git: GitSettings,
+    pub mirror: MirrorSettings,
     pub webhook: WebhookSettings,
     pub mcp: McpSettings,
     pub pool: PoolSettings,
@@ -115,6 +117,24 @@ pub struct ReleaseSettings {
     pub default_project_id: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GitSettings {
+    /// Optional explicit system git binary path.
+    pub system_git: Option<String>,
+    /// Default git execution mode for the event plane.
+    pub mode: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MirrorSettings {
+    /// Whether mirror pushes are enabled by default.
+    pub enabled: bool,
+    /// Preferred mirror remote name.
+    pub remote: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct ShadowSettings {
@@ -167,7 +187,25 @@ impl Default for VaultSettings {
             container_name: "jeryu-vault".into(),
             http_port: 18200,
             mount: "secret".into(),
-            prefix: "veox".into(),
+            prefix: "jeryu".into(),
+        }
+    }
+}
+
+impl Default for GitSettings {
+    fn default() -> Self {
+        Self {
+            system_git: None,
+            mode: "after_success".into(),
+        }
+    }
+}
+
+impl Default for MirrorSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            remote: "shadow".into(),
         }
     }
 }
@@ -265,14 +303,19 @@ pub fn load() -> Result<Settings> {
     }
 
     let raw = std::fs::read_to_string(&path)?;
-    let settings: Settings = serde_json::from_str(&raw).unwrap_or_else(|e| {
-        tracing::warn!(
-            path = %path.display(),
-            error = %e,
-            "settings.json parse error — using defaults"
-        );
-        Settings::default()
-    });
+    let settings: Settings = serde_json::from_str(&raw).map_err(|e| {
+        let backup = path.with_file_name(format!(
+            "settings.json.bad.{}",
+            chrono::Utc::now().format("%Y%m%dT%H%M%SZ")
+        ));
+        let _ = std::fs::copy(&path, &backup);
+        anyhow::anyhow!(
+            "settings.json parse error at {}: {} (backed up to {})",
+            path.display(),
+            e,
+            backup.display()
+        )
+    })?;
     Ok(settings)
 }
 
@@ -292,7 +335,7 @@ pub fn init() -> Result<()> {
 
 /// Access the process-wide settings. Panics if `init()` was not called.
 pub fn get() -> &'static Settings {
-    SETTINGS.get_or_init(|| load().unwrap_or_default())
+    SETTINGS.get_or_init(|| load().expect("failed to load settings.json"))
 }
 
 // ---------------------------------------------------------------------------
@@ -309,6 +352,8 @@ mod tests {
         let json = serde_json::to_string_pretty(&s).unwrap();
         let s2: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(s2.gitlab.http_port, 8929);
+        assert_eq!(s2.git.mode, "after_success");
+        assert_eq!(s2.mirror.remote, "shadow");
         assert_eq!(s2.webhook.bind, "127.0.0.1:9777");
         assert_eq!(s2.mcp.bind, "127.0.0.1:9778");
         assert_eq!(s2.pool.runner_shutdown_timeout_secs, 3600);

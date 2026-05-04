@@ -120,6 +120,75 @@ pub struct EventLog {
     pub payload: String, // JSON payload string
 }
 
+#[derive(Debug, Clone, FromRow, serde::Serialize)]
+pub struct GitCommandEventRecord {
+    pub id: i64,
+    pub request_id: String,
+    pub actor: String,
+    pub cwd: String,
+    pub repo_root: Option<String>,
+    pub argv_redacted: String,
+    pub argv_hash: String,
+    pub command_class: String,
+    pub risk: String,
+    pub mode: String,
+    pub before_head: Option<String>,
+    pub before_branch: Option<String>,
+    pub before_dirty: Option<i64>,
+    pub after_head: Option<String>,
+    pub after_branch: Option<String>,
+    pub after_dirty: Option<i64>,
+    pub exit_code: i32,
+    pub sidecar_status: String,
+    pub mirror_status: String,
+    pub created_at: String,
+    pub payload: String,
+}
+
+#[derive(Debug, Clone, FromRow, serde::Serialize)]
+pub struct GitRefUpdate {
+    pub id: i64,
+    pub request_id: String,
+    pub ref_name: String,
+    pub before_sha: Option<String>,
+    pub after_sha: Option<String>,
+    pub status: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, FromRow, serde::Serialize)]
+pub struct GitMirrorJob {
+    pub id: i64,
+    pub request_id: String,
+    pub remote_name: String,
+    pub branch_name: Option<String>,
+    pub status: String,
+    pub detail: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, FromRow, serde::Serialize)]
+pub struct GitRiskApproval {
+    pub id: i64,
+    pub request_id: String,
+    pub actor: String,
+    pub command_class: String,
+    pub risk: String,
+    pub approved: i64,
+    pub reason: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, FromRow, serde::Serialize)]
+pub struct GitCommandArtifact {
+    pub id: i64,
+    pub request_id: String,
+    pub artifact_kind: String,
+    pub artifact_path: String,
+    pub digest: String,
+    pub created_at: String,
+}
+
 #[derive(Debug, Clone, FromRow)]
 pub struct TrackedPipeline {
     pub pipeline_id: i64,
@@ -979,6 +1048,70 @@ impl Db {
                 decision         TEXT NOT NULL,
                 reason           TEXT NOT NULL,
                 created_at       TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS git_command_events (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_id      TEXT NOT NULL,
+                actor           TEXT NOT NULL,
+                cwd             TEXT NOT NULL,
+                repo_root       TEXT,
+                argv_redacted   TEXT NOT NULL,
+                argv_hash       TEXT NOT NULL,
+                command_class   TEXT NOT NULL,
+                risk            TEXT NOT NULL,
+                mode            TEXT NOT NULL,
+                before_head     TEXT,
+                before_branch   TEXT,
+                before_dirty    INTEGER,
+                after_head      TEXT,
+                after_branch    TEXT,
+                after_dirty     INTEGER,
+                exit_code       INTEGER NOT NULL,
+                sidecar_status  TEXT NOT NULL,
+                mirror_status   TEXT NOT NULL,
+                created_at      TEXT NOT NULL,
+                payload         TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS git_ref_updates (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_id      TEXT NOT NULL,
+                ref_name        TEXT NOT NULL,
+                before_sha      TEXT,
+                after_sha       TEXT,
+                status          TEXT NOT NULL,
+                created_at      TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS git_mirror_jobs (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_id      TEXT NOT NULL,
+                remote_name     TEXT NOT NULL,
+                branch_name     TEXT,
+                status          TEXT NOT NULL,
+                detail          TEXT NOT NULL,
+                created_at      TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS git_risk_approvals (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_id      TEXT NOT NULL,
+                actor           TEXT NOT NULL,
+                command_class   TEXT NOT NULL,
+                risk            TEXT NOT NULL,
+                approved        INTEGER NOT NULL DEFAULT 0,
+                reason          TEXT NOT NULL,
+                created_at      TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS git_command_artifacts (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_id      TEXT NOT NULL,
+                artifact_kind   TEXT NOT NULL,
+                artifact_path   TEXT NOT NULL,
+                digest          TEXT NOT NULL,
+                created_at      TEXT NOT NULL
             );
 
             CREATE TABLE IF NOT EXISTS shadow_sync_configs (
@@ -2425,6 +2558,149 @@ impl Db {
             .fetch_all(&self.pool)
             .await?;
         Ok(events)
+    }
+
+    pub async fn record_git_command_event(
+        &self,
+        event: &crate::git::event::GitCommandEvent,
+    ) -> Result<i64> {
+        let sql = self.sql(
+            r#"INSERT INTO git_command_events
+               (request_id, actor, cwd, repo_root, argv_redacted, argv_hash, command_class, risk, mode,
+                before_head, before_branch, before_dirty, after_head, after_branch, after_dirty,
+                exit_code, sidecar_status, mirror_status, created_at, payload)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               RETURNING id"#,
+        );
+        let payload = serde_json::to_string(event)?;
+        let argv_redacted = serde_json::to_string(&event.argv_redacted)?;
+        let before_dirty = event
+            .before
+            .dirty
+            .map(|dirty| if dirty { 1_i64 } else { 0_i64 });
+        let after_dirty = event.after.as_ref().and_then(|snapshot| {
+            snapshot
+                .dirty
+                .map(|dirty| if dirty { 1_i64 } else { 0_i64 })
+        });
+        let row: (i64,) = sqlx::query_as(&sql)
+            .bind(&event.request_id)
+            .bind(&event.actor)
+            .bind(&event.cwd)
+            .bind(&event.repo_root)
+            .bind(argv_redacted)
+            .bind(&event.argv_hash)
+            .bind(&event.class)
+            .bind(format!("{:?}", event.risk))
+            .bind(&event.mode)
+            .bind(&event.before.head)
+            .bind(&event.before.branch)
+            .bind(before_dirty)
+            .bind(
+                event
+                    .after
+                    .as_ref()
+                    .and_then(|snapshot| snapshot.head.clone()),
+            )
+            .bind(
+                event
+                    .after
+                    .as_ref()
+                    .and_then(|snapshot| snapshot.branch.clone()),
+            )
+            .bind(after_dirty)
+            .bind(event.exit_code)
+            .bind(&event.sidecar_status)
+            .bind(&event.mirror_status)
+            .bind(&event.created_at)
+            .bind(payload)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(row.0)
+    }
+
+    pub async fn recent_git_command_events(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<GitCommandEventRecord>> {
+        let sql = self.sql("SELECT * FROM git_command_events ORDER BY id DESC LIMIT ?");
+        let events = sqlx::query_as::<_, GitCommandEventRecord>(&sql)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(events)
+    }
+
+    pub async fn record_git_ref_update(&self, update: &GitRefUpdate) -> Result<i64> {
+        let sql = self.sql(
+            r#"INSERT INTO git_ref_updates
+               (request_id, ref_name, before_sha, after_sha, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?) RETURNING id"#,
+        );
+        let row: (i64,) = sqlx::query_as(&sql)
+            .bind(&update.request_id)
+            .bind(&update.ref_name)
+            .bind(&update.before_sha)
+            .bind(&update.after_sha)
+            .bind(&update.status)
+            .bind(&update.created_at)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(row.0)
+    }
+
+    pub async fn record_git_mirror_job(&self, job: &GitMirrorJob) -> Result<i64> {
+        let sql = self.sql(
+            r#"INSERT INTO git_mirror_jobs
+               (request_id, remote_name, branch_name, status, detail, created_at)
+               VALUES (?, ?, ?, ?, ?, ?) RETURNING id"#,
+        );
+        let row: (i64,) = sqlx::query_as(&sql)
+            .bind(&job.request_id)
+            .bind(&job.remote_name)
+            .bind(&job.branch_name)
+            .bind(&job.status)
+            .bind(&job.detail)
+            .bind(&job.created_at)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(row.0)
+    }
+
+    pub async fn record_git_risk_approval(&self, approval: &GitRiskApproval) -> Result<i64> {
+        let sql = self.sql(
+            r#"INSERT INTO git_risk_approvals
+               (request_id, actor, command_class, risk, approved, reason, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id"#,
+        );
+        let row: (i64,) = sqlx::query_as(&sql)
+            .bind(&approval.request_id)
+            .bind(&approval.actor)
+            .bind(&approval.command_class)
+            .bind(&approval.risk)
+            .bind(approval.approved)
+            .bind(&approval.reason)
+            .bind(&approval.created_at)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(row.0)
+    }
+
+    pub async fn record_git_command_artifact(&self, artifact: &GitCommandArtifact) -> Result<i64> {
+        let sql = self.sql(
+            r#"INSERT INTO git_command_artifacts
+               (request_id, artifact_kind, artifact_path, digest, created_at)
+               VALUES (?, ?, ?, ?, ?) RETURNING id"#,
+        );
+        let row: (i64,) = sqlx::query_as(&sql)
+            .bind(&artifact.request_id)
+            .bind(&artifact.artifact_kind)
+            .bind(&artifact.artifact_path)
+            .bind(&artifact.digest)
+            .bind(&artifact.created_at)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(row.0)
     }
 
     // -- Shadow Sync operations --------------------------------------------

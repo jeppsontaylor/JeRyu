@@ -8,6 +8,12 @@
 
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfigLoadMode {
+    Permissive,
+    FailClosed,
+}
+
 // ---------------------------------------------------------------------------
 // Paths
 // ---------------------------------------------------------------------------
@@ -186,7 +192,7 @@ pub const VAULT_HTTP_PORT: u16 = 18200;
 pub const POSTGRES_IMAGE: &str = "postgres:16-alpine";
 pub const POSTGRES_PORT: u16 = 15432;
 pub const VAULT_DEFAULT_MOUNT: &str = "secret";
-pub const VAULT_DEFAULT_PREFIX: &str = "veox";
+pub const VAULT_DEFAULT_PREFIX: &str = "jeryu";
 
 pub const CACHE_PROXY_PORT: u16 = 19800;
 pub const CACHE_REGISTRY_PORT: u16 = 19801;
@@ -613,16 +619,32 @@ pub fn load_jeryu_workspace_config<T: serde::de::DeserializeOwned + Default>(
     repo_root: &std::path::Path,
     filename: &str,
 ) -> T {
+    load_jeryu_workspace_config_with_mode(repo_root, filename, ConfigLoadMode::Permissive)
+}
+
+pub fn load_jeryu_workspace_config_with_mode<T: serde::de::DeserializeOwned + Default>(
+    repo_root: &std::path::Path,
+    filename: &str,
+    mode: ConfigLoadMode,
+) -> T {
     let path = repo_root.join(".jeryu").join(filename);
     if let Ok(contents) = std::fs::read_to_string(&path) {
-        toml::from_str(&contents).unwrap_or_else(|err| {
-            eprintln!(
-                "Warning: Failed to parse {}, using defaults: {}",
-                path.display(),
-                err
-            );
-            T::default()
-        })
+        match toml::from_str(&contents) {
+            Ok(value) => value,
+            Err(err) => match mode {
+                ConfigLoadMode::Permissive => {
+                    eprintln!(
+                        "Warning: Failed to parse {}, using defaults: {}",
+                        path.display(),
+                        err
+                    );
+                    T::default()
+                }
+                ConfigLoadMode::FailClosed => {
+                    panic!("Failed to parse {}: {}", path.display(), err)
+                }
+            },
+        }
     } else {
         T::default()
     }
