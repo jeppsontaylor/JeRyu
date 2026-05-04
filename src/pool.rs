@@ -106,6 +106,7 @@ async fn start_manager(db: &Db, docker: &DockerCtl, pool: &Pool, pool_name: &str
     );
     let config_content = config::render_runner_config(
         pool_name,
+        &manager_id,
         &gitlab_url,
         &pool.auth_token,
         &pool.executor,
@@ -413,6 +414,7 @@ pub async fn rotate_pool_token(
     for m in &managers {
         let config_content = config::render_runner_config(
             pool_name,
+            &m.id,
             &gitlab_url,
             &new_token,
             &pool.executor,

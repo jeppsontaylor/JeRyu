@@ -101,6 +101,32 @@ pub fn pool_cache_mount_path(executor: &str) -> &'static str {
     }
 }
 
+fn safe_builds_component(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect()
+}
+
+/// Manager-local GitLab Runner builds directory.
+///
+/// GitLab Runner may process multiple jobs with the same job name across
+/// concurrent pipelines. Keeping the runner root manager-unique prevents those
+/// jobs from sharing checkout state when a project also sets GIT_CLONE_PATH.
+pub fn manager_builds_dir(pool_name: &str, manager_id: &str) -> String {
+    format!(
+        "/builds/{}-{}",
+        safe_builds_component(pool_name),
+        safe_builds_component(manager_id)
+    )
+}
+
 /// Timeout, in seconds, used when waiting for runner managers to exit after SIGQUIT.
 /// The production default comes from settings, but CI/test runs use a shorter fallback
 /// unless an explicit override is provided.
@@ -416,6 +442,7 @@ services:
 
 pub fn render_runner_config(
     pool_name: &str,
+    manager_id: &str,
     gitlab_url: &str,
     token: &str,
     executor: &str,
@@ -424,6 +451,7 @@ pub fn render_runner_config(
     request_concurrency: i64,
 ) -> String {
     let pool_cache_mount = pool_cache_mount_path(executor);
+    let builds_dir = manager_builds_dir(pool_name, manager_id);
     let cargo_pre_build_script =
         crate::cargo_cache::render_runner_cargo_pre_build_script(pool_cache_mount, executor);
     let executor_block = match executor {
@@ -487,6 +515,7 @@ shutdown_timeout = 3600
   name = "jeryu-{pool_name}"
   url = "{gitlab_url}"
   token = "{token}"
+  builds_dir = "{builds_dir}"
   limit = {concurrent}
   request_concurrency = {request_concurrency}
   environment = [
@@ -506,6 +535,7 @@ shutdown_timeout = 3600
         concurrent = concurrent,
         gitlab_url = gitlab_url,
         token = token,
+        builds_dir = builds_dir,
         request_concurrency = request_concurrency,
         executor_block = executor_block,
         sccache_enabled = if crate::settings::get().sccache.enabled {
@@ -715,6 +745,7 @@ mod tests {
     fn test_render_runner_config() {
         let docker_cfg = render_runner_config(
             "default",
+            "manager-1",
             "http://gitlab.local",
             "token123",
             "docker",
@@ -724,6 +755,7 @@ mod tests {
         );
         assert!(docker_cfg.contains("name = \"jeryu-default\""));
         assert!(docker_cfg.contains("executor = \"docker\""));
+        assert!(docker_cfg.contains("builds_dir = \"/builds/default-manager-1\""));
         assert!(docker_cfg.contains("limit = 4"));
         assert!(docker_cfg.contains("privileged = false"));
         assert!(docker_cfg.contains("pull_policy = \"if-not-present\""));
@@ -755,6 +787,7 @@ mod tests {
 
         let build_cfg = render_runner_config(
             "build",
+            "manager-2",
             "http://gitlab.local",
             "token123",
             "docker",
@@ -767,6 +800,7 @@ mod tests {
 
         let custom_cfg = render_runner_config(
             "default",
+            "manager/with spaces",
             "http://gitlab.local",
             "token123",
             "custom",
@@ -775,10 +809,23 @@ mod tests {
             2,
         );
         assert!(custom_cfg.contains("executor = \"custom\""));
+        assert!(custom_cfg.contains("builds_dir = \"/builds/default-manager-with-spaces\""));
         assert!(custom_cfg.contains("config_args = [\"exec\", \"config\"]"));
         assert!(custom_cfg.contains("run_args = [\"exec\", \"run\"]"));
         assert!(custom_cfg.contains("JERYU_CARGO_CACHE_ROOT=/pool-cache"));
         assert!(!custom_cfg.contains("pre_build_script ="));
+    }
+
+    #[test]
+    fn manager_builds_dir_is_pool_and_manager_scoped() {
+        assert_eq!(
+            manager_builds_dir("build/pool", "manager 123"),
+            "/builds/build-pool-manager-123"
+        );
+        assert_ne!(
+            manager_builds_dir("build", "manager-a"),
+            manager_builds_dir("build", "manager-b")
+        );
     }
 
     #[test]
