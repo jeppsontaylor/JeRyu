@@ -522,7 +522,8 @@ async fn handle_pipeline_event(state: SharedState, payload: PipelineHookPayload)
 
 async fn check_scale_up(state: &EngineState) -> Result<()> {
     let pools = state.db.list_pools().await?;
-    let pending = state.db.count_pending_jobs().await?;
+    let queued = state.db.count_queued_jobs().await?;
+    let running = state.db.count_running_jobs().await?;
 
     for p in &pools {
         if p.paused {
@@ -530,19 +531,15 @@ async fn check_scale_up(state: &EngineState) -> Result<()> {
         }
 
         let active = state.db.count_active_managers(&p.name).await?;
-
-        let target = if pending > 0 {
-            p.max_managers.min(p.min_warm + pending)
-        } else {
-            p.min_warm
-        };
+        let target = desired_manager_target(p, queued, running);
 
         if active < target {
             info!(
                 pool = %p.name,
                 active,
                 target,
-                pending,
+                queued,
+                running,
                 min_warm = p.min_warm,
                 "scaling up to meet queue demand"
             );
@@ -1043,7 +1040,8 @@ async fn reconciliation_loop(state: SharedState) {
 
 async fn reconcile(state: &EngineState) -> Result<()> {
     let pools = state.db.list_pools().await?;
-    let pending = state.db.count_pending_jobs().await?;
+    let queued = state.db.count_queued_jobs().await?;
+    let running = state.db.count_running_jobs().await?;
 
     for p in &pools {
         if p.paused {
@@ -1054,20 +1052,16 @@ async fn reconcile(state: &EngineState) -> Result<()> {
             pool::reconcile_manager_runtime_state(&state.db, &state.docker, Some(&p.name)).await?;
         let active = state.db.count_active_managers(&p.name).await?;
 
-        // Calculate dynamic target based on queue depth
-        let target = if pending > 0 {
-            p.max_managers.min(p.min_warm + pending)
-        } else {
-            p.min_warm
-        };
+        let target = desired_manager_target(p, queued, running);
 
-        // Scale to our exact target (creates managers to meet demand, drains managers if queue is empty)
+        // Scale to our exact target without ignoring running jobs.
         if active != target {
             info!(
                 pool = %p.name,
                 active,
                 target,
-                pending,
+                queued,
+                running,
                 "reconciler: scaling pool"
             );
             pool::scale_pool_to(
@@ -1110,6 +1104,43 @@ async fn reconcile(state: &EngineState) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn desired_manager_target(pool: &crate::state::Pool, queued: i64, running: i64) -> i64 {
+    let queue_target = pool.min_warm.saturating_add(queued).max(pool.min_warm);
+    let active_work_target = queue_target.max(running);
+    active_work_target.clamp(pool.min_warm, pool.max_managers)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pool(min_warm: i64, max_managers: i64) -> crate::state::Pool {
+        crate::state::Pool {
+            name: "build".into(),
+            gitlab_runner_id: 1,
+            auth_token: "token".into(),
+            tags: "build".into(),
+            executor: "docker".into(),
+            min_warm,
+            max_managers,
+            concurrent: 8,
+            request_concurrency: 4,
+            paused: false,
+            trust_tier: "trusted".into(),
+        }
+    }
+
+    #[test]
+    fn desired_manager_target_accounts_for_running_jobs() {
+        let pool = pool(1, 3);
+
+        assert_eq!(desired_manager_target(&pool, 0, 0), 1);
+        assert_eq!(desired_manager_target(&pool, 1, 0), 2);
+        assert_eq!(desired_manager_target(&pool, 0, 3), 3);
+        assert_eq!(desired_manager_target(&pool, 4, 4), 3);
+    }
 }
 
 // ---------------------------------------------------------------------------

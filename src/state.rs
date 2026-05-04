@@ -1750,6 +1750,41 @@ impl Db {
         Ok(row.0)
     }
 
+    pub async fn count_latest_jobs_with_statuses(&self, statuses: &[&str]) -> Result<i64> {
+        if statuses.is_empty() {
+            return Ok(0);
+        }
+
+        let placeholders = std::iter::repeat_n("?", statuses.len())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = self.sql_owned(format!(
+            r#"SELECT COUNT(*)
+               FROM job_events current
+              WHERE current.status IN ({placeholders})
+                AND current.received_at = (
+                    SELECT MAX(latest.received_at)
+                      FROM job_events latest
+                     WHERE latest.job_id = current.job_id
+                )"#
+        ));
+        let mut query = sqlx::query_as::<_, (i64,)>(&sql);
+        for status in statuses {
+            query = query.bind(status);
+        }
+        let row = query.fetch_one(&self.pool).await?;
+        Ok(row.0)
+    }
+
+    pub async fn count_queued_jobs(&self) -> Result<i64> {
+        self.count_latest_jobs_with_statuses(&["created", "pending"])
+            .await
+    }
+
+    pub async fn count_running_jobs(&self) -> Result<i64> {
+        self.count_latest_jobs_with_statuses(&["running"]).await
+    }
+
     pub async fn clear_history(&self) -> Result<()> {
         sqlx::query("DELETE FROM job_events")
             .execute(&self.pool)
@@ -3670,6 +3705,77 @@ mod tests {
         db.upsert_job_event(&e_mod).await?;
 
         // 50 pending + 1 running = 51 total rows, but we only have a limited check.
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn latest_job_status_counts_exclude_superseded_events() -> Result<()> {
+        let db = setup_db().await?;
+
+        db.upsert_job_event(&JobEvent {
+            job_id: 1,
+            project_id: 100,
+            pipeline_id: Some(10),
+            status: "pending".into(),
+            job_name: None,
+            pool_name: None,
+            system_id: None,
+            queued_duration: None,
+            received_at: "2024-01-01T00:00:00Z".into(),
+        })
+        .await?;
+        db.upsert_job_event(&JobEvent {
+            job_id: 1,
+            project_id: 100,
+            pipeline_id: Some(10),
+            status: "running".into(),
+            job_name: None,
+            pool_name: Some("build".into()),
+            system_id: Some("sys-1".into()),
+            queued_duration: None,
+            received_at: "2024-01-01T00:01:00Z".into(),
+        })
+        .await?;
+        db.upsert_job_event(&JobEvent {
+            job_id: 2,
+            project_id: 100,
+            pipeline_id: Some(10),
+            status: "created".into(),
+            job_name: None,
+            pool_name: None,
+            system_id: None,
+            queued_duration: None,
+            received_at: "2024-01-01T00:02:00Z".into(),
+        })
+        .await?;
+        db.upsert_job_event(&JobEvent {
+            job_id: 3,
+            project_id: 100,
+            pipeline_id: Some(10),
+            status: "pending".into(),
+            job_name: None,
+            pool_name: None,
+            system_id: None,
+            queued_duration: None,
+            received_at: "2024-01-01T00:03:00Z".into(),
+        })
+        .await?;
+        db.upsert_job_event(&JobEvent {
+            job_id: 3,
+            project_id: 100,
+            pipeline_id: Some(10),
+            status: "failed".into(),
+            job_name: None,
+            pool_name: None,
+            system_id: None,
+            queued_duration: None,
+            received_at: "2024-01-01T00:04:00Z".into(),
+        })
+        .await?;
+
+        assert_eq!(db.count_queued_jobs().await?, 1);
+        assert_eq!(db.count_running_jobs().await?, 1);
 
         Ok(())
     }
