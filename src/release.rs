@@ -128,6 +128,24 @@ async fn sync_canary_artifacts(
             "deploy-canary-c-state.json",
         ),
         (
+            format!("ops/releases/{version}/release.json"),
+            "release.json",
+        ),
+        (
+            format!("ops/releases/{version}/release.json.sig"),
+            "release.json.sig",
+        ),
+        (
+            format!("ops/releases/{version}/release-contract.json"),
+            "release-contract.json",
+        ),
+        (format!("ops/releases/{version}/image.env"), "image.env"),
+        (
+            format!("ops/releases/{version}/payload-manifest.json"),
+            "payload-manifest.json",
+        ),
+        (format!("ops/releases/{version}/deks.env"), "deks.env"),
+        (
             format!("ops/releases/{version}/rendered/c-handoff.json"),
             "rendered/c-handoff.json",
         ),
@@ -138,9 +156,6 @@ async fn sync_canary_artifacts(
     ];
     for (artifact_path, local_name) in &artifacts {
         let dest = release_root.join(local_name);
-        if dest.is_file() {
-            continue;
-        }
         match client
             .job_artifact_file(project_id, canary_job.id, artifact_path)
             .await
@@ -896,44 +911,41 @@ fn parse_state_json(version: &str) -> Result<Option<serde_json::Value>> {
     Ok(Some(serde_json::from_str(&fs::read_to_string(path)?)?))
 }
 
-fn release_identity_ok(version: &str, expected_sha: &str) -> bool {
-    let release_json = release_dir(version).join("release.json");
-    let contract_json = release_dir(version).join("release-contract.json");
-    if !release_json.is_file() && !contract_json.is_file() {
-        return true;
-    }
-    if let Ok(raw) = fs::read_to_string(&release_json)
-        && let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw)
-    {
-        let sha_ok = value
-            .get("git_sha")
-            .and_then(|value| value.as_str())
-            .map(|value| value == expected_sha)
-            .unwrap_or(false);
-        let version_ok = value
+fn json_release_identity_ok(path: &Path, version: &str, expected_sha: &str) -> bool {
+    let Ok(raw) = fs::read_to_string(path) else {
+        return false;
+    };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return false;
+    };
+    value
+        .get("git_sha")
+        .and_then(|value| value.as_str())
+        .map(|value| value == expected_sha)
+        .unwrap_or(false)
+        && value
             .get("release_version")
             .and_then(|value| value.as_str())
             .map(|value| value == version)
-            .unwrap_or(false);
-        if sha_ok && version_ok {
-            return true;
-        }
-    }
-    if let Ok(raw) = fs::read_to_string(&contract_json)
-        && let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw)
-    {
-        return value
-            .get("git_sha")
-            .and_then(|value| value.as_str())
-            .map(|value| value == expected_sha)
             .unwrap_or(false)
-            && value
-                .get("release_version")
-                .and_then(|value| value.as_str())
-                .map(|value| value == version)
-                .unwrap_or(false);
-    }
-    false
+}
+
+fn release_lock_identity_ok(version: &str, expected_sha: &str) -> bool {
+    let Ok(raw) = fs::read_to_string(release_lock_path(version)) else {
+        return false;
+    };
+    let Ok(lock) = serde_json::from_str::<ReleaseLock>(&raw) else {
+        return false;
+    };
+    lock.product_sha == expected_sha && lock.release_version == version
+}
+
+fn release_identity_ok(version: &str, expected_sha: &str) -> bool {
+    let release_json = release_dir(version).join("release.json");
+    let contract_json = release_dir(version).join("release-contract.json");
+    release_lock_identity_ok(version, expected_sha)
+        && json_release_identity_ok(&release_json, version, expected_sha)
+        && json_release_identity_ok(&contract_json, version, expected_sha)
 }
 
 fn release_evidence(version: &str, expected_sha: &str) -> Result<ReleaseEvidence> {
@@ -2110,7 +2122,13 @@ pub async fn maybe_trigger_production_promotion(
         && let Some(release_pipeline_id) = view.attempt.release_pipeline_id
         && (!gate_canary_e2e_path(&view.attempt.version).is_file()
             || !c_handoff_path(&view.attempt.version).is_file()
-            || !c_validation_path(&view.attempt.version).is_file())
+            || !c_validation_path(&view.attempt.version).is_file()
+            || !release_dir(&view.attempt.version)
+                .join("release.json")
+                .is_file()
+            || !release_dir(&view.attempt.version)
+                .join("release-contract.json")
+                .is_file())
         && let Err(err) = sync_canary_artifacts(
             client,
             project_id,
@@ -2190,8 +2208,12 @@ async fn production_promotion_pipeline_id(
         .list_pipelines(project_id, Some(ref_name))
         .await?
         .into_iter()
-        .filter(|pipeline| pipeline.sha == sha)
     {
+        if !pipeline_matches_release_sha(client, project_id, pipeline.id, &pipeline.sha, sha)
+            .await?
+        {
+            continue;
+        }
         let jobs = aggregate_pipeline_jobs(
             client
                 .list_pipeline_jobs_with_downstream(project_id, pipeline.id)
@@ -2205,6 +2227,38 @@ async fn production_promotion_pipeline_id(
         }
     }
     Ok(None)
+}
+
+async fn pipeline_matches_release_sha(
+    client: &GitlabClient,
+    project_id: i64,
+    pipeline_id: i64,
+    pipeline_sha: &str,
+    release_sha: &str,
+) -> Result<bool> {
+    if pipeline_sha == release_sha {
+        return Ok(true);
+    }
+    match client
+        .list_pipeline_variables(project_id, pipeline_id)
+        .await
+    {
+        Ok(variables) => Ok(variables.iter().any(|variable| {
+            matches!(
+                variable.key.as_str(),
+                "SHADOW_RELEASE_SHA" | "JERYU_RELEASE_SHA"
+            ) && variable.value == release_sha
+        })),
+        Err(err) => {
+            warn!(
+                project_id,
+                pipeline_id,
+                error = %err,
+                "could not inspect pipeline variables while checking production promotion"
+            );
+            Ok(false)
+        }
+    }
 }
 
 pub fn render_pipeline_explain_text(report: &PipelineExplainReport) -> String {

@@ -108,6 +108,12 @@ pub struct PipelineBridge {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct PipelineVariableValue {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct PipelineRef {
     pub id: i64,
     pub sha: Option<String>,
@@ -1009,6 +1015,24 @@ impl GitlabClient {
         }
         let pipelines: Vec<Pipeline> = self.get_paginated_json(&path, &pat).await?;
         Ok(pipelines)
+    }
+
+    pub async fn list_pipeline_variables(
+        &self,
+        project_id: i64,
+        pipeline_id: i64,
+    ) -> Result<Vec<PipelineVariableValue>> {
+        let pat = self.pat_value()?;
+        let variables: Vec<PipelineVariableValue> = self
+            .get_paginated_json(
+                &format!(
+                    "/projects/{}/pipelines/{}/variables",
+                    project_id, pipeline_id
+                ),
+                &pat,
+            )
+            .await?;
+        Ok(variables)
     }
 
     pub async fn list_pipeline_jobs(&self, project_id: i64, pipeline_id: i64) -> Result<Vec<Job>> {
