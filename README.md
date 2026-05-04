@@ -17,6 +17,8 @@
 
 `JeRyu` is a single-binary Rust control plane that wraps Git first, then adds agent-aware CI/CD tooling, smart test selection, runner orchestration, and remote server management.
 
+Mission: [`docs/MISSION.md`](docs/MISSION.md)
+
 ![JeRyu install demo](assets/install-demo.gif)
 
 Full install guide: [`docs/INSTALL.md`](docs/INSTALL.md)
