@@ -2237,7 +2237,7 @@ impl Db {
                SET release_pipeline_status = ?,
                    canary_status = ?,
                    canary_finished_at = CASE
-                       WHEN ? IN ('success', 'failed', 'canceled') THEN ?
+                       WHEN ? IN ('success', 'failed', 'canceled', 'skipped') THEN ?
                        ELSE canary_finished_at
                    END,
                    updated_at = ?
@@ -2246,7 +2246,7 @@ impl Db {
         .bind(status)
         .bind(match status {
             "success" => "passed",
-            "failed" | "canceled" => "failed",
+            "failed" | "canceled" | "skipped" => "failed",
             _ => "running",
         })
         .bind(status)

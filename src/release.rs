@@ -2222,7 +2222,10 @@ async fn production_promotion_pipeline_id(
         let Some(job) = jobs.get("promote-production-final") else {
             continue;
         };
-        if !matches!(job.status.as_str(), "failed" | "canceled") {
+        if matches!(
+            job.status.as_str(),
+            "created" | "pending" | "running" | "success"
+        ) {
             return Ok(Some(pipeline.id));
         }
     }
@@ -3014,7 +3017,7 @@ pub async fn launch_canary_for_green_pipeline(
             "upstream registry image handoff found; canary will skip enclave rebuild"
         );
     }
-    let release_pipeline_id = client
+    let release_pipeline_id = match client
         .trigger_pipeline(project_id, ref_name, {
             let mut variables = vec![
                 ("CI_PIPELINE_PRODUCT", "release-execution"),
@@ -3037,7 +3040,16 @@ pub async fn launch_canary_for_green_pipeline(
             variables
         })
         .await
-        .with_context(|| format!("trigger release-execution pipeline for {sha}"))?;
+    {
+        Ok(pipeline_id) => pipeline_id,
+        Err(err) => {
+            let note = format!("release-execution trigger failed before attach: {err}");
+            db.finish_release_canary(project_id, ref_name, sha, "failed", Some(&note))
+                .await?;
+            return Err(err)
+                .with_context(|| format!("trigger release-execution pipeline for {sha}"));
+        }
+    };
 
     let _ = db
         .upsert_tracked_pipeline(&crate::state::TrackedPipeline {

@@ -448,7 +448,9 @@ async fn handle_pipeline_event(state: SharedState, payload: PipelineHookPayload)
                         );
                     }
                 });
-            } else if ref_name == "main" && matches!(status.as_str(), "failed" | "canceled") {
+            } else if ref_name == "main"
+                && matches!(status.as_str(), "failed" | "canceled" | "skipped")
+            {
                 match state
                     .db
                     .release_attempt_by_release_pipeline_id(pipeline_id)
