@@ -2150,7 +2150,9 @@ impl Db {
         let result = sqlx::query(
             r#"UPDATE release_attempts
                SET canary_status = 'running',
-                   canary_started_at = COALESCE(canary_started_at, ?),
+                   canary_started_at = ?,
+                   canary_finished_at = NULL,
+                   canary_note = NULL,
                    updated_at = ?
                WHERE project_id = ? AND ref_name = ? AND sha = ?
                  AND canary_status NOT IN ('running', 'passed')"#,
@@ -2208,6 +2210,8 @@ impl Db {
                SET release_pipeline_id = ?,
                    release_pipeline_status = ?,
                    canary_status = 'running',
+                   canary_finished_at = NULL,
+                   canary_note = NULL,
                    updated_at = ?
                WHERE project_id = ? AND ref_name = ? AND sha = ?"#,
         )
