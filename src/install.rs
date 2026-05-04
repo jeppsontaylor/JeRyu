@@ -2,9 +2,9 @@
 //! Proof: `cargo test -p jeryu -- install`
 //! Invariants: Local installs remain user-space by default, avoid shell mutations unless requested, and never require sudo for the default path.
 
-use anyhow::{bail, Context, Result};
-use clap::ValueEnum;
+use anyhow::{Context, Result, bail};
 use chrono::Utc;
+use clap::ValueEnum;
 use serde::Serialize;
 use std::env;
 use std::fs::{self, OpenOptions};
@@ -195,7 +195,10 @@ fn path_contains_dir(dir: &Path) -> bool {
 
 fn shell_profile_path(shell: Option<&str>) -> Option<PathBuf> {
     let shell = shell?;
-    let name = Path::new(shell).file_name()?.to_string_lossy().to_ascii_lowercase();
+    let name = Path::new(shell)
+        .file_name()?
+        .to_string_lossy()
+        .to_ascii_lowercase();
     let home = dirs::home_dir()?;
     match name.as_str() {
         "bash" => Some(home.join(".bashrc")),
@@ -208,7 +211,13 @@ fn shell_profile_path(shell: Option<&str>) -> Option<PathBuf> {
 fn path_snippet(prefix: &Path, shell: Option<&str>) -> String {
     let path = prefix.display();
     match shell
-        .map(|value| Path::new(value).file_name().unwrap_or_default().to_string_lossy().to_ascii_lowercase())
+        .map(|value| {
+            Path::new(value)
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_ascii_lowercase()
+        })
         .as_deref()
     {
         Some("fish") => format!(
@@ -253,7 +262,10 @@ fn build_plan(mode: &str, opts: &InstallOptions) -> InstallPlan {
             id: "install-binary".into(),
             label: "replace the binary atomically".into(),
             detail: format!("copy {} -> {}", source, target.display()),
-            command: Some(format!("install -m 0755 <current-exe> {}", target.display())),
+            command: Some(format!(
+                "install -m 0755 <current-exe> {}",
+                target.display()
+            )),
             requires_sudo: false,
             estimated_seconds: Some(2),
         },
@@ -329,7 +341,7 @@ fn should_interactive(mode: InteractiveMode) -> bool {
     match mode {
         InteractiveMode::Always => true,
         InteractiveMode::Never => false,
-        InteractiveMode::Auto => io::stdout().is_terminal(),
+        InteractiveMode::Auto => io::stdin().is_terminal(),
     }
 }
 
@@ -361,7 +373,14 @@ fn render_plan(plan: &InstallPlan) {
         plan.platform.arch,
         if plan.platform.tty { " / tty" } else { "" }
     );
-    println!("  PATH: {}", if plan.platform.in_path { "already on PATH" } else { "not on PATH" });
+    println!(
+        "  PATH: {}",
+        if plan.platform.in_path {
+            "already on PATH"
+        } else {
+            "not on PATH"
+        }
+    );
     for step in &plan.steps {
         let label = if step.requires_sudo {
             status_label(color, "WARN", "33;1")
@@ -369,7 +388,9 @@ fn render_plan(plan: &InstallPlan) {
             status_label(color, "RUN", "36;1")
         };
         println!("  {} {} - {}", label, step.label, step.detail);
-        if plan.verbose && let Some(command) = &step.command {
+        if plan.verbose
+            && let Some(command) = &step.command
+        {
             println!("      {}", command);
         }
     }
@@ -405,7 +426,10 @@ fn prompt_for_confirmation(_plan: &InstallPlan, opts: &InstallOptions) -> Result
     io::stdin()
         .read_line(&mut input)
         .context("reading confirmation")?;
-    Ok(matches!(input.trim().to_ascii_lowercase().as_str(), "y" | "yes"))
+    Ok(matches!(
+        input.trim().to_ascii_lowercase().as_str(),
+        "y" | "yes"
+    ))
 }
 
 fn friendly_retry(binary: &Path) -> String {
@@ -427,9 +451,7 @@ async fn install_local(opts: &InstallOptions) -> Result<i32> {
         && !plan.platform.in_path
         && shell_profile_path(plan.platform.shell.as_deref()).is_none()
     {
-        bail!(
-            "--path-mode update requires a supported shell profile (bash, zsh, or fish)"
-        );
+        bail!("--path-mode update requires a supported shell profile (bash, zsh, or fish)");
     }
     if !prompt_for_confirmation(&plan, opts)? {
         bail!("install cancelled");
@@ -492,7 +514,10 @@ async fn doctor(opts: &InstallOptions) -> Result<i32> {
         bail!("installed binary not found: {}", report.binary);
     }
     if !report.version_ok {
-        bail!("installed binary did not respond to --version: {}", friendly_retry(&target));
+        bail!(
+            "installed binary did not respond to --version: {}",
+            friendly_retry(&target)
+        );
     }
     Ok(0)
 }
@@ -875,7 +900,9 @@ mod tests {
     #[test]
     fn path_snippets_are_shell_specific() {
         assert!(path_snippet(Path::new("/tmp/bin"), Some("/bin/bash")).contains("export PATH"));
-        assert!(path_snippet(Path::new("/tmp/bin"), Some("/usr/bin/fish")).contains("set -gx PATH"));
+        assert!(
+            path_snippet(Path::new("/tmp/bin"), Some("/usr/bin/fish")).contains("set -gx PATH")
+        );
     }
 
     #[test]

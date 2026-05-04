@@ -108,7 +108,10 @@ fn demo_frames() -> Vec<FrameSpec> {
                 line("PLAN  local install on macOS or Linux", MUTED),
                 line("RUN   replace ~/.jeryu/bin/jeryu atomically", MUTED),
                 line("OK    verify jeryu --version", GREEN),
-                line("OK    shell profile stays untouched unless requested", GREEN),
+                line(
+                    "OK    shell profile stays untouched unless requested",
+                    GREEN,
+                ),
             ],
         },
         FrameSpec {

@@ -2,9 +2,9 @@
 //! Proof: `cargo test -p jeryu -- remote`
 //! Invariants: Remote install dry-runs stay side-effect free; network mutations happen only after confirmation.
 
-use anyhow::{bail, Context, Result};
-use clap::ValueEnum;
+use anyhow::{Context, Result, bail};
 use chrono::Utc;
+use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
@@ -15,7 +15,7 @@ use std::time::Instant;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
-use crate::install::{expand_tilde, ColorMode, InteractiveMode};
+use crate::install::{ColorMode, InteractiveMode, expand_tilde};
 
 const DEFAULT_REMOTE_PREFIX: &str = "~/.jeryu";
 const DEFAULT_REMOTE_BIN: &str = "~/.jeryu/bin/jeryu";
@@ -25,11 +25,17 @@ const DEFAULT_VAULT_PORT: u16 = 18200;
 const DEFAULT_WEBHOOK_PORT: u16 = 9777;
 const DEFAULT_SSH_PORT_NUMBER: u16 = 22;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, ValueEnum)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, ValueEnum)]
 pub enum ServiceMode {
     Auto,
     User,
     Manual,
+}
+
+impl Default for ServiceMode {
+    fn default() -> Self {
+        Self::Auto
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,6 +51,8 @@ pub struct RemoteConfig {
     pub local_vault_port: u16,
     pub local_webhook_port: u16,
     pub created_at_utc: String,
+    #[serde(default)]
+    pub service_mode: ServiceMode,
 }
 
 #[derive(Debug, Clone)]
@@ -181,6 +189,7 @@ pub async fn execute_remote(action: RemoteAction, opts: RemoteCommonOptions) -> 
                 local_vault_port: DEFAULT_VAULT_PORT,
                 local_webhook_port: DEFAULT_WEBHOOK_PORT,
                 created_at_utc: Utc::now().to_rfc3339(),
+                service_mode: ServiceMode::Auto,
             };
             remote_install(cfg, setup_key, &opts).await
         }
@@ -300,7 +309,7 @@ fn should_interactive(mode: InteractiveMode) -> bool {
     match mode {
         InteractiveMode::Always => true,
         InteractiveMode::Never => false,
-        InteractiveMode::Auto => io::stdout().is_terminal(),
+        InteractiveMode::Auto => io::stdin().is_terminal(),
     }
 }
 
@@ -316,7 +325,11 @@ fn status_label(enabled: bool, label: &str, code: &str) -> String {
     format!("[{}]", color_text(enabled, code, label))
 }
 
-fn build_remote_plan(cfg: &RemoteConfig, setup_key: bool, opts: &RemoteCommonOptions) -> RemoteInstallPlan {
+fn build_remote_plan(
+    cfg: &RemoteConfig,
+    setup_key: bool,
+    opts: &RemoteCommonOptions,
+) -> RemoteInstallPlan {
     let preflight = RemotePreflight {
         local_ssh: command_exists("ssh"),
         local_ssh_keygen: command_exists("ssh-keygen"),
@@ -353,7 +366,10 @@ fn build_remote_plan(cfg: &RemoteConfig, setup_key: bool, opts: &RemoteCommonOpt
         },
     ];
     let service_detail = match opts.service_mode {
-        ServiceMode::Auto => "enable a user systemd unit when available, otherwise print manual serve guidance".to_string(),
+        ServiceMode::Auto => {
+            "enable a user systemd unit when available, otherwise print manual serve guidance"
+                .to_string()
+        }
         ServiceMode::User => "force user systemd setup".to_string(),
         ServiceMode::Manual => "skip systemd and print manual serve guidance".to_string(),
     };
@@ -361,7 +377,9 @@ fn build_remote_plan(cfg: &RemoteConfig, setup_key: bool, opts: &RemoteCommonOpt
         id: "service".into(),
         label: "configure the remote service".into(),
         detail: service_detail,
-        command: Some("systemctl --user enable --now jeryu.service || print manual instructions".into()),
+        command: Some(
+            "systemctl --user enable --now jeryu.service || print manual instructions".into(),
+        ),
         requires_network: true,
         estimated_seconds: Some(2),
     });
@@ -397,6 +415,35 @@ fn build_remote_plan(cfg: &RemoteConfig, setup_key: bool, opts: &RemoteCommonOpt
     }
 }
 
+fn effective_service_mode(
+    requested: ServiceMode,
+    remote_systemd_user: Option<bool>,
+) -> ServiceMode {
+    match requested {
+        ServiceMode::Auto => {
+            if remote_systemd_user.unwrap_or(false) {
+                ServiceMode::User
+            } else {
+                ServiceMode::Manual
+            }
+        }
+        mode => mode,
+    }
+}
+
+async fn resolve_service_mode(cfg: &RemoteConfig) -> Result<ServiceMode> {
+    match cfg.service_mode {
+        ServiceMode::Auto => {
+            let preflight = probe_remote(cfg).await?;
+            Ok(effective_service_mode(
+                ServiceMode::Auto,
+                preflight.remote_systemd_user,
+            ))
+        }
+        mode => Ok(mode),
+    }
+}
+
 fn render_remote_plan(plan: &RemoteInstallPlan) {
     let color = should_colorize(plan.color, plan.json);
     println!(
@@ -410,10 +457,21 @@ fn render_remote_plan(plan: &RemoteInstallPlan) {
     println!("  prefix: {}", plan.remote_prefix);
     println!("  service mode: {:?}", plan.service_mode);
     println!("  setup key: {}", plan.setup_key);
-    println!("  local ssh: {}", if plan.preflight.local_ssh { "yes" } else { "no" });
+    println!(
+        "  local ssh: {}",
+        if plan.preflight.local_ssh {
+            "yes"
+        } else {
+            "no"
+        }
+    );
     println!(
         "  local ssh-keygen: {}",
-        if plan.preflight.local_ssh_keygen { "yes" } else { "no" }
+        if plan.preflight.local_ssh_keygen {
+            "yes"
+        } else {
+            "no"
+        }
     );
     for step in &plan.steps {
         let label = if step.requires_network {
@@ -422,7 +480,9 @@ fn render_remote_plan(plan: &RemoteInstallPlan) {
             status_label(color, "OK", "32;1")
         };
         println!("  {} {} - {}", label, step.label, step.detail);
-        if plan.verbose && let Some(command) = &step.command {
+        if plan.verbose
+            && let Some(command) = &step.command
+        {
             println!("      {}", command);
         }
     }
@@ -442,7 +502,10 @@ fn remote_confirmation(plan: &RemoteInstallPlan, opts: &RemoteCommonOptions) -> 
     io::stdin()
         .read_line(&mut input)
         .context("reading confirmation")?;
-    Ok(matches!(input.trim().to_ascii_lowercase().as_str(), "y" | "yes"))
+    Ok(matches!(
+        input.trim().to_ascii_lowercase().as_str(),
+        "y" | "yes"
+    ))
 }
 
 fn current_exe_string() -> String {
@@ -484,22 +547,17 @@ async fn remote_install(
     if !plan.preflight.local_ssh || !plan.preflight.local_ssh_keygen {
         bail!("ssh and ssh-keygen are required for remote install");
     }
-    ensure_remote_key(&cfg, setup_key).await?;
     let preflight = probe_remote(&cfg).await?;
     if opts.verbose {
         println!("remote probe: {:?}", preflight);
     }
+    ensure_remote_key(&cfg, setup_key).await?;
     upload_current_binary(&cfg).await?;
     run_remote_binary(&cfg, &["--version"], false).await?;
     remote_bootstrap(&cfg).await?;
-    match opts.service_mode {
-        ServiceMode::Auto => {
-            if preflight.remote_systemd_user.unwrap_or(false) {
-                ensure_remote_service(&cfg).await?;
-            } else {
-                print_manual_service_guidance(&cfg);
-            }
-        }
+    let mut cfg = cfg;
+    cfg.service_mode = effective_service_mode(opts.service_mode, preflight.remote_systemd_user);
+    match cfg.service_mode {
         ServiceMode::User => {
             if !preflight.remote_systemd_user.unwrap_or(false) {
                 bail!("remote host does not expose systemd --user");
@@ -509,6 +567,7 @@ async fn remote_install(
         ServiceMode::Manual => {
             print_manual_service_guidance(&cfg);
         }
+        ServiceMode::Auto => unreachable!("effective service mode should not remain Auto"),
     }
     save_remote_config(&cfg)?;
     println!("remote host ready: {} ({})", cfg.alias, cfg.target);
@@ -532,8 +591,17 @@ async fn remote_update(cfg: &RemoteConfig, opts: &RemoteCommonOptions) -> Result
         return Ok(0);
     }
     upload_current_binary(cfg).await?;
-    ensure_remote_service(cfg).await?;
-    remote_service(cfg, "restart", opts).await
+    match resolve_service_mode(cfg).await? {
+        ServiceMode::User => {
+            ensure_remote_service(cfg).await?;
+            remote_service(cfg, "restart", opts).await
+        }
+        ServiceMode::Manual => {
+            print_manual_service_guidance(cfg);
+            Ok(0)
+        }
+        ServiceMode::Auto => unreachable!("resolved service mode should never be Auto"),
+    }
 }
 
 async fn remote_doctor(cfg: &RemoteConfig, opts: &RemoteCommonOptions) -> Result<i32> {
@@ -586,8 +654,16 @@ async fn remote_logs(cfg: &RemoteConfig, opts: &RemoteCommonOptions) -> Result<i
             }))?
         );
     }
-    let cmd = "journalctl --user -u jeryu -n 100 --no-pager";
-    run_remote_shell(cfg, cmd, opts.dry_run).await?;
+    match resolve_service_mode(cfg).await? {
+        ServiceMode::User => {
+            let cmd = "journalctl --user -u jeryu -n 100 --no-pager";
+            run_remote_shell(cfg, cmd, opts.dry_run).await?;
+        }
+        ServiceMode::Manual => {
+            bail!("remote host uses manual service mode; there is no systemd journal to tail");
+        }
+        ServiceMode::Auto => unreachable!("resolved service mode should never be Auto"),
+    }
     Ok(0)
 }
 
@@ -596,8 +672,19 @@ async fn remote_service(
     action: &str,
     opts: &RemoteCommonOptions,
 ) -> Result<i32> {
-    let cmd = format!("systemctl --user {action} jeryu.service");
-    run_remote_shell(cfg, &cmd, opts.dry_run).await?;
+    match resolve_service_mode(cfg).await? {
+        ServiceMode::User => {
+            let cmd = format!("systemctl --user {action} jeryu.service");
+            run_remote_shell(cfg, &cmd, opts.dry_run).await?;
+        }
+        ServiceMode::Manual => {
+            bail!(
+                "remote host uses manual service mode; use '{}' serve over ssh instead",
+                cfg.remote_bin
+            );
+        }
+        ServiceMode::Auto => unreachable!("resolved service mode should never be Auto"),
+    }
     Ok(0)
 }
 
@@ -711,8 +798,17 @@ async fn remote_uninstall(cfg: &RemoteConfig, opts: &RemoteCommonOptions) -> Res
     if opts.dry_run {
         return Ok(0);
     }
-    let cmd = "systemctl --user disable --now jeryu.service >/dev/null 2>&1 || true; rm -f \"$HOME/.jeryu/bin/jeryu\" \"$HOME/.config/systemd/user/jeryu.service\"; systemctl --user daemon-reload";
-    run_remote_shell(cfg, &cmd, false).await?;
+    match resolve_service_mode(cfg).await? {
+        ServiceMode::User => {
+            let cmd = "systemctl --user disable --now jeryu.service >/dev/null 2>&1 || true; rm -f \"$HOME/.jeryu/bin/jeryu\" \"$HOME/.config/systemd/user/jeryu.service\"; systemctl --user daemon-reload";
+            run_remote_shell(cfg, &cmd, false).await?;
+        }
+        ServiceMode::Manual => {
+            let cmd = "rm -f \"$HOME/.jeryu/bin/jeryu\"";
+            run_remote_shell(cfg, &cmd, false).await?;
+        }
+        ServiceMode::Auto => unreachable!("resolved service mode should never be Auto"),
+    }
     let _ = fs::remove_file(config_path(&cfg.alias));
     Ok(0)
 }
@@ -721,7 +817,10 @@ async fn probe_remote(cfg: &RemoteConfig) -> Result<RemotePreflight> {
     let remote_os = run_remote_shell_capture(cfg, "uname -s").await?;
     let remote_arch = run_remote_shell_capture(cfg, "uname -m").await?;
     let docker_ready = run_remote_shell_status(cfg, "docker info >/dev/null 2>&1").await?;
-    let systemd_user = run_remote_shell_status(cfg, "systemctl --user is-system-running >/dev/null 2>&1").await.ok();
+    let systemd_user =
+        run_remote_shell_status(cfg, "systemctl --user is-system-running >/dev/null 2>&1")
+            .await
+            .ok();
     let disk_free_gb = run_remote_shell_capture(
         cfg,
         "df -Pk \"$HOME\" | awk 'NR==2 { printf \"%.2f\", $4 / 1024 / 1024 }'",
@@ -742,6 +841,10 @@ async fn probe_remote(cfg: &RemoteConfig) -> Result<RemotePreflight> {
 async fn remote_bootstrap(cfg: &RemoteConfig) -> Result<()> {
     let _ = run_remote_binary(cfg, &["init"], false).await?;
     Ok(())
+}
+
+async fn manual_service_active(cfg: &RemoteConfig) -> Result<bool> {
+    run_remote_shell_status(cfg, "pgrep -f 'jeryu serve' >/dev/null 2>&1").await
 }
 
 async fn ensure_remote_service(cfg: &RemoteConfig) -> Result<()> {
@@ -771,8 +874,13 @@ WantedBy=default.target
 async fn collect_report(cfg: &RemoteConfig) -> Result<RemoteReport> {
     let binary_output = run_remote_binary(cfg, &["--version"], true).await?;
     let docker_ready = run_remote_shell_status(cfg, "docker info >/dev/null 2>&1").await?;
-    let service_active =
-        run_remote_shell_status(cfg, "systemctl --user is-active jeryu.service").await?;
+    let service_active = match resolve_service_mode(cfg).await? {
+        ServiceMode::User => {
+            run_remote_shell_status(cfg, "systemctl --user is-active jeryu.service").await?
+        }
+        ServiceMode::Manual => manual_service_active(cfg).await?,
+        ServiceMode::Auto => unreachable!("resolved service mode should never be Auto"),
+    };
     Ok(RemoteReport {
         alias: cfg.alias.clone(),
         target: cfg.target.clone(),
@@ -951,10 +1059,12 @@ mod tests {
             local_vault_port: DEFAULT_VAULT_PORT,
             local_webhook_port: DEFAULT_WEBHOOK_PORT,
             created_at_utc: "2026-05-04T00:00:00Z".into(),
+            service_mode: ServiceMode::Auto,
         };
         let text = toml::to_string_pretty(&cfg).unwrap();
         assert!(text.contains("remote_bin"));
         assert!(text.contains("~/.jeryu/bin/jeryu"));
+        assert!(text.contains("service_mode"));
     }
 
     #[test]
@@ -971,6 +1081,7 @@ mod tests {
             local_vault_port: DEFAULT_VAULT_PORT,
             local_webhook_port: DEFAULT_WEBHOOK_PORT,
             created_at_utc: "2026-05-04T00:00:00Z".into(),
+            service_mode: ServiceMode::Auto,
         };
         let plan = build_remote_plan(
             &cfg,
@@ -988,9 +1099,13 @@ mod tests {
         let rendered = serde_json::to_value(&plan).unwrap();
         assert_eq!(rendered["service_mode"], "Manual");
         assert_eq!(rendered["setup_key"], true);
-        assert!(rendered["steps"].as_array().unwrap().iter().any(|step| {
-            step["id"].as_str().unwrap() == "verify"
-        }));
+        assert!(
+            rendered["steps"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|step| { step["id"].as_str().unwrap() == "verify" })
+        );
     }
 
     #[test]
@@ -1007,6 +1122,7 @@ mod tests {
             local_vault_port: DEFAULT_VAULT_PORT,
             local_webhook_port: DEFAULT_WEBHOOK_PORT,
             created_at_utc: "2026-05-04T00:00:00Z".into(),
+            service_mode: ServiceMode::Auto,
         };
         let plan = build_remote_plan(
             &cfg,
@@ -1023,5 +1139,43 @@ mod tests {
         );
         assert_eq!(plan.action, "remote-install");
         assert!(!plan.preflight.local_ssh_keygen || plan.preflight.local_ssh);
+    }
+
+    #[test]
+    fn effective_service_mode_resolves_auto_by_preflight() {
+        assert_eq!(
+            effective_service_mode(ServiceMode::Auto, Some(true)),
+            ServiceMode::User
+        );
+        assert_eq!(
+            effective_service_mode(ServiceMode::Auto, Some(false)),
+            ServiceMode::Manual
+        );
+        assert_eq!(
+            effective_service_mode(ServiceMode::User, Some(false)),
+            ServiceMode::User
+        );
+        assert_eq!(
+            effective_service_mode(ServiceMode::Manual, Some(true)),
+            ServiceMode::Manual
+        );
+    }
+
+    #[test]
+    fn remote_config_defaults_service_mode_when_missing() {
+        let text = r#"
+alias = "xbabe1"
+target = "xbabe1"
+ssh_port = 22
+remote_prefix = "~/.jeryu"
+remote_bin = "~/.jeryu/bin/jeryu"
+local_http_port = 8929
+local_ssh_port = 2224
+local_vault_port = 18200
+local_webhook_port = 9777
+created_at_utc = "2026-05-04T00:00:00Z"
+"#;
+        let cfg: RemoteConfig = toml::from_str(text).unwrap();
+        assert_eq!(cfg.service_mode, ServiceMode::Auto);
     }
 }
