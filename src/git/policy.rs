@@ -16,7 +16,7 @@ pub enum GitMode {
 impl GitMode {
     pub fn current() -> Self {
         match std::env::var("JERYU_GIT_MODE")
-            .unwrap_or_else(|_| "after_success".into())
+            .unwrap_or_else(|_| crate::settings::get().git.mode.clone())
             .to_ascii_lowercase()
             .as_str()
         {
@@ -29,6 +29,10 @@ impl GitMode {
 }
 
 pub fn should_mirror(class: GitCommandClass, argv: &[String]) -> bool {
+    if !mirror_enabled() {
+        return false;
+    }
+
     matches!(
         class,
         GitCommandClass::NetworkWrite | GitCommandClass::RefMutation
@@ -39,15 +43,72 @@ pub fn strict_mode_enabled() -> bool {
     matches!(GitMode::current(), GitMode::Strict)
 }
 
+pub fn mirror_enabled() -> bool {
+    std::env::var("JERYU_MIRROR_ENABLED")
+        .ok()
+        .or_else(|| std::env::var("JERYU_GIT_MIRROR_ENABLED").ok())
+        .map(|value| parse_bool(&value))
+        .unwrap_or_else(|| crate::settings::get().mirror.enabled)
+}
+
+pub fn mirror_remote() -> String {
+    std::env::var("JERYU_MIRROR_REMOTE")
+        .ok()
+        .or_else(|| std::env::var("JERYU_GIT_MIRROR_REMOTE").ok())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| crate::settings::get().mirror.remote.clone())
+}
+
+fn parse_bool(value: &str) -> bool {
+    !matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "0" | "false" | "no" | "off" | "disabled"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{LazyLock, Mutex};
+
+    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
     #[test]
     fn push_is_mirrored() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe {
+            std::env::remove_var("JERYU_MIRROR_ENABLED");
+        }
         assert!(should_mirror(
             GitCommandClass::NetworkWrite,
             &["push".into(), "origin".into()]
         ));
+    }
+
+    #[test]
+    fn env_can_disable_mirror() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe {
+            std::env::set_var("JERYU_MIRROR_ENABLED", "0");
+        }
+        assert!(!should_mirror(
+            GitCommandClass::NetworkWrite,
+            &["push".into(), "origin".into()]
+        ));
+        unsafe {
+            std::env::remove_var("JERYU_MIRROR_ENABLED");
+        }
+    }
+
+    #[test]
+    fn env_can_override_mirror_remote() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe {
+            std::env::set_var("JERYU_MIRROR_REMOTE", "backup");
+        }
+        assert_eq!(mirror_remote(), "backup");
+        unsafe {
+            std::env::remove_var("JERYU_MIRROR_REMOTE");
+        }
     }
 }

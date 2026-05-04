@@ -1,6 +1,6 @@
 # Agent Index
 
-Generated: `2026-05-04T01:44:58.185473596+00:00`
+Generated: `2026-05-04T02:09:19.907278398+00:00`
 
 | Module | Change Type | Proof Commands | Owner |
 |---|---|---|---|
@@ -19,11 +19,13 @@ Generated: `2026-05-04T01:44:58.185473596+00:00`
 | `src/commands/git.rs` | `api-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | CLI Git wrappers |
 | `src/commands/host.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | - |
 | `src/commands/job.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | - |
+| `src/commands/mirror.rs` | `api-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | Mirror command wrappers |
 | `src/commands/mod.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | - |
 | `src/commands/pipeline.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | - |
 | `src/commands/pool.rs` | `api-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | - |
 | `src/commands/release.rs` | `release-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | - |
 | `src/commands/secrets.rs` | `security-relevant` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo test -p jeryu -- secrets exec honeypot admission | - |
+| `src/commands/settings.rs` | `api-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | Settings repair/reset commands |
 | `src/commands/system.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | - |
 | `src/commands/test.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | - |
 | `src/config.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Configuration & Templates subsystem |
@@ -40,6 +42,18 @@ Generated: `2026-05-04T01:44:58.185473596+00:00`
 | `src/gateway/npm.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Cache Gateway subsystem — npm registry proxy |
 | `src/gateway/oci.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Cache Gateway subsystem — OCI image proxy |
 | `src/gateway/singleflight.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Cache Gateway subsystem — singleflight deduplication |
+| `src/git/classify.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git command classification |
+| `src/git/event.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git event record model |
+| `src/git/executor.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git passthrough execution and event recording |
+| `src/git/invocation.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git invocation model |
+| `src/git/mirror.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git mirror helper |
+| `src/git/mod.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git event plane and passthrough executor |
+| `src/git/policy.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git execution policy |
+| `src/git/receipt.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git execution receipts |
+| `src/git/shim.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git shim helpers |
+| `src/git/snapshot.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git repository state snapshot |
+| `src/git/store.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git event persistence |
+| `src/git/system.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | System Git resolution |
 | `src/gitlab_client.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | GitLab REST Client subsystem |
 | `src/honeypot.rs` | `security-relevant` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo test -p jeryu -- secrets exec honeypot admission | Supply-Chain Detonation / Honey Token Detection |
 | `src/impact.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Change Impact Analysis |
@@ -55,6 +69,7 @@ Generated: `2026-05-04T01:44:58.185473596+00:00`
 | `src/policy.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Trust Policy (TrustTier, Cache Promotion Gates) |
 | `src/pool.rs` | `api-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | Runner Fleet / Pool Management |
 | `src/reclaim.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Storage Audit & GC |
+| `src/redact.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | cross-cutting redaction helpers |
 | `src/release.rs` | `release-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | Release Pipeline |
 | `src/sandbox.rs` | `security-relevant` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo test -p jeryu -- secrets exec honeypot admission | Workload Sandbox (Network-Namespace Isolation) |
 | `src/sccache_mgr.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | sccache Management subsystem |

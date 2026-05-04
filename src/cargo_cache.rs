@@ -198,43 +198,38 @@ pub fn render_runner_cargo_pre_build_script(pool_cache_mount: &str, executor: &s
     let _ = executor;
     format!(
         r#"set -eu
-if [ "${{JERYU_CARGO_CACHE:-1}}" = "0" ]; then
-  exit 0
-fi
-if ! command -v cargo >/dev/null 2>&1 || ! command -v rustc >/dev/null 2>&1; then
-  exit 0
-fi
-RUSTC_INFO="$(rustc -vV)"
-HOST_TRIPLE="$(printf '%s\n' "$RUSTC_INFO" | awk '/^host: / {{ print $2; exit }}')"
-RUSTC_VERSION="$(printf '%s\n' "$RUSTC_INFO" | awk '/^release: / {{ print $2; exit }}')"
-if [ -z "$HOST_TRIPLE" ] || [ -z "$RUSTC_VERSION" ]; then
-  exit 0
-fi
-RUSTC_KEY="$(printf '%s\n' "$RUSTC_INFO" | sha256sum | cut -c1-12)"
-JERYU_CARGO_SCOPE_KEY="${{CI_PROJECT_PATH_SLUG:-unknown-project}}"
-JERYU_CARGO_CACHE_ROOT="{pool_cache_mount}"
-JERYU_CARGO_TARGET_ROOT="$JERYU_CARGO_CACHE_ROOT/cargo-targets/$JERYU_CARGO_SCOPE_KEY/$RUSTC_KEY/$HOST_TRIPLE"
-if [ "${{JERYU_CARGO_TARGET_ISOLATE:-}}" = "job" ]; then
-  JERYU_CARGO_TARGET_ROOT="$JERYU_CARGO_TARGET_ROOT/jobs/${{CI_JOB_ID:-unknown}}"
-fi
-export JERYU_CARGO_CACHE_ROOT JERYU_CARGO_SCOPE_KEY JERYU_CARGO_RUSTC_KEY="$RUSTC_KEY" JERYU_CARGO_RUSTC_VERSION="$RUSTC_VERSION" JERYU_CARGO_HOST_TRIPLE="$HOST_TRIPLE"
-export CARGO_TARGET_DIR="$JERYU_CARGO_TARGET_ROOT/target"
-mkdir -p "$CARGO_TARGET_DIR"
-if [ -n "${{JERYU_CARGO_INCREMENTAL:-}}" ]; then
-  export CARGO_INCREMENTAL="$JERYU_CARGO_INCREMENTAL"
-else
-  export CARGO_INCREMENTAL=0
-fi
-if [ "${{JERYU_SCCACHE_ENABLED:-1}}" != "0" ] && command -v sccache >/dev/null 2>&1; then
-  export SCCACHE_DIR="$JERYU_CARGO_CACHE_ROOT/sccache"
-  export RUSTC_WRAPPER=sccache
-  export SCCACHE_NO_DAEMON=1
-  if [ -n "${{JERYU_SCCACHE_CACHE_SIZE:-}}" ]; then
-    export SCCACHE_CACHE_SIZE="$JERYU_SCCACHE_CACHE_SIZE"
+if [ "${{JERYU_CARGO_CACHE:-1}}" != "0" ] && command -v cargo >/dev/null 2>&1 && command -v rustc >/dev/null 2>&1; then
+  RUSTC_INFO="$(rustc -vV)"
+  HOST_TRIPLE="$(printf '%s\n' "$RUSTC_INFO" | awk '/^host: / {{ print $2; exit }}')"
+  RUSTC_VERSION="$(printf '%s\n' "$RUSTC_INFO" | awk '/^release: / {{ print $2; exit }}')"
+  if [ -n "$HOST_TRIPLE" ] && [ -n "$RUSTC_VERSION" ]; then
+    RUSTC_KEY="$(printf '%s\n' "$RUSTC_INFO" | sha256sum | cut -c1-12)"
+    JERYU_CARGO_SCOPE_KEY="${{CI_PROJECT_PATH_SLUG:-unknown-project}}"
+    JERYU_CARGO_CACHE_ROOT="{pool_cache_mount}"
+    JERYU_CARGO_TARGET_ROOT="$JERYU_CARGO_CACHE_ROOT/cargo-targets/$JERYU_CARGO_SCOPE_KEY/$RUSTC_KEY/$HOST_TRIPLE"
+    if [ "${{JERYU_CARGO_TARGET_ISOLATE:-}}" = "job" ]; then
+      JERYU_CARGO_TARGET_ROOT="$JERYU_CARGO_TARGET_ROOT/jobs/${{CI_JOB_ID:-unknown}}"
+    fi
+    export JERYU_CARGO_CACHE_ROOT JERYU_CARGO_SCOPE_KEY JERYU_CARGO_RUSTC_KEY="$RUSTC_KEY" JERYU_CARGO_RUSTC_VERSION="$RUSTC_VERSION" JERYU_CARGO_HOST_TRIPLE="$HOST_TRIPLE"
+    export CARGO_TARGET_DIR="$JERYU_CARGO_TARGET_ROOT/target"
+    mkdir -p "$CARGO_TARGET_DIR"
+    if [ -n "${{JERYU_CARGO_INCREMENTAL:-}}" ]; then
+      export CARGO_INCREMENTAL="$JERYU_CARGO_INCREMENTAL"
+    else
+      export CARGO_INCREMENTAL=0
+    fi
+    if [ "${{JERYU_SCCACHE_ENABLED:-1}}" != "0" ] && command -v sccache >/dev/null 2>&1; then
+      export SCCACHE_DIR="$JERYU_CARGO_CACHE_ROOT/sccache"
+      export RUSTC_WRAPPER=sccache
+      export SCCACHE_NO_DAEMON=1
+      if [ -n "${{JERYU_SCCACHE_CACHE_SIZE:-}}" ]; then
+        export SCCACHE_CACHE_SIZE="$JERYU_SCCACHE_CACHE_SIZE"
+      fi
+      mkdir -p "$SCCACHE_DIR"
+    else
+      unset RUSTC_WRAPPER SCCACHE_DIR SCCACHE_NO_DAEMON SCCACHE_CACHE_SIZE
+    fi
   fi
-  mkdir -p "$SCCACHE_DIR"
-else
-  unset RUSTC_WRAPPER SCCACHE_DIR SCCACHE_NO_DAEMON SCCACHE_CACHE_SIZE
 fi
 "#
     )
@@ -690,5 +685,38 @@ mod tests {
             Some(value) => set_env_var("PATH", value),
             None => remove_env_var("PATH"),
         }
+    }
+
+    #[test]
+    fn runner_pre_build_script_missing_rust_tools_does_not_short_circuit_job() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let path_dir = TempDir::new().unwrap();
+        let original_path = std::env::var_os("PATH");
+        set_env_var("PATH", path_dir.path());
+        let pool_cache = TempDir::new().unwrap();
+        let script = format!(
+            "{}\nprintf '%s\\n' user-script-ran\nexit 17\n",
+            render_runner_cargo_pre_build_script(
+                &pool_cache.path().display().to_string(),
+                "docker",
+            )
+        );
+        let output = std::process::Command::new("/bin/sh")
+            .arg("-c")
+            .arg(script)
+            .env("JERYU_CARGO_CACHE", "1")
+            .output()
+            .unwrap();
+
+        match original_path {
+            Some(value) => set_env_var("PATH", value),
+            None => remove_env_var("PATH"),
+        }
+
+        assert_eq!(output.status.code(), Some(17));
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).trim(),
+            "user-script-ran"
+        );
     }
 }

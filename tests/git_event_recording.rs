@@ -50,3 +50,35 @@ async fn git_command_event_is_recorded() {
     assert!(events[0].argv_redacted.contains("status"));
     assert_eq!(fs::read_to_string(&log_path).unwrap().lines().count(), 1);
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn git_command_event_db_failure_does_not_change_git_exit() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let log_path = temp.path().join("invocations.log");
+    let git_path = temp.path().join("fake-git.sh");
+    let script = format!(
+        "#!/usr/bin/env sh\nprintf '%s\\n' \"$*\" >> \"{}\"\nexit 0\n",
+        log_path.display()
+    );
+    fs::write(&git_path, script).unwrap();
+    let mut perms = fs::metadata(&git_path).unwrap().permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&git_path, perms).unwrap();
+
+    let cwd = std::env::current_dir().unwrap();
+    std::env::set_current_dir(temp.path()).unwrap();
+    set_env("JERYU_SYSTEM_GIT", git_path.to_str().unwrap());
+
+    let db = jeryu::state::Db::open_memory().await.unwrap();
+    db.pool().close().await;
+    let exit = jeryu::git::executor::execute_git(Some(&db), &["status".into()])
+        .await
+        .unwrap();
+
+    std::env::set_current_dir(cwd).unwrap();
+    remove_env("JERYU_SYSTEM_GIT");
+
+    assert_eq!(exit, 0);
+    assert_eq!(fs::read_to_string(&log_path).unwrap().lines().count(), 1);
+}

@@ -2649,6 +2649,15 @@ impl Db {
         Ok(row.0)
     }
 
+    pub async fn recent_git_ref_updates(&self, limit: i64) -> Result<Vec<GitRefUpdate>> {
+        let sql = self.sql("SELECT * FROM git_ref_updates ORDER BY id DESC LIMIT ?");
+        let updates = sqlx::query_as::<_, GitRefUpdate>(&sql)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(updates)
+    }
+
     pub async fn record_git_mirror_job(&self, job: &GitMirrorJob) -> Result<i64> {
         let sql = self.sql(
             r#"INSERT INTO git_mirror_jobs
@@ -2665,6 +2674,15 @@ impl Db {
             .fetch_one(&self.pool)
             .await?;
         Ok(row.0)
+    }
+
+    pub async fn recent_git_mirror_jobs(&self, limit: i64) -> Result<Vec<GitMirrorJob>> {
+        let sql = self.sql("SELECT * FROM git_mirror_jobs ORDER BY id DESC LIMIT ?");
+        let jobs = sqlx::query_as::<_, GitMirrorJob>(&sql)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(jobs)
     }
 
     pub async fn record_git_risk_approval(&self, approval: &GitRiskApproval) -> Result<i64> {

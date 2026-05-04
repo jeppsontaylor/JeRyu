@@ -741,6 +741,11 @@ mod tests {
             .unwrap();
         let docker_runner = &runners[0];
         assert!(docker_runner.get("pre_build_script").is_some());
+        let pre_build_script = docker_runner
+            .get("pre_build_script")
+            .and_then(toml::Value::as_str)
+            .unwrap();
+        assert!(!pre_build_script.contains("exit 0"));
         assert!(
             docker_runner
                 .get("docker")

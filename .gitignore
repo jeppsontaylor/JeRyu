@@ -6,6 +6,7 @@
 /test-map.json
 /aer-findings.json
 /vrc-plan.json
+/.jeryu/git-mirror-events.jsonl
 
 # LaTeX build byproducts; paper sources, screenshots, and final PDFs are tracked.
 /paper/*.aux

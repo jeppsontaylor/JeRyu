@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-04T01:44:58.185473596+00:00",
+  "generated_at": "2026-05-04T02:09:19.907278398+00:00",
   "repo_root": "/home/ubuntu/JeRyu",
   "token_budget_path": "token-budget.toml",
   "entries": [
@@ -267,6 +267,25 @@
       "widening_rules": []
     },
     {
+      "id": "commands::mirror",
+      "path": "src/commands/mirror.rs",
+      "owner": "Mirror command wrappers",
+      "proof": "`cargo test -p jeryu -- mirror`",
+      "invariants": "Mirror operations preserve the existing shadow remote compatibility path.",
+      "default_change_type": "api-change",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
+      ],
+      "widening_rules": []
+    },
+    {
       "id": "commands::mod",
       "path": "src/commands/mod.rs",
       "owner": "",
@@ -360,6 +379,25 @@
       "widening_rules": [
         "security-relevant modules widen to security proof lanes"
       ]
+    },
+    {
+      "id": "commands::settings",
+      "path": "src/commands/settings.rs",
+      "owner": "Settings repair/reset commands",
+      "proof": "`cargo test -p jeryu -- settings`",
+      "invariants": "Corrupt settings are repaired from backups or reset explicitly; nothing silently falls back.",
+      "default_change_type": "api-change",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
+      ],
+      "widening_rules": []
     },
     {
       "id": "commands::system",
@@ -648,6 +686,282 @@
       "widening_rules": []
     },
     {
+      "id": "git::classify",
+      "path": "src/git/classify.rs",
+      "owner": "Git command classification",
+      "proof": "`cargo test -p jeryu -- git_classify`",
+      "invariants": "Classification is deterministic and errs toward `Unknown` when the intent is unclear.",
+      "default_change_type": "cross-module",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration",
+        "full"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo nextest run -p jeryu"
+      ],
+      "widening_rules": [
+        "cross-module changes widen to the full integration ring"
+      ]
+    },
+    {
+      "id": "git::event",
+      "path": "src/git/event.rs",
+      "owner": "Git event record model",
+      "proof": "`cargo test -p jeryu -- git_event`",
+      "invariants": "Events are append-only and contain only redacted command material.",
+      "default_change_type": "cross-module",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration",
+        "full"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo nextest run -p jeryu"
+      ],
+      "widening_rules": [
+        "cross-module changes widen to the full integration ring"
+      ]
+    },
+    {
+      "id": "git::executor",
+      "path": "src/git/executor.rs",
+      "owner": "Git passthrough execution and event recording",
+      "proof": "`cargo test -p jeryu -- git_passthrough`",
+      "invariants": "Each command invokes the real git binary exactly once before any optional mirror step.",
+      "default_change_type": "cross-module",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration",
+        "full"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo nextest run -p jeryu"
+      ],
+      "widening_rules": [
+        "cross-module changes widen to the full integration ring"
+      ]
+    },
+    {
+      "id": "git::invocation",
+      "path": "src/git/invocation.rs",
+      "owner": "Git invocation model",
+      "proof": "`cargo test -p jeryu -- git_`",
+      "invariants": "Invocation captures the user intent before any subprocess side effects happen.",
+      "default_change_type": "cross-module",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration",
+        "full"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo nextest run -p jeryu"
+      ],
+      "widening_rules": [
+        "cross-module changes widen to the full integration ring"
+      ]
+    },
+    {
+      "id": "git::mirror",
+      "path": "src/git/mirror.rs",
+      "owner": "Git mirror helper",
+      "proof": "`cargo test -p jeryu -- git_mirror`",
+      "invariants": "Mirror failures are recorded and only become fatal in strict mode.",
+      "default_change_type": "cross-module",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration",
+        "full"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo nextest run -p jeryu"
+      ],
+      "widening_rules": [
+        "cross-module changes widen to the full integration ring"
+      ]
+    },
+    {
+      "id": "git::mod",
+      "path": "src/git/mod.rs",
+      "owner": "Git event plane and passthrough executor",
+      "proof": "`cargo test -p jeryu -- git_`",
+      "invariants": "Git runs exactly once per command invocation; records are additive and redacted.",
+      "default_change_type": "cross-module",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration",
+        "full"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo nextest run -p jeryu"
+      ],
+      "widening_rules": [
+        "cross-module changes widen to the full integration ring"
+      ]
+    },
+    {
+      "id": "git::policy",
+      "path": "src/git/policy.rs",
+      "owner": "Git execution policy",
+      "proof": "`cargo test -p jeryu -- git_policy`",
+      "invariants": "Policy defaults are fail-closed for destructive or unknown commands.",
+      "default_change_type": "cross-module",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration",
+        "full"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo nextest run -p jeryu"
+      ],
+      "widening_rules": [
+        "cross-module changes widen to the full integration ring"
+      ]
+    },
+    {
+      "id": "git::receipt",
+      "path": "src/git/receipt.rs",
+      "owner": "Git execution receipts",
+      "proof": "`cargo test -p jeryu -- git_receipt`",
+      "invariants": "Receipts describe outcomes without exposing secrets or raw tokens.",
+      "default_change_type": "cross-module",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration",
+        "full"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo nextest run -p jeryu"
+      ],
+      "widening_rules": [
+        "cross-module changes widen to the full integration ring"
+      ]
+    },
+    {
+      "id": "git::shim",
+      "path": "src/git/shim.rs",
+      "owner": "Git shim helpers",
+      "proof": "`cargo test -p jeryu -- git_shim`",
+      "invariants": "Shims are opt-in and resolve to the configured system git path.",
+      "default_change_type": "cross-module",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration",
+        "full"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo nextest run -p jeryu"
+      ],
+      "widening_rules": [
+        "cross-module changes widen to the full integration ring"
+      ]
+    },
+    {
+      "id": "git::snapshot",
+      "path": "src/git/snapshot.rs",
+      "owner": "Git repository state snapshot",
+      "proof": "`cargo test -p jeryu -- git_snapshot`",
+      "invariants": "Snapshots are read-only and resilient to non-repository paths.",
+      "default_change_type": "cross-module",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration",
+        "full"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo nextest run -p jeryu"
+      ],
+      "widening_rules": [
+        "cross-module changes widen to the full integration ring"
+      ]
+    },
+    {
+      "id": "git::store",
+      "path": "src/git/store.rs",
+      "owner": "Git event persistence",
+      "proof": "`cargo test -p jeryu -- git_store`",
+      "invariants": "All SQL remains centralized in `state::Db` methods.",
+      "default_change_type": "cross-module",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration",
+        "full"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo nextest run -p jeryu"
+      ],
+      "widening_rules": [
+        "cross-module changes widen to the full integration ring"
+      ]
+    },
+    {
+      "id": "git::system",
+      "path": "src/git/system.rs",
+      "owner": "System Git resolution",
+      "proof": "`cargo test -p jeryu -- git_system`",
+      "invariants": "The resolver never falls back to a hard-coded `/usr/bin/git`.",
+      "default_change_type": "cross-module",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration",
+        "full"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo nextest run -p jeryu"
+      ],
+      "widening_rules": [
+        "cross-module changes widen to the full integration ring"
+      ]
+    },
+    {
       "id": "gitlab_client",
       "path": "src/gitlab_client.rs",
       "owner": "GitLab REST Client subsystem",
@@ -909,6 +1223,23 @@
       "owner": "Storage Audit & GC",
       "proof": "`cargo test -p jeryu -- reclaim`",
       "invariants": "GC never removes objects referenced by active managers; AutoGcReport is produced before any deletions; audit runs do not block the reconciliation loop",
+      "default_change_type": "leaf-bugfix",
+      "proof_lanes": [
+        "check",
+        "unit"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "redact",
+      "path": "src/redact.rs",
+      "owner": "cross-cutting redaction helpers",
+      "proof": "`cargo test -p jeryu redact`",
+      "invariants": "Sensitive tokens are redacted before they reach receipts, logs, or human-facing summaries.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
         "check",
