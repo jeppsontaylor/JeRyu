@@ -89,7 +89,7 @@ Alias: hidden `jeryu bootstrap`. Bootstraps the full local control plane (secret
 
 #### `jeryu serve`
 
-Starts the operational daemon (loads client → state DB → Docker → compose → hook → cache → pools → engine → shadow → Ctrl-C).
+Starts the operational daemon (loads client → state DB → Docker → compose → hook → cache → pools → engine → Ctrl-C).
 
 #### `jeryu down`
 
@@ -102,6 +102,8 @@ Shows GitLab readiness, Vault status, pool state, managed Docker containers, rec
 #### `jeryu tui [--once] [--capture --tab <name> --output <png>]`
 
 Launches the Ratatui dashboard. `--once` renders a single frame with optional GitLab auth and exits. `--capture` renders a deterministic Ratatui frame to a PNG file without entering an interactive terminal; accepted tabs are `mission`, `release`, `jobs`, `agents`, `tests`, `pools`, `cache`, `evidence`, and `secrets`. See `docs/JERYU_TUI.md`.
+
+Git compatibility is handled through `jeryu git <args>` passthrough plus the native `jeryu save`, `jeryu sync`, and `jeryu undo` wrappers. The removed `ship` command and the old repo-mirror CLI entrypoints used to own a separate shadow-git control plane; that meaning now lives only in the hook-driven passthrough and mirror-enforcement path.
 
 ### 4.2 Install and Remote Provisioning
 
@@ -253,47 +255,7 @@ Lists active agent MRs/issues by labels and titles.
 
 Runs the risk gate before accepting a merge request.
 
-### 4.9 Shadow Sync
-
-#### `jeryu shadow add --source <dir> --project-id <id> --branch <branch> [--enable]`
-
-Registers a local source directory for periodic shadow sync.
-
-#### `jeryu shadow enable --source <dir>`
-
-Enables an existing shadow sync config.
-
-#### `jeryu shadow disable --source <dir>`
-
-Disables an existing shadow sync config.
-
-#### `jeryu shadow remove --source <dir>`
-
-Deletes shadow sync configuration.
-
-#### `jeryu shadow sync-now --source <dir>`
-
-Triggers an immediate sync by requesting it through the DB (`request_shadow_sync`). The shadow worker picks it up within ~2 seconds.
-
-#### `jeryu shadow status [--source <dir>]`
-
-Shows one shadow sync config or all configs.
-
-### 4.9 Shadow Remote
-
-#### `jeryu shadow-remote status [--repo <path>] [--name shadow]`
-
-Shows current git remotes and whether the target shadow remote exists.
-
-#### `jeryu shadow-remote ensure [--repo <path>] [--name shadow] --url <url>`
-
-Creates or updates a repo-local remote.
-
-#### `jeryu shadow-remote push [--repo <path>] [--name shadow] [--branch <branch>] [--mirror]`
-
-Pushes current HEAD or mirrors the repo to the shadow remote.
-
-### 4.10 Test Runner and VTI Controls
+### 4.9 Test Runner and VTI Controls
 
 #### `jeryu test run --command <cmd> [--project-id 2] [--image rust:1.92.0] [--tags a,b] [--timeout 600] [--force]`
 
@@ -760,7 +722,6 @@ State is owned by `Db` in `src/state.rs`. Postgres is the preferred backend for 
 | `release_attempts` | Canary/release/prod promotion attempts |
 | `evidence_capsules` | Structured failure records |
 | `retry_decisions` | Retry decisions for failed jobs |
-| `shadow_sync_configs` | Shadow sync configuration/status |
 | `secret_authorities` | Vault authority metadata |
 | `release_secret_sets` | Release secret rotations and artifact paths |
 | `secret_audit_events` | Secret lifecycle audit events |
@@ -798,9 +759,6 @@ State is owned by `Db` in `src/state.rs`. Postgres is the preferred backend for 
 
 **Evidence/retry/event ledger:**
 `insert_evidence_capsule`, `latest_evidence_for_job`, `latest_evidence_by_job_id`, `list_evidence_for_ref`, `insert_retry_decision`, `count_retry_decisions`, `latest_retry_decision`, `append_event`, `get_events`.
-
-**Shadow:**
-`list_shadow_sync_configs`, `get_shadow_sync_config`, `upsert_shadow_sync_config`, `set_shadow_sync_enabled`, `delete_shadow_sync_config`, `request_shadow_sync`.
 
 **Secrets:**
 `upsert_secret_authority`, `get_secret_authority`, `upsert_release_secret_set`, `get_release_secret_set`, `latest_release_secret_set`, `mark_release_secret_set_finalized`, `insert_secret_audit_event`, `recent_secret_audit_events`.
@@ -840,7 +798,6 @@ State is owned by `Db` in `src/state.rs`. Postgres is the preferred backend for 
   "cache": { "proxy_port": 19800, "registry_port": 19801, "manager_budget_gib": 400.0 },
   "sccache": { "enabled": true, "cache_size": "10G", "binary_version": "v0.9.1" },
   "release": { "repo_root": null, "default_project_id": 2 },
-  "shadow": { "upstream_url": null },
   "sandbox": { "strict_network_isolation": false },
   "tui": { "sync_interval_ms": 5000, "recent_jobs_limit": 50, "recent_evidence_limit": 100, "audit_events_limit": 50 }
 }

@@ -1103,7 +1103,11 @@ mod tests {
     fn remove_path_block_from_file_backs_up_profile() {
         let dir = tempdir().unwrap();
         let rc = dir.path().join("profile");
-        fs::write(&rc, path_snippet(Path::new("/tmp/jeryu"), Some("/bin/bash"))).unwrap();
+        fs::write(
+            &rc,
+            path_snippet(Path::new("/tmp/jeryu"), Some("/bin/bash")),
+        )
+        .unwrap();
 
         assert!(remove_path_block_from_file(&rc).unwrap());
         assert!(!has_jeryu_path_block(&fs::read_to_string(&rc).unwrap()));

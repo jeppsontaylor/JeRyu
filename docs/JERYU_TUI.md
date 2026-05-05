@@ -72,7 +72,7 @@ action-first cockpit rather than a passive status dashboard:
 
 ```text
 +------------------------------------------------------------+
-| header: online/offline, containers, shadow, release, tabs   |
+| header: online/offline, containers, mirror, release, tabs   |
 +------------------------------------------------------------+
 | Top Signal / next action             | Readiness            |
 +------------------------------------------------------------+
@@ -89,7 +89,7 @@ layout:
 
 ```text
 +------------------------------------------------------------+
-| header: online/offline, containers, shadow, release, tabs   |
+| header: online/offline, containers, mirror, release, tabs   |
 +------------------------------------------------------------+
 | Release Watch                                              |
 +------------------------------------------------------------+
@@ -188,7 +188,6 @@ pub struct TuiStateSnapshot {
     pub pipelines: Vec<PipelineMetrics>,
     pub flow: crate::tui::flow::FlowSnapshot,
     pub live_log: LiveLogState,
-    pub shadow_summary: Option<crate::shadow::ShadowSyncSummary>,
     pub hot_cache_usage_bytes: i64,
     pub cache_hits: i64,
     pub cache_objects_count: i64,
@@ -248,7 +247,6 @@ The general snapshot worker runs roughly every 1500ms. It refreshes:
 - running/pending/created GitLab jobs for the default release project
 - recent local DB job events
 - tracked pipeline metrics
-- shadow sync summary
 - release status report for `project_id=2`, `ref_name=main`
 - cache proxy and registry health
 - Docker mirror and CA mount signals
@@ -945,7 +943,6 @@ The TUI uses a combination of local DB state, live GitLab API calls, Docker, fil
 | Root disk usage | `df -k /` |
 | CAS/crate/runner sizes | Recursive directory size checks under `crate::config::data_dir()` |
 | Release state | `release::build_release_status_report(...)` |
-| Shadow sync | `crate::shadow::compute_summary(&db)` |
 
 ## Empty, Partial, and Stale States
 

@@ -70,7 +70,6 @@ Each `src/*.rs` file has `//! Owner:`, `//! Proof:`, `//! Invariants:` at the to
 | `epoch.rs` | Epoch-based cache invalidation | `state-change` |
 | `buildkit.rs` | Per-namespace BuildKit config | `security-relevant` |
 | `witness.rs` | Build witness cacheability classification | `leaf-bugfix` |
-| `shadow.rs` | Remote mirror sync | `leaf-bugfix` |
 | `impact.rs` | Change impact analysis | `leaf-bugfix` |
 | `reclaim.rs` | Storage audit & GC | `leaf-bugfix` |
 | `tui/` | Ratatui TUI dashboard | `leaf-bugfix` |

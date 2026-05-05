@@ -250,45 +250,6 @@ pub struct RetryRecord {
     pub created_at: String,
 }
 
-#[derive(Debug, Clone)]
-pub struct ShadowSyncConfig {
-    pub source_dir: String,
-    pub enabled: bool,
-    pub target_project_id: i64,
-    pub target_branch: String,
-    pub last_seen_head_sha: Option<String>,
-    pub last_pushed_sha: Option<String>,
-    pub last_attempt_at: Option<String>,
-    pub last_success_at: Option<String>,
-    pub status: String, // 'idle' | 'syncing' | 'error' | 'disabled'
-    pub error_msg: Option<String>,
-    pub consecutive_failures: i64,
-    pub upstream_status: String,
-    pub upstream_last_pushed_sha: Option<String>,
-    pub upstream_error_msg: Option<String>,
-}
-
-impl<'r> FromRow<'r, AnyRow> for ShadowSyncConfig {
-    fn from_row(row: &'r AnyRow) -> std::result::Result<Self, sqlx::Error> {
-        Ok(Self {
-            source_dir: row.try_get("source_dir")?,
-            enabled: any_bool(row, "enabled")?,
-            target_project_id: row.try_get("target_project_id")?,
-            target_branch: row.try_get("target_branch")?,
-            last_seen_head_sha: row.try_get("last_seen_head_sha")?,
-            last_pushed_sha: row.try_get("last_pushed_sha")?,
-            last_attempt_at: row.try_get("last_attempt_at")?,
-            last_success_at: row.try_get("last_success_at")?,
-            status: row.try_get("status")?,
-            error_msg: row.try_get("error_msg")?,
-            consecutive_failures: row.try_get("consecutive_failures")?,
-            upstream_status: row.try_get("upstream_status")?,
-            upstream_last_pushed_sha: row.try_get("upstream_last_pushed_sha")?,
-            upstream_error_msg: row.try_get("upstream_error_msg")?,
-        })
-    }
-}
-
 fn any_bool(row: &AnyRow, column: &str) -> std::result::Result<bool, sqlx::Error> {
     if let Ok(value) = row.try_get::<bool, _>(column) {
         Ok(value)
@@ -312,23 +273,6 @@ const POOL_SELECT: &str = r#"SELECT
     CAST(CASE WHEN paused THEN 1 ELSE 0 END AS BIGINT) AS paused,
     trust_tier
 FROM pools"#;
-
-const SHADOW_SYNC_CONFIG_SELECT: &str = r#"SELECT
-    source_dir,
-    CAST(CASE WHEN enabled THEN 1 ELSE 0 END AS BIGINT) AS enabled,
-    target_project_id,
-    target_branch,
-    last_seen_head_sha,
-    last_pushed_sha,
-    last_attempt_at,
-    last_success_at,
-    status,
-    error_msg,
-    consecutive_failures,
-    upstream_status,
-    upstream_last_pushed_sha,
-    upstream_error_msg
-FROM shadow_sync_configs"#;
 
 fn postgres_schema(sqlite_schema: &str) -> String {
     sqlite_schema
@@ -1116,23 +1060,6 @@ impl Db {
                 created_at      TEXT NOT NULL
             );
 
-            CREATE TABLE IF NOT EXISTS shadow_sync_configs (
-                source_dir TEXT PRIMARY KEY,
-                enabled INTEGER NOT NULL DEFAULT 0,
-                target_project_id INTEGER NOT NULL,
-                target_branch TEXT NOT NULL,
-                last_seen_head_sha TEXT,
-                last_pushed_sha TEXT,
-                last_attempt_at TEXT,
-                last_success_at TEXT,
-                status TEXT NOT NULL,
-                error_msg TEXT,
-                consecutive_failures INTEGER NOT NULL DEFAULT 0,
-                upstream_status TEXT NOT NULL DEFAULT 'unconfigured',
-                upstream_last_pushed_sha TEXT,
-                upstream_error_msg TEXT
-            );
-
             CREATE TABLE IF NOT EXISTS secret_authorities (
                 name TEXT PRIMARY KEY,
                 kind TEXT NOT NULL,
@@ -1383,15 +1310,6 @@ impl Db {
         .execute(&self.pool)
         .await;
 
-        let _ = sqlx::query("ALTER TABLE shadow_sync_configs ADD COLUMN upstream_status TEXT NOT NULL DEFAULT 'unconfigured';").execute(&self.pool).await;
-        let _ = sqlx::query(
-            "ALTER TABLE shadow_sync_configs ADD COLUMN upstream_last_pushed_sha TEXT;",
-        )
-        .execute(&self.pool)
-        .await;
-        let _ = sqlx::query("ALTER TABLE shadow_sync_configs ADD COLUMN upstream_error_msg TEXT;")
-            .execute(&self.pool)
-            .await;
         let _ = sqlx::query("ALTER TABLE release_attempts ADD COLUMN release_pipeline_id INTEGER;")
             .execute(&self.pool)
             .await;
@@ -2245,7 +2163,6 @@ impl Db {
         )
         .bind(status)
         .bind(match status {
-            "success" => "passed",
             "failed" | "canceled" | "skipped" => "failed",
             _ => "running",
         })
@@ -2744,100 +2661,6 @@ impl Db {
             .fetch_one(&self.pool)
             .await?;
         Ok(row.0)
-    }
-
-    // -- Shadow Sync operations --------------------------------------------
-
-    pub async fn list_shadow_sync_configs(&self) -> Result<Vec<ShadowSyncConfig>> {
-        let configs = sqlx::query_as::<_, ShadowSyncConfig>(&format!(
-            "{SHADOW_SYNC_CONFIG_SELECT} ORDER BY source_dir"
-        ))
-        .fetch_all(&self.pool)
-        .await?;
-        Ok(configs)
-    }
-
-    pub async fn get_shadow_sync_config(
-        &self,
-        source_dir: &str,
-    ) -> Result<Option<ShadowSyncConfig>> {
-        let config = sqlx::query_as::<_, ShadowSyncConfig>(&format!(
-            "{SHADOW_SYNC_CONFIG_SELECT} WHERE source_dir = ?"
-        ))
-        .bind(source_dir)
-        .fetch_optional(&self.pool)
-        .await?;
-        Ok(config)
-    }
-
-    pub async fn upsert_shadow_sync_config(&self, c: &ShadowSyncConfig) -> Result<()> {
-        sqlx::query(
-            r#"INSERT INTO shadow_sync_configs
-               (source_dir, enabled, target_project_id, target_branch, last_seen_head_sha, last_pushed_sha,
-                last_attempt_at, last_success_at, status, error_msg, consecutive_failures, upstream_status, upstream_last_pushed_sha, upstream_error_msg)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(source_dir) DO UPDATE SET
-                   enabled = excluded.enabled,
-                   target_project_id = excluded.target_project_id,
-                   target_branch = excluded.target_branch,
-                   last_seen_head_sha = excluded.last_seen_head_sha,
-                   last_pushed_sha = excluded.last_pushed_sha,
-                   last_attempt_at = excluded.last_attempt_at,
-                   last_success_at = excluded.last_success_at,
-                   status = excluded.status,
-                   error_msg = excluded.error_msg,
-                   consecutive_failures = excluded.consecutive_failures,
-                   upstream_status = excluded.upstream_status,
-                   upstream_last_pushed_sha = excluded.upstream_last_pushed_sha,
-                   upstream_error_msg = excluded.upstream_error_msg"#,
-        )
-        .bind(&c.source_dir)
-        .bind(c.enabled)
-        .bind(c.target_project_id)
-        .bind(&c.target_branch)
-        .bind(&c.last_seen_head_sha)
-        .bind(&c.last_pushed_sha)
-        .bind(&c.last_attempt_at)
-        .bind(&c.last_success_at)
-        .bind(&c.status)
-        .bind(&c.error_msg)
-        .bind(c.consecutive_failures)
-        .bind(&c.upstream_status)
-        .bind(&c.upstream_last_pushed_sha)
-        .bind(&c.upstream_error_msg)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
-
-    pub async fn set_shadow_sync_enabled(&self, source_dir: &str, enabled: bool) -> Result<()> {
-        sqlx::query("UPDATE shadow_sync_configs SET enabled = ?, status = ? WHERE source_dir = ?")
-            .bind(enabled)
-            .bind(if enabled { "idle" } else { "disabled" })
-            .bind(source_dir)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
-
-    pub async fn delete_shadow_sync_config(&self, source_dir: &str) -> Result<()> {
-        sqlx::query("DELETE FROM shadow_sync_configs WHERE source_dir = ?")
-            .bind(source_dir)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
-
-    /// Mark a shadow sync config as requesting an immediate sync.
-    /// The shadow loop will skip its normal backoff when it sees "sync_requested".
-    pub async fn request_shadow_sync(&self, source_dir: &str) -> Result<()> {
-        sqlx::query(
-            "UPDATE shadow_sync_configs SET status = 'sync_requested' WHERE source_dir = ?",
-        )
-        .bind(source_dir)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
     }
 
     /// Return tracked pipelines whose ref_name starts with "agent/".
@@ -4317,7 +4140,7 @@ mod tests {
             .await?
             .expect("release pipeline should still be tracked");
         assert_eq!(attempt.release_pipeline_status.as_deref(), Some("success"));
-        assert_eq!(attempt.canary_status, "passed");
+        assert_eq!(attempt.canary_status, "running");
         assert!(attempt.canary_finished_at.is_some());
         Ok(())
     }

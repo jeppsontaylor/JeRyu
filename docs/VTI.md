@@ -94,7 +94,7 @@ The architecture operates in two fundamentally different modes:
 | `impact` | `src/impact.rs`, `src/test_runner.rs`, `src/test_intel/*` | `test(/impact\|test_run\|test_intel\|plan_from/)` | — | no |
 | `exec` | `src/exec.rs`, `src/sandbox.rs`, `src/honeypot.rs` | `test(/exec\|sandbox\|honeypot\|custom_exec/)` | e2e | no |
 | `gitlab_client` | `src/gitlab_client.rs` | `test(/gitlab\|client\|api\|endpoint/)` | — | no |
-| `shadow` | `src/shadow.rs`, `src/telemetry.rs`, `src/logs.rs` | `test(/shadow\|sync\|telemetry\|log/)` | — | no |
+| `observability` | `src/telemetry.rs`, `src/logs.rs` | `test(/telemetry\|log/)` | — | no |
 | `explain_mod` | `src/explain.rs`, `src/buildkit.rs` | `test(/explain\|buildkit/)` | — | no |
 | `reclaim` | `src/reclaim.rs` | `test(/reclaim\|gc\|garbage/)` | — | no |
 

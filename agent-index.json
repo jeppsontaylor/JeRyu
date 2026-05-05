@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-04T06:27:09.384845098+00:00",
+  "generated_at": "2026-05-05T23:06:48.567532226+00:00",
   "repo_root": "/home/ubuntu/JeRyu",
   "token_budget_path": "token-budget.toml",
   "entries": [
@@ -202,14 +202,16 @@
       "owner": "CLI Definitions",
       "proof": "`cargo check -p jeryu`",
       "invariants": "All types are pub(crate); main.rs is the only consumer",
-      "default_change_type": "leaf-bugfix",
+      "default_change_type": "api-change",
       "proof_lanes": [
         "check",
-        "unit"
+        "unit",
+        "integration"
       ],
       "proof_commands": [
         "cargo check -p jeryu --message-format=json",
-        "cargo nextest run -p jeryu --lib"
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": []
     },
@@ -282,25 +284,6 @@
       "proof_commands": [
         "cargo check -p jeryu --message-format=json",
         "cargo nextest run -p jeryu --lib"
-      ],
-      "widening_rules": []
-    },
-    {
-      "id": "commands::mirror",
-      "path": "src/commands/mirror.rs",
-      "owner": "Mirror command wrappers",
-      "proof": "`cargo test -p jeryu -- mirror`",
-      "invariants": "Mirror operations preserve the existing shadow remote compatibility path.",
-      "default_change_type": "api-change",
-      "proof_lanes": [
-        "check",
-        "unit",
-        "integration"
-      ],
-      "proof_commands": [
-        "cargo check -p jeryu --message-format=json",
-        "cargo nextest run -p jeryu --lib",
-        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": []
     },
@@ -534,14 +517,16 @@
       "owner": "CLI Dispatch",
       "proof": "`cargo check -p jeryu`",
       "invariants": "All logic dispatches to domain modules; no business logic here",
-      "default_change_type": "leaf-bugfix",
+      "default_change_type": "api-change",
       "proof_lanes": [
         "check",
-        "unit"
+        "unit",
+        "integration"
       ],
       "proof_commands": [
         "cargo check -p jeryu --message-format=json",
-        "cargo nextest run -p jeryu --lib"
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": []
     },
@@ -1483,31 +1468,16 @@
       "owner": "User settings subsystem",
       "proof": "`cargo nextest run -p jeryu -- settings`",
       "invariants": "Settings merges are deterministic and never silently discard explicit user configuration.",
-      "default_change_type": "leaf-bugfix",
+      "default_change_type": "api-change",
       "proof_lanes": [
         "check",
-        "unit"
+        "unit",
+        "integration"
       ],
       "proof_commands": [
         "cargo check -p jeryu --message-format=json",
-        "cargo nextest run -p jeryu --lib"
-      ],
-      "widening_rules": []
-    },
-    {
-      "id": "shadow",
-      "path": "src/shadow.rs",
-      "owner": "Shadow Remote Mirroring",
-      "proof": "`cargo test -p jeryu -- shadow`",
-      "invariants": "Mirror operations are idempotent; push failures do not block the primary pipeline; git commands are used natively.",
-      "default_change_type": "leaf-bugfix",
-      "proof_lanes": [
-        "check",
-        "unit"
-      ],
-      "proof_commands": [
-        "cargo check -p jeryu --message-format=json",
-        "cargo nextest run -p jeryu --lib"
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1"
       ],
       "widening_rules": []
     },

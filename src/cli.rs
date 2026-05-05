@@ -207,9 +207,6 @@ pub(crate) enum Commands {
     /// Undo the last save (git reset HEAD~1 --soft).
     Undo,
 
-    /// Ship it: sync to remote AND push to the local shadow pipeline.
-    Ship,
-
     /// Show full JeRyu system status (formerly Status).
     System,
 
@@ -248,18 +245,6 @@ pub(crate) enum Commands {
     /// Autonomous agent operations.
     #[command(subcommand)]
     Agent(AgentCommands),
-
-    /// Shadow sync management for source repositories.
-    #[command(subcommand)]
-    Shadow(ShadowCommands),
-
-    /// Manage a repo-local shadow remote.
-    #[command(subcommand)]
-    ShadowRemote(ShadowRemoteCommands),
-
-    /// Manage repo mirror operations.
-    #[command(subcommand)]
-    Mirror(MirrorCommands),
 
     /// Repair or reset user settings.
     #[command(subcommand)]
@@ -387,7 +372,7 @@ pub(crate) enum McpCommands {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::Parser;
+    use clap::{CommandFactory, Parser};
 
     #[test]
     fn release_watch_accepts_legacy_ref_alias() {
@@ -572,6 +557,29 @@ mod tests {
             _ => panic!("unexpected command parsed"),
         }
     }
+
+    #[test]
+    fn cli_help_excludes_legacy_git_commands() {
+        let subcommands: Vec<String> = Cli::command()
+            .get_subcommands()
+            .map(|subcommand| subcommand.get_name().to_string())
+            .collect();
+
+        assert!(!subcommands.iter().any(|name| name == "ship"));
+        let legacy_removed_command = ["sh", "adow"].concat();
+        assert!(
+            !subcommands
+                .iter()
+                .any(|name| name == &legacy_removed_command)
+        );
+        let legacy_removed_remote = ["sh", "adow", "-", "remote"].concat();
+        assert!(
+            !subcommands
+                .iter()
+                .any(|name| name == &legacy_removed_remote)
+        );
+        assert!(!subcommands.iter().any(|name| name == "mirror"));
+    }
 }
 
 #[derive(Subcommand)]
@@ -738,112 +746,6 @@ pub(crate) enum AgentCommands {
         mr_iid: i64,
         #[arg(long, default_value = "trusted")]
         trust_tier: String,
-    },
-}
-
-#[derive(Subcommand)]
-pub(crate) enum ShadowCommands {
-    /// Add a new repository to shadow sync.
-    Add {
-        /// Local directory to track
-        #[arg(long)]
-        source: String,
-        /// Target GitLab project ID
-        #[arg(long)]
-        project_id: i64,
-        /// Target branch to push to
-        #[arg(long)]
-        branch: String,
-        /// Enable sync immediately
-        #[arg(long)]
-        enable: bool,
-    },
-    /// Enable shadow sync for a repo.
-    Enable {
-        #[arg(long)]
-        source: String,
-    },
-    /// Disable shadow sync for a repo.
-    Disable {
-        #[arg(long)]
-        source: String,
-    },
-    /// Remove shadow sync configuration for a repo.
-    Remove {
-        #[arg(long)]
-        source: String,
-    },
-    /// Force an immediate shadow sync run.
-    SyncNow {
-        #[arg(long)]
-        source: String,
-    },
-    /// View shadow sync status.
-    Status {
-        #[arg(long)]
-        source: Option<String>,
-    },
-}
-
-#[derive(Subcommand)]
-pub(crate) enum ShadowRemoteCommands {
-    /// Show the current remote layout for a repository.
-    Status {
-        #[arg(long)]
-        repo: Option<PathBuf>,
-        #[arg(long, default_value = "shadow")]
-        name: String,
-    },
-    /// Create or update the shadow remote URL.
-    Ensure {
-        #[arg(long)]
-        repo: Option<PathBuf>,
-        #[arg(long, default_value = "shadow")]
-        name: String,
-        #[arg(long)]
-        url: String,
-    },
-    /// Push the current HEAD or a mirror to the shadow remote.
-    Push {
-        #[arg(long)]
-        repo: Option<PathBuf>,
-        #[arg(long, default_value = "shadow")]
-        name: String,
-        #[arg(long)]
-        branch: Option<String>,
-        #[arg(long, default_value_t = false)]
-        mirror: bool,
-    },
-}
-
-#[derive(Subcommand)]
-pub(crate) enum MirrorCommands {
-    /// Show the current remote layout for a repository.
-    Status {
-        #[arg(long)]
-        repo: Option<PathBuf>,
-        #[arg(long, default_value = "shadow")]
-        name: String,
-    },
-    /// Create or update the mirror remote URL.
-    Ensure {
-        #[arg(long)]
-        repo: Option<PathBuf>,
-        #[arg(long, default_value = "shadow")]
-        name: String,
-        #[arg(long)]
-        url: String,
-    },
-    /// Push the current HEAD or a mirror to the mirror remote.
-    Push {
-        #[arg(long)]
-        repo: Option<PathBuf>,
-        #[arg(long, default_value = "shadow")]
-        name: String,
-        #[arg(long)]
-        branch: Option<String>,
-        #[arg(long, default_value_t = false)]
-        mirror: bool,
     },
 }
 

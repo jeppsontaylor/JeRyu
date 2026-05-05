@@ -555,20 +555,6 @@ shutdown_timeout = 3600
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
-pub struct ShadowConfig {
-    #[serde(default)]
-    pub auto_sync_on_commit: bool,
-    #[serde(default)]
-    pub auto_remediate: bool,
-    #[serde(default = "default_max_blocking_seconds")]
-    pub max_blocking_seconds_on_push: u64,
-}
-
-fn default_max_blocking_seconds() -> u64 {
-    5
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct ProofConfig {
     #[serde(default)]
     pub lanes: std::collections::HashMap<String, Vec<String>>,
@@ -678,10 +664,6 @@ pub fn load_jeryu_workspace_config_with_mode<T: serde::de::DeserializeOwned + De
     } else {
         T::default()
     }
-}
-
-pub fn load_shadow_config(repo_root: &std::path::Path) -> ShadowConfig {
-    load_jeryu_workspace_config(repo_root, "shadow.toml")
 }
 
 pub fn load_proof_config(repo_root: &std::path::Path) -> ProofConfig {

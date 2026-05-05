@@ -459,6 +459,8 @@ struct ReleaseEvidence {
     has_remote_gate: bool,
     has_telemetry_gate: bool,
     has_e2e_gate: bool,
+    has_c_validation: bool,
+    has_c_handoff: bool,
     has_telemetry_diag: bool,
     release_identity_ok: bool,
 }
@@ -969,9 +971,20 @@ fn release_evidence(version: &str, expected_sha: &str) -> Result<ReleaseEvidence
         has_remote_gate: gate_remote_canary_path(version).is_file(),
         has_telemetry_gate: gate_canary_telemetry_path(version).is_file(),
         has_e2e_gate: gate_canary_e2e_path(version).is_file(),
+        has_c_validation: c_validation_path(version).is_file(),
+        has_c_handoff: c_handoff_path(version).is_file(),
         has_telemetry_diag: telemetry_diag_path(version).is_file(),
         release_identity_ok: release_identity_ok(version, expected_sha),
     })
+}
+
+fn has_complete_canary_evidence(evidence: &ReleaseEvidence) -> bool {
+    evidence.has_remote_gate
+        && evidence.has_telemetry_gate
+        && evidence.has_e2e_gate
+        && evidence.has_c_validation
+        && evidence.has_c_handoff
+        && evidence.release_identity_ok
 }
 
 fn is_stale_attempt(attempt: &ReleaseAttempt, evidence: &ReleaseEvidence) -> bool {
@@ -1000,6 +1013,7 @@ fn derive_release_health(attempt: &ReleaseAttempt, evidence: &ReleaseEvidence) -
     }
     if attempt.canary_status == "passed"
         && attempt.release_pipeline_status.as_deref() == Some("success")
+        && has_complete_canary_evidence(evidence)
     {
         return ReleaseHealth::E2ePassed;
     }
@@ -1011,7 +1025,7 @@ fn derive_release_health(attempt: &ReleaseAttempt, evidence: &ReleaseEvidence) -
     {
         return ReleaseHealth::Failed;
     }
-    if evidence.has_e2e_gate {
+    if evidence.has_e2e_gate && has_complete_canary_evidence(evidence) {
         return ReleaseHealth::E2ePassed;
     }
     if evidence.has_remote_gate {
@@ -2151,13 +2165,25 @@ pub async fn maybe_trigger_production_promotion(
         && gate_remote_canary_path(&view.attempt.version).is_file()
         && gate_canary_telemetry_path(&view.attempt.version).is_file()
         && gate_canary_e2e_path(&view.attempt.version).is_file();
+    let identity_ok = release_identity_ok(&view.attempt.version, &view.attempt.sha);
 
     if !gate_files_ok
-        || !view.release_identity_ok
+        || !identity_ok
         || view.attempt.release_pipeline_status.as_deref() != Some("success")
         || gate_prod_promotion_path(&view.attempt.version).is_file()
     {
         return Ok(None);
+    }
+
+    if view.attempt.canary_status != "passed" {
+        db.finish_release_canary(
+            project_id,
+            ref_name,
+            &view.attempt.sha,
+            "passed",
+            Some("required canary gate evidence synced from release-execution pipeline"),
+        )
+        .await?;
     }
 
     if let Some(existing_id) =
@@ -2657,10 +2683,21 @@ pub async fn reconcile_release_for_ref(
                 .await?;
         }
     }
-    let existing_canary_status = existing
+    let mut existing_canary_status = existing
         .as_ref()
         .map(|attempt| attempt.canary_status.as_str())
         .unwrap_or("pending");
+    if existing_canary_status == "passed"
+        && !has_complete_canary_evidence(&release_evidence(&version, &pipeline.sha)?)
+    {
+        let note = "release-execution pipeline ended without required canary gate evidence";
+        db.finish_release_canary(project_id, ref_name, &pipeline.sha, "failed", Some(note))
+            .await?;
+        existing_canary_status = "failed";
+        existing = db
+            .get_release_attempt(project_id, ref_name, &pipeline.sha)
+            .await?;
+    }
     let needs_upsert = existing
         .as_ref()
         .map(|attempt| {

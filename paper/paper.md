@@ -285,7 +285,7 @@ The figure intentionally uses orthogonal rails, numbered flow markers, and separ
 
 The LaTeX paper now includes a full-page single-column API appendix. It documents every current agent-relevant `jeryu` control surface:
 
-- CLI commands for lifecycle, pools, jobs, pipelines, cache, agents, shadow sync, VTI/tests, release, secrets, host, repo, and action discovery
+- CLI commands for lifecycle, pools, jobs, pipelines, cache, agents, git, VTI/tests, release, secrets, host, repo, and action discovery
 - exact CLI grammar from `src/cli.rs`, including all current flag-bearing forms and hidden protocol calls
 - hidden protocol entrypoints: custom executor, server hook, and capability server
 - Unix-socket capability protocol: V3.01 envelope, legacy `AgentIntent`, response shape, nonce/expiry behavior, and grant metadata

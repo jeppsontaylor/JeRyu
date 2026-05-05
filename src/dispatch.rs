@@ -146,12 +146,6 @@ pub(crate) async fn run(cli: Cli) -> Result<i32> {
                 }
             });
 
-            let db_clone2 = db.clone();
-            let client_clone2 = client.clone();
-            tokio::spawn(async move {
-                shadow::run_shadow_loop(db_clone2, client_clone2).await;
-            });
-
             // Wait for signal to exit
             tokio::signal::ctrl_c().await?;
             println!("\nShutting down engine...");
@@ -218,11 +212,6 @@ pub(crate) async fn run(cli: Cli) -> Result<i32> {
             let db = state::Db::open().await.ok();
             return crate::commands::git::execute_undo(db.as_ref()).await;
         }
-        Commands::Ship => {
-            let db = state::Db::open().await.ok();
-            return crate::commands::git::execute_ship(db.as_ref()).await;
-        }
-
         // ---- Down --------------------------------------------------------
         Commands::Down => crate::commands::system::execute_down().await?,
 
@@ -343,168 +332,6 @@ pub(crate) async fn run(cli: Cli) -> Result<i32> {
 
         // ---- Test --------------------------------------------------------
         Commands::Test(subcmd) => crate::commands::test::execute_test_commands(subcmd).await?,
-
-        // ---- Shadow ------------------------------------------------------
-        Commands::Shadow(subcmd) => match subcmd {
-            ShadowCommands::Add {
-                source,
-                project_id,
-                branch,
-                enable,
-            } => {
-                let db = state::Db::open().await?;
-                let path = std::fs::canonicalize(&source)?;
-                let source_dir = path.to_string_lossy().to_string();
-
-                let config = state::ShadowSyncConfig {
-                    source_dir: source_dir.clone(),
-                    enabled: enable,
-                    target_project_id: project_id,
-                    target_branch: branch,
-                    last_seen_head_sha: None,
-                    last_pushed_sha: None,
-                    last_attempt_at: None,
-                    last_success_at: None,
-                    status: if enable {
-                        "idle".to_string()
-                    } else {
-                        "disabled".to_string()
-                    },
-                    error_msg: None,
-                    consecutive_failures: 0,
-                    upstream_status: "unconfigured".to_string(),
-                    upstream_last_pushed_sha: None,
-                    upstream_error_msg: None,
-                };
-                db.upsert_shadow_sync_config(&config).await?;
-                println!("✅ Shadow sync configured for {}", source_dir);
-            }
-            ShadowCommands::Enable { source } => {
-                let db = state::Db::open().await?;
-                let path = std::fs::canonicalize(&source)?;
-                let source_dir = path.to_string_lossy().to_string();
-                db.set_shadow_sync_enabled(&source_dir, true).await?;
-                println!("✅ Shadow sync enabled for {}", source_dir);
-            }
-            ShadowCommands::Disable { source } => {
-                let db = state::Db::open().await?;
-                let path = std::fs::canonicalize(&source)?;
-                let source_dir = path.to_string_lossy().to_string();
-                db.set_shadow_sync_enabled(&source_dir, false).await?;
-                println!("⏸ Shadow sync disabled for {}", source_dir);
-            }
-            ShadowCommands::Remove { source } => {
-                let db = state::Db::open().await?;
-                let path = std::fs::canonicalize(&source)?;
-                let source_dir = path.to_string_lossy().to_string();
-                db.delete_shadow_sync_config(&source_dir).await?;
-                println!("🗑 Shadow sync removed for {}", source_dir);
-            }
-            ShadowCommands::SyncNow { source } => {
-                let db = state::Db::open().await?;
-                let path = std::fs::canonicalize(&source)?;
-                let source_dir = path.to_string_lossy().to_string();
-                db.request_shadow_sync(&source_dir).await?;
-                println!(
-                    "✅ Sync requested for {}. The shadow worker will pick it up within ~2s.",
-                    source_dir
-                );
-            }
-            ShadowCommands::Status { source } => {
-                let db = state::Db::open().await?;
-                if let Some(src) = source {
-                    let path = std::fs::canonicalize(&src)?;
-                    let source_dir = path.to_string_lossy().to_string();
-                    if let Some(c) = db.get_shadow_sync_config(&source_dir).await? {
-                        println!(
-                            "Status for {}: {} ({})",
-                            source_dir,
-                            c.status,
-                            if c.enabled { "enabled" } else { "disabled" }
-                        );
-                    } else {
-                        println!("No config found for {}", source_dir);
-                    }
-                } else {
-                    let configs = db.list_shadow_sync_configs().await?;
-                    if configs.is_empty() {
-                        println!("No shadow sync configs.");
-                    } else {
-                        for c in configs {
-                            println!(
-                                "- {} -> Project {} branch {} | status: {} {}",
-                                c.source_dir,
-                                c.target_project_id,
-                                c.target_branch,
-                                c.status,
-                                if c.enabled { "[ENABLED]" } else { "[DISABLED]" }
-                            );
-                        }
-                    }
-                }
-            }
-        },
-
-        // ---- Shadow Remote ----------------------------------------------
-        Commands::ShadowRemote(subcmd) => match subcmd {
-            ShadowRemoteCommands::Status { repo, name } => {
-                let status = shadow::status(repo.as_deref(), &name)?;
-                println!("━━━ jeryu shadow status ━━━\n");
-                println!("  Repo:         {}", status.repo_root.display());
-                println!(
-                    "  Head branch:  {}",
-                    status.head_branch.as_deref().unwrap_or("(detached)")
-                );
-                println!(
-                    "  Target remote {}: {}",
-                    status.target_remote,
-                    if status.target_exists {
-                        "present"
-                    } else {
-                        "missing"
-                    }
-                );
-                println!("\n  Remotes:");
-                for remote in &status.remotes {
-                    println!(
-                        "    {:<12} fetch={} push={}",
-                        remote.name,
-                        remote.fetch_url.as_deref().unwrap_or("(none)"),
-                        remote.push_url
-                    );
-                }
-                println!();
-            }
-            ShadowRemoteCommands::Ensure { repo, name, url } => {
-                shadow::ensure_remote(repo.as_deref(), &name, &url)?;
-                println!("✅ Remote '{}' now points to {}", name, url);
-            }
-            ShadowRemoteCommands::Push {
-                repo,
-                name,
-                branch,
-                mirror,
-            } => {
-                shadow::push_remote(repo.as_deref(), &name, branch.as_deref(), mirror)?;
-                if mirror {
-                    println!("✅ Mirrored repository to remote '{}'", name);
-                } else {
-                    println!(
-                        "✅ Pushed HEAD to remote '{}'{}",
-                        name,
-                        branch
-                            .as_deref()
-                            .map(|branch| format!(" as {branch}"))
-                            .unwrap_or_default()
-                    );
-                }
-            }
-        },
-
-        // ---- Mirror -----------------------------------------------------
-        Commands::Mirror(subcmd) => {
-            crate::commands::mirror::execute_mirror_commands(subcmd).await?
-        }
 
         // ---- Settings ---------------------------------------------------
         Commands::Settings(subcmd) => {

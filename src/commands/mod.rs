@@ -2,7 +2,6 @@ pub mod git;
 pub mod host;
 pub mod install;
 pub mod job;
-pub mod mirror;
 pub mod pipeline;
 pub mod pool;
 pub mod release;

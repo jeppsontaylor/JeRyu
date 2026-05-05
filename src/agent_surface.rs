@@ -331,6 +331,7 @@ fn tracked_source_files(root: &Path) -> Result<Vec<PathBuf>> {
         .lines()
         .filter(|line| line.ends_with(".rs"))
         .map(|line| root.join(line))
+        .filter(|path| path.exists())
         .collect())
 }
 

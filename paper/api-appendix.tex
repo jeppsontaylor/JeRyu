@@ -12,6 +12,8 @@
 
 This appendix is the agent-facing contract for the V3.01 repository. It is grounded in the active \apicode{jeryu} binary, the Unix-socket capability API, the native MCP server, the engine HTTP routes, the GitLab Runner custom executor protocol, the Git server admission hook, and the canonical action registry. The MCP surface is not a parallel authority system: it is a standards-compatible transport for the same policy, evidence, grant, and merge/release checks exposed through the existing capability model.
 
+Git compatibility is handled through \apicode{jeryu git <args>} passthrough plus the native \apicode{jeryu save}, \apicode{jeryu sync}, and \apicode{jeryu undo} wrappers. The removed \apicode{ship} command and the old repo-mirror entrypoints no longer own a separate shadow-git control plane.
+
 \subsection{Surface Map}
 
 \apitabletitle{Agent-Relevant API Surfaces}
@@ -58,9 +60,11 @@ All command names are kebab-case at the shell. Defaults below match the current 
 \midrule
 \apicmd{jeryu init} & mutating & Bootstrap GitLab, state DB, runners, secrets, compose files, and smoke setup.\\
 \apicmd{jeryu bootstrap} & mutating & Hidden alias for \apicode{init}.\\
-\apicmd{jeryu serve} & daemon & Start Docker/GitLab orchestration, hook install, cache supervisor, runner warmup, engine, and shadow loop.\\
+\apicmd{jeryu serve} & daemon & Start Docker/GitLab orchestration, hook install, cache supervisor, runner warmup, engine, and background workers.\\
 \apicmd{jeryu down} & mutating & Drain runner managers and stop the GitLab stack.\\
 \apicmd{jeryu status} & read & Show GitLab, Vault, pools, managed containers, jobs, release, and secret state.\\
+\apicmd{jeryu git <args>} & mixed & Pass through to the system Git binary and preserve the hook-driven shadow-git path.\\
+\apicmd{jeryu save|sync|undo} & mixed & Convenience wrappers for add/commit, rebase+push, and soft reset.\\
 \apicmd{jeryu tui [--once]} & UI/read & Launch the Ratatui dashboard or render one smoke frame.\\
 \apicmd{jeryu tui --capture --tab <tab> --output <png>} & read/artifact & Deterministic Ratatui PNG capture. Tabs: mission, release, jobs, agents, tests, pools, cache, evidence, secrets.\\
 \apicmd{jeryu tui --screenshot --tab <tab> --screenshot-hold-ms <ms>} & read/session & Hold a real terminal render for external screenshot tooling.\\
@@ -116,8 +120,6 @@ All command names are kebab-case at the shell. Defaults below match the current 
 \apicmd{jeryu agent spawn <project> --task <text>} & mutating & Create an autonomous task branch/MR/issue workflow.\\
 \apicmd{jeryu agent list <project>} & read & List active agent MRs/issues.\\
 \apicmd{jeryu agent merge <project> <mr> [--trust-tier trusted]} & mutating & Request merge through the risk gate.\\
-\apicmd{jeryu shadow <subcommand>} & mixed & Manage periodic local source-to-GitLab shadow sync: add, enable, disable, remove, sync-now, status.\\
-\apicmd{jeryu shadow-remote <subcommand>} & mixed & Inspect, create, or push a repo-local shadow remote: status, ensure, push.\\
 \apicmd{jeryu test run --command <cmd> [--force]} & mutating & Run a command through an ephemeral GitLab CI pipeline.\\
 \apicmd{jeryu test plan --command <cmd>} & read & Preview inferred image, tags, timeout, and runner class.\\
 \apicmd{jeryu test batch --command <cmd>... [--max-parallel 3]} & mutating & Launch several validation pipelines concurrently.\\
@@ -190,17 +192,6 @@ jeryu cache gc [--dry-run] [--json] [--keep-active-managers[=true|false]] [--old
 jeryu agent spawn <project-id> --task <text>
 jeryu agent list <project-id>
 jeryu agent merge <project-id> <mr-iid> [--trust-tier <tier>]
-
-jeryu shadow add --source <path> --project-id <id> --branch <branch> [--enable]
-jeryu shadow enable --source <path>
-jeryu shadow disable --source <path>
-jeryu shadow remove --source <path>
-jeryu shadow sync-now --source <path>
-jeryu shadow status [--source <path>]
-
-jeryu shadow-remote status [--repo <path>] [--name <remote>]
-jeryu shadow-remote ensure [--repo <path>] [--name <remote>] --url <url>
-jeryu shadow-remote push [--repo <path>] [--name <remote>] [--branch <branch>] [--mirror]
 
 jeryu test run --command <cmd> [--project-id <id>] [--image <image>] [--tags <csv>] [--timeout <sec>] [--force]
 jeryu test plan --command <cmd> [--project-id <id>] [--image <image>] [--tags <csv>] [--timeout <sec>]

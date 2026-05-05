@@ -26,7 +26,6 @@ pub struct Settings {
     pub cache: CacheSettings,
     pub sccache: SccacheSettings,
     pub release: ReleaseSettings,
-    pub shadow: ShadowSettings,
     pub sandbox: SandboxSettings,
     pub tui: TuiSettings,
 }
@@ -133,14 +132,6 @@ pub struct MirrorSettings {
     pub enabled: bool,
     /// Preferred mirror remote name.
     pub remote: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default)]
-pub struct ShadowSettings {
-    /// Optional upstream git remote URL for cross-push during shadow sync.
-    /// Equivalent to the old JERYU_UPSTREAM_URL env var.
-    pub upstream_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

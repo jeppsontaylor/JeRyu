@@ -75,7 +75,6 @@ pub mod sandbox;
 pub mod sccache_mgr;
 pub mod secrets;
 pub mod settings;
-pub mod shadow;
 pub mod state;
 pub mod taint;
 pub mod telemetry;

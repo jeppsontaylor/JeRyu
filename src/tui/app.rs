@@ -152,7 +152,6 @@ pub struct TuiStateSnapshot {
     pub pipelines: Vec<PipelineMetrics>,
     pub flow: crate::tui::flow::FlowSnapshot,
     pub live_log: LiveLogState,
-    pub shadow_summary: Option<crate::shadow::ShadowSyncSummary>,
     pub hot_cache_usage_bytes: i64,
     pub cache_hits: i64,
     pub cache_objects_count: i64,
@@ -549,15 +548,6 @@ impl App {
                 error: None,
                 stale: false,
             },
-            shadow_summary: Some(crate::shadow::ShadowSyncSummary {
-                enabled_count: 2,
-                syncing_count: 0,
-                error_count: 0,
-                display_text: "2 sync targets, all healthy".into(),
-                upstream_url: Some("https://example.invalid/shadow/demo".into()),
-                upstream_status: "online".into(),
-                upstream_gap: Some(0),
-            }),
             hot_cache_usage_bytes: 2_340_000_000,
             cache_hits: 1_102,
             cache_objects_count: 2_900,
@@ -1065,10 +1055,6 @@ impl App {
                 }
 
                 snap.gitlab_ready = gitlab.is_ready().await;
-
-                if let Ok(shadow) = crate::shadow::compute_summary(&db).await {
-                    snap.shadow_summary = shadow;
-                }
 
                 if let Ok(report) = release::build_release_status_report(
                     &db,

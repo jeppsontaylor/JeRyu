@@ -54,22 +54,3 @@ pub async fn execute_undo(db: Option<&state::Db>) -> Result<i32> {
     }
     Ok(code)
 }
-
-pub async fn execute_ship(db: Option<&state::Db>) -> Result<i32> {
-    println!("Shipping code...");
-    let origin_code =
-        git::executor::execute_git(db, &["push".into(), "origin".into(), "HEAD".into()]).await?;
-    if origin_code != 0 {
-        return Ok(origin_code);
-    }
-
-    println!("Promoting to local shadow runner...");
-    let shadow_code =
-        git::executor::execute_git(db, &["push".into(), "shadow".into(), "HEAD".into()]).await?;
-    if shadow_code == 0 {
-        println!("✅ Shipped to remote and local shadow.");
-    } else {
-        println!("✅ Shipped to remote (local shadow skip/fail).");
-    }
-    Ok(0)
-}

@@ -23,7 +23,7 @@ The system is built around five control planes:
 | Plane | Responsibility | Primary modules |
 | --- | --- | --- |
 | Interface plane | CLI, TUI, hooks, capability socket, MCP adapter, action registry | `cli.rs`, `dispatch.rs`, `tui/`, `capability.rs`, `mcp.rs`, `admission.rs`, `exec.rs` |
-| Control plane | Webhook ingestion, reconciliation, runner scaling, release triggers | `engine.rs`, `pool.rs`, `release.rs`, `shadow.rs` |
+| Control plane | Webhook ingestion, reconciliation, runner scaling, release triggers | `engine.rs`, `pool.rs`, `release.rs` |
 | State plane | Durable source of truth and audit ledgers | `state.rs`, `settings.rs` |
 | Execution plane | GitLab Runner managers, custom executor, sandbox, tripwires, cache decisions | `exec.rs`, `sandbox.rs`, `honeypot.rs`, `cache_brain.rs`, `taint.rs`, `witness.rs`, `buildkit.rs` |
 | Intelligence plane | Agent operations, risk gates, impact/VTI planning, failure classification, next-action recommendation | `agent.rs`, `decision.rs`, `impact.rs`, `test_intel/`, `capsule.rs`, `test_runner.rs`, `explain.rs` |
@@ -38,7 +38,7 @@ JeRyu introduces a phased migration model from standard Git to AI-driven version
 
 1. **Passthrough Layer (`jeryu git <args>`)**: JeRyu wraps the system Git binary seamlessly. This allows users to alias `git="jeryu git"` without breaking muscle memory or tooling.
 2. **Native Wrappers (`jeryu status`, `jeryu save`, `jeryu undo`)**: Higher-level CLI commands that combine multiple Git operations or add AI context (e.g. `save` runs `add` + `commit`).
-3. **Dual-Use Remote Sync (`jeryu ship`)**: Designed for environments operating both locally (shadow pipeline) and remotely (e.g. GitHub/GitLab LAN). `jeryu ship` pushes the commit to the primary `origin` remote, then also promotes the commit to a repo-local headless `shadow` remote, triggering instant CI validation locally while preserving the remote state.
+3. **Hook-Driven Shadow Git Path (`jeryu git <args>`)**: The remaining shadow-git meaning lives in the hook-driven passthrough and mirror-enforcement path. `jeryu git` wraps the system Git binary, `jeryu save` stages and commits, `jeryu sync` rebases and pushes, and `jeryu undo` rewinds the last commit. The removed `ship`/`shadow` CLI path no longer owns a separate control plane.
 
 ---
 
@@ -64,7 +64,7 @@ graph TB
         Cache_Mod["cache.rs + gateway/"]
         Exec_Mod["exec.rs + sandbox.rs"]
         Pool_Mod["pool.rs"]
-        Shadow_Mod["shadow.rs"]
+        Observability_Mod["telemetry.rs<br/>logs.rs"]
         VTI["test_intel/"]
         Agent_Mod["agent.rs"]
         Cap_Mod["capability.rs"]
@@ -155,7 +155,8 @@ The crate root (`src/lib.rs`) exports these modules:
 | `sccache_mgr` | sccache management for CI jobs. |
 | `secrets` | Vault init/status, release secret rotation/finalization/recovery. |
 | `settings` | User-facing `~/.jeryu/settings.json` — all tunables in a typed schema. |
-| `shadow` | Shadow sync loop and repo-local shadow remote controls. |
+| `telemetry` | Telemetry helpers and live metrics snapshots. |
+| `logs` | Log tailing and manager log formatting helpers. |
 | `state` | Postgres-primary schema, migrations, query API, SQLite fallback. |
 | `taint` | Cache taint/quarantine manager. |
 | `telemetry` | Telemetry helpers. |
@@ -244,7 +245,6 @@ Full VTI documentation: `docs/VTI.md`
 | `cache` | `proxy_port`, `registry_port`, `manager_budget_gib` |
 | `sccache` | `enabled`, `cache_size`, `binary_version` |
 | `release` | `repo_root`, `default_project_id` |
-| `shadow` | `upstream_url` |
 | `sandbox` | `strict_network_isolation` |
 | `tui` | `sync_interval_ms`, `recent_jobs_limit`, `recent_evidence_limit`, `audit_events_limit` |
 
@@ -283,7 +283,7 @@ flowchart LR
     E --> F[Start SmartCache supervisor]
     F --> G[Scale unpaused pools to min_warm]
     G --> H[Spawn engine HTTP server]
-    H --> I[Spawn shadow sync loop]
+    H --> I[Spawn background workers]
     I --> J[Wait for Ctrl-C]
 ```
 
@@ -388,7 +388,6 @@ For proof, `jeryu repo postgres-state-proof` launches a disposable local Postgre
 | Audit ledger | `events` |
 | Release | `release_attempts` |
 | Failure/retry | `evidence_capsules`, `retry_decisions` |
-| Shadow sync | `shadow_sync_configs` |
 | Secrets | `secret_authorities`, `release_secret_sets`, `secret_audit_events` |
 | Cache | `cache_objects`, `cache_requests`, `hot_cache_entries`, `build_signatures`, `image_signatures`, `force_refresh_rules`, `resolved_refs`, `cache_taints`, `cache_leases`, `cache_verdicts`, `cache_promotions`, `material_objects`, `material_aliases`, `action_cache`, `cache_epochs`, `toolchain_fingerprints` |
 | Tests/VTI | `test_executions`, `test_plans`, `test_plan_items`, `selector_misses` |
@@ -702,13 +701,10 @@ These modules form the supply-chain defense boundary for untrusted/custom execut
 
 ---
 
-## 23. Shadow Sync Architecture
+## 23. Observability Modules
 
-`shadow.rs` has two capabilities:
-
-1. **DB-backed periodic shadow sync loop** — monitors configured local source directories and pushes changes to GitLab projects/branches. Records status, SHAs, failures, upstream state. The `sync-now` command triggers sync by requesting it through the DB (`request_shadow_sync`); the shadow worker picks it up within ~2s.
-
-2. **Repo-local remote management** (`shadow-remote`) — inspect, ensure, and push a named remote (default `shadow`).
+`telemetry.rs` and `logs.rs` own runner telemetry and log presentation helpers.
+They are read-only observability surfaces used by the TUI and diagnostics.
 
 ---
 
