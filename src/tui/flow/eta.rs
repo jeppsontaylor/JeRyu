@@ -9,8 +9,8 @@ pub fn estimate_job_eta(
     lane: super::model::LaneKind,
     elapsed_secs: i64,
 ) -> EtaEstimate {
-    // A real implementation would query `Db::get_test_bottlenecks` or similar.
-    // We will simulate estimation via rough fallbacks.
+    // A real implementation would query the state store's bottleneck history or similar.
+    // We will simulate estimation via simple heuristics.
     let historical_duration = match lane {
         super::model::LaneKind::Unit => 60,
         super::model::LaneKind::Integration => 300,

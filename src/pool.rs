@@ -59,7 +59,11 @@ pub async fn reconcile_manager_runtime_state(
     Ok(stopped)
 }
 
-pub async fn count_running_managers(store: &Db, docker: &DockerCtl, pool_name: &str) -> Result<i64> {
+pub async fn count_running_managers(
+    store: &Db,
+    docker: &DockerCtl,
+    pool_name: &str,
+) -> Result<i64> {
     let running_container_ids = docker.running_managed_container_ids().await?;
     let managers = store.list_managers(Some(pool_name)).await?; // allowlist: pool orchestration owns runner state
     Ok(managers
@@ -153,10 +157,10 @@ pub async fn scale_pool_to(
     pool_name: &str,
     target: usize,
 ) -> Result<usize> {
-    let pool = store
-        .get_pool(pool_name)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("pool '{}' not found", pool_name))?;
+    let pool = match store.get_pool(pool_name).await? {
+        Some(pool) => pool,
+        None => return Err(anyhow::anyhow!("pool '{}' not found", pool_name)),
+    };
 
     reconcile_manager_runtime_state(store, docker, Some(pool_name)).await?;
     let active = store.count_active_managers(pool_name).await? as usize; // allowlist: pool orchestration owns runner state
@@ -276,10 +280,10 @@ mod tests {
 
 /// Pause a pool in GitLab (stops accepting new jobs) but keeps managers alive.
 pub async fn pause_pool(store: &Db, client: &GitlabClient, pool_name: &str) -> Result<()> {
-    let pool = store
-        .get_pool(pool_name)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("pool '{}' not found", pool_name))?;
+    let pool = match store.get_pool(pool_name).await? {
+        Some(pool) => pool,
+        None => return Err(anyhow::anyhow!("pool '{}' not found", pool_name)),
+    };
 
     client
         .set_runner_paused(pool.gitlab_runner_id, true)
@@ -292,10 +296,10 @@ pub async fn pause_pool(store: &Db, client: &GitlabClient, pool_name: &str) -> R
 
 /// Resume a paused pool.
 pub async fn resume_pool(store: &Db, client: &GitlabClient, pool_name: &str) -> Result<()> {
-    let pool = store
-        .get_pool(pool_name)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("pool '{}' not found", pool_name))?;
+    let pool = match store.get_pool(pool_name).await? {
+        Some(pool) => pool,
+        None => return Err(anyhow::anyhow!("pool '{}' not found", pool_name)),
+    };
 
     client
         .set_runner_paused(pool.gitlab_runner_id, false)
@@ -369,10 +373,10 @@ pub async fn delete_pool(
     client: &GitlabClient,
     pool_name: &str,
 ) -> Result<()> {
-    let pool = store
-        .get_pool(pool_name)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("pool '{}' not found", pool_name))?;
+    let pool = match store.get_pool(pool_name).await? {
+        Some(pool) => pool,
+        None => return Err(anyhow::anyhow!("pool '{}' not found", pool_name)),
+    };
 
     drain_pool(store, docker, client, pool_name).await.ok();
     client.delete_runner(pool.gitlab_runner_id).await.ok();
@@ -395,10 +399,10 @@ pub async fn rotate_pool_token(
     client: &GitlabClient,
     pool_name: &str,
 ) -> Result<String> {
-    let pool = store
-        .get_pool(pool_name)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("pool '{}' not found", pool_name))?;
+    let pool = match store.get_pool(pool_name).await? {
+        Some(pool) => pool,
+        None => return Err(anyhow::anyhow!("pool '{}' not found", pool_name)),
+    };
 
     // 1. Reset token in GitLab
     let new_token = client.reset_runner_token(pool.gitlab_runner_id).await?;

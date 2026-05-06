@@ -130,7 +130,11 @@ impl DockerCtl {
             },
             Mount {
                 target: Some("/usr/local/bin/jeryu".to_string()),
-                source: Some(current_exe_mount_source(std::env::current_exe()).to_string_lossy().to_string()),
+                source: Some(
+                    current_exe_mount_source(std::env::current_exe())
+                        .to_string_lossy()
+                        .to_string(),
+                ),
                 typ: Some(MountTypeEnum::BIND),
                 read_only: Some(true),
                 ..Default::default()

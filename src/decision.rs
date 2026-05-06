@@ -397,7 +397,7 @@ mod tests {
             failure_kind: kind.into(),
             summary: "summary".into(),
             superseded_by_sha: None,
-            retried_from_job_id: None,
+            requeued_from_job_id: None,
         }
     }
 

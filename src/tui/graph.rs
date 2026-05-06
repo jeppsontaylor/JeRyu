@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn test_lane_classification() {
         assert_eq!(classify_lane("test-unit-core"), "unit");
-        assert_eq!(classify_lane("integration-db"), "integration");
+        assert_eq!(classify_lane("integration-store"), "integration");
         assert_eq!(classify_lane("test-e2e-api"), "e2e");
     }
 

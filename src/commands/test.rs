@@ -212,11 +212,11 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             println!("🧪 Starting batched test run...");
             println!("   Commands:  {}", opts.test_commands.len());
             println!("   Image:     {}", opts.image);
-                let tags_label = match opts.tags.as_ref() {
-                    Some(tags) => format!("{:?}", tags),
-                    None => "smart-inferred".to_string(),
-                };
-                println!("   Tags:      {}", tags_label);
+            let tags_label = match opts.tags.as_ref() {
+                Some(tags) => format!("{:?}", tags),
+                None => "smart-inferred".to_string(),
+            };
+            println!("   Tags:      {}", tags_label);
             println!("   Parallel:  {}", opts.max_parallel);
             println!();
             let results = test_runner::run_test_batch(&db, &client, &opts).await?;

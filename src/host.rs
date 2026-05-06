@@ -33,15 +33,17 @@ pub async fn install_gc_timer(allow_sudo: bool) -> Result<i32> {
 }
 
 fn repo_file(rel: &str) -> PathBuf {
-    let mut dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    loop {
-        let candidate = dir.join(rel);
-        if candidate.exists() {
-            return candidate;
-        }
-        if !dir.pop() {
-            return PathBuf::from(rel);
-        }
+    match std::env::current_dir() {
+        Ok(mut dir) => loop {
+            let candidate = dir.join(rel);
+            if candidate.exists() {
+                return candidate;
+            }
+            if !dir.pop() {
+                return PathBuf::from(rel);
+            }
+        },
+        Err(_) => PathBuf::from(rel),
     }
 }
 

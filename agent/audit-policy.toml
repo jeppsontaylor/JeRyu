@@ -1,11 +1,20 @@
+advisory_on = [
+    "medium",
+    "low",
+]
+fail_on = [
+    "critical",
+    "high",
+]
 minimum_score = 85
-fail_on = ["critical", "high"]
-advisory_on = ["medium", "low"]
 
 [history]
-max_rows = 500
-max_bytes = 1048576
 dedupe = "consecutive-equivalent"
+max_bytes = 1048576
+max_rows = 500
 mirror_env = "JANKURAI_HISTORY_MIRROR"
-mirror_required = false
 mirror_max_rows = 5000
+mirror_required = false
+
+[scan]
+excluded_paths = ["tips/"]

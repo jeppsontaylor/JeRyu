@@ -5,9 +5,9 @@
 use anyhow::Result;
 use chrono::Utc;
 
+use crate::git::event::GitCommandEvent;
 use crate::git::invocation::GitInvocation;
 use crate::git::mirror::PushMirrorPlan;
-use crate::git::event::GitCommandEvent;
 use crate::git::snapshot::GitSnapshot;
 use crate::state::Db;
 use crate::state::GitMirrorJob;
@@ -60,14 +60,17 @@ pub async fn store_git_side_effects(
             } else {
                 "observed".to_string()
             };
-            if let Err(err) = db.record_git_ref_change(
-                invocation.request_id.clone(),
-                ref_name,
-                before.head.clone(),
-                after.head.clone(),
-                status,
-                Utc::now().to_rfc3339(),
-            ).await {
+            if let Err(err) = db
+                .record_git_ref_change(
+                    invocation.request_id.clone(),
+                    ref_name,
+                    before.head.clone(),
+                    after.head.clone(),
+                    status,
+                    Utc::now().to_rfc3339(),
+                )
+                .await
+            {
                 tracing::warn!(error = %err, request_id = %invocation.request_id, "failed to record git ref change");
                 *sidecar_status = "db_write_failed".to_string();
             }

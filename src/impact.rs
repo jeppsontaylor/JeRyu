@@ -167,7 +167,7 @@ async fn changed_paths_from_repo(
     let mut changed_paths = Vec::new();
     diff.foreach(
         &mut |delta, _| {
-            if let Some(path) = delta.new_file().path().or_else(|| delta.old_file().path()) {
+            if let Some(path) = delta.new_file().path().or(delta.old_file().path()) {
                 changed_paths.push(path.to_string_lossy().to_string());
             }
             true
@@ -187,7 +187,10 @@ fn clone_project(
     clone_dir: &std::path::Path,
 ) -> Result<Repository> {
     let mut callbacks = RemoteCallbacks::new();
-    let pat = client.pat_value_for_clone().unwrap_or_default();
+    let pat = match client.pat_value_for_clone() {
+        Some(value) => value,
+        None => String::new(),
+    };
     callbacks.credentials(move |_url, _username, _types| Cred::userpass_plaintext("oauth2", &pat));
 
     let mut fetch_options = FetchOptions::new();

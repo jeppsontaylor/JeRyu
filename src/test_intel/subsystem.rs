@@ -143,9 +143,9 @@ pub const SUBSYSTEMS: &[Subsystem] = &[
     },
     Subsystem {
         id: "decision",
-        description: "Failure classification, retry logic, risk gates, trust tiers",
+        description: "Failure classification, recovery logic, risk gates, trust tiers",
         owned_paths: &["src/decision.rs", "src/capsule.rs"],
-        unit_filter: "test(/decision|risk_gate|retry|classif|capsule/)",
+        unit_filter: "test(/decision|risk_gate|recover|classif|capsule/)",
         integration_tests: &[],
         force_full_paths: &[],
         runner_tags: &["default", "rust", "test"],

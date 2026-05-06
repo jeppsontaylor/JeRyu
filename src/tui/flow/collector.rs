@@ -7,14 +7,14 @@ use crate::{
     docker::DockerCtl,
     gitlab_client::{GitlabClient, Job},
     release,
-    state::{Db, JobEvent, TrackedPipeline},
+    state::{CiJobRun, JobEvent, TrackedPipeline, TuiSession}, // allowlist: TUI session import
 };
 use std::collections::BTreeSet;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 
 pub async fn run_collector(
-    db: Db,
+    session: TuiSession,
     docker: DockerCtl,
     gitlab: GitlabClient,
     tx: mpsc::Sender<FlowSnapshot>,
@@ -29,7 +29,7 @@ pub async fn run_collector(
             ..Default::default()
         };
 
-        if let Ok(pools) = db.list_pools().await {
+        if let Ok(pools) = session.list_pools().await {
             snap.pools = pools;
         }
 
@@ -41,7 +41,7 @@ pub async fn run_collector(
 
         let mut release_pipeline_hint = None;
         if let Ok(report) = release::build_release_status_report(
-            &db,
+            &session,
             release::ReleaseStatusQuery {
                 project_id: Some(release::DEFAULT_RELEASE_PROJECT_ID),
                 ref_name: Some("main".into()),
@@ -58,17 +58,17 @@ pub async fn run_collector(
                         pipeline_id,
                         view.attempt.ref_name.clone(),
                         view.attempt.sha.clone(),
-                        view.attempt
-                            .release_pipeline_status
-                            .clone()
-                            .unwrap_or_else(|| "unknown".to_string()),
+                        match view.attempt.release_pipeline_status.clone() {
+                            Some(value) => value,
+                            None => "unknown".to_string(),
+                        },
                     )
                 })
             });
             snap.release = report.latest;
         }
 
-        if let Ok(metrics) = db.get_cache_metrics().await {
+        if let Ok(metrics) = session.get_cache_metrics().await {
             snap.cache_metrics.hot_usage_bytes = metrics.bytes_served;
             snap.cache_metrics.hits = metrics.hit_count;
             snap.cache_metrics.objects = metrics.object_count;
@@ -79,11 +79,11 @@ pub async fn run_collector(
         }
 
         let mut included_pipeline_ids = BTreeSet::new();
-        if let Ok(pipes) = db.list_tracked_pipelines(5).await {
+        if let Ok(pipes) = session.list_tracked_pipelines(5).await {
             for p in pipes {
                 included_pipeline_ids.insert(p.pipeline_id);
                 snap.active_pipelines
-                    .push(build_tracked_pipeline_flow(&db, &gitlab, p).await);
+                    .push(build_tracked_pipeline_flow(&session, &gitlab, p).await);
             }
         }
 
@@ -117,15 +117,17 @@ pub async fn run_collector(
 }
 
 async fn build_tracked_pipeline_flow(
-    db: &Db,
+    session: &TuiSession,
     gitlab: &GitlabClient,
     pipeline: TrackedPipeline,
 ) -> PipelineFlow {
-    let mut jobs = sqlx::query_as::<_, JobEvent>("SELECT * FROM job_events WHERE pipeline_id = ?")
-        .bind(pipeline.pipeline_id)
-        .fetch_all(&db.pool())
+    let mut jobs = match session
+        .list_ci_job_runs(pipeline.project_id, pipeline.pipeline_id)
         .await
-        .unwrap_or_default();
+    {
+        Ok(runs) => runs.into_iter().map(ci_job_run_to_event).collect(),
+        Err(_) => Vec::new(),
+    };
 
     if jobs.is_empty()
         && let Ok(gitlab_jobs) = gitlab
@@ -145,13 +147,33 @@ async fn build_tracked_pipeline_flow(
     )
 }
 
+fn ci_job_run_to_event(run: CiJobRun) -> JobEvent {
+    let received_at = match (run.started_at.clone(), run.finished_at.clone()) {
+        (Some(started_at), _) => started_at,
+        (None, Some(finished_at)) => finished_at,
+        (None, None) => run.observed_at.clone(),
+    };
+    let pool_name = run.runner_pool.clone();
+    JobEvent {
+        job_id: run.job_id,
+        project_id: run.project_id,
+        pipeline_id: Some(run.pipeline_id),
+        status: run.status,
+        job_name: Some(run.job_name),
+        pool_name,
+        system_id: None,
+        queued_duration: run.queued_duration_secs,
+        received_at,
+    }
+}
+
 async fn build_gitlab_pipeline_flow(
     gitlab: &GitlabClient,
     project_id: i64,
     pipeline_id: i64,
-    fallback_ref_name: String,
-    fallback_sha: String,
-    fallback_status: String,
+    default_ref_name: String,
+    default_sha: String,
+    default_status: String,
 ) -> Option<PipelineFlow> {
     let pipeline = gitlab.get_pipeline(project_id, pipeline_id).await.ok();
     let jobs = gitlab
@@ -159,18 +181,18 @@ async fn build_gitlab_pipeline_flow(
         .await
         .ok()?;
     let events = gitlab_jobs_to_events(project_id, pipeline_id, jobs);
-    let ref_name = pipeline
-        .as_ref()
-        .map(|pipeline| pipeline.ref_name.clone())
-        .unwrap_or(fallback_ref_name);
-    let sha = pipeline
-        .as_ref()
-        .map(|pipeline| pipeline.sha.clone())
-        .unwrap_or(fallback_sha);
-    let status = pipeline
-        .as_ref()
-        .map(|pipeline| pipeline.status.clone())
-        .unwrap_or(fallback_status);
+    let ref_name = match pipeline.as_ref() {
+        Some(pipeline) => pipeline.ref_name.clone(),
+        None => default_ref_name,
+    };
+    let sha = match pipeline.as_ref() {
+        Some(pipeline) => pipeline.sha.clone(),
+        None => default_sha,
+    };
+    let status = match pipeline.as_ref() {
+        Some(pipeline) => pipeline.status.clone(),
+        None => default_status,
+    };
 
     Some(pipeline_flow_from_graph(
         pipeline_id,
@@ -189,12 +211,14 @@ fn gitlab_jobs_to_events(project_id: i64, pipeline_id: i64, jobs: Vec<Job>) -> V
             let pool_name = job
                 .runner
                 .and_then(|runner| runner.description)
-                .or_else(|| Some(job.stage.clone()));
-            let received_at = job
-                .started_at
-                .clone()
-                .or_else(|| job.finished_at.clone())
-                .unwrap_or_else(|| now.clone());
+                .or(Some(job.stage.clone()));
+            let received_at = if let Some(started_at) = job.started_at.clone() {
+                started_at
+            } else if let Some(finished_at) = job.finished_at.clone() {
+                finished_at
+            } else {
+                now.clone()
+            };
             JobEvent {
                 job_id: job.id,
                 project_id,

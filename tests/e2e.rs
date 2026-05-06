@@ -132,7 +132,7 @@ test_job:
                     );
                     jeryu::pool::drain_pool(&db, &docker, &client, &pool_name).await?;
                     jeryu::pool::scale_pool_to(&db, &docker, &client, &pool_name, 1).await?;
-                    client.retry_job(project.id, job.id).await?;
+                    client.requeue_job(project.id, job.id).await?;
                     continue;
                 }
                 panic!("Job failed!\n{trace}");

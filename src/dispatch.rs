@@ -380,21 +380,8 @@ pub(crate) async fn run(cli: Cli) -> Result<i32> {
             return crate::commands::host::execute_host_commands(subcmd).await;
         }
 
-        // ---- Exec --------------------------------------------------------
-        Commands::Exec(subcmd) => match subcmd { // allowlist: typed clap subcommand dispatch, no shell execution
-            ExecCommands::Config => {
-                exec::run_config()?;
-            }
-            ExecCommands::Prepare => {
-                exec::run_prepare().await?;
-            }
-            ExecCommands::Run { script_path, stage } => {
-                exec::run_stage(&script_path, &stage).await?;
-            }
-            ExecCommands::Cleanup => {
-                exec::run_cleanup().await?;
-            }
-        },
+        // ---- Exec -------------------------------------------------------
+        Commands::Exec(_) => unreachable!("exec command is handled in main"), // allowlist: typed clap subcommand; invocations stay typed
 
         // ---- Server Hooks ------------------------------------------------
         Commands::ServerHook(subcmd) => match subcmd {

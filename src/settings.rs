@@ -7,6 +7,7 @@
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::sync::OnceLock;
 
 // ---------------------------------------------------------------------------
@@ -327,6 +328,24 @@ pub fn init() -> Result<()> {
 /// Access the process-wide settings. Panics if `init()` was not called.
 pub fn get() -> &'static Settings {
     SETTINGS.get_or_init(|| load().expect("failed to load settings.json"))
+}
+
+/// Resolve the release repository root with explicit settings precedence.
+pub fn release_repo_root() -> PathBuf {
+    if let Ok(value) = std::env::var("JERYU_RELEASE_REPO_ROOT")
+        && !value.trim().is_empty()
+    {
+        return PathBuf::from(value);
+    }
+    if let Some(value) = get()
+        .release
+        .repo_root
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+    {
+        return PathBuf::from(value);
+    }
+    PathBuf::from("/home/ubuntu/dougx")
 }
 
 // ---------------------------------------------------------------------------

@@ -1,18 +1,5 @@
 {
-  "workspace": "jankurai",
   "tests": {
-    "AGENTS.md": {
-      "command": "just score",
-      "purpose": "verify root routing remains visible to the audit"
-    },
-    "CODEOWNERS": {
-      "command": "just score",
-      "purpose": "verify review routing mirrors owner-map ownership"
-    },
-    ".gitleaks.toml": {
-      "command": "just score",
-      "purpose": "verify root security config remains routed"
-    },
     ".agents/": {
       "command": "just score",
       "purpose": "verify agent scaffolding remains routed"
@@ -41,29 +28,33 @@
       "command": "just score",
       "purpose": "verify GitHub scaffolding remains routed"
     },
-    "agent-index.md": {
-      "command": "just score",
-      "purpose": "verify generated agent index remains routed"
-    },
-    "agent-index.json": {
-      "command": "just score",
-      "purpose": "verify generated agent index remains routed"
-    },
     ".gitignore": {
       "command": "just score",
       "purpose": "verify root file exclusion rules remain routed"
+    },
+    ".gitleaks.toml": {
+      "command": "just score",
+      "purpose": "verify root security config remains routed"
+    },
+    "AGENTS.md": {
+      "command": "just score",
+      "purpose": "verify root routing remains visible to the audit"
     },
     "CHANGELOG.md": {
       "command": "just score",
       "purpose": "verify release notes remain routed"
     },
-    "CODE_OF_CONDUCT.md": {
-      "command": "just score",
-      "purpose": "verify contributor guidance remains routed"
-    },
     "CLAUDE.md": {
       "command": "just score",
       "purpose": "verify agent adapter remains routed"
+    },
+    "CODEOWNERS": {
+      "command": "just score",
+      "purpose": "verify review routing mirrors owner-map ownership"
+    },
+    "CODE_OF_CONDUCT.md": {
+      "command": "just score",
+      "purpose": "verify contributor guidance remains routed"
     },
     "CONTRIBUTING.md": {
       "command": "just score",
@@ -81,14 +72,6 @@
       "command": "just score",
       "purpose": "verify agent adapter remains routed"
     },
-    "README-jankurai-scaffold.md": {
-      "command": "just score",
-      "purpose": "verify scaffold marker remains visible to the audit"
-    },
-    "assets/": {
-      "command": "just score",
-      "purpose": "verify generated assets remain routed"
-    },
     "LICENSE": {
       "command": "just score",
       "purpose": "verify repository license remains routed"
@@ -97,9 +80,53 @@
       "command": "just score",
       "purpose": "verify mission statement remains routed"
     },
+    "python/ai-service/AGENTS.md": {
+      "command": "just score",
+      "purpose": "verify python AI service routing remains visible to the audit"
+    },
+    "README-jankurai-scaffold.md": {
+      "command": "just score",
+      "purpose": "verify scaffold marker remains visible to the audit"
+    },
+    "README.md": {
+      "command": "just score",
+      "purpose": "verify repository readme remains routed"
+    },
+    "SECURITY.md": {
+      "command": "just score",
+      "purpose": "verify repository security guidance remains routed"
+    },
+    "VERSION": {
+      "command": "just score",
+      "purpose": "verify version marker remains routed"
+    },
+    "aer-records/": {
+      "command": "just security",
+      "purpose": "verify AER outputs remain routed"
+    },
+    "agent-index.json": {
+      "command": "just score",
+      "purpose": "verify generated agent index remains routed"
+    },
+    "agent-index.md": {
+      "command": "just score",
+      "purpose": "verify generated agent index remains routed"
+    },
     "agent/": {
       "command": "just score",
       "purpose": "verify manifests remain parseable and authoritative"
+    },
+    "apps/": {
+      "command": "just fast",
+      "purpose": "verify app surfaces remain routed through the audit"
+    },
+    "apps/web/": {
+      "command": "jankurai ux audit --config agent/ux-qa.toml --out target/jankurai/ux-qa.json",
+      "purpose": "verify rendered web UX evidence remains routed"
+    },
+    "assets/": {
+      "command": "just score",
+      "purpose": "verify generated assets remain routed"
     },
     "contracts/": {
       "command": "jankurai audit . --mode advisory --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
@@ -125,6 +152,10 @@
       "command": "jankurai doctor --fail-on critical",
       "purpose": "advisory control-plane health check until migration tests exist"
     },
+    "deny.toml": {
+      "command": "just security",
+      "purpose": "verify dependency policy remains routed"
+    },
     "docs/": {
       "command": "just score",
       "purpose": "verify agent-readable documentation remains routed"
@@ -137,29 +168,45 @@
       "command": "jankurai audit . --mode advisory --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
       "purpose": "verify decision records remain visible to the audit"
     },
-    "README.md": {
-      "command": "just score",
-      "purpose": "verify repository readme remains routed"
+    "examples/labs/exception-zoo/": {
+      "command": "cargo test -p arc-bench",
+      "purpose": "verify exception zoo lab cases remain routed"
+    },
+    "examples/labs/repo-shape-bench/arcified/": {
+      "command": "cargo test -p arc-bench",
+      "purpose": "verify repo-shape bench cases remain routed"
     },
     "examples/perfect-web-api-db/backend/src/background_job.rs": {
       "command": "just fast",
       "purpose": "run proofs for background-job cell"
     },
-    "SECURITY.md": {
+    "jankurai_tracker.md": {
       "command": "just score",
-      "purpose": "verify repository security guidance remains routed"
-    },
-    "VERSION": {
-      "command": "just score",
-      "purpose": "verify version marker remains routed"
-    },
-    "deny.toml": {
-      "command": "just security",
-      "purpose": "verify dependency policy remains routed"
+      "purpose": "verify jankurai work tracker remains routed for joint claude/codex coordination"
     },
     "justfile": {
       "command": "just fast",
       "purpose": "verify build lane definitions remain routed"
+    },
+    "labs/": {
+      "command": "cargo test -p arc-bench",
+      "purpose": "verify lab fixtures remain routed under the bench harness"
+    },
+    "labs/repo-shape-bench/arcified/": {
+      "command": "cargo test -p arc-bench",
+      "purpose": "verify repo-shape bench cases remain routed"
+    },
+    "ops/": {
+      "command": "just security",
+      "purpose": "verify operational assets remain routed under the security lane"
+    },
+    "ops/ci/": {
+      "command": "just security",
+      "purpose": "verify systemd and CI ops assets remain routed"
+    },
+    "paper/": {
+      "command": "just score",
+      "purpose": "verify paper assets remain routed"
     },
     "proof-lanes.toml": {
       "command": "just score",
@@ -177,69 +224,34 @@
       "command": "just fast",
       "purpose": "verify formatter config remains routed"
     },
-    "token-budget.toml": {
-      "command": "just score",
-      "purpose": "verify token budget routing remains visible to the audit"
-    },
     "scratch.rs": {
       "command": "just fast",
       "purpose": "verify scratch harness remains routed"
-    },
-    "version.json": {
-      "command": "just score",
-      "purpose": "verify version metadata remains visible to the audit"
-    },
-    "jankurai_tracker.md": {
-      "command": "just score",
-      "purpose": "verify jankurai work tracker remains routed for joint claude/codex coordination"
-    },
-    "labs/": {
-      "command": "cargo test -p arc-bench",
-      "purpose": "verify lab fixtures remain routed under the bench harness"
-    },
-    "labs/repo-shape-bench/arcified/": {
-      "command": "cargo test -p arc-bench",
-      "purpose": "verify repo-shape bench cases remain routed"
-    },
-    "examples/labs/repo-shape-bench/arcified/": {
-      "command": "cargo test -p arc-bench",
-      "purpose": "verify repo-shape bench cases remain routed"
-    },
-        "examples/labs/exception-zoo/": {
-      "command": "cargo test -p arc-bench",
-      "purpose": "verify exception zoo lab cases remain routed"
-    },
-    "ops/": {
-      "command": "just security",
-      "purpose": "verify operational assets remain routed under the security lane"
-    },
-    "ops/ci/": {
-      "command": "just security",
-      "purpose": "verify systemd and CI ops assets remain routed"
-    },
-    "paper/": {
-      "command": "just score",
-      "purpose": "verify paper assets remain routed"
-    },
-    "src/test_intel/": {
-      "command": "cargo test -p jeryu -- test_intel",
-      "purpose": "verify VTI test-intelligence sources remain routed"
     },
     "src/": {
       "command": "just fast",
       "purpose": "verify Rust source files remain routed"
     },
+    "src/test_intel/": {
+      "command": "cargo test -p jeryu -- test_intel",
+      "purpose": "verify VTI test-intelligence sources remain routed"
+    },
     "tests/": {
       "command": "cargo test -p jeryu --test '*' -- --test-threads=1",
       "purpose": "verify integration tests remain routed"
     },
-    "aer-records/": {
-      "command": "just security",
-      "purpose": "verify AER outputs remain routed"
+    "token-budget.toml": {
+      "command": "just score",
+      "purpose": "verify token budget routing remains visible to the audit"
     },
     "tools/": {
       "command": "just fast",
       "purpose": "verify Rust behavior and audit checks"
+    },
+    "version.json": {
+      "command": "just score",
+      "purpose": "verify version metadata remains visible to the audit"
     }
-  }
+  },
+  "workspace": "jankurai"
 }

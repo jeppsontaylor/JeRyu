@@ -77,6 +77,7 @@ pub mod secrets;
 pub mod settings;
 #[path = "../db/state.rs"]
 pub mod state;
+#[path = "../db/taint.rs"]
 pub mod taint;
 pub mod telemetry;
 pub mod test_intel;

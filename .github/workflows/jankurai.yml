@@ -26,11 +26,22 @@ jobs:
         uses: taiki-e/install-action@4276f5c5467209401f06d04b0026ae72e3bf4b97 # cargo-deny
       - name: Install cargo-cyclonedx
         uses: taiki-e/install-action@8b2082c2d404d46ed01b1ea6ba5d10e26788c99e # cargo-cyclonedx
+      - name: Install actionlint
+        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.8
       - name: Install jankurai
         run: cargo install jankurai --locked
       - run: jankurai --version
+      - name: Workflow lint
+        run: actionlint .github/workflows/*.yml
+      - name: Security strict preflight
+        run: jankurai security run . --strict --profile ci --out target/jankurai/security/evidence.json
       - name: jankurai audit
         run: jankurai audit . --mode advisory --baseline agent/repo-score.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md --sarif target/jankurai/jankurai.sarif --github-step-summary target/jankurai/summary.md --repair-queue-jsonl target/jankurai/repair-queue.jsonl
+      - name: Jankurai ratchet audit
+        run: |
+          mkdir -p target/jankurai
+          git show origin/main:agent/repo-score.json > target/jankurai/accepted-baseline.json
+          jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md
       - name: Upload jankurai SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@53e96ec3b35fce51c141c0d6f0e31028a448722d # v3
@@ -47,10 +58,20 @@ jobs:
         run: cargo run -p cargo-vrc -- map --output-dir .
       - name: AER scan
         run: cargo run -p cargo-aer -- scan --output target/jankurai/aer-findings.json
+      - name: language-bad-behavior
+        run: cargo test -p jeryu --test language_bad_behavior
+      - name: ci-bad-behavior
+        run: cargo test -p jeryu --test language_bad_behavior ci_bad_behavior_lane_is_blocking -- --exact --test-threads=1
+      - name: git-bad-behavior
+        run: cargo test -p jeryu --test language_bad_behavior git_bad_behavior_lane_is_blocking -- --exact --test-threads=1
+      - name: release-bad-behavior
+        run: cargo test -p jeryu --test language_bad_behavior release_bad_behavior_lane_is_blocking -- --exact --test-threads=1
+      - name: Migration analyze
+        run: jankurai migrate . --analyze --json target/jankurai/migration-report.json
       - name: UX QA smoke
         run: jankurai ux audit --config agent/ux-qa.toml --out target/jankurai/ux-qa.json
       - name: Security lane proof
-        run: bash tools/security-lane.sh .
+        run: jankurai security run . --out target/jankurai/security/evidence.json
       - name: Generate CycloneDX SBOM
         if: always()
         run: |
@@ -89,6 +110,10 @@ jobs:
             target/jankurai/proofmark/proof-receipt.json
             target/jankurai/rust/witness-graph.json
             target/jankurai/aer-findings.json
+            target/jankurai/language-bad-behavior.log
+            target/jankurai/ci-bad-behavior.log
+            target/jankurai/git-bad-behavior.log
+            target/jankurai/release-bad-behavior.log
             target/jankurai/ux-qa.json
             target/jankurai/security/*
             target/jankurai/sbom/*

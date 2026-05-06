@@ -237,11 +237,10 @@ pub fn check_cache(
         if key.cacheability != Cacheability::Cacheable {
             misses.push(CacheMiss {
                 test_id: test_id.clone(),
-                reason: key
-                    .uncacheable_reasons
-                    .first()
-                    .cloned()
-                    .unwrap_or_else(|| "uncacheable".into()),
+                reason: match key.uncacheable_reasons.first().cloned() {
+                    Some(reason) => reason,
+                    None => "uncacheable".into(),
+                },
             });
             continue;
         }

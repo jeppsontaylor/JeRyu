@@ -226,6 +226,8 @@ jobs:
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
       - name: Install cargo-deny
         uses: taiki-e/install-action@4276f5c5467209401f06d04b0026ae72e3bf4b97 # cargo-deny
+      - name: Install actionlint
+        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.8
       - name: Security lane proof
         run: bash tools/security-lane.sh .
       - name: Dependency review
@@ -304,9 +306,9 @@ jobs:
         run: git diff --name-only origin/main...HEAD > changed-files.txt; cat changed-files.txt
       - name: Run VRC plan
         run: |
-          CHANGED=$(cat changed-files.txt | tr '\n' ' ')
-          if [ -n "$CHANGED" ]; then
-            cargo run -p cargo-vrc -- plan $CHANGED --output vrc-plan.json
+          mapfile -t CHANGED < changed-files.txt
+          if [ "${#CHANGED[@]}" -gt 0 ]; then
+            cargo run -p cargo-vrc -- plan "${CHANGED[@]}" --output vrc-plan.json
           else
             echo '{"mode":"full","reason":"no changed files detected"}' > vrc-plan.json
           fi
@@ -356,7 +358,11 @@ jobs:
       - name: Install cargo-semver-checks
         uses: taiki-e/install-action@2917690e52aa4d7197c24238e2a04e6775cc8170 # cargo-semver-checks
       - name: Semver check
-        run: cargo semver-checks check-release -p jeryu 2>/dev/null || cargo semver-checks check-release || true
+        run: |
+          if cargo semver-checks check-release -p jeryu 2>/dev/null; then
+            exit 0
+          fi
+          cargo semver-checks check-release
       - name: AER structural audit
         run: cargo run -p cargo-aer -- scan --output aer-findings.json
       - name: Upload hardening findings

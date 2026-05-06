@@ -5,15 +5,30 @@ use std::process::Stdio;
 use tokio::process::Command;
 
 pub async fn postgres_state_proof() -> Result<i32> {
-    let container = std::env::var("JERYU_POSTGRES_PROOF_CONTAINER")
-        .unwrap_or_else(|_| "jeryu-postgres-proof".to_string());
-    let port = std::env::var("JERYU_POSTGRES_PROOF_PORT").unwrap_or_else(|_| "15439".to_string());
-    let db = std::env::var("JERYU_POSTGRES_PROOF_DB").unwrap_or_else(|_| "jeryu_test".to_string());
-    let user = std::env::var("JERYU_POSTGRES_PROOF_USER").unwrap_or_else(|_| "jeryu".to_string());
-    let password =
-        std::env::var("JERYU_POSTGRES_PROOF_PASSWORD").unwrap_or_else(|_| "jeryu_test".to_string());
-    let image = std::env::var("JERYU_POSTGRES_PROOF_IMAGE")
-        .unwrap_or_else(|_| "postgres:16-alpine".to_string());
+    let container = match std::env::var("JERYU_POSTGRES_PROOF_CONTAINER") {
+        Ok(value) => value,
+        Err(_) => "jeryu-postgres-proof".to_string(),
+    };
+    let port = match std::env::var("JERYU_POSTGRES_PROOF_PORT") {
+        Ok(value) => value,
+        Err(_) => "15439".to_string(),
+    };
+    let db = match std::env::var("JERYU_POSTGRES_PROOF_DB") {
+        Ok(value) => value,
+        Err(_) => "jeryu_test".to_string(),
+    };
+    let user = match std::env::var("JERYU_POSTGRES_PROOF_USER") {
+        Ok(value) => value,
+        Err(_) => "jeryu".to_string(),
+    };
+    let password = match std::env::var("JERYU_POSTGRES_PROOF_PASSWORD") {
+        Ok(value) => value,
+        Err(_) => "jeryu_test".to_string(),
+    };
+    let image = match std::env::var("JERYU_POSTGRES_PROOF_IMAGE") {
+        Ok(value) => value,
+        Err(_) => "postgres:16-alpine".to_string(),
+    };
     let url = format!("postgres://{user}:{password}@127.0.0.1:{port}/{db}");
 
     let _ = Command::new("docker")
@@ -49,8 +64,10 @@ pub async fn postgres_state_proof() -> Result<i32> {
     }
 
     let cleanup = container.clone();
-    let keep =
-        std::env::var("JERYU_KEEP_POSTGRES_PROOF").unwrap_or_else(|_| "0".to_string()) == "1";
+    let keep = match std::env::var("JERYU_KEEP_POSTGRES_PROOF") {
+        Ok(value) => value == "1",
+        Err(_) => false,
+    };
     let result = async {
         for _ in 0..30 {
             let ready = Command::new("docker")
@@ -94,7 +111,10 @@ pub async fn postgres_state_proof() -> Result<i32> {
 
 pub async fn capture_tui_screenshots(output_dir: Option<PathBuf>) -> Result<i32> {
     let root = repo_root()?;
-    let output_dir = output_dir.unwrap_or_else(|| root.join("paper/assets"));
+    let output_dir = match output_dir {
+        Some(path) => path,
+        None => root.join("paper/assets"),
+    };
     let debug_dir = root.join("target/tui-capture");
     fs::create_dir_all(&output_dir)
         .with_context(|| format!("creating {}", output_dir.display()))?;
@@ -108,9 +128,10 @@ pub async fn capture_tui_screenshots(output_dir: Option<PathBuf>) -> Result<i32>
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(48);
-    let font_path = std::env::var("JERYU_TUI_CAPTURE_FONT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"));
+    let font_path = match std::env::var("JERYU_TUI_CAPTURE_FONT") {
+        Ok(value) => PathBuf::from(value),
+        Err(_) => PathBuf::from("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"),
+    };
     let font_size = std::env::var("JERYU_TUI_CAPTURE_FONT_SIZE")
         .ok()
         .and_then(|value| value.parse().ok())
@@ -123,8 +144,14 @@ pub async fn capture_tui_screenshots(output_dir: Option<PathBuf>) -> Result<i32>
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(23);
-    let bg = std::env::var("JERYU_TUI_CAPTURE_BG").unwrap_or_else(|_| "#17212b".to_string());
-    let fg = std::env::var("JERYU_TUI_CAPTURE_FG").unwrap_or_else(|_| "#f4fbff".to_string());
+    let bg = match std::env::var("JERYU_TUI_CAPTURE_BG") {
+        Ok(value) => value,
+        Err(_) => "#17212b".to_string(),
+    };
+    let fg = match std::env::var("JERYU_TUI_CAPTURE_FG") {
+        Ok(value) => value,
+        Err(_) => "#f4fbff".to_string(),
+    };
     let brighten = std::env::var("JERYU_TUI_CAPTURE_BRIGHTEN")
         .ok()
         .and_then(|value| value.parse().ok())

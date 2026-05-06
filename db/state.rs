@@ -587,6 +587,8 @@ pub struct Db {
     telemetry_tx: Option<tokio::sync::mpsc::Sender<StateAction>>,
 }
 
+pub type TuiSession = Db;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StateBackend {
     /// Local embedded SQLite database.
@@ -3367,6 +3369,61 @@ impl Db {
         .execute(&self.pool)
         .await?;
         self.inserted_id(result).await
+    }
+
+    pub async fn count_pipeline_jobs_total(&self, pipeline_id: i64) -> i64 {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(DISTINCT job_id) FROM job_events WHERE pipeline_id = ?",
+        )
+        .bind(pipeline_id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or(0)
+    }
+
+    pub async fn count_pipeline_jobs_completed(&self, pipeline_id: i64) -> i64 {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(DISTINCT job_id) FROM job_events WHERE pipeline_id = ? AND status IN ('success', 'failed', 'canceled')",
+        )
+        .bind(pipeline_id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or(0)
+    }
+
+    pub async fn count_pipeline_jobs_running(&self, pipeline_id: i64) -> i64 {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(DISTINCT job_id) FROM job_events WHERE pipeline_id = ? AND status = 'running'",
+        )
+        .bind(pipeline_id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or(0)
+    }
+
+    pub async fn count_cache_taints_total(&self) -> i64 {
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM cache_taints")
+            .fetch_one(&self.pool)
+            .await
+            .unwrap_or(0)
+    }
+
+    pub async fn count_tripwire_taints(&self) -> i64 {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM cache_taints WHERE reason LIKE '%Tripwire%' OR reason LIKE '%tripwire%'",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or(0)
+    }
+
+    pub async fn count_cache_misses(&self) -> i64 {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM cache_verdicts WHERE verdict LIKE '%Miss%'",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or(0)
     }
 }
 

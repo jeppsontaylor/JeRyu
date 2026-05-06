@@ -389,7 +389,7 @@ fn unmatched_capsule_from_trace(
         failure_kind: "unknown".to_string(),
         summary: summary.to_string(),
         superseded_by_sha: None,
-        retried_from_job_id: None,
+        requeued_from_job_id: None,
     }
 }
 

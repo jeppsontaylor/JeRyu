@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-06T13:05:35.124643+00:00",
+  "generated_at": "2026-05-06T16:09:34.965036+00:00",
   "repo_root": "/Users/bentaylor/Code/JeRyu",
   "token_budget_path": "token-budget.toml",
   "entries": [
@@ -563,6 +563,23 @@
         "cargo check -p jeryu --message-format=json",
         "cargo nextest run -p jeryu --lib",
         "cargo test -p jeryu --test '*' -- --test-threads=1"
+      ],
+      "widening_rules": []
+    },
+    {
+      "id": "engine_aux",
+      "path": "src/engine_aux.rs",
+      "owner": "",
+      "proof": "",
+      "invariants": "",
+      "default_change_type": "leaf-bugfix",
+      "proof_lanes": [
+        "check",
+        "unit"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
     },
@@ -1482,48 +1499,6 @@
       "widening_rules": []
     },
     {
-      "id": "state",
-      "path": "src/state.rs",
-      "owner": "State Store (Postgres primary, SQLite recovery)",
-      "proof": "`cargo test -p jeryu -- state`",
-      "invariants": "append-only event log; manager state machine (starting→online→draining→stopped)",
-      "default_change_type": "state-change",
-      "proof_lanes": [
-        "check",
-        "unit",
-        "integration"
-      ],
-      "proof_commands": [
-        "cargo check -p jeryu --message-format=json",
-        "cargo nextest run -p jeryu --lib",
-        "cargo test -p jeryu --test '*' -- --test-threads=1"
-      ],
-      "widening_rules": []
-    },
-    {
-      "id": "taint",
-      "path": "src/taint.rs",
-      "owner": "Taint Tracking (Detonation Lane)",
-      "proof": "`cargo test -p jeryu -- taint`",
-      "invariants": "Taint graph is append-only; purges are recorded events, not deletes; cross-pipeline taint propagation requires a valid plan_id",
-      "default_change_type": "security-relevant",
-      "proof_lanes": [
-        "check",
-        "unit",
-        "integration",
-        "security"
-      ],
-      "proof_commands": [
-        "cargo check -p jeryu --message-format=json",
-        "cargo nextest run -p jeryu --lib",
-        "cargo test -p jeryu --test '*' -- --test-threads=1",
-        "cargo test -p jeryu -- secrets exec honeypot admission"
-      ],
-      "widening_rules": [
-        "security-relevant modules widen to security proof lanes"
-      ]
-    },
-    {
       "id": "telemetry",
       "path": "src/telemetry.rs",
       "owner": "Runner Telemetry subsystem",
@@ -1882,23 +1857,6 @@
       "owner": "Interactive TUI subsystem — pipeline graph rendering",
       "proof": "`cargo nextest run -p jeryu -- tui::graph`",
       "invariants": "Graph rendering is deterministic and never mutates pipeline or release state.",
-      "default_change_type": "leaf-bugfix",
-      "proof_lanes": [
-        "check",
-        "unit"
-      ],
-      "proof_commands": [
-        "cargo check -p jeryu --message-format=json",
-        "cargo nextest run -p jeryu --lib"
-      ],
-      "widening_rules": []
-    },
-    {
-      "id": "tui::mod",
-      "path": "src/tui/mod.rs",
-      "owner": "Interactive TUI subsystem (module root)",
-      "proof": "`cargo nextest run -p jeryu -- tui`",
-      "invariants": "TUI entry points preserve terminal cleanup and keep operational actions policy-gated.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
         "check",

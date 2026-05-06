@@ -1,6 +1,6 @@
 # Agent Index
 
-Generated: `2026-05-06T13:05:35.124643+00:00`
+Generated: `2026-05-06T16:09:34.965036+00:00`
 
 | Module | Change Type | Proof Commands | Owner |
 |---|---|---|---|
@@ -35,6 +35,7 @@ Generated: `2026-05-06T13:05:35.124643+00:00`
 | `src/dispatch.rs` | `api-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | CLI Dispatch |
 | `src/docker.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Docker Control Plane subsystem |
 | `src/engine.rs` | `api-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | Engine Core (Webhook + Reconciliation) |
+| `src/engine_aux.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | - |
 | `src/epoch.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Epoch-Based Cache Invalidation |
 | `src/exec.rs` | `security-relevant` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo test -p jeryu -- secrets exec honeypot admission | Custom Executor & Sandbox Isolation |
 | `src/explain.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Pipeline Explain subsystem |
@@ -82,8 +83,6 @@ Generated: `2026-05-06T13:05:35.124643+00:00`
 | `src/sccache_mgr.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | sccache Management subsystem |
 | `src/secrets.rs` | `security-relevant` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo test -p jeryu -- secrets exec honeypot admission | Secrets & Vault Lifecycle |
 | `src/settings.rs` | `api-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | User settings subsystem |
-| `src/state.rs` | `state-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | State Store (Postgres primary, SQLite recovery) |
-| `src/taint.rs` | `security-relevant` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo test -p jeryu -- secrets exec honeypot admission | Taint Tracking (Detonation Lane) |
 | `src/telemetry.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Runner Telemetry subsystem |
 | `src/test_intel/cache.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | VTI Test Intelligence subsystem — plan cache |
 | `src/test_intel/ci_gen.rs` | `api-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | VTI Test Intelligence subsystem — CI pipeline generation |
@@ -104,6 +103,5 @@ Generated: `2026-05-06T13:05:35.124643+00:00`
 | `src/tui/flow/model.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Interactive TUI subsystem — flow data model |
 | `src/tui/flow/widget.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Interactive TUI subsystem — flow graph widget |
 | `src/tui/graph.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Interactive TUI subsystem — pipeline graph rendering |
-| `src/tui/mod.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Interactive TUI subsystem (module root) |
 | `src/tui/ui.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Interactive TUI subsystem — rendering logic |
 | `src/witness.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Build Witness (Cacheability Classification) |

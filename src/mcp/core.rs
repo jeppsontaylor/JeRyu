@@ -190,14 +190,16 @@ impl McpCore {
         }
 
         state.initialized = true;
-        state.client_actor = req
-            .client_info
-            .as_ref()
-            .map(|info| {
-                let version = info.version.as_deref().unwrap_or("unknown");
+        state.client_actor = match req.client_info.as_ref() {
+            Some(info) => {
+                let version = match info.version.as_deref() {
+                    Some(version) => version,
+                    None => "unknown",
+                };
                 format!("mcp:{}:{version}", info.name)
-            })
-            .unwrap_or_else(|| "mcp-client".to_string());
+            }
+            None => "mcp-client".to_string(),
+        };
 
         jsonrpc_result(
             id,

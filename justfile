@@ -52,8 +52,7 @@ deep:
     cargo run -p cargo-witness -- diagnose
 
 security:
-    cargo deny check
-    cargo run -p cargo-aer -- scan --output aer-findings.json
+    bash tools/security-lane.sh .
 
 release:
     cargo build --release -p jeryu
@@ -78,3 +77,5 @@ rust-witness:
 rust-diagnose:
 	jankurai rust diagnose .
 check: fast score security rust-map rust-witness rust-diagnose
+# jankurai scaffold Justfile
+	jankurai doctor --fail-on critical

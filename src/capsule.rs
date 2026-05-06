@@ -26,7 +26,7 @@ pub struct FailureCapsule {
     pub failure_kind: String,
     pub summary: String,
     pub superseded_by_sha: Option<String>,
-    pub retried_from_job_id: Option<i64>,
+    pub requeued_from_job_id: Option<i64>,
 }
 
 impl FailureCapsule {
@@ -108,7 +108,7 @@ impl FailureCapsule {
             failure_kind,
             summary,
             superseded_by_sha: None,
-            retried_from_job_id: None,
+            requeued_from_job_id: None,
         }
     }
 

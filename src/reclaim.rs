@@ -78,9 +78,10 @@ pub async fn run_storage_audit() -> Result<()> {
 }
 
 pub async fn run_aggressive_reclaim(apply: bool) -> Result<()> {
-    let reclaim_toml = dirs::home_dir()
-        .unwrap_or_default()
-        .join(".jeryu/reclaim.toml");
+    let reclaim_toml = match dirs::home_dir() {
+        Some(home) => home.join(".jeryu/reclaim.toml"),
+        None => std::path::PathBuf::from(".jeryu/reclaim.toml"),
+    };
     let mut exclusions = vec![];
     if reclaim_toml.exists()
         && let Ok(content) = tokio::fs::read_to_string(&reclaim_toml).await
@@ -137,10 +138,11 @@ pub async fn run_aggressive_reclaim(apply: bool) -> Result<()> {
             ],
             "message": "Run with --apply to execute."
         });
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&plan).unwrap_or_default()
-        );
+        let rendered_plan = match serde_json::to_string_pretty(&plan) {
+            Ok(plan) => plan,
+            Err(_) => String::new(),
+        };
+        println!("{}", rendered_plan);
         return Ok(());
     }
 
@@ -326,7 +328,10 @@ pub async fn run_auto_gc(
     }
 
     // 2. Clean up outdated release clones and /tmp build artifacts using tokio::fs.
-    let home = dirs::home_dir().unwrap_or_default();
+    let home = match dirs::home_dir() {
+        Some(home) => home,
+        None => std::path::PathBuf::new(),
+    };
     let age_threshold = if is_emergency {
         std::time::Duration::from_secs(30 * 60) // 30m — today's artifacts are fair game
     } else if is_critical {
@@ -642,8 +647,12 @@ pub async fn gc_orphaned_workers() -> u64 {
 /// Read MemAvailable from /proc/meminfo and return as GB.
 /// Returns f64::MAX if the file cannot be read (treat as no pressure).
 pub fn mem_available_gb() -> f64 {
-    std::fs::read_to_string("/proc/meminfo")
-        .unwrap_or_default()
+    let meminfo = match std::fs::read_to_string("/proc/meminfo") {
+        Ok(meminfo) => meminfo,
+        Err(_) => String::new(),
+    };
+
+    meminfo
         .lines()
         .find(|l| l.starts_with("MemAvailable:"))
         .and_then(|l| l.split_whitespace().nth(1))

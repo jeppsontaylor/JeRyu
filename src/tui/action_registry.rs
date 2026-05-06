@@ -132,7 +132,7 @@ impl ActionEntry {
 
     pub fn side_effect_class(&self) -> SideEffectClass {
         match self.id {
-            "delete_record" | "pause_pool" => SideEffectClass::LocalState,
+            "remove_record" | "pause_pool" => SideEffectClass::LocalState,
             "propose_patch" | "race_patches" => SideEffectClass::GitWrite,
             "run_tests" => SideEffectClass::CiExecution,
             "request_merge" => SideEffectClass::Merge,
@@ -183,22 +183,22 @@ pub static REGISTRY: &[ActionEntry] = &[
         description: "Open live log view for the selected job",
     },
     ActionEntry {
-        id: "retry_job",
-        label: "Retry job",
+        id: "requeue_job",
+        label: "Requeue job",
         key_hint: Some("r"),
         risk_tier: RiskTier::Low,
         surfaces: CLI_TUI,
         dry_run: false,
-        description: "Retry the selected failed or canceled job",
+        description: "Requeue the selected failed or canceled job",
     },
     ActionEntry {
-        id: "delete_record",
-        label: "Forget local record",
+        id: "remove_record",
+        label: "Remove local record",
         key_hint: Some("d"),
         risk_tier: RiskTier::Low,
         surfaces: TUI,
         dry_run: false,
-        description: "Remove the selected job from local DB (does not cancel it in GitLab)",
+        description: "Remove the selected job from local store (does not cancel it in GitLab)",
     },
     ActionEntry {
         id: "pause_pool",

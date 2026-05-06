@@ -1,3 +1,4 @@
+pub mod exec;
 pub mod git;
 pub mod host;
 pub mod install;

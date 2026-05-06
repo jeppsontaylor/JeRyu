@@ -36,9 +36,12 @@ impl EpochManager {
 
     /// Retrieve the current epoch for a given boundary scope (e.g., "global", "project:123", "runner:456").
     pub async fn get_epoch(&self, scope: &str) -> Result<u64> {
-        let epoch =
-            cache_brain_adapter::current_epoch_for(&self.pool, adapter_backend(self.backend), scope)
-                .await?;
+        let epoch = cache_brain_adapter::current_epoch_for(
+            &self.pool,
+            adapter_backend(self.backend),
+            scope,
+        )
+        .await?;
         Ok(epoch as u64)
     }
 

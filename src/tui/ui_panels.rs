@@ -1,0 +1,287 @@
+use super::*;
+pub(crate) fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(6),
+            Constraint::Length(8),
+            Constraint::Min(10),
+        ])
+        .split(area);
+    let headline_cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Min(44), Constraint::Length(42)])
+        .split(rows[0]);
+    let metric_cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
+        ])
+        .split(rows[1]);
+    let body_cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(44),
+            Constraint::Percentage(34),
+            Constraint::Percentage(22),
+        ])
+        .split(rows[2]);
+
+    let pool_active = app.state.pools.iter().filter(|p| !p.paused).count();
+    let pool_total = app.state.pools.len();
+    let running_jobs = app
+        .state
+        .recent_jobs
+        .iter()
+        .filter(|j| j.status == "running")
+        .count();
+    let failed_jobs = app
+        .state
+        .recent_jobs
+        .iter()
+        .filter(|j| j.status == "failed")
+        .count();
+    let blocked_work = failed_jobs
+        + usize::from(app.state.active_taint_count > 0)
+        + usize::from(
+            app.state
+                .release_status
+                .as_ref()
+                .is_some_and(|rel| !matches!(rel.canary_state.as_str(), "green" | "released")),
+        );
+    let release_ready = app
+        .state
+        .release_status
+        .as_ref()
+        .is_some_and(|rel| matches!(rel.canary_state.as_str(), "green" | "released"));
+    let release_progress = app
+        .state
+        .release_status
+        .as_ref()
+        .map(|rel| match rel.canary_state.as_str() {
+            "released" => 100,
+            "green" => 92,
+            "in-flight" | "canary-authorized" => 70,
+            "ready-for-canary" => 55,
+            "waiting" => 35,
+            "blocked" | "blocked-by-upstream" => 25,
+            "failed" => 10,
+            _ => 20,
+        })
+        .unwrap_or(0);
+    let cache_trust = if app.state.active_taint_count == 0 {
+        100
+    } else {
+        35
+    };
+    let autonomy_score = 100u16
+        .saturating_sub((blocked_work as u16).saturating_mul(18))
+        .saturating_sub(if !app.state.gitlab_ready { 22 } else { 0 })
+        .saturating_sub(if app.state.proxy_healthy { 0 } else { 8 })
+        .min(100);
+    let (headline, headline_color, next_action) = top_attention(app);
+    let (_, outdated_color, outdated_label) = outdated_indicator(app);
+
+    f.render_widget(
+        Paragraph::new(vec![
+            Line::from(vec![
+                Span::styled(
+                    "  TOP SIGNAL  ",
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(headline_color)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!(" {}", short_text(&headline, 84)),
+                    Style::default()
+                        .fg(headline_color)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled("  Next action: ", Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    short_text(&next_action, 92),
+                    Style::default().fg(Color::White),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled("  Freshness: ", Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    if outdated_label.is_empty() {
+                        "fresh"
+                    } else {
+                        outdated_label
+                    },
+                    Style::default().fg(outdated_color),
+                ),
+                Span::styled("   Command: ", Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    "^K actions  Enter inspect  3 flow  4 agents  8 evidence",
+                    Style::default().fg(Color::Cyan),
+                ),
+            ]),
+        ])
+        .block(
+            Block::default()
+                .title(" [ Mission Control ] ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(headline_color)),
+        ),
+        headline_cols[0],
+    );
+
+    f.render_widget(
+        Paragraph::new(vec![
+            readiness_line(
+                "GitLab",
+                if app.state.gitlab_ready {
+                    "PASS online"
+                } else {
+                    "WAIT booting"
+                },
+                if app.state.gitlab_ready {
+                    Color::Green
+                } else {
+                    Color::Yellow
+                },
+            ),
+            readiness_line(
+                "Runners",
+                &format!("{pool_active}/{pool_total} active"),
+                if pool_active == pool_total {
+                    Color::Green
+                } else {
+                    Color::Yellow
+                },
+            ),
+            readiness_line(
+                "Gateway",
+                &format!(
+                    "proxy:{} registry:{}",
+                    if app.state.proxy_healthy {
+                        "PASS"
+                    } else {
+                        "FAIL"
+                    },
+                    if app.state.registry_healthy {
+                        "PASS"
+                    } else {
+                        "FAIL"
+                    }
+                ),
+                if app.state.proxy_healthy && app.state.registry_healthy {
+                    Color::Green
+                } else {
+                    Color::Red
+                },
+            ),
+            readiness_line(
+                "Containers",
+                &app.state.active_containers.to_string(),
+                Color::Cyan,
+            ),
+        ])
+        .block(
+            Block::default()
+                .title(" [ Readiness ] ")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::DarkGray)),
+        ),
+        headline_cols[1],
+    );
+
+    draw_metric_tile(
+        f,
+        metric_cols[0],
+        "Autonomy",
+        &format!("{}%", autonomy_score),
+        &meter_bar(autonomy_score, 12),
+        if autonomy_score >= 80 {
+            Color::Green
+        } else if autonomy_score >= 55 {
+            Color::Yellow
+        } else {
+            Color::Red
+        },
+    );
+    draw_metric_tile(
+        f,
+        metric_cols[1],
+        "Active Work",
+        &format!("{} jobs", app.state.recent_jobs.len()),
+        &format!("{running_jobs} running / {failed_jobs} failed"),
+        if failed_jobs > 0 {
+            Color::Red
+        } else if running_jobs > 0 {
+            Color::Cyan
+        } else {
+            Color::Green
+        },
+    );
+    draw_metric_tile(
+        f,
+        metric_cols[2],
+        "Release",
+        if release_ready { "ready" } else { "proofing" },
+        &meter_bar(release_progress, 12),
+        if release_ready {
+            Color::Green
+        } else {
+            Color::Yellow
+        },
+    );
+    draw_metric_tile(
+        f,
+        metric_cols[3],
+        "Cache Trust",
+        &format!("{} taints", app.state.active_taint_count),
+        &meter_bar(cache_trust, 12),
+        if app.state.active_taint_count > 0 {
+            Color::Magenta
+        } else {
+            Color::Green
+        },
+    );
+    // TUI v2 — Live Runners metric tile
+    let feed_count = app.state.runner_feeds.len();
+    let feed_running = app
+        .state
+        .runner_feeds
+        .iter()
+        .filter(|f| f.status == "running")
+        .count();
+    let feed_failed = app
+        .state
+        .runner_feeds
+        .iter()
+        .filter(|f| f.status == "failed")
+        .count();
+    draw_metric_tile(
+        f,
+        metric_cols[4],
+        "Live Runners",
+        &format!("{} active", feed_count),
+        &format!("{feed_running}▶ {feed_failed}✕"),
+        if feed_failed > 0 {
+            Color::Red
+        } else if feed_running > 0 {
+            Color::Cyan
+        } else {
+            Color::DarkGray
+        },
+    );
+
+    draw_attention_queue(f, app, body_cols[0]);
+    draw_proof_lanes(f, app, body_cols[1]);
+    draw_action_stack(f, app, body_cols[2]);
+}
+
+#[path = "ui_panels_mission_extra.rs"]
+mod ui_panels_mission_extra;
+pub(crate) use ui_panels_mission_extra::*;

@@ -104,9 +104,9 @@ test_retry:
     // Let's test the retry API on the old job just to prove the API endpoint functions.
     println!("Calling retry API on failed job");
     client
-        .retry_job(project.id, job_id)
+        .requeue_job(project.id, job_id)
         .await
-        .expect("Failed to call retry_job API");
+        .expect("Failed to call requeue_job API");
 
     // Now wait for the *new* pipeline job to succeed to test trace logic.
     println!("Waiting for new job to succeed");

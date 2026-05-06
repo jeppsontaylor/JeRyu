@@ -29,17 +29,50 @@ fn map_remote_command(cmd: RemoteCommand) -> (RemoteAction, RemoteCommonOptions)
             setup_key,
             identity,
         },
-        RemoteActionCommands::Refresh { alias } => RemoteAction::Refresh { alias },
-        RemoteActionCommands::Doctor { alias } => RemoteAction::Doctor { alias },
-        RemoteActionCommands::Status { alias } => RemoteAction::Status { alias },
-        RemoteActionCommands::Logs { alias } => RemoteAction::Logs { alias },
-        RemoteActionCommands::Restart { alias } => RemoteAction::Restart { alias },
-        RemoteActionCommands::Stop { alias } => RemoteAction::Stop { alias },
-        RemoteActionCommands::Start { alias } => RemoteAction::Start { alias },
-        RemoteActionCommands::Ssh { alias } => RemoteAction::Ssh { alias },
-        RemoteActionCommands::Run { alias, command } => RemoteAction::Run { alias, command },
-        RemoteActionCommands::Tunnel { alias } => RemoteAction::Tunnel { alias },
-        RemoteActionCommands::Uninstall { alias } => RemoteAction::Uninstall { alias },
+        RemoteActionCommands::Refresh { alias } => RemoteAction::Targeted {
+            alias,
+            op: remote::RemoteOperation::Refresh,
+        },
+        RemoteActionCommands::Doctor { alias } => RemoteAction::Targeted {
+            alias,
+            op: remote::RemoteOperation::Doctor,
+        },
+        RemoteActionCommands::Status { alias } => RemoteAction::Targeted {
+            alias,
+            op: remote::RemoteOperation::Status,
+        },
+        RemoteActionCommands::Logs { alias } => RemoteAction::Targeted {
+            alias,
+            op: remote::RemoteOperation::Logs,
+        },
+        RemoteActionCommands::Restart { alias } => RemoteAction::Targeted {
+            alias,
+            op: remote::RemoteOperation::Restart,
+        },
+        RemoteActionCommands::Stop { alias } => RemoteAction::Targeted {
+            alias,
+            op: remote::RemoteOperation::Stop,
+        },
+        RemoteActionCommands::Start { alias } => RemoteAction::Targeted {
+            alias,
+            op: remote::RemoteOperation::Start,
+        },
+        RemoteActionCommands::Ssh { alias } => RemoteAction::Targeted {
+            alias,
+            op: remote::RemoteOperation::Ssh,
+        },
+        RemoteActionCommands::Run { alias, command } => RemoteAction::Targeted {
+            alias,
+            op: remote::RemoteOperation::Run { command },
+        },
+        RemoteActionCommands::Tunnel { alias } => RemoteAction::Targeted {
+            alias,
+            op: remote::RemoteOperation::Tunnel,
+        },
+        RemoteActionCommands::Uninstall { alias } => RemoteAction::Targeted {
+            alias,
+            op: remote::RemoteOperation::Uninstall,
+        },
     };
     (action, opts)
 }
@@ -70,7 +103,13 @@ mod tests {
             },
         });
 
-        assert!(matches!(action, RemoteAction::Refresh { alias } if alias == "xbabe1"));
+        assert!(matches!(
+            action,
+            RemoteAction::Targeted {
+                alias,
+                op: remote::RemoteOperation::Refresh
+            } if alias == "xbabe1"
+        ));
         assert!(opts.dry_run);
         assert!(!opts.json);
     }

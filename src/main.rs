@@ -28,10 +28,12 @@ async fn main() -> Result<()> {
     let is_tui = matches!(cli.command, cli::Commands::Tui { .. });
 
     if !is_tui {
+        let env_filter = match EnvFilter::try_from_default_env() {
+            Ok(filter) => filter,
+            Err(_) => EnvFilter::new("info"),
+        };
         tracing_subscriber::fmt()
-            .with_env_filter(
-                EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
-            )
+            .with_env_filter(env_filter)
             .with_target(false)
             .init();
     }
@@ -97,7 +99,11 @@ async fn main() -> Result<()> {
     // Load ~/.jeryu/settings.json (creates with defaults on first run).
     jeryu::settings::init()?;
 
-    let exit_code = dispatch::run(cli).await?;
+    let exit_code = if let Some(subcmd) = cli::exec_subcommand(&cli.command) {
+        commands::exec::execute_exec_commands(subcmd).await?
+    } else {
+        dispatch::run(cli).await?
+    };
     if exit_code != 0 {
         std::process::exit(exit_code);
     }

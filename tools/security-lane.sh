@@ -20,10 +20,12 @@ gitleaks_log="$out_dir/gitleaks.log"
 cargo_deny_log="$out_dir/cargo-deny.log"
 sbom_report="$out_dir/sbom.spdx.json"
 syft_log="$out_dir/syft.log"
+workflow_lint_log="$out_dir/actionlint.log"
 
 gitleaks_status=0
 cargo_deny_status=0
 sbom_status=0
+workflow_lint_status=0
 
 if command -v gitleaks >/dev/null 2>&1; then
   if gitleaks detect \
@@ -73,8 +75,19 @@ else
   sbom_status=127
 fi
 
+if command -v actionlint >/dev/null 2>&1; then
+  if actionlint "$repo_root/.github/workflows"/*.yml >"$workflow_lint_log" 2>&1; then
+    workflow_lint_status=0
+  else
+    workflow_lint_status=$?
+  fi
+else
+  echo "security lane needs actionlint for workflow scanning" >&2
+  workflow_lint_status=127
+fi
+
 status=0
-if [ "$gitleaks_status" -ne 0 ] || [ "$cargo_deny_status" -ne 0 ] || [ "$sbom_status" -ne 0 ]; then
+if [ "$gitleaks_status" -ne 0 ] || [ "$cargo_deny_status" -ne 0 ] || [ "$sbom_status" -ne 0 ] || [ "$workflow_lint_status" -ne 0 ]; then
   status=1
 fi
 
@@ -102,6 +115,11 @@ cat >"$out_dir/evidence.json" <<EOF
     "status": $sbom_status,
     "report": "sbom.spdx.json",
     "log": "syft.log"
+  },
+  "workflow_lint": {
+    "tool": "actionlint",
+    "status": $workflow_lint_status,
+    "report": "actionlint.log"
   }
 }
 EOF

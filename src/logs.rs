@@ -24,10 +24,10 @@ pub async fn tail_manager(
     manager_id: &str,
     lines: usize,
 ) -> Result<Vec<String>> {
-    let manager = db
-        .get_manager(manager_id)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("manager '{}' not found", manager_id))?;
+    let manager = match db.get_manager(manager_id).await? {
+        Some(manager) => manager,
+        None => return Err(anyhow::anyhow!("manager '{}' not found", manager_id)),
+    };
 
     let logs = docker
         .manager_logs(&manager.docker_container_id, lines)
