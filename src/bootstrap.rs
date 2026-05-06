@@ -56,8 +56,10 @@ fn generate_env_file() -> Result<(String, String)> {
         dotenvy::from_path(&env_path).ok();
         let root_pw = std::env::var("GITLAB_ROOT_PASSWORD")
             .context("GITLAB_ROOT_PASSWORD not found in existing jeryu.env")?;
-        let webhook_secret =
-            std::env::var("JERYU_WEBHOOK_SECRET").unwrap_or_else(|_| generate_password(32));
+        let webhook_secret = match std::env::var("JERYU_WEBHOOK_SECRET") {
+            Ok(v) => v,
+            Err(_) => generate_password(32),
+        };
         return Ok((root_pw, webhook_secret));
     }
 
