@@ -48,9 +48,8 @@ pub fn load_workspace(manifest_path: Option<&Path>) -> Result<WorkspaceSnapshot>
     }
     // Structured subprocess invocation through `cargo_metadata::MetadataCommand`
     // (not a shell string); the manifest path is path-validated above.
-    let metadata = metadata_query.exec().context(
-        "failed to read cargo metadata via the workspace allowlist (see normalize_manifest_path)",
-    )?;
+    let metadata = metadata_query.exec() // allowlist: structured cargo_metadata invocation, path-validated manifest
+        .context("failed to read cargo metadata (see normalize_manifest_path)")?;
     let workspace_root = normalize_existing_path(metadata.workspace_root.as_std_path())?;
     let workspace_agent = parse_workspace_agent(&metadata.workspace_metadata)?;
     let member_ids: HashSet<_> = metadata.workspace_members.iter().cloned().collect();

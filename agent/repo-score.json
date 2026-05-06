@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:0a2c2a86d36202ff9bac07a2731a870f1b767300c70a637bc193d4ca81756709",
-  "input_fingerprint": "sha256:6fbd9a978d648b0ac6031a2e2b89d9eebcb63cfd45ab27df6eb08827c32e23e2",
+  "report_fingerprint": "sha256:6ca69f0a912af8e0375bd107542b14059adef294d6a6171b7417f9ccff3e4dff",
+  "input_fingerprint": "sha256:7d1c929024829584d0b629ec74ae7ba7e1df41ab754eb2b80ba806cd93fc8cf1",
   "policy_fingerprint": "sha256:396aa94b1d9d3e43a5531652f3c52172e9b5e57cc1b5de44febdc48207e3f918",
   "manifest_fingerprints": {
     "owner_map": "sha256:8a15e0d3457b4a4476fe23ee9b16f87b6bbc4e025ec982ce8dfd6cd60cc3e69f",
@@ -11,7 +11,7 @@
     "standard_version": "sha256:8218ee450313a74e73eb990aaadedecba61d4c0d48ada0b6f368b4f7bf2fd9de"
   },
   "dirty_worktree": true,
-  "generated_at": "1778073439",
+  "generated_at": "1778073487",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.8.0",
@@ -24,15 +24,15 @@
   "observed_conformance_level": "HL2",
   "conformance_decision": "block",
   "conformance_blockers": [
-    "HLT-023-INPUT-BOUNDARY-GAP on crates/cargo-vrc/src/workspace.rs",
+    "HLT-023-INPUT-BOUNDARY-GAP on crates/cargo-witness/src/main.rs",
     "HLT-001-DEAD-MARKER on src/capability.rs",
     "HLT-006-DIRECT-DB-WRONG-LAYER on src/docker.rs",
     "HLT-000-SCORE-DIMENSION:vibe on src/install.rs"
   ],
   "repo": ".",
-  "run_id": "1778073439",
-  "started_at": "1778073439",
-  "elapsed_ms": 407,
+  "run_id": "1778073487",
+  "started_at": "1778073487",
+  "elapsed_ms": 397,
   "scope": {
     "mode": "full",
     "paths": []
@@ -59,7 +59,7 @@
     }
   },
   "git": {
-    "head": "f20235e",
+    "head": "07b34df",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -1056,24 +1056,24 @@
     {
       "severity": "high",
       "category": "security",
-      "path": "crates/cargo-vrc/src/workspace.rs",
+      "path": "crates/cargo-witness/src/main.rs",
       "problem": "unsafe or unvalidated input boundary marker appears in product code",
       "agent_fix": "replace unsafe sinks with typed schemas, parameterized APIs, allowlists, or sandboxed execution plus negative tests",
       "evidence": [
-        "let metadata = metadata_query.exec().context("
+        ".exec()"
       ],
       "check_id": "HLT-023-INPUT-BOUNDARY-GAP:security",
       "hardness": "hard",
       "confidence": 0.88,
       "evidence_kind": "repository-scan",
       "rerun_command": "just security",
-      "fingerprint": "sha256:dfa7c0c022c6f87c936b4fffd52e920ee5bd0cc761c2db2a8f203a455fcd3536",
+      "fingerprint": "sha256:236f1ca04507a30df36671e8ce25037d0819797436e72b3328d130403fa787c0",
       "rule_id": "HLT-023-INPUT-BOUNDARY-GAP",
       "tlr": "Security, secrets, agency",
       "lane": "security",
       "docs_url": "docs/audit-rubric.md#top-level-risk-mapping",
       "owner": "tools",
-      "line": 51,
+      "line": 189,
       "matched_term": "shell execution",
       "reason": "input handling risk needs deterministic negative tests"
     },
@@ -1198,7 +1198,7 @@
       "why": "`Data truth and workflow safety` scored 65 below the standard floor of 85"
     },
     {
-      "path": "crates/cargo-vrc/src/workspace.rs",
+      "path": "crates/cargo-witness/src/main.rs",
       "priority": "high",
       "rule_id": "HLT-023-INPUT-BOUNDARY-GAP",
       "tlr": "Security, secrets, agency",

@@ -7,9 +7,9 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1778073444`
-- Started at: `1778073444`
-- Elapsed: `415` ms
+- Run ID: `1778073487`
+- Started at: `1778073487`
+- Elapsed: `397` ms
 - Scope: `full`
 - Raw score: `73`
 - Final score: `66`
@@ -160,7 +160,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:262623223bf7765f338bb28717a6e0aaf5af0494fe90a7d65291c43eb584cc6e`
    Evidence: contract surface found, generated contract artifacts found, polyglot boundary layout present, public API drift checks found
-4. `high` `security` `crates/cargo-vrc/src/workspace.rs:51`
+4. `high` `security` `crates/cargo-witness/src/main.rs:189`
    Rule: `HLT-023-INPUT-BOUNDARY-GAP`
    Check: `HLT-023-INPUT-BOUNDARY-GAP:security` `hard` confidence `0.88`
    Route: TLR `Security, secrets, agency`, lane `security`, owner `tools`
@@ -169,8 +169,8 @@ No audited runtime boundary reclassifications declared.
    Reason: input handling risk needs deterministic negative tests
    Fix: replace unsafe sinks with typed schemas, parameterized APIs, allowlists, or sandboxed execution plus negative tests
    Rerun: `just security`
-   Fingerprint: `sha256:dfa7c0c022c6f87c936b4fffd52e920ee5bd0cc761c2db2a8f203a455fcd3536`
-   Evidence: let metadata = metadata_query.exec().context(
+   Fingerprint: `sha256:236f1ca04507a30df36671e8ce25037d0819797436e72b3328d130403fa787c0`
+   Evidence: .exec()
 5. `medium` `data` `db/`
    Rule: `HLT-006-DIRECT-DB-WRONG-LAYER`
    Check: `HLT-006-DIRECT-DB-WRONG-LAYER:data` `soft` confidence `0.76`
@@ -224,7 +224,7 @@ No audited runtime boundary reclassifications declared.
    Route: `Contracts/data`/`contract`
 3. `medium` `HLT-006-DIRECT-DB-WRONG-LAYER` `db/` - move durable truth into migrations, constraints, adapters, and application-owned transactions
    Route: `Contracts/data`/`db`
-4. `high` `HLT-023-INPUT-BOUNDARY-GAP` `crates/cargo-vrc/src/workspace.rs` - replace unsafe sinks with typed schemas, parameterized APIs, allowlists, or sandboxed execution plus negative tests
+4. `high` `HLT-023-INPUT-BOUNDARY-GAP` `crates/cargo-witness/src/main.rs` - replace unsafe sinks with typed schemas, parameterized APIs, allowlists, or sandboxed execution plus negative tests
    Route: `Security, secrets, agency`/`security`
 5. `high` `HLT-001-DEAD-MARKER` `src/capability.rs` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Route: `Entropy`/`fast`

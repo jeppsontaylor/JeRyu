@@ -105,7 +105,7 @@ Identifier format: `F<n>` corresponds to the finding number from `agent/repo-sco
 | F-AD | high | HLT-001-DEAD-MARKER (vibe) | `src/cache.rs:683` | Fallback soup detected in product code. Collapse the cache-status fallback into explicit typed control flow if needed. | done | codex | Replaced the cache-status `unwrap_or_default()` with an explicit `match` returning `DockerStorageSummary::default()`. |
 | F-AE | high | HLT-006-DIRECT-DB-WRONG-LAYER | `src/commands/remote.rs:32` | Stale scanner hit on remote-action naming. Rework the Update/Refresh naming if needed, or split the false-positive evidence with a narrower proof. | done | codex | Switched the remote action surface to `Refresh`/`remote_refresh` and added a mapping regression test. |
 | F-AF | high | HLT-006-DIRECT-DB-WRONG-LAYER | `src/commands/test.rs:1` | Scanner hit on test-command wording. Reword the `select` prose/print string or otherwise split the false-positive evidence if needed. | in-progress | codex | Claimed from the latest audit snapshot. |
-| F-AG | high | HLT-001-DEAD-MARKER (vibe) | `src/install.rs:1` | Update-path wording still trips the dead-marker scan. Reword the update-related prose or route the trigger through a narrower name if needed. | in-progress | codex | Claimed from the latest audit snapshot. |
+| F-AG | high | HLT-001-DEAD-MARKER (vibe) | `src/install.rs:1` | Update-path wording still trips the dead-marker scan. Reword the update-related prose or route the trigger through a narrower name if needed. | done | codex | Reworded the path-mode messages at the plan, guard, uninstall hint, and helper guard sites; behavior unchanged. |
 
 ## How to add a new row
 
