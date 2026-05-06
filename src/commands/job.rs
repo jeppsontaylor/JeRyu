@@ -53,7 +53,7 @@ pub(crate) async fn execute_job_commands(subcmd: JobCommands) -> Result<()> {
                 println!("Commit:       {}", capsule.commit_sha);
                 println!("Failure kind: {}", capsule.failure_kind);
                 println!("Classified:   {:?}", capsule.classify());
-                println!("Retry advice: {:?}", capsule.recommended_retry());
+                println!("Recovery advice: {:?}", capsule.recommended_recovery());
                 println!("Summary:      {}", capsule.summary);
                 if let Some(record) = retry_record {
                     println!("Last retry:   {} ({})", record.decision, record.reason);

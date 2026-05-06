@@ -359,7 +359,7 @@ async fn handle_pipeline_event(state: SharedState, payload: PipelineHookPayload)
                             pipeline_id,
                             sha = %sha,
                             error = %err,
-                            "failed to update production pipeline status"
+                            "failed to refresh production pipeline status"
                         );
                     } else {
                         info!(
@@ -388,7 +388,7 @@ async fn handle_pipeline_event(state: SharedState, payload: PipelineHookPayload)
                             pipeline_id,
                             sha = %sha,
                             error = %err,
-                            "failed to update release pipeline status"
+                            "failed to refresh release pipeline status"
                         );
                     } else {
                         info!(
@@ -467,7 +467,7 @@ async fn handle_pipeline_event(state: SharedState, payload: PipelineHookPayload)
                                 pipeline_id,
                                 status = %status,
                                 error = %err,
-                                "failed to update failed release-execution pipeline status"
+                                "failed to refresh failed release-execution pipeline status"
                             );
                         } else {
                             let note = format!(
@@ -500,7 +500,7 @@ async fn handle_pipeline_event(state: SharedState, payload: PipelineHookPayload)
                                 pipeline_id,
                                 status = %status,
                                 error = %err,
-                                "failed to update failed production-promotion pipeline status"
+                                "failed to refresh failed production-promotion pipeline status"
                             );
                         }
                     }
@@ -642,7 +642,7 @@ async fn maybe_retry_failed_job(state: &EngineState, project_id: i64, job_id: i6
         return Ok(());
     };
 
-    let decision = capsule.recommended_retry();
+    let decision = capsule.recommended_recovery();
     let reason = format!(
         "{} / {}",
         capsule.failure_kind,

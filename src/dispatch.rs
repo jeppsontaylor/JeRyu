@@ -588,7 +588,7 @@ pub(crate) async fn run(cli: Cli) -> Result<i32> {
                         println!("  failure_kind: {}", cap.failure_kind);
                         println!("  exit_code:    {}", cap.exit_code);
                         println!("  classified:   {:?}", cap.classify());
-                        println!("  retry_advice: {:?}", cap.recommended_retry());
+                        println!("  recovery_advice: {:?}", cap.recommended_recovery());
                         println!("  summary:      {}", cap.summary);
                         if !cap.repro_script.is_empty() {
                             println!("\n  Repro script:\n    {}", cap.repro_script);

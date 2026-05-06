@@ -45,9 +45,10 @@ impl FailureCapsule {
             .ok()
             .and_then(|value| value.parse::<i64>().ok());
 
-        let commit_sha = env_string_or_default("CUSTOM_ENV_CI_COMMIT_SHA", "HEAD");
-        let ref_name = env_string_or_default("CUSTOM_ENV_CI_COMMIT_REF_NAME", "main");
-        let working_directory = env_string_or_default("CUSTOM_ENV_CI_PROJECT_DIR", "/builds");
+        let commit_sha = env_string_or_default(env::var("CUSTOM_ENV_CI_COMMIT_SHA"), "HEAD");
+        let ref_name = env_string_or_default(env::var("CUSTOM_ENV_CI_COMMIT_REF_NAME"), "main");
+        let working_directory =
+            env_string_or_default(env::var("CUSTOM_ENV_CI_PROJECT_DIR"), "/builds");
 
         // Capture relevant CUSTOM_ENV_* variables provided by GitLab Runner
         for (key, value) in env::vars() {
@@ -115,18 +116,21 @@ impl FailureCapsule {
         crate::decision::classify_failure(self)
     }
 
-    pub fn recommended_retry(&self) -> crate::decision::RetryDecision {
-        crate::decision::recommend_retry(self)
+    pub fn recommended_recovery(&self) -> crate::decision::RetryDecision {
+        crate::decision::recommend_recovery(self)
     }
 
     /// Serialize to JSON for storage in the event ledger.
     pub fn to_json(&self) -> String {
-        serde_json::to_string(self).unwrap_or_else(|_| "{}".to_string())
+        match serde_json::to_string(self) {
+            Ok(s) => s,
+            Err(_) => "{}".to_string(),
+        }
     }
 }
 
-fn env_string_or_default(key: &str, default: &'static str) -> String {
-    match env::var(key) {
+fn env_string_or_default(value: Result<String, env::VarError>, default: &'static str) -> String {
+    match value {
         Ok(value) => value,
         Err(_) => default.to_string(),
     }
@@ -169,16 +173,16 @@ mod tests {
     use super::env_string_or_default;
 
     #[test]
-    fn env_string_or_default_uses_present_value() {
-        let value = env_string_or_default(Ok("value".to_string()), "fallback");
+    fn env_string_or_default_returns_present_value() {
+        let value = env_string_or_default(Ok("value".to_string()), "default");
 
         assert_eq!(value, "value");
     }
 
     #[test]
-    fn env_string_or_default_uses_fallback_when_missing() {
-        let value = env_string_or_default(Err(std::env::VarError::NotPresent), "fallback");
+    fn env_string_or_default_returns_default_when_missing() {
+        let value = env_string_or_default(Err(std::env::VarError::NotPresent), "default");
 
-        assert_eq!(value, "fallback");
+        assert_eq!(value, "default");
     }
 }
