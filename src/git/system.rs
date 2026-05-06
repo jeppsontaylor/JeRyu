@@ -13,17 +13,33 @@ pub struct SystemGit {
 
 impl SystemGit {
     pub fn resolve() -> Result<Self> {
-        let candidate = std::env::var("JERYU_SYSTEM_GIT")
+        if let Some(path) = std::env::var("JERYU_SYSTEM_GIT")
             .ok()
             .filter(|path| !path_is_recursive_bridge(Path::new(path)))
-            .or_else(|| crate::settings::get().git.system_git.clone())
-            .filter(|path| !path_is_recursive_bridge(Path::new(path)))
-            .or_else(find_git_on_path);
+        {
+            return Ok(Self {
+                path: PathBuf::from(path),
+            });
+        }
 
-        let path = candidate
-            .map(PathBuf::from)
-            .ok_or_else(|| anyhow::anyhow!("unable to resolve system git binary"))?;
-        Ok(Self { path })
+        if let Some(path) = crate::settings::get()
+            .git
+            .system_git
+            .clone()
+            .filter(|path| !path_is_recursive_bridge(Path::new(path)))
+        {
+            return Ok(Self {
+                path: PathBuf::from(path),
+            });
+        }
+
+        if let Some(path) = find_git_on_path() {
+            return Ok(Self {
+                path: PathBuf::from(path),
+            });
+        }
+
+        Err(anyhow::anyhow!("unable to resolve system git binary"))
     }
 
     pub fn command(&self, cwd: &Path, args: &[&str]) -> Command {
@@ -75,8 +91,14 @@ fn path_matches_current_exe(path: &Path) -> bool {
     let Ok(current) = std::env::current_exe() else {
         return false;
     };
-    let current = std::fs::canonicalize(current).unwrap_or_else(|_| PathBuf::new());
-    let candidate = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let current = match std::fs::canonicalize(current) {
+        Ok(value) => value,
+        Err(_) => PathBuf::new(),
+    };
+    let candidate = match std::fs::canonicalize(path) {
+        Ok(value) => value,
+        Err(_) => path.to_path_buf(),
+    };
     !current.as_os_str().is_empty() && current == candidate
 }
 

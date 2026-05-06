@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:15e055dd3c8c31e9e0066c9e0c9971e00503f219a0d2510130487a0c2fbd1ca0",
-  "input_fingerprint": "sha256:a0da6bc13ad733437faf02c622fec37875234798b9b4c6a52ffeb007a0e3b11a",
+  "report_fingerprint": "sha256:8be1ae7ff98c7aca24bf999a86399efed497effaffeb0ab204288b2144326e87",
+  "input_fingerprint": "sha256:3d3afb21735c0581d9ffc591663aef4fadcc818993118647246f1ecc51e4b5b6",
   "policy_fingerprint": "sha256:396aa94b1d9d3e43a5531652f3c52172e9b5e57cc1b5de44febdc48207e3f918",
   "manifest_fingerprints": {
     "owner_map": "sha256:8a15e0d3457b4a4476fe23ee9b16f87b6bbc4e025ec982ce8dfd6cd60cc3e69f",
@@ -11,7 +11,7 @@
     "standard_version": "sha256:8218ee450313a74e73eb990aaadedecba61d4c0d48ada0b6f368b4f7bf2fd9de"
   },
   "dirty_worktree": true,
-  "generated_at": "1778076490",
+  "generated_at": "1778076625",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.8.0",
@@ -24,14 +24,14 @@
   "observed_conformance_level": "HL2",
   "conformance_decision": "block",
   "conformance_blockers": [
-    "HLT-001-DEAD-MARKER on src/git/system.rs",
+    "HLT-001-DEAD-MARKER on src/gitlab_client.rs",
     "HLT-000-SCORE-DIMENSION:vibe on src/remote.rs",
-    "HLT-006-DIRECT-DB-WRONG-LAYER on src/state.rs"
+    "HLT-006-DIRECT-DB-WRONG-LAYER on src/taint.rs"
   ],
   "repo": ".",
-  "run_id": "1778076490",
-  "started_at": "1778076490",
-  "elapsed_ms": 380,
+  "run_id": "1778076625",
+  "started_at": "1778076625",
+  "elapsed_ms": 370,
   "scope": {
     "mode": "full",
     "paths": []
@@ -58,7 +58,7 @@
     }
   },
   "git": {
-    "head": "e5d0abc",
+    "head": "671879a",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -334,7 +334,7 @@
         "security lane present",
         "canonical security lane wrapper present",
         "agent-readiness audit gate found in CI",
-        "rust bad-behavior advisory signals: 923",
+        "rust bad-behavior advisory signals: 883",
         "ci bad-behavior advisory signals: 2",
         "gittools bad-behavior advisory signals: 1",
         "secret scanning command is operational"
@@ -347,12 +347,12 @@
       "score": 0,
       "weighted_points": 0.0,
       "evidence": [
-        "largest authored code file: src/state.rs (4447 LOC)",
+        "largest authored code file: src/release.rs (3896 LOC)",
         "code file exceeds 500 LOC",
         "code file exceeds 1000 LOC",
         "duplicate code block marker found",
         "fallback soup marker found",
-        "rust bad-behavior advisory signals: 923",
+        "rust bad-behavior advisory signals: 883",
         "ci bad-behavior advisory signals: 2",
         "gittools bad-behavior advisory signals: 1",
         "no hard bad-behavior findings across detector-backed language families"
@@ -369,7 +369,7 @@
         "structured db boundary manifest present",
         "migration directory present",
         "data access appears compartmentalized",
-        "strict DB boundary violation: src/state.rs"
+        "strict DB boundary violation: src/taint.rs"
       ],
       "notes": [
         "direct DB access leaks out of the data boundary"
@@ -1227,7 +1227,7 @@
       "problem": "`Code shape and semantic surface` scored 0 below the standard floor of 85",
       "agent_fix": "split large or ambiguous authored code into smaller semantic modules with focused tests",
       "evidence": [
-        "largest authored code file: src/state.rs (4447 LOC)",
+        "largest authored code file: src/release.rs (3896 LOC)",
         "code file exceeds 500 LOC",
         "code file exceeds 1000 LOC",
         "duplicate code block marker found"
@@ -1237,7 +1237,7 @@
       "confidence": 0.76,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:33b638886e3eb85df6b1c3d1e11b7071466bbe9417a8f472e09301a3236fe839",
+      "fingerprint": "sha256:72b73129d1e761b96020d60b4373e845095bf9063b5c023db5ab2574036395d5",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
@@ -1319,24 +1319,24 @@
     {
       "severity": "high",
       "category": "vibe",
-      "path": "src/git/system.rs",
+      "path": "src/gitlab_client.rs",
       "problem": "fallback soup detected in product code",
       "agent_fix": "collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance",
       "evidence": [
-        "src/git/system.rs:19 .or_else(|| crate::settings::get().git.system_git.clone())"
+        "src/gitlab_client.rs:598 pub async fn retry_job(&self, project_id: i64, job_id: i64) -> Result<()> {"
       ],
       "check_id": "HLT-001-DEAD-MARKER:vibe",
       "hardness": "hard",
       "confidence": 0.88,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:8007e9ee6b07feaafcf89d4f7d7187b6e75948fc13542ab4b22170232814039d",
+      "fingerprint": "sha256:8ab4410ff9d4015f7070d2223052b1b190d97a5d157985c6baa649ef1cc66376",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
       "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
       "owner": "workspace",
-      "line": 19
+      "line": 598
     },
     {
       "severity": "high",
@@ -1361,7 +1361,7 @@
     {
       "severity": "high",
       "category": "data",
-      "path": "src/state.rs",
+      "path": "src/taint.rs",
       "problem": "direct database access appears in a wrong layer",
       "agent_fix": "move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward",
       "evidence": [
@@ -1372,23 +1372,23 @@
       "confidence": 0.95,
       "evidence_kind": "sql",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:de19b1303adf3f1bbe0a7c963435c3f3da9883f18cf4202d4c509bda6e0ef9ec",
+      "fingerprint": "sha256:b2899480f96d47b78100288099acddc25c612efbf2d0034804be52969132f591",
       "rule_id": "HLT-006-DIRECT-DB-WRONG-LAYER",
       "tlr": "Contracts/data",
       "lane": "db",
       "docs_url": "docs/audit-rubric.md#required-shape",
-      "owner": "data",
+      "owner": "workspace",
       "line": 1
     }
   ],
   "agent_fix_queue": [
     {
-      "path": "src/state.rs",
+      "path": "src/taint.rs",
       "priority": "high",
       "rule_id": "HLT-006-DIRECT-DB-WRONG-LAYER",
       "tlr": "Contracts/data",
       "lane": "db",
-      "owner": "data",
+      "owner": "workspace",
       "task": "move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward",
       "why": "direct database access appears in a wrong layer"
     },
@@ -1413,7 +1413,7 @@
       "why": "`Data truth and workflow safety` scored 70 below the standard floor of 85"
     },
     {
-      "path": "src/git/system.rs",
+      "path": "src/gitlab_client.rs",
       "priority": "high",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",

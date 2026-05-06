@@ -32,6 +32,41 @@ pub async fn run_status_check(
     Ok(())
 }
 
+/// Spawn a command, stream `stdin_data` into its stdin, and bail on failure.
+///
+/// Inherits stdout/stderr; pipes stdin so callers can stream bytes into the
+/// child process. Centralizes the `.spawn() + write_all + wait + bail!` pattern.
+pub async fn run_with_stdin(
+    cmd: &mut tokio::process::Command,
+    stdin_data: &[u8],
+    error_message: &str,
+) -> Result<()> {
+    use tokio::io::AsyncWriteExt;
+    let mut child = cmd
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .spawn()
+        .with_context(|| error_message.to_string())?;
+    let mut stdin = child
+        .stdin
+        .take()
+        .with_context(|| format!("{} (opening stdin)", error_message))?;
+    stdin
+        .write_all(stdin_data)
+        .await
+        .with_context(|| format!("{} (streaming stdin)", error_message))?;
+    drop(stdin);
+    let status = child
+        .wait()
+        .await
+        .with_context(|| error_message.to_string())?;
+    if !status.success() {
+        anyhow::bail!("{} (exit code: {:?})", error_message, status.code());
+    }
+    Ok(())
+}
+
 /// Typed errors for custom executor sandbox operations.
 #[derive(Debug, Error)]
 pub enum ExecError {

@@ -7,9 +7,9 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1778076490`
-- Started at: `1778076490`
-- Elapsed: `380` ms
+- Run ID: `1778076625`
+- Started at: `1778076625`
+- Elapsed: `370` ms
 - Scope: `full`
 - Raw score: `75`
 - Final score: `66`
@@ -72,7 +72,7 @@
 | Contract and boundary integrity | 13 | 83 | 10.79 | contract surface found; generated contract artifacts found |
 | Proof lanes and test routing | 12 | 100 | 12.00 | one-command setup/validation lane found; deterministic fast lane found |
 | Security and supply-chain posture | 12 | 78 | 9.36 | lockfile present; secret or dependency scan tooling found |
-| Code shape and semantic surface | 12 | 0 | 0.00 | largest authored code file: src/state.rs (4447 LOC); code file exceeds 500 LOC |
+| Code shape and semantic surface | 12 | 0 | 0.00 | largest authored code file: src/release.rs (3896 LOC); code file exceeds 500 LOC |
 | Data truth and workflow safety | 8 | 70 | 5.60 | database surface present; structured db boundary manifest present |
 | Observability and repair evidence | 8 | 98 | 7.84 | observability libraries or patterns found; diagnostic shaping hints found |
 | Context economy and agent instructions | 7 | 100 | 7.00 | root `AGENTS.md` present; root `AGENTS.md` stays short |
@@ -155,8 +155,8 @@ No audited runtime boundary reclassifications declared.
    Reason: `Code shape and semantic surface` scored 0 below the standard floor of 85
    Fix: split large or ambiguous authored code into smaller semantic modules with focused tests
    Rerun: `just fast`
-   Fingerprint: `sha256:33b638886e3eb85df6b1c3d1e11b7071466bbe9417a8f472e09301a3236fe839`
-   Evidence: largest authored code file: src/state.rs (4447 LOC), code file exceeds 500 LOC, code file exceeds 1000 LOC, duplicate code block marker found
+   Fingerprint: `sha256:72b73129d1e761b96020d60b4373e845095bf9063b5c023db5ab2574036395d5`
+   Evidence: largest authored code file: src/release.rs (3896 LOC), code file exceeds 500 LOC, code file exceeds 1000 LOC, duplicate code block marker found
 2. `medium` `security` `.github/workflows/jankurai.yml`
    Rule: `HLT-016-SUPPLY-CHAIN-DRIFT`
    Check: `HLT-016-SUPPLY-CHAIN-DRIFT:security` `soft` confidence `0.76`
@@ -187,7 +187,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:f855856de7c0ff9d64ef1ee4de6f0fc8cde87f79b8dc47769b55f46bbc35d71f`
    Evidence: database surface present, structured db boundary manifest present, migration directory present, data access appears compartmentalized
-5. `high` `vibe` `src/git/system.rs:19`
+5. `high` `vibe` `src/gitlab_client.rs:598`
    Rule: `HLT-001-DEAD-MARKER`
    Check: `HLT-001-DEAD-MARKER:vibe` `hard` confidence `0.88`
    Route: TLR `Entropy`, lane `fast`, owner `workspace`
@@ -195,8 +195,8 @@ No audited runtime boundary reclassifications declared.
    Reason: fallback soup detected in product code
    Fix: collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Rerun: `just fast`
-   Fingerprint: `sha256:8007e9ee6b07feaafcf89d4f7d7187b6e75948fc13542ab4b22170232814039d`
-   Evidence: src/git/system.rs:19 .or_else(|| crate::settings::get().git.system_git.clone())
+   Fingerprint: `sha256:8ab4410ff9d4015f7070d2223052b1b190d97a5d157985c6baa649ef1cc66376`
+   Evidence: src/gitlab_client.rs:598 pub async fn retry_job(&self, project_id: i64, job_id: i64) -> Result<()> {
 6. `high` `vibe` `src/remote.rs:1`
    Check: `HLT-000-SCORE-DIMENSION:vibe` `hard` confidence `0.88`
    Route: TLR `Entropy`, lane `fast`, owner `workspace`
@@ -205,15 +205,15 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:8fa94f822f7a8de06018029d63534ab18011cfc9705c474d653a75b379594773`
    Evidence: duplicate block also appears at src/remote.rs:1
-7. `high` `data` `src/state.rs:1`
+7. `high` `data` `src/taint.rs:1`
    Rule: `HLT-006-DIRECT-DB-WRONG-LAYER`
    Check: `HLT-006-DIRECT-DB-WRONG-LAYER:data` `hard` confidence `0.95`
-   Route: TLR `Contracts/data`, lane `db`, owner `data`
+   Route: TLR `Contracts/data`, lane `db`, owner `workspace`
    Docs: `docs/audit-rubric.md#required-shape`
    Reason: direct database access appears in a wrong layer
    Fix: move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward
    Rerun: `just fast`
-   Fingerprint: `sha256:de19b1303adf3f1bbe0a7c963435c3f3da9883f18cf4202d4c509bda6e0ef9ec`
+   Fingerprint: `sha256:b2899480f96d47b78100288099acddc25c612efbf2d0034804be52969132f591`
    Evidence: DB marker in non-adapter layer
 
 ## Policy
@@ -224,13 +224,13 @@ No audited runtime boundary reclassifications declared.
 
 ## Agent Fix Queue
 
-1. `high` `HLT-006-DIRECT-DB-WRONG-LAYER` `src/state.rs` - move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward
+1. `high` `HLT-006-DIRECT-DB-WRONG-LAYER` `src/taint.rs` - move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward
    Route: `Contracts/data`/`db`
 2. `medium` `HLT-007-HANDWRITTEN-CONTRACT` `agent/boundaries.toml` - add generated contracts and boundary checks for public APIs, data access, and cross-runtime seams
    Route: `Contracts/data`/`contract`
 3. `medium` `HLT-006-DIRECT-DB-WRONG-LAYER` `db/` - move durable truth into migrations, constraints, adapters, and application-owned transactions
    Route: `Contracts/data`/`db`
-4. `high` `HLT-001-DEAD-MARKER` `src/git/system.rs` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
+4. `high` `HLT-001-DEAD-MARKER` `src/gitlab_client.rs` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Route: `Entropy`/`fast`
 5. `high` `src/remote.rs` - extract the duplicated behavior behind one named boundary and add focused tests before changing behavior
    Route: `Entropy`/`fast`

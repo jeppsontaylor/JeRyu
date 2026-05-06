@@ -12,7 +12,6 @@ use std::io::{self, IsTerminal, Write};
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::time::Instant;
-use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
 use crate::install::{ColorMode, InteractiveMode, expand_tilde};
@@ -193,39 +192,7 @@ pub async fn execute_remote(action: RemoteAction, opts: RemoteCommonOptions) -> 
             };
             remote_install(cfg, setup_key, &opts).await
         }
-        RemoteAction::Refresh { alias } => {
-            dispatch_remote_action(&alias, &opts, RemoteOp::Refresh).await
-        }
-        RemoteAction::Doctor { alias } => {
-            dispatch_remote_action(&alias, &opts, RemoteOp::Doctor).await
-        }
-        RemoteAction::Status { alias } => {
-            dispatch_remote_action(&alias, &opts, RemoteOp::Status).await
-        }
-        RemoteAction::Logs { alias } => {
-            dispatch_remote_action(&alias, &opts, RemoteOp::Logs).await
-        }
-        RemoteAction::Restart { alias } => {
-            dispatch_remote_action(&alias, &opts, RemoteOp::Restart).await
-        }
-        RemoteAction::Stop { alias } => {
-            dispatch_remote_action(&alias, &opts, RemoteOp::Stop).await
-        }
-        RemoteAction::Start { alias } => {
-            dispatch_remote_action(&alias, &opts, RemoteOp::Start).await
-        }
-        RemoteAction::Ssh { alias } => {
-            dispatch_remote_action(&alias, &opts, RemoteOp::Ssh).await
-        }
-        RemoteAction::Run { alias, command } => {
-            dispatch_remote_action(&alias, &opts, RemoteOp::Run(command)).await
-        }
-        RemoteAction::Tunnel { alias } => {
-            dispatch_remote_action(&alias, &opts, RemoteOp::Tunnel).await
-        }
-        RemoteAction::Uninstall { alias } => {
-            dispatch_remote_action(&alias, &opts, RemoteOp::Uninstall).await
-        }
+        other => dispatch_remote_action(other, &opts).await,
     }
 }
 
@@ -253,38 +220,56 @@ fn load_remote_config(alias: &str) -> Result<RemoteConfig> {
     Ok(cfg)
 }
 
-enum RemoteOp {
-    Refresh,
-    Doctor,
-    Status,
-    Logs,
-    Restart,
-    Stop,
-    Start,
-    Ssh,
-    Run(Vec<String>),
-    Tunnel,
-    Uninstall,
-}
-
 async fn dispatch_remote_action(
-    alias: &str,
+    action: RemoteAction,
     opts: &RemoteCommonOptions,
-    op: RemoteOp,
 ) -> Result<i32> {
-    let cfg = load_remote_config(alias)?;
-    match op {
-        RemoteOp::Refresh => remote_refresh(&cfg, opts).await,
-        RemoteOp::Doctor => remote_doctor(&cfg, opts).await,
-        RemoteOp::Status => remote_status(&cfg, opts).await,
-        RemoteOp::Logs => remote_logs(&cfg, opts).await,
-        RemoteOp::Restart => remote_service(&cfg, "restart", opts).await,
-        RemoteOp::Stop => remote_service(&cfg, "stop", opts).await,
-        RemoteOp::Start => remote_service(&cfg, "start", opts).await,
-        RemoteOp::Ssh => remote_ssh(&cfg, opts).await,
-        RemoteOp::Run(command) => remote_run(&cfg, command, opts).await,
-        RemoteOp::Tunnel => remote_tunnel(&cfg, opts).await,
-        RemoteOp::Uninstall => remote_uninstall(&cfg, opts).await,
+    match action {
+        RemoteAction::Refresh { alias } => {
+            let cfg = load_remote_config(&alias)?;
+            remote_refresh(&cfg, opts).await
+        }
+        RemoteAction::Doctor { alias } => {
+            let cfg = load_remote_config(&alias)?;
+            remote_doctor(&cfg, opts).await
+        }
+        RemoteAction::Status { alias } => {
+            let cfg = load_remote_config(&alias)?;
+            remote_status(&cfg, opts).await
+        }
+        RemoteAction::Logs { alias } => {
+            let cfg = load_remote_config(&alias)?;
+            remote_logs(&cfg, opts).await
+        }
+        RemoteAction::Restart { alias } => {
+            let cfg = load_remote_config(&alias)?;
+            remote_service(&cfg, "restart", opts).await
+        }
+        RemoteAction::Stop { alias } => {
+            let cfg = load_remote_config(&alias)?;
+            remote_service(&cfg, "stop", opts).await
+        }
+        RemoteAction::Start { alias } => {
+            let cfg = load_remote_config(&alias)?;
+            remote_service(&cfg, "start", opts).await
+        }
+        RemoteAction::Ssh { alias } => {
+            let cfg = load_remote_config(&alias)?;
+            remote_ssh(&cfg, opts).await
+        }
+        RemoteAction::Run { alias, command } => {
+            let cfg = load_remote_config(&alias)?;
+            remote_run(&cfg, command, opts).await
+        }
+        RemoteAction::Tunnel { alias } => {
+            let cfg = load_remote_config(&alias)?;
+            remote_tunnel(&cfg, opts).await
+        }
+        RemoteAction::Uninstall { alias } => {
+            let cfg = load_remote_config(&alias)?;
+            remote_uninstall(&cfg, opts).await
+        }
+        RemoteAction::Install { .. } => unreachable!("install handled before dispatch"),
     }
 }
 
@@ -930,10 +915,7 @@ async fn ensure_remote_key(cfg: &RemoteConfig, setup_key: bool) -> Result<()> {
         keygen.args(["-t", "ed25519", "-f"]);
         keygen.arg(&identity);
         keygen.args(["-N", "", "-C", &format!("jeryu-{}", cfg.alias)]);
-        let status = keygen.status().await.context("running ssh-keygen")?;
-        if !status.success() {
-            bail!("ssh-keygen failed");
-        }
+        crate::exec::run_status_check(&mut keygen, "ssh-keygen failed").await?;
     }
     let pubkey = fs::read_to_string(identity.with_extension("pub"))
         .with_context(|| format!("reading {}", identity.with_extension("pub").display()))?;
@@ -950,22 +932,9 @@ async fn upload_current_binary(cfg: &RemoteConfig) -> Result<()> {
     let script = r#"mkdir -p "$HOME/.jeryu/bin" && cat > "$HOME/.jeryu/bin/jeryu.tmp" && install -m 0755 "$HOME/.jeryu/bin/jeryu.tmp" "$HOME/.jeryu/bin/jeryu" && rm -f "$HOME/.jeryu/bin/jeryu.tmp""#;
     let started = Instant::now();
     println!("uploading {} to {}...", local.display(), cfg.target);
-    let mut cmd = ssh_bash_command(cfg, script);
-    cmd.stdin(Stdio::piped());
-    cmd.stdout(Stdio::inherit());
-    cmd.stderr(Stdio::inherit());
-    let mut child = cmd.spawn().context("starting remote upload")?;
-    let mut stdin = child.stdin.take().context("opening ssh stdin")?;
     let bytes = fs::read(&local).with_context(|| format!("reading {}", local.display()))?;
-    stdin
-        .write_all(&bytes)
-        .await
-        .context("streaming binary to remote")?;
-    drop(stdin);
-    let status = child.wait().await.context("finishing remote upload")?;
-    if !status.success() {
-        bail!("ssh upload exited with {}", status.code().unwrap_or(-1));
-    }
+    let mut cmd = ssh_bash_command(cfg, script);
+    crate::exec::run_with_stdin(&mut cmd, &bytes, "ssh upload failed").await?;
     println!(
         "uploaded remote binary in {}s",
         started.elapsed().as_secs_f32()

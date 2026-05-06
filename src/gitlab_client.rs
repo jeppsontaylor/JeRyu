@@ -333,9 +333,10 @@ impl GitlabClient {
     }
 
     fn pat_value(&self) -> Result<String> {
-        self.pat
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("no PAT configured — run `jeryu bootstrap` first"))
+        match self.pat.clone() {
+            Some(value) => Ok(value),
+            None => Err(anyhow::anyhow!("no PAT configured — run `jeryu bootstrap` first")),
+        }
     }
 
     fn authed_request_url(&self, method: Method, url: String) -> Result<reqwest::RequestBuilder> {
