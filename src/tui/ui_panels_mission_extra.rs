@@ -18,24 +18,13 @@ pub(crate) fn draw_metric_tile(
     detail: &str,
     color: Color,
 ) {
-    f.render_widget(
-        Paragraph::new(vec![
-            Line::from(Span::styled(
-                format!("  {value}"),
-                Style::default().fg(color).add_modifier(Modifier::BOLD),
-            )),
-            Line::from(Span::styled(
-                format!("  {detail}"),
-                Style::default().fg(Color::White),
-            )),
-        ])
-        .block(
-            Block::default()
-                .title(format!(" [ {title} ] "))
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(color)),
-        ),
+    crate::tui::widgets::mission_shared::render_metric_tile(
+        f,
         area,
+        title,
+        value,
+        Some(detail),
+        color,
     );
 }
 

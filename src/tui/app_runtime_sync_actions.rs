@@ -3,6 +3,7 @@ use super::*;
 impl App {
     pub fn cycle_tab_next(&mut self) {
         self.active_tab = match self.active_tab {
+            ActiveTab::Workflow => ActiveTab::Mission,
             ActiveTab::Mission => ActiveTab::Release,
             ActiveTab::Release => ActiveTab::Jobs,
             ActiveTab::Jobs => ActiveTab::Agents,
@@ -12,7 +13,7 @@ impl App {
             ActiveTab::Cache => ActiveTab::Evidence,
             ActiveTab::Evidence => ActiveTab::Secrets,
             ActiveTab::Secrets => ActiveTab::Git,
-            ActiveTab::Git => ActiveTab::Mission,
+            ActiveTab::Git => ActiveTab::Workflow,
         };
     }
 

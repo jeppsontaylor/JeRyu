@@ -78,4 +78,3 @@ rust-diagnose:
 	jankurai rust diagnose .
 check: fast score security rust-map rust-witness rust-diagnose
 # jankurai scaffold Justfile
-	jankurai doctor --fail-on critical

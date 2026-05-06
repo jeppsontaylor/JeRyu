@@ -7,12 +7,12 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1778096543`
-- Started at: `1778096543`
-- Elapsed: `4217` ms
+- Run ID: `1778108042`
+- Started at: `1778108042`
+- Elapsed: `3587` ms
 - Scope: `full`
-- Raw score: `89`
-- Final score: `89`
+- Raw score: `92`
+- Final score: `92`
 - Decision: `pass`
 - Minimum score: `85`
 - Caps applied: `none`
@@ -74,7 +74,7 @@
 | Contract and boundary integrity | 13 | 93 | 12.09 | contract surface found; generated contract artifacts found |
 | Proof lanes and test routing | 12 | 100 | 12.00 | one-command setup/validation lane found; deterministic fast lane found |
 | Security and supply-chain posture | 12 | 86 | 10.32 | lockfile present; secret or dependency scan tooling found |
-| Code shape and semantic surface | 12 | 55 | 6.60 | largest authored code file: src/capability_actions.rs (740 LOC); code file exceeds 500 LOC |
+| Code shape and semantic surface | 12 | 80 | 9.60 | largest authored code file: src/exec/stage.rs (460 LOC); most code files stay under 300 LOC |
 | Data truth and workflow safety | 8 | 95 | 7.60 | database surface present; structured db boundary manifest present |
 | Observability and repair evidence | 8 | 98 | 7.84 | observability libraries or patterns found; diagnostic shaping hints found |
 | Context economy and agent instructions | 7 | 100 | 7.00 | root `AGENTS.md` present; root `AGENTS.md` stays short |
@@ -154,11 +154,11 @@ No audited runtime boundary reclassifications declared.
    Check: `HLT-001-DEAD-MARKER:shape` `soft` confidence `0.76`
    Route: TLR `Entropy`, lane `fast`, owner `tools`
    Docs: `docs/audit-rubric.md#future-hostile-language-rule`
-   Reason: `Code shape and semantic surface` scored 55 below the standard floor of 85
+   Reason: `Code shape and semantic surface` scored 80 below the standard floor of 85
    Fix: split large or ambiguous authored code into smaller semantic modules with focused tests
    Rerun: `just fast`
-   Fingerprint: `sha256:0f68ce753cb45d54c08b679962263da00d18bdb82e5c45fbdbf8f0f235d66404`
-   Evidence: largest authored code file: src/capability_actions.rs (740 LOC), code file exceeds 500 LOC, rust bad-behavior advisory signals: 871, ci bad-behavior advisory signals: 2
+   Fingerprint: `sha256:f1269a4ba5f9c2593131a1c62b009fdfb343199cec43317a5c77b782fc563960`
+   Evidence: largest authored code file: src/exec/stage.rs (460 LOC), most code files stay under 300 LOC, rust bad-behavior advisory signals: 922, ci bad-behavior advisory signals: 2
 
 ## Policy
 

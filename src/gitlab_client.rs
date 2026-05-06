@@ -9,7 +9,20 @@
 use anyhow::{Context, Result};
 use reqwest::{Client, Method};
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+
+#[path = "gitlab_client_types.rs"]
+mod gitlab_client_types;
+pub use gitlab_client_types::{
+    Job, JobRunner, Issue, MergeRequest, Pipeline, PipelineBridge, PipelineRef,
+    PipelineVariable, PipelineVariableValue, Project, ProjectPatResp, RunnerCreated,
+    RunnerManager,
+};
+use gitlab_client_types::{
+    CommitAction, CreateBranchReq, CreateCommitReq, CreateCommitResp, CreateIssueReq,
+    CreateMrReq, CreatePipelineReq, CreateProjectPatReq, CreateProjectReq, CreateRunnerReq,
+    CreateWebhookReq, NoteReq, PipelineResp, ResetTokenResp, SetPausedReq, UpdateLabelsReq,
+    WebhookResp,
+};
 
 #[path = "gitlab_client_branches.rs"]
 mod gitlab_client_branches;
@@ -29,240 +42,6 @@ mod gitlab_client_runners;
 mod gitlab_client_tls;
 #[path = "gitlab_client_webhooks.rs"]
 mod gitlab_client_webhooks;
-
-// ---------------------------------------------------------------------------
-// Request / Response types (all at module level for derive macro bridge)
-// ---------------------------------------------------------------------------
-
-#[derive(Serialize)]
-struct CreateProjectPatReq<'a> {
-    name: &'a str,
-    scopes: &'a [&'a str],
-    access_level: i32,
-    expires_at: &'a str,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ProjectPatResp {
-    pub id: i64,
-    pub name: String,
-    pub token: String,
-    pub user_id: i64,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct RunnerCreated {
-    pub id: i64,
-    pub token: String,
-}
-
-#[derive(Serialize)]
-struct CreateRunnerReq<'a> {
-    description: &'a str,
-    tag_list: &'a [&'a str],
-    run_untagged: bool,
-    runner_type: &'a str,
-}
-
-#[derive(Serialize)]
-struct SetPausedReq {
-    paused: bool,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct RunnerManager {
-    pub system_id: Option<String>,
-    pub status: Option<String>,
-    pub contacted_at: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct ResetTokenResp {
-    token: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Job {
-    pub id: i64,
-    pub name: String,
-    pub status: String,
-    pub stage: String,
-    #[serde(default)]
-    pub allow_failure: bool,
-    #[serde(skip)]
-    pub pipeline_id: Option<i64>,
-    #[serde(rename = "ref")]
-    pub ref_name: Option<String>,
-    pub web_url: Option<String>,
-    pub queued_duration: Option<f64>,
-    pub duration: Option<f64>,
-    pub started_at: Option<String>,
-    pub finished_at: Option<String>,
-    pub runner: Option<JobRunner>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct JobRunner {
-    pub description: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Pipeline {
-    pub id: i64,
-    pub sha: String,
-    #[serde(rename = "ref")]
-    pub ref_name: String,
-    pub status: String,
-    pub web_url: Option<String>,
-    pub source: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct PipelineBridge {
-    pub id: i64,
-    pub name: String,
-    pub status: String,
-    pub downstream_pipeline: Option<PipelineRef>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct PipelineVariableValue {
-    pub key: String,
-    pub value: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct PipelineRef {
-    pub id: i64,
-    pub sha: Option<String>,
-    #[serde(rename = "ref")]
-    pub ref_name: Option<String>,
-    pub status: Option<String>,
-    pub web_url: Option<String>,
-}
-
-#[derive(Serialize)]
-struct CreateWebhookReq<'a> {
-    url: &'a str,
-    token: &'a str,
-    job_events: bool,
-    pipeline_events: bool,
-    push_events: bool,
-    merge_requests_events: bool,
-}
-
-#[derive(Deserialize)]
-struct WebhookResp {
-    id: i64,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Project {
-    pub id: i64,
-    pub name: String,
-    pub path_with_namespace: String,
-    pub web_url: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Issue {
-    pub id: i64,
-    pub iid: i64,
-    pub title: String,
-    pub state: String,
-    pub labels: Vec<String>,
-    pub web_url: String,
-}
-
-#[derive(Serialize)]
-struct CreateIssueReq<'a> {
-    title: &'a str,
-    description: &'a str,
-    labels: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    assignee_ids: Option<Vec<i64>>,
-}
-
-#[derive(Serialize)]
-struct UpdateLabelsReq {
-    labels: String,
-}
-
-#[derive(Serialize)]
-struct NoteReq<'a> {
-    body: &'a str,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct MergeRequest {
-    pub id: i64,
-    pub iid: i64,
-    pub title: String,
-    pub state: String,
-    pub web_url: String,
-    pub source_branch: String,
-    pub target_branch: String,
-}
-
-#[derive(Serialize)]
-struct CreateMrReq<'a> {
-    source_branch: &'a str,
-    target_branch: &'a str,
-    title: &'a str,
-    description: &'a str,
-    remove_source_branch: bool,
-}
-
-#[derive(Serialize)]
-struct CreateBranchReq<'a> {
-    branch: &'a str,
-    #[serde(rename = "ref")]
-    ref_name: &'a str,
-}
-
-#[derive(Serialize)]
-struct CreateProjectReq<'a> {
-    name: &'a str,
-    visibility: &'a str,
-    initialize_with_readme: bool,
-}
-
-#[derive(Serialize)]
-struct CommitAction<'a> {
-    action: &'a str,
-    file_path: &'a str,
-    content: &'a str,
-}
-
-#[derive(Serialize)]
-struct CreateCommitReq<'a> {
-    branch: &'a str,
-    commit_message: &'a str,
-    actions: Vec<CommitAction<'a>>,
-}
-
-#[derive(Deserialize)]
-struct CreateCommitResp {
-    id: String,
-}
-
-#[derive(Serialize)]
-struct CreatePipelineReq<'a> {
-    #[serde(rename = "ref")]
-    pub ref_name: &'a str,
-    pub variables: Vec<PipelineVariable<'a>>,
-}
-
-#[derive(Serialize)]
-struct PipelineVariable<'a> {
-    pub key: &'a str,
-    pub value: &'a str,
-}
-
-#[derive(Deserialize)]
-struct PipelineResp {
-    pub id: i64,
-}
 
 // ---------------------------------------------------------------------------
 // Client

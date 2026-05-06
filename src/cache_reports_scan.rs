@@ -1,5 +1,7 @@
 use super::*;
 
+const NEXTEST_EXTRACT_RECENT_TTL_SECS: u64 = 2 * 60 * 60;
+
 pub(crate) async fn remove_cache_paths_as_root(
     root: &Path,
     candidates: &[PathBuf],
@@ -118,7 +120,7 @@ pub(crate) async fn scan_nextest_extract_dirs(
         let bytes = du_bytes(&path).await.unwrap_or(0);
         let age_seconds = path_age_seconds(&path);
         let active = age_seconds
-            .map(|age| age <= NEXTEST_EXTRACT_FALLBACK_TTL_SECS)
+            .map(|age| age <= NEXTEST_EXTRACT_RECENT_TTL_SECS)
             .unwrap_or(true);
         let job_id = entry.file_name().to_string_lossy().to_string();
         statuses.push(CargoTargetCacheStatus {

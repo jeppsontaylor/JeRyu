@@ -26,11 +26,7 @@ pub(crate) async fn handle(app: &mut App, key: KeyEvent) -> Result<Option<bool>>
             Ok(Some(false))
         }
         KeyCode::Char(c) if c.is_ascii_digit() => {
-            let index = if c == '0' {
-                10
-            } else {
-                c.to_digit(10).unwrap() as u8
-            };
+            let index = c.to_digit(10).unwrap() as u8;
             set_tab(app, index)
         }
         _ => Ok(None),

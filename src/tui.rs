@@ -7,7 +7,10 @@ pub mod app;
 pub mod flow;
 pub mod runner;
 pub mod runtime;
+pub mod theme;
 pub mod ui;
+pub mod widgets;
+pub mod workflow;
 
 pub use runner::{capture_tui_png, run_tui, run_tui_once, run_tui_screenshot};
 

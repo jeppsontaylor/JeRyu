@@ -141,6 +141,13 @@ pub fn build_graph(pipeline_id: i64, jobs: Vec<JobEvent>) -> FlowGraph {
             is_critical_path: false, // computed after edge build
             backend: Some(backend),
             elapsed_secs,
+            // v3 defaults — populated by VTI enrichment pass:
+            vti_status: None,
+            cache_verdict: None,
+            flake_probability: None,
+            capsule_id: None,
+            attempt_lineage: Vec::new(),
+            agent_id: None,
         };
         nodes.push(node);
     }
@@ -210,7 +217,7 @@ pub fn build_graph(pipeline_id: i64, jobs: Vec<JobEvent>) -> FlowGraph {
             .collect();
         for &from in &from_ids {
             for &to in &to_ids {
-                edges.push(FlowEdge { from, to });
+                edges.push(FlowEdge { from, to, kind: crate::api::snapshot::EdgeKind::StageOrder });
             }
         }
     }

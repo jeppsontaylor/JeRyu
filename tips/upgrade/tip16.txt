@@ -1,0 +1,2018 @@
+## Overall read
+
+This is already an unusually strong agent-operable delivery system. The best parts are the **typed control surfaces**, the **release/prod separation**, the **SQLite evidence layer**, the **trust-tiered runner pools**, the **failure capsule/retry model**, and the TUI’s current anti-blanking/log-follow behavior. The system has the right philosophy: agents should operate through **audited, typed, policy-mediated controls**, not by grabbing a PAT and shelling around.
+
+The biggest opportunity is to turn `jeryu` from a powerful control plane with a useful dashboard into a **real-time command center**: one place where a developer can see every active pipeline, release gate, agent task, test selector decision, runner bottleneck, cache verdict, security tripwire, and allowed action, with “why” explanations and safe execution previews.
+
+The most important missing abstraction is an **object-action graph**:
+
+> Every object in the system — job, pipeline, MR, pool, runner, release attempt, secret set, cache object, agent task, jeryu sync, gate artifact — should have:
+>
+> 1. current state,
+> 2. freshness/source,
+> 3. blockers,
+> 4. predicted next state / ETA,
+> 5. available actions,
+> 6. action risk level,
+> 7. required permission / approval,
+> 8. audit trail.
+
+That abstraction would make both the TUI and agent API dramatically more powerful.
+
+---
+
+# 1. Clear strengths
+
+## The architecture is agent-friendly in the right way
+
+The system already avoids the worst pattern: giving agents raw shell or raw GitLab credentials and hoping policy happens elsewhere. `jeryu` centralizes runner state, GitLab access, release promotion, secrets, VTI, failure capsules, and merge gating. That is exactly the right direction.
+
+The strongest pieces are:
+
+| Area                           | Why it is strong                                                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Release automation             | Green `main` does not mean production. Canary/release-execution and production-promotion are separate GitLab pipeline products. |
+| Risk gates                     | Merge is policy-mediated through trust tier, job state, and evidence.                                                           |
+| Failure capsules               | Failed jobs become structured evidence rather than just text logs.                                                              |
+| VTI/test intelligence          | Agents can run focused validation instead of brute-force everything.                                                            |
+| SmartCache/taint/witness model | Cache is treated as a policy system, not just a directory.                                                                      |
+| TUI anti-blanking              | Retaining the last meaningful flow snapshot and marking it stale is a good operational UX choice.                               |
+| SQLite audit/state layer       | This gives the system memory, replayability, and a basis for explanations.                                                      |
+
+## The release safety model is especially good
+
+The production path being:
+
+```text
+main pipeline success
+  -> release eligibility
+  -> release-execution/canary pipeline
+  -> e2e/handoff/validation gates
+  -> production-promotion pipeline
+```
+
+is the right safety boundary. Production promotion should remain a pipeline product, not an operator shell action.
+
+## The TUI already has the right foundations
+
+The current TUI has three excellent design decisions:
+
+1. **Stable selection across refreshes**
+   The selected job survives reorderings.
+
+2. **Log target decoupling**
+   The selected job log is tracked independently from general snapshots.
+
+3. **Anti-empty-flow behavior**
+   Keeping the last non-empty flow board and marking it stale is much better than flickering to empty state.
+
+Those three behaviors should be preserved in any redesign.
+
+---
+
+# 2. Important gaps and issues
+
+## A. Capability API is too limited for serious agents
+
+The capability server is conceptually excellent, but currently only two behaviors are active:
+
+| Intent         | Current state |
+| -------------- | ------------- |
+| `FetchCapsule` | Active        |
+| `RunTests`     | Active        |
+| `ProposePatch` | Deferred      |
+| `RacePatches`  | Deferred      |
+| `RequestMerge` | Deferred      |
+
+That means the agent-facing API does not yet match the architecture’s ambition. An agent can run tests and fetch some evidence, but cannot safely complete the full loop:
+
+```text
+inspect -> propose patch -> create branch/MR -> run validation -> explain failure -> repair -> request merge
+```
+
+The dream version should expose this as a first-class typed workflow.
+
+### Suggested capability additions
+
+| Capability            | Purpose                                                                   |
+| --------------------- | ------------------------------------------------------------------------- |
+| `ListAllowedActions`  | Given an object, return allowed actions and why/why not.                  |
+| `DryRunAction`        | Preview exact side effects, risk, required gates, and audit record.       |
+| `ExecuteAction`       | Execute a previously dry-run action with an idempotency token.            |
+| `SubscribeEvents`     | Stream job/pipeline/release/cache/security events with cursors.           |
+| `ExplainObject`       | Explain why a job/pipeline/release/MR is in its current state.            |
+| `FetchArtifacts`      | Retrieve typed artifacts: gate reports, VTI plans, handoff files, traces. |
+| `ProposePatch`        | Actually create branch commits through a constrained patch API.           |
+| `RequestValidation`   | Run VTI-selected or explicit validation against a branch/MR.              |
+| `RequestMerge`        | Route through the risk gate and return allow/deny/escalate evidence.      |
+| `QuarantineObject`    | Quarantine runner/cache/artifact/job evidence under controlled policy.    |
+| `ControlPool`         | Scale/pause/drain pools with dry-run and policy.                          |
+| `ExplainCacheVerdict` | Explain exact cache hit/miss/taint/epoch decisions.                       |
+
+The key principle: **do not give agents broader credentials; give them richer typed capabilities.**
+
+---
+
+## B. `FetchCapsule` should not scan only the latest 500 event rows
+
+The API says `FetchCapsule` scans the latest 500 event log rows looking for a matching `failure_capsule`. But the state API already has:
+
+```text
+latest_evidence_for_job
+insert_evidence_capsule
+evidence_capsules
+```
+
+That is a likely correctness gap. If a job is older, or the event ledger is busy, the capsule may exist but be missed.
+
+Better behavior:
+
+```text
+FetchCapsule(job_id)
+  -> db.latest_evidence_for_job(job_id)
+  -> fallback: event ledger scan only if needed
+```
+
+This would be more direct, faster, and more reliable.
+
+---
+
+## C. The TUI pane model and visible layout are out of sync
+
+The app still has `Pools`, `Pipelines`, and `Jobs` active panes, and the keybindings still cycle among them. But the active Flow layout visibly shows only the Live Jobs list. Pool and pipeline renderers exist but are inactive.
+
+That creates a mismatch:
+
+```text
+User presses Tab -> active pane changes
+But visible pane may not clearly exist
+Actions like p / d depend on hidden pane state
+```
+
+This is probably the single most obvious current TUI UX issue.
+
+Fix options:
+
+1. Restore visible Pools and Pipelines panes.
+2. Remove inactive pane states from the active layout.
+3. Replace pane focus with an object-centric selection model.
+4. Add a command palette that only shows valid actions for the currently visible object.
+
+The dream redesign should move to option 3 or 4.
+
+---
+
+## D. Flow Board only renders the first active pipeline
+
+The Flow Board is the heart of the TUI, but it currently renders only the first active pipeline. The collector prioritizes release pipelines, which is useful, but it may hide concurrent upstream work, blocked branches, agent MRs, or superseded pipelines.
+
+A power-user console should show:
+
+```text
+main upstream pipeline
+release-execution pipeline
+production-promotion pipeline
+agent/MR pipelines
+scratch jeryu-test-* pipelines
+superseded/canceled pipelines
+downstream bridges
+```
+
+Not all of them need equal visual weight, but they should exist in a navigable pipeline stack.
+
+A strong design would be:
+
+```text
+Left: pipeline/ref stack
+Center: selected pipeline DAG
+Right: selected object inspector/actions
+Bottom: event/log console
+```
+
+---
+
+## E. Graph edges are not computed
+
+`FlowGraph.edges` exists, but the current docs say graph edges are empty. That means the Flow Board is more of a lane board than a true dependency graph.
+
+For a “developer dream” console, edges matter because they answer:
+
+```text
+What is blocking this?
+What unblocks next?
+What is on the critical path?
+Which failure invalidates the release?
+Which downstream pipeline belongs to which upstream job?
+```
+
+At minimum, edges should model:
+
+| Edge type                    | Example                                       |
+| ---------------------------- | --------------------------------------------- |
+| stage dependency             | build -> unit tests                           |
+| artifact dependency          | build image -> canary                         |
+| release gate dependency      | e2e gate -> prod promotion                    |
+| bridge/downstream dependency | parent pipeline -> child pipeline             |
+| supersedence relationship    | old SHA pipeline -> canceled by new SHA       |
+| agent dependency             | agent patch -> validation pipeline -> MR gate |
+
+Edges should have types, not just source/target ids.
+
+---
+
+## F. ETA and progress are too heuristic
+
+The current ETA model is useful as a placeholder, but it is lane-default based:
+
+```text
+Unit: 60s
+Integration: 300s
+Security: 120s
+Build: 180s
+ReleaseExecution: 120s
+Other: 90s
+```
+
+A power-user system should use historical data from:
+
+```text
+ci_job_runs
+test_executions
+test_bottlenecks
+runner queue durations
+job name/stage/ref/image/tags
+pool capacity
+cache verdicts
+```
+
+The TUI should display ETA with confidence:
+
+```text
+ETA 4m 20s ± 1m 10s
+Confidence: medium
+Reason: runner queue is 2.3x normal, cache miss on build image
+```
+
+That “why” is more valuable than the raw ETA.
+
+---
+
+## G. Audit tab is currently a missed opportunity
+
+The Audit tab is a placeholder, but this system has rich audit data:
+
+```text
+events
+retry_decisions
+evidence_capsules
+selector_misses
+secret_audit_events
+release_secret_sets
+cache_taints
+cache_verdicts
+pipeline_superseded
+pipeline_cancel_requested
+disk_pressure_gc
+```
+
+This should become one of the most powerful tabs.
+
+A great Audit tab would answer:
+
+```text
+Who/what changed state?
+What actions did jeryu take automatically?
+Which actions did an agent request?
+Which were denied/escalated?
+Which release gates passed?
+Which caches were tainted?
+Which secrets were rotated/finalized?
+Which jobs were retried and why?
+```
+
+It should be filterable by object:
+
+```text
+release
+job
+pipeline
+MR
+agent
+pool
+cache
+secret
+security
+disk
+```
+
+---
+
+## H. Webhook server exposes unauthenticated cache summary
+
+The engine binds to:
+
+```text
+0.0.0.0:9777
+```
+
+`POST /hooks` is token-authenticated, but `GET /cache/summary` has no auth. That may be acceptable on a private host, but from a security review perspective, unauthenticated operational status on `0.0.0.0` is risky.
+
+Suggested options:
+
+1. Bind non-webhook diagnostics to localhost only.
+2. Require a local admin token.
+3. Split webhook listener from local diagnostic API.
+4. Put `/cache/summary` behind the same auth policy as other operational endpoints.
+
+Even if the data is not secret, it is operational intelligence.
+
+---
+
+## I. Custom executor commands should have invocation guards
+
+The docs correctly say agents should not call:
+
+```text
+jeryu exec config
+jeryu exec prepare
+jeryu exec run
+jeryu exec cleanup
+```
+
+as generic shell wrappers. But if these commands are callable by any local process, documentation alone is not a hard guardrail.
+
+The custom executor path is security-sensitive because it touches sandboxing, honeypots, cache tainting, witness building, and potentially Docker socket access.
+
+I would add runtime guard checks such as:
+
+```text
+required GitLab Runner env vars
+expected manager identity
+job id/project id consistency
+executor invocation nonce
+restricted filesystem context
+audit event for every prepare/run/cleanup
+```
+
+The goal is not to make local root impossible; it is to prevent accidental or low-effort misuse by tools and agents.
+
+---
+
+## J. Release gate artifacts need stronger provenance
+
+The production gate currently requires:
+
+```text
+canary_state == e2e-passed
+C handoff artifact exists
+C validation artifact exists
+no existing prod pipeline
+```
+
+File existence is a useful minimum, but production safety would be stronger with artifact verification:
+
+| Gate check      | Stronger version                                  |
+| --------------- | ------------------------------------------------- |
+| File exists     | File exists and parses as expected schema         |
+| SHA present     | SHA matches release attempt SHA                   |
+| Version present | Version matches release version                   |
+| Artifact source | Artifact came from expected pipeline/job          |
+| Integrity       | Artifact digest recorded in SQLite                |
+| Freshness       | Artifact generated after release attempt creation |
+| Signature       | Optional signature/attestation where appropriate  |
+
+The TUI should show not merely “Evidence: path exists,” but:
+
+```text
+E2E gate: passed
+SHA: matches
+Version: matches
+Artifact: validated
+Generated by: job #12345
+Age: 2m ago
+Digest: verified
+```
+
+---
+
+## K. Hardcoded defaults limit multi-project use
+
+The system is currently strongly centered on:
+
+```text
+project_id = 2
+ref = main
+repo = dougx
+release repo root = /home/ubuntu/dougx
+```
+
+That is fine for the current deployment, but the architecture is powerful enough to become multi-project. The more `jeryu` grows, the more these should become explicit profiles:
+
+```toml
+[profiles.dougx]
+project_id = 2
+release_ref = "main"
+repo_root = "/home/ubuntu/dougx"
+vault_prefix = "veox"
+default_release = true
+
+[profiles.jeryu]
+project_id = 1
+release_ref = "main"
+repo_root = "/home/ubuntu/JeRyu"
+```
+
+Then the TUI can switch profiles, and agents can request capabilities scoped to a profile.
+
+---
+
+## L. Live log polling may become expensive
+
+The TUI polls GitLab trace every 650ms. The local tail is capped at 160 KB, which protects UI memory, but depending on implementation, the GitLab request may still fetch the whole trace repeatedly.
+
+The better version is:
+
+```text
+incremental trace fetch
+range requests or offset cursor if available
+trace digest/version check
+adaptive polling
+backoff on stale/completed jobs
+streaming local event bus when possible
+```
+
+A dream TUI should make logs feel instant without hammering GitLab.
+
+---
+
+## M. Stringly typed statuses will eventually hurt
+
+Many states appear to be strings:
+
+```text
+running
+pending
+created
+success
+failed
+canceled
+e2e-passed
+blocked
+waiting
+released
+```
+
+Strings are flexible, but this system has enough complexity that typed enums would help:
+
+```rust
+JobStatus
+PipelineStatus
+ReleaseCanaryState
+ProductionState
+GateState
+PoolState
+CacheVerdict
+AgentTaskState
+```
+
+The TUI can still render strings, but the domain model should reduce drift and inconsistent names.
+
+---
+
+# 3. What an agent would dream of being able to do
+
+An agent would not dream of raw shell access. A good agent would dream of **high-bandwidth, low-risk, typed operational access**.
+
+The ideal agent loop would be:
+
+```text
+Observe system
+  -> identify blocker
+  -> explain cause
+  -> propose fix
+  -> create constrained patch
+  -> run selected validation
+  -> watch pipeline
+  -> fetch evidence
+  -> repair if needed
+  -> request merge
+  -> monitor release
+  -> escalate only when policy requires
+```
+
+## Dream agent controls
+
+| Agent desire                        | Why it matters                             | Safe implementation                             |
+| ----------------------------------- | ------------------------------------------ | ----------------------------------------------- |
+| “Tell me what is blocking release.” | Lets agent focus on the actual constraint. | `ExplainReleaseBlockers`                        |
+| “Show me allowed next actions.”     | Prevents invalid or unsafe operations.     | `ListAllowedActions(object)`                    |
+| “Dry-run this action.”              | Lets agent reason before mutating state.   | `DryRunAction` with side-effect preview         |
+| “Create a patch branch.”            | Enables real repair.                       | `ProposePatch` with file allowlist/size limits  |
+| “Race three hypotheses.”            | Lets agent try multiple fixes safely.      | `RacePatches` with isolated branches and budget |
+| “Run exactly the tests needed.”     | Reduces cost and latency.                  | VTI-backed `RequestValidation`                  |
+| “Explain this failure.”             | Avoids blind retrying.                     | Capsule + trace + retry decision                |
+| “Why was this cache missed?”        | Debugs performance and determinism.        | `ExplainCacheVerdict`                           |
+| “Why is this job pending?”          | Finds runner/tag/capacity issues.          | `ExplainQueueDelay`                             |
+| “Can I merge this?”                 | Policy-grounded merge readiness.           | `RequestMerge` through risk gate                |
+| “Watch until state changes.”        | Avoids polling awkwardly.                  | `SubscribeEvents`                               |
+| “Quarantine this suspicious thing.” | Responds to tripwire/cache compromise.     | `QuarantineObject` with high audit level        |
+| “Escalate to human with context.”   | Keeps human approval efficient.            | `CreateApprovalRequest`                         |
+
+## The key: action registry
+
+Every object should expose actions. For example, a failed job might expose:
+
+```json
+{
+  "object": { "type": "job", "id": 14445 },
+  "state": "failed",
+  "actions": [
+    {
+      "name": "retry",
+      "allowed": true,
+      "risk": "low",
+      "reason": "failure classified as transient and no prior retry"
+    },
+    {
+      "name": "fetch_capsule",
+      "allowed": true,
+      "risk": "read-only"
+    },
+    {
+      "name": "open_trace",
+      "allowed": true,
+      "risk": "read-only"
+    },
+    {
+      "name": "quarantine_runner",
+      "allowed": false,
+      "risk": "high",
+      "reason": "no tripwire evidence"
+    }
+  ]
+}
+```
+
+A release attempt might expose:
+
+```json
+{
+  "object": { "type": "release_attempt", "version": "ci-fa51a52a7882" },
+  "actions": [
+    {
+      "name": "reconcile",
+      "allowed": true,
+      "risk": "low"
+    },
+    {
+      "name": "promote_prod",
+      "allowed": false,
+      "risk": "critical",
+      "reason": "C validation artifact missing"
+    },
+    {
+      "name": "show_missing_gates",
+      "allowed": true,
+      "risk": "read-only"
+    }
+  ]
+}
+```
+
+This would transform the system. Agents and the TUI could share the same action model.
+
+---
+
+# 4. Issues I would prioritize first
+
+## Priority 1: Fix the visible TUI/action mismatch
+
+Current problem:
+
+```text
+Pool/Pipeline pane states exist,
+but active Flow layout mostly exposes Jobs.
+```
+
+Fix:
+
+```text
+Either show Pools and Pipelines again,
+or move to object/action selection.
+```
+
+This matters because invisible state controlling destructive actions is dangerous.
+
+---
+
+## Priority 2: Build a canonical object-action API
+
+This would serve:
+
+```text
+TUI
+agents
+CLI
+capability server
+audit
+future web UI
+```
+
+Start small:
+
+```rust
+ObjectRef {
+    kind: Job | Pipeline | Pool | Release | SecretSet | CacheObject | AgentTask,
+    id: String,
+}
+
+ActionDescriptor {
+    name,
+    label,
+    allowed,
+    reason,
+    risk,
+    requires_confirmation,
+    dry_run_available,
+}
+```
+
+Then implement:
+
+```text
+jeryu action list <object>
+jeryu action dry-run <object> <action>
+jeryu action run <object> <action>
+```
+
+The TUI can consume the same registry.
+
+---
+
+## Priority 3: Make Audit real
+
+The Audit tab should become an event ledger browser with filters, object links, and action provenance.
+
+This is especially important because agents, auto-retries, production promotion, secret rotation, cache tainting, and disk GC all need explainability.
+
+---
+
+## Priority 4: Improve release gate verification
+
+Make production gate checks stronger than “artifact exists.”
+
+Add:
+
+```text
+schema validation
+SHA/version matching
+artifact digest
+source job/pipeline id
+created_at freshness
+SQLite gate verification record
+```
+
+Then render those checks in Release Watch.
+
+---
+
+## Priority 5: Multi-pipeline Flow Board
+
+Render more than the first active pipeline.
+
+At minimum, add a left pipeline stack:
+
+```text
+main      #530  running   62%  ETA 4m
+release   #531  running   gate-canary-e2e
+prod      --    waiting   blocked: validation
+agent/a   #532  failed    regression
+```
+
+The center graph can still show one selected pipeline at a time.
+
+---
+
+## Priority 6: Historical ETA and queue diagnosis
+
+Use existing data to answer:
+
+```text
+Why is this slow?
+Is this queue wait normal?
+Which runner pool is saturated?
+Which job is on the critical path?
+What changed from the previous successful run?
+```
+
+This would make the console feel intelligent rather than decorative.
+
+---
+
+# 5. Dream TUI redesign
+
+## Design goal
+
+The dream TUI should answer these questions instantly:
+
+1. **Can we ship?**
+2. **If not, what exactly blocks us?**
+3. **What changed recently?**
+4. **What is running right now?**
+5. **What is slow?**
+6. **What failed, why, and what should happen next?**
+7. **What can I safely do from here?**
+8. **What are agents doing?**
+9. **Are caches, runners, secrets, Vault, GitLab, and disk healthy?**
+10. **What will happen automatically if I do nothing?**
+
+The current TUI is a dashboard. The dream version is a **mission control console**.
+
+---
+
+## Dream layout
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ jeryu GOD MODE  GitLab●  DB●  Vault●  Runners●  Cache●  Disk 71%  Webhook●  Jeryu▲  Prod⏳ │
+│ Profile: dougx/main  SHA fa51a52  Version ci-fa51a52  Release: Canary E2E running  ETA 3m  │
+├───────────────┬──────────────────────────────────────────────────────────────┬───────────────┤
+│ NAV / OBJECTS │                         FLOW GRAPH                            │ INSPECTOR     │
+│               │                                                              │               │
+│ Release       │ Admission → Impact → Build → Tests → Security → Canary → Prod │ Selected job   │
+│ Pipelines     │                                                              │ test-e2e-live  │
+│ Jobs          │  main #530        ● build-image      74%  ETA 1m             │ Status running │
+│ Agents        │                   ✔ unit             100%                    │ Runner build-2 │
+│ MRs           │                   ● integration      42%  ETA 4m             │ Queue 12s      │
+│ Runners       │                   ○ security-scan    waiting                 │ Cache miss     │
+│ Tests         │                   ○ canary-gate      blocked by integration  │ Capsule none   │
+│ Cache         │                                                              │               │
+│ Security      │  release #531     ◆ canary-deploy    running                 │ ACTIONS        │
+│ Secrets       │                   ○ e2e-gate         waiting                 │ [trace]        │
+│ Audit         │                                                              │ [cancel]       │
+│ Storage       │  prod             ⏳ waiting: e2e gate + validation artifact  │ [explain]      │
+│               │                                                              │ [pin]          │
+├───────────────┴──────────────────────────────────────────────────────────────┴───────────────┤
+│ EVENT / COMMAND CONSOLE                                                                       │
+│ 12:04:22  pipeline #530 integration started on runner default-2                                │
+│ 12:04:19  release ci-fa51a52 waiting for gate-canary-e2e.json                                  │
+│ 12:04:10  cache miss: build-image due to epoch rust-1.92.0                                     │
+│ > retry failed job 14445 --dry-run                                                            │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+This layout has four persistent regions:
+
+| Region          | Purpose                                       |
+| --------------- | --------------------------------------------- |
+| Header          | Global health, release identity, urgent state |
+| Left rail       | Navigation and object stack                   |
+| Center          | Flow graph / selected workspace               |
+| Right inspector | Details, evidence, actions                    |
+| Bottom console  | Event stream + command palette                |
+
+---
+
+# 6. The most critical information to show
+
+## A. Global health header
+
+The top line should be a dense, high-signal health strip:
+
+```text
+GitLab ●
+DB ●
+Vault ●
+Webhook ●
+Runners ●
+Cache ●
+Mirror ●
+Disk 71%
+Jeryu ▲
+Agents 3
+Release ⏳
+Prod —
+```
+
+Each chip should have:
+
+| State            | Rendering              |
+| ---------------- | ---------------------- |
+| Healthy          | green dot              |
+| Running / active | blue dot               |
+| Waiting          | yellow dot             |
+| Warning          | orange/yellow triangle |
+| Failed           | red x                  |
+| Blocked/security | magenta lock/alert     |
+| Stale            | gray dim text          |
+
+The header should also show source freshness:
+
+```text
+GitLab ● 2s
+DB ● 0s
+Flow ● 1s
+Logs ● live
+Release ● 3s
+```
+
+Freshness matters because the system merges multiple async data sources.
+
+---
+
+## B. Release status should dominate the top of the UI
+
+For this system, the most important operational question is:
+
+```text
+Can this SHA reach production?
+```
+
+The release panel should show:
+
+```text
+Release ci-fa51a52
+SHA fa51a52a7882
+Upstream pipeline: success
+Release-execution: running
+Canary: e2e-running
+Production: not triggered
+Blocking gate: C validation artifact missing
+Next automatic action: none until e2e gate passes
+Manual action available: reconcile
+Prod promote: denied — missing validation artifact
+```
+
+I would show release as a horizontal gate chain:
+
+```text
+Upstream ✔ → Eligible ✔ → Canary Deploy ● → E2E ○ → Handoff ✔ → Validation ⚠ → Prod ○
+```
+
+With each gate selectable.
+
+---
+
+## C. Pipeline and job critical path
+
+The Flow Board should always identify:
+
+```text
+critical path job
+current blocker
+longest queue wait
+most likely next completion
+jobs eligible for retry
+jobs requiring human attention
+```
+
+Example:
+
+```text
+Critical path: integration-e2e-live
+Blocking release: yes
+ETA: 5m ± 2m
+Reason: historical p95 7m, runner queue normal, cache cold
+```
+
+---
+
+## D. Runner pool pressure
+
+The user needs to know whether jobs are slow because of code or capacity.
+
+Show:
+
+```text
+default     3/4 managers   2 running   1 pending   queue p95 18s
+build       4/4 managers   4 running   3 pending   saturated
+untrusted   1/2 managers   1 running   0 pending   ok
+```
+
+A dream TUI should make saturation visually obvious.
+
+---
+
+## E. Failure triage
+
+For every failed job, show:
+
+```text
+failure kind
+classification
+retry recommendation
+prior retries
+capsule availability
+trace tail
+suspected owner/module
+changed files related to failure
+VTI selector involvement
+```
+
+Example:
+
+```text
+FAIL test-release-gates
+Classification: Regression
+Retry: Do not retry
+Likely owner: release.rs
+Evidence: capsule #884
+Changed paths: src/release.rs, src/state.rs
+Suggested validation: release::tests
+```
+
+---
+
+## F. Agent activity
+
+The current architecture has agent spawn/list/merge, but the TUI does not appear to make agents a first-class operational view.
+
+A dream TUI should show:
+
+```text
+Agent Tasks
+  #17 fix release gate validation       MR !42   tests running   trusted
+  #18 race cache-miss hypotheses        3 branches   1 green
+  #19 docs-only routing update          ready for merge, risk allow
+```
+
+For each agent task:
+
+```text
+goal
+branch
+MR
+risk tier
+current action
+last evidence
+validation status
+merge gate result
+human approval needed?
+```
+
+---
+
+## G. Cache and taint explanations
+
+Cache status should not just say hit/miss counts. It should answer:
+
+```text
+Why was this build cold?
+Was the cache skipped because of trust tier?
+Was there a taint?
+Was the epoch invalidated?
+Was the witness different?
+What would make this cacheable next time?
+```
+
+A selected job inspector could show:
+
+```text
+Cache decision: cold execution
+Reason: rust toolchain fingerprint changed
+Epoch: rust-1.92.0
+Witness: changed Cargo.lock
+Taint: none
+Promotion: allowed after success
+```
+
+---
+
+## H. Security and supply-chain signals
+
+Given the modules involved, the TUI should make these impossible to miss:
+
+```text
+honeypot breach
+cache taint
+detonation lane breach
+untrusted runner escalation
+admission hook denial
+secret rotation/finalization
+Vault health
+production gate denial
+custom executor quarantine
+```
+
+Security events should use a distinct visual language, probably magenta/purple plus lock/shield icons, not the same red/yellow used for normal CI failures.
+
+---
+
+# 7. Color and visual design
+
+## Recommended palette
+
+Assuming truecolor support, I would use a dark, high-contrast palette:
+
+| Meaning                   | Color                     |
+| ------------------------- | ------------------------- |
+| Background                | `#0B1020` deep navy/black |
+| Primary text              | `#E6EDF3` near-white      |
+| Muted text                | `#7D8590` gray            |
+| Success                   | `#3EE177` bright green    |
+| Running                   | `#4EA1FF` electric blue   |
+| Selected/focus            | `#00E5FF` cyan            |
+| Pending/waiting           | `#FFD166` amber           |
+| Warning/capacity pressure | `#FF9F1C` orange          |
+| Failure                   | `#FF4D6D` red/pink        |
+| Security/blocked          | `#D65AFF` magenta         |
+| Release/prod              | `#A78BFA` violet          |
+| Cache                     | `#00D1B2` teal            |
+| Stale/disabled            | `#4B5563` gray            |
+
+Do not rely on color alone. Pair colors with icons and labels.
+
+## Status icon language
+
+Use compact icons with ASCII fallbacks:
+
+| State      | Icon       | Fallback |
+| ---------- | ---------- | -------- |
+| success    | `✔`        | `OK`     |
+| running    | `●`        | `RUN`    |
+| pending    | `○`        | `PEND`   |
+| failed     | `✖`        | `FAIL`   |
+| canceled   | `⊘`        | `CANC`   |
+| blocked    | `◆` or `⚠` | `BLOCK`  |
+| security   | `🔒`       | `SEC`    |
+| release    | `◆`        | `REL`    |
+| production | `⬢`        | `PROD`   |
+| stale      | `◌` dim    | `STALE`  |
+
+## High-contrast pane rules
+
+| UI element       | Visual rule                         |
+| ---------------- | ----------------------------------- |
+| Active pane      | cyan border, bold title             |
+| Failed object    | red border/title                    |
+| Security object  | magenta border/title                |
+| Release object   | violet accent                       |
+| Waiting object   | amber accent                        |
+| Stale data       | dim gray, explicit age              |
+| Selected row     | cyan background, black text         |
+| Dangerous action | red/magenta label with confirmation |
+| Disabled action  | dim gray with reason                |
+
+## Avoid visual noise
+
+The TUI should be colorful, but not rainbow-random. Color should encode meaning consistently:
+
+```text
+green = good/done
+blue = active/running
+cyan = selected/focus
+yellow = waiting
+orange = warning/capacity
+red = failure
+magenta = security/blocking
+violet = release/prod
+gray = stale/disabled
+```
+
+---
+
+# 8. Dream tabs / workspaces
+
+## 1. Command Center
+
+This is the default view.
+
+Shows:
+
+```text
+release chain
+active pipelines
+critical path
+live jobs
+selected-object inspector
+event/command console
+```
+
+This replaces the current Flow tab.
+
+---
+
+## 2. Release War Room
+
+Dedicated release/prod view.
+
+Shows:
+
+```text
+latest release attempt
+upstream pipeline
+release-execution pipeline
+production-promotion pipeline
+gate artifacts
+secret set
+canary/e2e/telemetry evidence
+promotion eligibility
+blocked reasons
+available actions
+```
+
+Layout:
+
+```text
+Release Timeline
+Upstream → Canary → E2E → Handoff → Validation → Prod
+
+Gate Matrix
+  Gate                   State      Evidence              Age      SHA match
+  release eligible       pass       pipeline explain       4m       yes
+  canary e2e             running    gate-canary-e2e.json   live     pending
+  C handoff              pass       handoff.env            2m       yes
+  C validation           missing    —                     —        —
+  secrets finalized      no         secret-set #12         3m       yes
+```
+
+This would be extremely valuable.
+
+---
+
+## 3. CI Traffic Control
+
+Focused on jobs, pipelines, queues, and runners.
+
+Shows:
+
+```text
+pipeline list
+job list
+runner pool pressure
+queue age histogram
+stuck/stale jobs
+manual jobs
+retryable failures
+supersedence decisions
+```
+
+This is where a power user can scale/pause/drain pools, cancel superseded pipelines, retry jobs, or inspect queue causes.
+
+---
+
+## 4. Agents
+
+First-class agent operations.
+
+Shows:
+
+```text
+active tasks
+branches
+issues
+MRs
+validation status
+risk gate result
+last action
+next requested action
+human approval queue
+```
+
+Actions:
+
+```text
+spawn task
+pause agent
+resume agent
+request validation
+view patch
+merge through risk gate
+escalate
+close task
+```
+
+---
+
+## 5. Failure Lab
+
+Focused on failed jobs and evidence.
+
+Shows:
+
+```text
+failure capsules
+trace tails
+classification
+retry decisions
+similar historical failures
+changed files
+likely owning module
+suggested test lane
+repair attempts
+```
+
+This would be a dream for both humans and agents.
+
+---
+
+## 6. Test Intelligence
+
+The current Tests tab can evolve into:
+
+```text
+VTI plan
+selected/skipped tests
+selector misses
+test bottlenecks
+test history
+cache keys
+coverage confidence
+```
+
+For a selected commit/ref:
+
+```text
+Changed paths:
+  src/release.rs
+  src/state.rs
+
+Selected tests:
+  release::tests
+  state::tests::test_production_pipeline_tracking
+
+Skipped:
+  docs
+  cache gateway
+  TUI
+
+Risk:
+  release-impacting
+  full release gate validation required
+```
+
+---
+
+## 7. Cache & Supply Chain
+
+Shows:
+
+```text
+SmartCache health
+cache hit/miss trend
+taints
+epochs
+witness mismatches
+BuildKit namespace status
+hot cache entries
+force-refresh rules
+quarantines
+```
+
+Key feature: selected cache miss explanation.
+
+---
+
+## 8. Security / Admission
+
+Shows:
+
+```text
+admission hook events
+honeypot tripwires
+sandbox violations
+untrusted runner activity
+taint/quarantine
+secret audit
+Vault status
+policy denials
+```
+
+This should replace or complement the current placeholder Audit tab.
+
+---
+
+## 9. Storage / Host
+
+The current Storage tab is useful. The dream version adds:
+
+```text
+disk pressure timeline
+GC events
+what will be deleted by reclaim
+active manager cache risk
+Docker image/volume/build cache breakdown
+runner cache sizes
+largest directories
+safe reclaim actions
+```
+
+Actions:
+
+```text
+storage-audit
+host doctor
+cache gc dry-run
+host reclaim plan
+host reclaim apply
+```
+
+Always dry-run first unless policy says otherwise.
+
+---
+
+## 10. Event Ledger
+
+A true audit browser.
+
+Filters:
+
+```text
+object type
+event type
+agent/human/system
+severity
+time range
+release version
+pipeline id
+job id
+MR
+cache key
+secret version
+```
+
+This tab should be searchable and should support jumping to the relevant object.
+
+---
+
+# 9. Command palette: the killer feature
+
+The dream TUI should have a fuzzy command palette opened by `:` or `Ctrl-P`.
+
+Examples:
+
+```text
+: retry job 14445
+: explain release
+: show blockers
+: scale pool build 4 --dry-run
+: cancel superseded pipelines main
+: open logs job 14445
+: fetch capsule 14445
+: promote prod --dry-run
+: rotate secrets --version ci-fa51a52 --target canary --dry-run
+: quarantine cache object abc123 --reason "tripwire"
+: run tests "cargo test -p jeryu -- release::tests"
+: spawn agent "fix failing release gate"
+```
+
+Every command should show a preview before mutation:
+
+```text
+Action: retry job #14445
+Risk: low
+Allowed: yes
+Reason: failed job classified as Infrastructure; no prior retry
+Side effects:
+  - GitLab retry_job(project=2, job=14445)
+  - insert retry_decision
+  - append event job_retry_requested
+Proceed? [y/N]
+```
+
+For dangerous actions:
+
+```text
+Action: promote production
+Risk: critical
+Allowed: no
+Reason: C validation artifact missing
+Missing:
+  - /path/to/c-validation.json
+```
+
+This turns the TUI into a true console, not just a display.
+
+---
+
+# 10. Object inspector design
+
+The right-side inspector should be the most important interaction surface.
+
+For a selected job:
+
+```text
+JOB #14445
+Name: integration-e2e-live
+Status: failed
+Pipeline: #530
+Stage: test
+Runner: default-2
+Pool: default
+Queued: 18s
+Runtime: 7m 42s
+Trace: available
+Capsule: available
+Classification: Regression
+Retry: Do not retry
+Blocking release: yes
+
+WHY
+  Failed after e2e assertion.
+  Failure is not classified as transient.
+  Same test passed on previous SHA.
+  Changed files include release.rs.
+
+ACTIONS
+  [open trace]
+  [fetch capsule]
+  [show similar failures]
+  [run focused retry] disabled: regression
+  [spawn repair agent]
+```
+
+For a selected release:
+
+```text
+RELEASE ci-fa51a52
+SHA: fa51a52a7882
+Ref: main
+Upstream: success #530
+Release pipeline: running #531
+Production: not triggered
+Canary: e2e-running
+
+GATES
+  eligibility        ✔
+  extended lane      ✔
+  release impact     ✔
+  canary deploy      ✔
+  e2e                ● running
+  handoff artifact   ✔
+  validation artifact ○ missing
+  secret set         ✔ rotated, not finalized
+
+NEXT
+  Wait for e2e gate.
+  Production will not trigger until validation exists.
+
+ACTIONS
+  [watch]
+  [reconcile]
+  [show gate files]
+  [promote prod] disabled
+```
+
+For a selected pool:
+
+```text
+POOL build
+Executor: docker
+Trust: privileged
+Managers: 4/4
+Pending jobs: 3
+Queue p95: 2m 11s
+Status: saturated
+
+ACTIONS
+  [scale to 5] disabled: max_managers=4
+  [drain]
+  [pause]
+  [rotate token]
+  [show manager logs]
+```
+
+---
+
+# 11. Real-time model improvements
+
+To make the TUI feel magical, the backend should provide a local event stream.
+
+Instead of every panel independently polling, define:
+
+```text
+TuiEvent
+  JobUpdated
+  PipelineUpdated
+  ReleaseUpdated
+  PoolUpdated
+  CacheUpdated
+  SecretUpdated
+  AgentUpdated
+  AuditEventAppended
+  LogChunk
+  HealthChanged
+```
+
+Then the TUI can subscribe with a cursor:
+
+```text
+jeryu capability/event-stream
+or local Unix socket stream
+or internal async broadcast channel
+```
+
+This would reduce polling and make updates feel instantaneous.
+
+The existing polling loops can remain as fallback/reconciliation.
+
+---
+
+# 12. Data freshness and confidence
+
+Every panel should show freshness.
+
+Examples:
+
+```text
+Flow: live, 1s ago
+GitLab jobs: 2s ago
+DB events: 0s ago
+Release: 3s ago
+Logs: live
+Cache: 8s ago
+Docker: stale, 42s ago
+```
+
+This is especially important because the current TUI merges data from:
+
+```text
+DB
+GitLab
+Docker
+filesystem
+release artifacts
+jeryu sync
+cache metrics
+live log worker
+flow collector
+```
+
+A stale marker is not a failure. It is an honest operational signal.
+
+---
+
+# 13. Better “why” everywhere
+
+The TUI should let the user press `?` on any object.
+
+Examples:
+
+```text
+Why is production not triggered?
+  Because canary_state is e2e-running, not e2e-passed.
+  Also C validation artifact is missing.
+
+Why is job pending?
+  Pool build is at max_managers 4.
+  Three build jobs are ahead in queue.
+  Required tags: build,docker-build,x86-64,docker,dind.
+
+Why did VTI select full validation?
+  Changed path Cargo.lock is a global invalidator.
+  Release-impact analysis returned release-impacting.
+
+Why did cache miss?
+  Toolchain fingerprint changed from rust-1.91 to rust-1.92.
+  Epoch invalidated exact hit.
+
+Why can’t this MR merge?
+  Trust tier is untrusted.
+  Untrusted work escalates even with clean evidence.
+```
+
+This one feature would make the console feel intelligent.
+
+---
+
+# 14. Better release display
+
+The current Release Watch pane is useful but too text-heavy. I would redesign it as a gate matrix plus timeline.
+
+Example:
+
+```text
+RELEASE ci-fa51a52  main@fa51a52  generated 3s ago
+
+Pipeline Chain
+  Upstream #530 ✔ success
+       ↓
+  Release #531 ● running
+       ↓
+  Production — ○ not triggered
+
+Gate Matrix
+┌──────────────────────┬──────────┬──────────────────────────────┬────────┐
+│ Gate                 │ State    │ Evidence                     │ Age    │
+├──────────────────────┼──────────┼──────────────────────────────┼────────┤
+│ Release eligible     │ ✔ pass   │ pipeline explain             │ 4m     │
+│ Extended lane        │ ✔ pass   │ jobs complete                │ 4m     │
+│ Release impact       │ ✔ pass   │ veox-testctl ci-impact       │ 4m     │
+│ Canary deploy        │ ✔ pass   │ release pipeline #531        │ 2m     │
+│ E2E                  │ ● run    │ gate-canary-e2e.json         │ live   │
+│ C handoff            │ ✔ pass   │ handoff.env                  │ 1m     │
+│ C validation         │ ⚠ miss   │ validation artifact missing  │ —      │
+│ Secret set           │ ✔ pass   │ secret-set ci-fa51a52        │ 3m     │
+└──────────────────────┴──────────┴──────────────────────────────┴────────┘
+
+Next automatic action
+  None until E2E passes and validation artifact exists.
+```
+
+This would be much more powerful than a simple status block.
+
+---
+
+# 15. Better Flow Board
+
+The Flow Board should become a selectable graph with real relationships.
+
+## Columns
+
+Keep the current columns:
+
+```text
+Admission
+Impact
+Build
+Tests
+Security
+Package
+Release Gates
+Canary
+Production
+```
+
+But add lanes:
+
+```text
+main
+release-execution
+production-promotion
+agent/MR
+scratch tests
+```
+
+## Node rendering
+
+Example node:
+
+```text
+● integration-e2e-live
+  42%  ETA 4m
+  runner default-2
+  cache cold
+```
+
+Failed node:
+
+```text
+✖ release-gate-validate
+  regression
+  capsule #884
+  blocks prod
+```
+
+Blocked node:
+
+```text
+◆ prod-promote
+  blocked
+  missing validation artifact
+```
+
+## Critical path
+
+Use a visual highlight:
+
+```text
+thick border / bright cyan line / “CRITICAL” marker
+```
+
+The user should immediately see which job controls the ETA.
+
+---
+
+# 16. Better logs
+
+The current log preview and maximized log view are good. I would extend them with:
+
+| Feature                   | Value                                         |
+| ------------------------- | --------------------------------------------- |
+| Search within logs        | Find failures quickly                         |
+| Jump to error             | First panic/error/failure line                |
+| Markers                   | Show compiler errors, test failures, warnings |
+| Fold boring sections      | Collapse dependency install noise             |
+| Side-by-side capsule      | Trace + structured failure                    |
+| Copy command/path         | Helpful for local reproduction                |
+| Link to related artifacts | Test report, junit, coverage, handoff         |
+| Incremental fetch         | Lower load                                    |
+| Completed-job backoff     | Avoid waste                                   |
+
+In maximized log mode, the top should show:
+
+```text
+Job #14445 integration-e2e-live | failed | regression | retry denied | capsule available
+```
+
+---
+
+# 17. Better agent integration
+
+Agents should appear as first-class actors in the TUI.
+
+Example Agent tab:
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ AGENTS                                                                       │
+├─────┬──────────────────────────────┬──────────┬──────────────┬──────────────┤
+│ ID  │ Task                         │ State    │ Validation   │ Merge Gate   │
+├─────┼──────────────────────────────┼──────────┼──────────────┼──────────────┤
+│ 17  │ Fix release validation       │ testing  │ pipeline #77 │ pending      │
+│ 18  │ Race cache miss hypotheses   │ racing   │ 1/3 green    │ —            │
+│ 19  │ Update routing docs          │ ready    │ passed       │ allow        │
+└─────┴──────────────────────────────┴──────────┴──────────────┴──────────────┘
+```
+
+Selecting an agent shows:
+
+```text
+goal
+branch
+issue
+MR
+hypotheses
+commits
+tests run
+failures seen
+next planned action
+human approvals needed
+```
+
+Agent actions should be visible in the event ledger:
+
+```text
+agent #17 proposed patch
+agent #17 requested validation
+agent #17 fetched capsule
+agent #17 requested merge
+risk gate escalated due to untrusted tier
+```
+
+---
+
+# 18. Better test intelligence UI
+
+The Tests tab should expose VTI decisions, not only bottlenecks.
+
+A dream test panel:
+
+```text
+TEST INTELLIGENCE
+
+Current ref: main@fa51a52
+Base: origin/main
+
+Impact lane: Release-impacting
+Invalidators:
+  Cargo.lock changed
+  src/release.rs changed
+
+Selected jobs:
+  ✔ release::tests
+  ✔ state::tests::test_production_pipeline_tracking
+  ✔ integration-e2e
+  ✔ gate-validation
+
+Skipped jobs:
+  docs
+  cache gateway
+  TUI render smoke
+
+Confidence: medium
+Reason:
+  release.rs touches production gate behavior
+  selector has 1 miss in last 14 days for release subsystem
+```
+
+This gives developers trust in the selector.
+
+---
+
+# 19. Better storage and reclaim UI
+
+Storage should be actionable and safe.
+
+Example:
+
+```text
+Disk: 87% critical
+Target: 70%
+Auto-GC: active
+Last GC: freed 12.4 GB, 3m ago
+
+Largest reclaim candidates:
+  orphan manager cache       8.2 GB   safe
+  old CAS objects            5.1 GB   safe
+  Docker build cache         4.4 GB   moderate
+  active manager cache       2.0 GB   dangerous
+
+Actions:
+  [cache gc dry-run]
+  [host reclaim plan]
+  [apply safe reclaim]
+  [emergency reclaim] requires confirm
+```
+
+The system already has reclaim APIs. The TUI should make them legible.
+
+---
+
+# 20. Better security UI
+
+A dedicated Security tab should show:
+
+```text
+Admission denials
+Untrusted runner jobs
+Sandbox violations
+Honeypot/tripwire events
+Cache taints
+Quarantines
+Secret audit events
+Vault authority
+Risk gate escalations
+```
+
+Example:
+
+```text
+SECURITY
+
+Current state: clean
+
+Recent events:
+  12:01 admission allow branch feature/x
+  11:58 risk gate escalate MR !41 untrusted tier
+  11:44 cache taint expired object abc123
+  11:20 secrets rotated version ci-fa51a52 target canary
+
+Active taints: 0
+Tripwire breaches: 0
+Unfinalized secret sets: 1
+```
+
+If anything security-relevant occurs, the header should show a magenta security chip.
+
+---
+
+# 21. Concrete implementation roadmap
+
+## Phase 1: Make the current TUI coherent
+
+Do these first:
+
+1. Fix active pane mismatch.
+2. Add visible Pipeline and Pool lists, or remove inactive focus states.
+3. Add source freshness labels to every major pane.
+4. Add action hints based only on visible selected object.
+5. Make Audit tab show real event ledger rows.
+6. Improve `FetchCapsule` to use `evidence_capsules`.
+
+This phase would make the current TUI feel much more trustworthy.
+
+---
+
+## Phase 2: Add object inspector and action registry
+
+Build:
+
+```text
+ObjectRef
+ActionDescriptor
+ActionDryRun
+ActionExecutionResult
+```
+
+Then wire:
+
+```text
+job retry/cancel/trace/explain
+pipeline cancel/explain/doctor/jobs
+pool pause/resume/scale/drain
+release reconcile/promote-prod dry-run
+cache gc dry-run
+host reclaim plan
+```
+
+Expose this to:
+
+```text
+CLI
+TUI
+capability API
+```
+
+This is the biggest leverage point.
+
+---
+
+## Phase 3: Upgrade Flow Board
+
+Add:
+
+```text
+multi-pipeline stack
+stable graph node ids
+real edges
+critical path
+selected object inspector integration
+historical ETA
+queue diagnosis
+release gate nodes
+```
+
+The TUI becomes a real operational graph.
+
+---
+
+## Phase 4: Make release war room real
+
+Add:
+
+```text
+gate matrix
+artifact validation status
+secret set status
+production eligibility explanation
+automatic next-action display
+promotion dry-run
+```
+
+This makes production state transparent.
+
+---
+
+## Phase 5: Agent cockpit
+
+Add:
+
+```text
+agent task list
+MR/risk gate state
+validation state
+agent action timeline
+approval queue
+agent next-action suggestions
+```
+
+This turns `jeryu` into a supervised agent operations platform.
+
+---
+
+## Phase 6: Streaming/events
+
+Add a local event stream:
+
+```text
+job updates
+pipeline updates
+release updates
+log chunks
+audit events
+cache/security events
+```
+
+Polling can remain as reconciliation, but the UI should feel live.
+
+---
+
+# 22. The dream north star
+
+The dream version of `jeryu tui` is not merely a terminal dashboard. It is a **developer flight deck**.
+
+It should let a power user look at one screen and know:
+
+```text
+We are on main@fa51a52.
+The upstream pipeline passed.
+The release pipeline is running.
+Canary deploy succeeded.
+E2E is the current critical path.
+Production is blocked by C validation.
+Runner capacity is healthy.
+Cache is cold because the Rust epoch changed.
+No security taints are active.
+One agent is repairing a failed release test.
+There are two safe actions and one denied action.
+If nothing changes, the next automatic action will happen after E2E passes.
+```
+
+That is the bar.
+
+The current system has enough primitives to get there. The main missing pieces are not raw power; the system already has power. The missing pieces are:
+
+```text
+unified object/action model
+stronger explanations
+real audit UI
+multi-pipeline graph
+historical ETA
+agent cockpit
+release gate matrix
+streaming event model
+```
+
+Build those, and this becomes an exceptional agent-operable developer console.
+

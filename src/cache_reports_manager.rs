@@ -1,5 +1,7 @@
 use super::*;
 
+const MIN_GITLAB_ARTIFACT_SIZE_MB: u64 = 4096;
+
 pub(crate) async fn gitlab_redis_write_check() -> HostDoctorCheck {
     let output = tokio::process::Command::new("docker")
         .args([

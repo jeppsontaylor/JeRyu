@@ -27,6 +27,7 @@ fn job(job_id: i64, status: &str) -> crate::state::JobEvent {
 async fn renders_all_primary_tabs_with_empty_state() -> Result<()> {
     let mut app = crate::tui::app::test_app().await?;
     for tab in [
+        crate::tui::app::ActiveTab::Workflow,
         crate::tui::app::ActiveTab::Mission,
         crate::tui::app::ActiveTab::Release,
         crate::tui::app::ActiveTab::Jobs,
@@ -80,6 +81,8 @@ async fn renders_flow_with_jobs_list_and_live_log() -> Result<()> {
 #[tokio::test]
 async fn navigation_cycles_tabs_and_panes() -> Result<()> {
     let mut app = crate::tui::app::test_app().await?;
+    assert_eq!(app.active_tab, crate::tui::app::ActiveTab::Workflow);
+    app.cycle_tab_next();
     assert_eq!(app.active_tab, crate::tui::app::ActiveTab::Mission);
     app.cycle_tab_next();
     assert_eq!(app.active_tab, crate::tui::app::ActiveTab::Release);
@@ -100,7 +103,7 @@ async fn navigation_cycles_tabs_and_panes() -> Result<()> {
     app.cycle_tab_next();
     assert_eq!(app.active_tab, crate::tui::app::ActiveTab::Git);
     app.cycle_tab_next();
-    assert_eq!(app.active_tab, crate::tui::app::ActiveTab::Mission);
+    assert_eq!(app.active_tab, crate::tui::app::ActiveTab::Workflow);
 
     assert_eq!(app.active_pane, crate::tui::app::ActivePane::Jobs);
     app.cycle_pane_next();

@@ -1,0 +1,1458 @@
+I studied the repo and the existing API surface. The best solution is to add a **new plan-driven default TUI tab** called **`0:Workflow`**, rather than trying to force this into the existing `Jobs` or `Tests` tabs.
+
+The key reason: the current `Jobs` flow can only visualize jobs that already exist in GitLab or the DB, while your requirement is stronger: show **all tests that need to run**, including tests that are still waiting because earlier phases have not completed. That requires a first-class workflow plan model.
+
+## What exists today
+
+The repo already has most of the infrastructure needed:
+
+`src/tui/` already uses **Ratatui + crossterm** and has a mature tabbed TUI.
+
+`src/tui/flow/` already has a graph model and widget for pipeline-like flows.
+
+`src/test_intel/` already has VTI smart-test selection:
+
+* `planner.rs` decides whether a diff needs full, selected, or docs-only validation.
+* `subsystem.rs` maps changed files to subsystem-specific unit and integration tests.
+* `ci_gen.rs` emits GitLab child pipeline YAML, but currently everything lands in one generic `test` stage.
+
+`src/test_runner.rs` already supports:
+
+* `jeryu test run`
+* `jeryu test batch`
+* test planning metadata
+* GitLab ephemeral CI execution
+* cached test skips
+
+`Cargo.toml` already declares ordered validation and CI profiles:
+
+* workspace `validation_order`
+* workspace `ci_profiles`
+* package `local_validate`
+* package `ci_profiles`
+
+The missing piece is a **workflow planner + workflow renderer + workflow status collector**.
+
+---
+
+# Recommended solution
+
+Add a new default TUI tab:
+
+```text
+0:Workflow
+```
+
+This tab should be the first tab, the default tab, and the most visually impressive screen in the product.
+
+The workflow tab should show a **top-down execution DAG**:
+
+* Required ordering goes **downward**.
+* Parallel tests go **side by side**.
+* Each test is a block/card.
+* Status is shown with strong color, icon, progress, duration, and live log hints.
+* Arrow keys move spatially through the workflow.
+
+Conceptually:
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ jeryu  GitLab:OK  profile:pull-request  mode:selected  confidence:0.85       │
+│ 0:Workflow  1:Mission  2:Release  3:Jobs  4:Agents  5:Tests  ...             │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Phase 0: Plan / VTI ────────────────────────────────────────────────────────┐
+│   ✓ RAN  VTI plan                         selected: tui,state  receipt bound │
+└─────────────────────────────────────┬────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─ Phase 1: Buildability ──────────────────────────────────────────────────────┐
+│   ◉ RUN  cargo check -p jeryu --message-format=json        ███████░░ 74%     │
+└─────────────────────────────────────┬────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─ Phase 2: Unit / Selected tests ─────────────────────────────────────────────┐
+│ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐ │
+│ │ ○ WAIT tui unit       │ │ ○ WAIT state unit     │ │ ○ WAIT cache unit     │ │
+│ │ nextest filter        │ │ nextest filter        │ │ nextest filter        │ │
+│ │ deps: cargo check     │ │ deps: cargo check     │ │ deps: cargo check     │ │
+│ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘ │
+└─────────────────────────────────────┬────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─ Phase 3: Integration tests ─────────────────────────────────────────────────┐
+│ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐ │
+│ │ ◌ READY pool_tests    │ │ ◌ READY job_tests     │ │ ◌ READY agent_tests   │ │
+│ │ runner: build         │ │ runner: default       │ │ runner: default       │ │
+│ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘ │
+└─────────────────────────────────────┬────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─ Phase 4: Proof / Security gates ────────────────────────────────────────────┐
+│ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐ │
+│ │ ○ WAIT witness build  │ │ ○ WAIT vrc map        │ │ ○ WAIT aer scan       │ │
+│ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Inspector ───────────────────────────────┐
+│ selected: cargo check                     │
+│ status: running                           │
+│ reason: required by pull-request profile  │
+│ deps: VTI plan                            │
+│ dependents: tui unit, state unit, cache   │
+│ runner: default,rust,test                 │
+│ log tail:                                 │
+│   Checking jeryu v3.0.1 ...               │
+└───────────────────────────────────────────┘
+
+Legend: ✓ ran  ◉ running  ✕ error  ○ waiting  ◌ ready  ◆ cached/skipped
+Controls: arrows navigate  Enter inspect/logs  r retry  e next error  / search  F5 refresh
+```
+
+---
+
+# Core design decision
+
+The workflow tab should be **plan-driven first, runtime-driven second**.
+
+That means the TUI should not wait for GitLab jobs to appear before drawing the workflow. It should first build a complete `WorkflowPlan` from:
+
+1. VTI smart-test selection.
+2. `Cargo.toml` workspace/package metadata.
+3. `justfile` validation recipes where relevant.
+4. GitLab job state once execution begins.
+5. local DB test history/cache information.
+
+Then the TUI overlays live runtime status onto that plan.
+
+This is what lets the user see:
+
+* tests that already ran,
+* tests currently running,
+* tests that failed,
+* tests that are waiting on dependencies,
+* tests skipped by VTI or cache,
+* tests that are ready to start,
+* and tests that are required later in the workflow.
+
+---
+
+# New tab behavior
+
+## Default tab
+
+Change the default active tab from `Mission` to `Workflow`.
+
+Current code:
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActiveTab {
+    #[default]
+    Mission,
+    ...
+}
+```
+
+Recommended:
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActiveTab {
+    #[default]
+    Workflow,
+    Mission,
+    Release,
+    Jobs,
+    Agents,
+    Tests,
+    Pools,
+    Cache,
+    Evidence,
+    Secrets,
+    Git,
+}
+```
+
+## Number mapping
+
+The tab bar should become:
+
+```text
+0:Workflow  1:Mission  2:Release  3:Jobs  4:Agents  5:Tests  6:Pools  7:Cache  8:Evidence  9:Secrets
+```
+
+Git can remain accessible through the command palette, `Tab` cycling, or a dedicated key like `g`. If keeping Git as a numbered tab is mandatory, use `10:Git`, but the most important requirement is that **`0` must always mean Workflow**.
+
+Current behavior maps `0` to `Git`. That should change.
+
+```rust
+impl ActiveTab {
+    pub fn from_number(n: u8) -> Option<Self> {
+        match n {
+            0 => Some(Self::Workflow),
+            1 => Some(Self::Mission),
+            2 => Some(Self::Release),
+            3 => Some(Self::Jobs),
+            4 => Some(Self::Agents),
+            5 => Some(Self::Tests),
+            6 => Some(Self::Pools),
+            7 => Some(Self::Cache),
+            8 => Some(Self::Evidence),
+            9 => Some(Self::Secrets),
+            10 => Some(Self::Git),
+            _ => None,
+        }
+    }
+}
+```
+
+## CLI API
+
+Current CLI default is:
+
+```rust
+#[arg(long, default_value = "jobs")]
+tab: String,
+```
+
+Change that to:
+
+```rust
+#[arg(long, default_value = "workflow")]
+tab: String,
+```
+
+And update `parse_capture_tab`:
+
+```rust
+"workflow" | "wf" => Ok(app::ActiveTab::Workflow),
+```
+
+Then this works:
+
+```bash
+jeryu tui
+jeryu tui --once
+jeryu tui --capture --tab workflow --output paper/assets/jeryu-tui-workflow.png
+```
+
+---
+
+# Workflow semantics
+
+The workflow should be built from phases. Each phase is a horizontal row. Jobs inside the same phase can run in parallel. A later phase cannot start until its dependencies are satisfied.
+
+For this repo, the natural workflow is:
+
+## Phase 0: Planning / impact
+
+This phase is mostly local/logical.
+
+Possible nodes:
+
+```text
+VTI diff analysis
+test cache lookup
+receipt generation
+CI profile resolution
+```
+
+Statuses:
+
+* `ran` if the plan was computed successfully.
+* `error` if diff planning failed.
+* `cached/skipped` for docs-only changes.
+
+## Phase 1: Buildability
+
+This phase should run before tests.
+
+Depending on profile:
+
+```bash
+cargo check -p jeryu --message-format=json
+```
+
+or:
+
+```bash
+cargo check --workspace
+```
+
+For PR/workspace validation, this should almost always be the first real command.
+
+## Phase 2: Unit / selected tests
+
+For selected mode, this comes from `src/test_intel/planner.rs`.
+
+Examples:
+
+```bash
+cargo nextest run -E 'test(/tui|snapshot|render|widget/)'
+cargo nextest run -E 'test(/state|sqlite|db|migrat/)'
+cargo nextest run -E 'test(/cache|singleflight|gateway|taint|epoch|witness|sccache/)'
+```
+
+These can generally run in parallel after `cargo check`.
+
+## Phase 3: Integration tests
+
+Also from the VTI subsystem definitions.
+
+Examples:
+
+```bash
+cargo nextest run --test pool_tests
+cargo nextest run --test job_tests
+cargo nextest run --test agent_tests
+cargo nextest run --test cache_integration_test
+cargo nextest run --test e2e
+```
+
+These should run after buildability and usually after related unit filters.
+
+For broad PR validation, this can also include:
+
+```bash
+cargo test -p jeryu --test '*' -- --test-threads=1
+```
+
+Because that command itself serializes test threads, it should appear as one large serial block, not as many parallel blocks.
+
+## Phase 4: Proof / security / release gates
+
+From workspace `validation_order` and `ci_profiles`:
+
+```bash
+cargo run -p cargo-witness -- build
+cargo run -p cargo-vrc -- map --output-dir .
+cargo run -p cargo-aer -- scan --output aer-findings.json
+cargo deny check
+cargo run -p arc-bench -- run psd-mechanics
+```
+
+The profile determines whether these appear.
+
+For `pull-request`, include witness, VRC, and AER.
+
+For `release-blocking`, include full nextest, deny, and arc-bench.
+
+For `inner-loop`, omit the expensive gates.
+
+---
+
+# The workflow planner
+
+Add a non-TUI module that builds a canonical DAG.
+
+Recommended new module:
+
+```text
+src/test_intel/workflow.rs
+```
+
+or:
+
+```text
+src/test_workflow/
+  mod.rs
+  planner.rs
+  model.rs
+  gitlab_yaml.rs
+```
+
+I would prefer `src/test_workflow/` because this is larger than VTI. VTI selects tests; workflow planning orders tests and gates.
+
+## Core model
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowPlan {
+    pub run_id: String,
+    pub profile: WorkflowProfile,
+    pub mode: WorkflowMode,
+    pub base_sha: Option<String>,
+    pub head_sha: Option<String>,
+    pub confidence: f64,
+    pub generated_at: DateTime<Utc>,
+    pub phases: Vec<WorkflowPhase>,
+    pub edges: Vec<WorkflowEdge>,
+    pub rationale: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum WorkflowProfile {
+    InnerLoop,
+    PullRequest,
+    ReleaseBlocking,
+    ScheduledHardening,
+    Custom(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum WorkflowMode {
+    Full,
+    Selected,
+    DocsOnly,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowPhase {
+    pub id: String,
+    pub index: usize,
+    pub title: String,
+    pub description: String,
+    pub barrier: PhaseBarrier,
+    pub nodes: Vec<WorkflowNode>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PhaseBarrier {
+    AllPreviousMustPass,
+    ExplicitNeeds,
+    Advisory,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowNode {
+    pub id: String,
+    pub label: String,
+    pub command: String,
+    pub kind: WorkflowNodeKind,
+    pub subsystem: Option<String>,
+    pub phase_index: usize,
+    pub lane_index: usize,
+    pub depends_on: Vec<String>,
+    pub runner_tags: Vec<String>,
+    pub timeout_secs: u64,
+    pub required: bool,
+    pub allow_failure: bool,
+    pub reason: String,
+
+    pub runtime: WorkflowRuntime,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum WorkflowNodeKind {
+    Plan,
+    CacheCheck,
+    CargoCheck,
+    Unit,
+    Integration,
+    FullSuite,
+    Witness,
+    Vrc,
+    Aer,
+    Deny,
+    Bench,
+    DocsOnly,
+    Custom,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowEdge {
+    pub from: String,
+    pub to: String,
+    pub hard: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowRuntime {
+    pub status: WorkflowStatus,
+    pub pipeline_id: Option<i64>,
+    pub job_id: Option<i64>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub finished_at: Option<DateTime<Utc>>,
+    pub elapsed_secs: Option<f64>,
+    pub progress_pct: Option<u16>,
+    pub trace_tail: Option<String>,
+    pub error_summary: Option<String>,
+    pub cache_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkflowStatus {
+    Waiting,
+    Ready,
+    Running,
+    Ran,
+    Error,
+    Cached,
+    Skipped,
+    Canceled,
+    Unknown,
+}
+```
+
+The important distinction is:
+
+* `WorkflowPlan` describes what must happen.
+* `WorkflowRuntime` describes what is happening now.
+
+That separation is essential for displaying waiting jobs before GitLab creates them.
+
+---
+
+# Building the plan
+
+The planner should take:
+
+```rust
+pub struct WorkflowPlanInput {
+    pub profile: WorkflowProfile,
+    pub changed_paths: Vec<String>,
+    pub base_sha: Option<String>,
+    pub head_sha: Option<String>,
+    pub repo_root: PathBuf,
+    pub include_release_gates: bool,
+    pub force_full: bool,
+}
+```
+
+Then:
+
+```rust
+pub fn plan_workflow(input: WorkflowPlanInput) -> Result<WorkflowPlan>
+```
+
+Planning algorithm:
+
+1. Run or consume `test_intel::planner::plan_tests(&changed_paths)`.
+2. Resolve the selected profile from package/workspace metadata.
+3. Add Phase 0 planning nodes.
+4. Add Phase 1 buildability nodes.
+5. Convert `SelectedTest` entries into Phase 2 or Phase 3 nodes:
+
+   * `unit_filter` → Phase 2
+   * `changed_test` → Phase 3 unless clearly unit-only
+   * `integration` → Phase 3
+   * `full` → Phase 2 or one large full-suite node
+6. Add proof/security gates according to profile.
+7. Add explicit dependencies:
+
+   * all test nodes depend on buildability,
+   * integration tests depend on buildability and optionally related unit filters,
+   * proof gates depend on unit/integration phase,
+   * release gates depend on proof/security.
+8. Deduplicate equivalent commands.
+9. Compute layout hints:
+
+   * phase index,
+   * lane index,
+   * critical path,
+   * estimated duration if DB has historical data.
+
+---
+
+# Status colors
+
+Use strong, consistent status colors across the entire workflow tab.
+
+```text
+Waiting       DarkGray / Gray      ○ WAIT
+Ready         Yellow               ◌ READY
+Running       Cyan or Blue          ◉ RUN
+Ran           Green                ✓ RAN
+Error         Red / LightRed        ✕ ERROR
+Cached        Green + Dim           ◆ CACHED
+Skipped       DarkGray + Green      ◆ SKIP
+Canceled      DarkGray              ⊘ CANCELED
+Unknown       Gray                  ◇ UNKNOWN
+```
+
+Recommended card styling:
+
+```text
+waiting:   gray border, dim text
+ready:     yellow border
+running:   cyan border, animated spinner, progress bar
+ran:       green border, checkmark
+error:     red border, bold title, short failure summary
+cached:    green/dim border, cache badge
+skipped:   dim border, explicit reason
+```
+
+Running cards should feel alive:
+
+```text
+◉ RUN cargo check
+██████████░░░░░░ 64%
+00:43 elapsed · ETA 00:24
+```
+
+Error cards should be impossible to miss:
+
+```text
+✕ ERROR cache_integration_test
+failed after 01:18
+panic: migration lock timeout
+```
+
+---
+
+# Layout design
+
+The tab should have four regions.
+
+```text
+┌────────────────────────────────────────────────────────────┐
+│ Header / tab bar                                           │
+├────────────────────────────────────────────────────────────┤
+│ Workflow summary strip                                     │
+├─────────────────────────────────────────────┬──────────────┤
+│ Main workflow board                          │ Inspector    │
+│ Ordered phases top-to-bottom                 │ Logs/detail  │
+│ Parallel jobs side-by-side                   │ Actions      │
+├─────────────────────────────────────────────┴──────────────┤
+│ Legend / controls / event ticker                            │
+└────────────────────────────────────────────────────────────┘
+```
+
+## Summary strip
+
+The strip should answer:
+
+```text
+profile: pull-request
+mode: selected
+base..head: origin/main..HEAD
+confidence: 0.85
+required: 9
+running: 1
+ran: 2
+waiting: 6
+errors: 0
+ETA: ~6m20s
+```
+
+Possible rendering:
+
+```text
+profile:pull-request  mode:selected  confidence:85%
+required:9  ✓2  ◉1  ○6  ✕0  ETA:06:20
+```
+
+## Main board
+
+The main board is the hero component.
+
+Rules:
+
+* Vertical axis = ordering.
+* Horizontal axis = parallelism.
+* One phase per horizontal band.
+* Cards in the same band can run concurrently.
+* Connectors show dependency flow.
+* Selected card is highlighted with reversed/bold border.
+* Critical path can use a double border or bold connector.
+* Horizontal scrolling should be supported for huge parallel sets.
+* Vertical scrolling should be supported for long workflows.
+
+## Inspector
+
+The inspector should show details for the selected test block:
+
+```text
+Selected
+  name: vti-tui-unit
+  status: waiting
+  command:
+    cargo nextest run -E 'test(/tui|snapshot|render|widget/)'
+
+Why this test is needed
+  changed path src/tui/ui.rs matches subsystem tui
+  selected by VTI as unit_filter
+
+Dependencies
+  waits for:
+    ✓ VTI plan
+    ◉ cargo check
+
+Runtime
+  pipeline: 8123
+  job: not created yet
+  runner tags: default,rust,test
+  timeout: 600s
+
+Actions
+  Enter logs
+  r retry
+  x cancel
+  y copy command
+```
+
+When a job has logs, the bottom of the inspector should show a compact live log tail.
+
+---
+
+# Navigation controls
+
+This tab should have true spatial navigation.
+
+## Core movement
+
+```text
+↑       move to nearest card in previous phase
+↓       move to nearest card in next phase
+←       move to previous parallel card in the same phase
+→       move to next parallel card in the same phase
+Home    first phase / first card
+End     last phase / last card
+PgUp    previous phase
+PgDn    next phase
+```
+
+The cursor should remember a preferred horizontal position, so moving down from the second card in Phase 2 tries to select the second card in Phase 3.
+
+## Workflow actions
+
+```text
+Enter   open/focus selected job logs in inspector
+Space   expand/collapse selected card
+e       jump to next error
+E       jump to previous error
+r       retry selected failed job
+R       rerun selected phase
+x       cancel selected job or workflow run
+/       search tests, commands, subsystems
+n       next search match
+N       previous search match
+F5      refresh
+?       help overlay
+```
+
+## Global controls
+
+```text
+0       Workflow
+1       Mission
+2       Release
+3       Jobs
+4       Agents
+5       Tests
+6       Pools
+7       Cache
+8       Evidence
+9       Secrets
+Tab     cycle tabs
+Ctrl-K  command palette
+q       quit
+```
+
+Mouse support should also be added for card selection. The widget can maintain a hit map from `WorkflowNodeId` to `Rect`.
+
+---
+
+# Rendering implementation
+
+Add a dedicated workflow TUI module:
+
+```text
+src/tui/workflow/
+  mod.rs
+  model.rs
+  widget.rs
+  collector.rs
+  nav.rs
+  inspector.rs
+  demo.rs
+```
+
+## `model.rs`
+
+TUI-specific view model:
+
+```rust
+pub struct WorkflowView {
+    pub plan: Option<WorkflowPlan>,
+    pub selected_node_id: Option<String>,
+    pub scroll_x: u16,
+    pub scroll_y: u16,
+    pub search_query: String,
+    pub filter: WorkflowFilter,
+    pub last_update: Option<DateTime<Utc>>,
+}
+
+pub struct WorkflowRenderNode {
+    pub node_id: String,
+    pub rect: Rect,
+    pub phase_index: usize,
+    pub lane_index: usize,
+}
+
+pub struct WorkflowHitMap {
+    pub nodes: Vec<WorkflowRenderNode>,
+}
+```
+
+## `widget.rs`
+
+Custom Ratatui widget:
+
+```rust
+pub struct WorkflowGraphWidget<'a> {
+    pub plan: &'a WorkflowPlan,
+    pub selected_node_id: Option<&'a str>,
+    pub scroll_x: u16,
+    pub scroll_y: u16,
+    pub tick: u64,
+}
+```
+
+Rendering details:
+
+* Use rounded block borders.
+* Use thick/double borders for selected or critical-path nodes.
+* Use Unicode block progress bars: `█▓▒░`.
+* Use animated spinner frames for running jobs: `⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`.
+* Use connector lines:
+
+  * `│`
+  * `┬`
+  * `┴`
+  * `─`
+  * `╭`
+  * `╰`
+* Use compact cards at small terminal widths.
+* Use expanded cards when enough width is available.
+
+Example card:
+
+```text
+╭─ ◉ RUN cargo check ─────────╮
+│ ████████░░░░ 68%  00:42     │
+│ cargo check -p jeryu        │
+│ deps: plan                  │
+╰─────────────────────────────╯
+```
+
+Small-width fallback:
+
+```text
+[◉ cargo check 68%]
+```
+
+## `collector.rs`
+
+The collector should periodically overlay runtime state onto the planned workflow.
+
+It should consume:
+
+* planned workflow from `test_intel` / `test_workflow`,
+* GitLab pipeline/job status,
+* DB `job_events`,
+* DB `test_execution`,
+* live traces from `job trace`,
+* cache skip decisions.
+
+This collector should emit:
+
+```rust
+mpsc::Sender<WorkflowSnapshot>
+```
+
+similar to the existing flow collector.
+
+Add to `TuiStateSnapshot`:
+
+```rust
+pub workflow: crate::tui::workflow::WorkflowSnapshot,
+```
+
+Add to `App`:
+
+```rust
+workflow_rx: mpsc::Receiver<WorkflowSnapshot>,
+workflow_tx: mpsc::Sender<WorkflowSnapshot>,
+pub workflow_view: WorkflowView,
+```
+
+---
+
+# Runtime execution model
+
+The current `jeryu test batch` runs commands in parallel through **separate ephemeral pipelines**. That works, but it is not ideal for this workflow view because ordering and dependency visualization are first-class now.
+
+The better API is a new workflow runner that creates **one GitLab child pipeline** with stages and `needs`.
+
+## New CLI
+
+Add:
+
+```bash
+jeryu test workflow plan
+jeryu test workflow run
+jeryu test workflow status
+jeryu test workflow retry <node-id>
+jeryu test workflow explain <node-id>
+```
+
+Possible shape:
+
+```bash
+jeryu test workflow plan \
+  --profile pull-request \
+  --base origin/main \
+  --head HEAD \
+  --emit-plan target/jeryu/workflow-plan.json \
+  --emit-gitlab target/jeryu/workflow.gitlab-ci.yml
+```
+
+```bash
+jeryu test workflow run \
+  --profile pull-request \
+  --base origin/main \
+  --head HEAD \
+  --project-id 2
+```
+
+## GitLab YAML
+
+Generated YAML should preserve phases:
+
+```yaml
+image: rust:1.92.0
+
+stages:
+  - wf_00_plan
+  - wf_01_check
+  - wf_02_unit
+  - wf_03_integration
+  - wf_04_proof
+
+wf-plan:
+  stage: wf_00_plan
+  tags:
+    - default
+    - rust
+    - test
+  script:
+    - echo "VTI plan already generated"
+  artifacts:
+    when: always
+    paths:
+      - target/jeryu/workflow-plan.json
+
+cargo-check:
+  stage: wf_01_check
+  tags:
+    - default
+    - rust
+    - test
+  script:
+    - cargo check -p jeryu --message-format=json
+
+unit-tui:
+  stage: wf_02_unit
+  needs: ["cargo-check"]
+  tags:
+    - default
+    - rust
+    - test
+  script:
+    - cargo nextest run -E 'test(/tui|snapshot|render|widget/)'
+
+unit-state:
+  stage: wf_02_unit
+  needs: ["cargo-check"]
+  tags:
+    - default
+    - rust
+    - test
+  script:
+    - cargo nextest run -E 'test(/state|sqlite|db|migrat/)'
+
+integration-pool-tests:
+  stage: wf_03_integration
+  needs: ["unit-state"]
+  tags:
+    - build
+    - docker-build
+  script:
+    - cargo nextest run --test pool_tests
+
+witness-build:
+  stage: wf_04_proof
+  needs:
+    - unit-tui
+    - unit-state
+    - integration-pool-tests
+  tags:
+    - default
+    - rust
+    - test
+  script:
+    - cargo run -p cargo-witness -- build
+```
+
+This gives GitLab the same ordering that the TUI displays.
+
+---
+
+# Why not reuse the existing `Jobs` flow widget?
+
+The existing `src/tui/flow` model is useful but job-observed. It is built around pipeline columns like build, tests, security, package, release gates, canary, production.
+
+That is not enough for your requirement because:
+
+* it cannot show tests before GitLab jobs exist,
+* it does not know which tests are required by VTI,
+* it does not encode “this test must come after that test” as the primary layout rule,
+* it renders pipeline flow left-to-right, while you asked for ordered dependency flow top-to-bottom with parallel blocks side-by-side.
+
+The new workflow tab can reuse ideas from `src/tui/flow/widget.rs`, but it should be its own widget.
+
+The existing `Tests` tab should also remain separate. It currently shows bottlenecks/history, which is still useful, but it is not the live ordered workflow view.
+
+---
+
+# File-by-file implementation plan
+
+## `src/tui/app.rs`
+
+Add `Workflow` to `ActiveTab`.
+
+Make it the default.
+
+Add workflow state:
+
+```rust
+pub workflow_view: WorkflowView,
+workflow_rx: mpsc::Receiver<WorkflowSnapshot>,
+workflow_tx: mpsc::Sender<WorkflowSnapshot>,
+```
+
+Add navigation methods:
+
+```rust
+pub fn workflow_left(&mut self)
+pub fn workflow_right(&mut self)
+pub fn workflow_up(&mut self)
+pub fn workflow_down(&mut self)
+pub fn workflow_next_error(&mut self)
+pub fn workflow_retry_selected(&mut self)
+pub fn workflow_cancel_selected(&mut self)
+pub fn workflow_open_selected_logs(&mut self)
+```
+
+## `src/tui/mod.rs`
+
+Update `parse_capture_tab`.
+
+Update key handling:
+
+```rust
+KeyCode::Char('0') => app.active_tab = ActiveTab::Workflow,
+```
+
+Route arrow keys:
+
+```rust
+KeyCode::Left if app.active_tab == ActiveTab::Workflow => app.workflow_left(),
+KeyCode::Right if app.active_tab == ActiveTab::Workflow => app.workflow_right(),
+KeyCode::Up if app.active_tab == ActiveTab::Workflow => app.workflow_up(),
+KeyCode::Down if app.active_tab == ActiveTab::Workflow => app.workflow_down(),
+```
+
+Start the workflow collector alongside the existing sync/log/flow collectors.
+
+## `src/tui/ui.rs`
+
+Add:
+
+```rust
+ActiveTab::Workflow => draw_workflow_tab(f, app, chunks[1]),
+```
+
+Update tab header definitions.
+
+Add workflow footer help:
+
+```rust
+" arrows:navigate  Enter:logs  e:error  r:retry  x:cancel  /:search  F5:refresh  ?:help  q:quit"
+```
+
+Add:
+
+```rust
+fn draw_workflow_tab(f: &mut Frame, app: &mut App, area: Rect)
+```
+
+This function should split the tab into:
+
+```text
+summary strip
+main board + inspector
+legend/footer hints
+```
+
+## `src/tui/workflow/widget.rs`
+
+Implement the card renderer and connector renderer.
+
+This is the place to really show off Rust TUI:
+
+* animated status icons,
+* dynamic card sizing,
+* scrollable graph,
+* highlight critical path,
+* crisp Unicode connectors,
+* progress bars,
+* smart truncation,
+* mouse hit map.
+
+## `src/test_workflow/planner.rs`
+
+Add the workflow planner.
+
+It should consume VTI `TestPlan` and profile metadata.
+
+The initial version can hardcode the known JeRyu profiles from `Cargo.toml`, then later parse metadata dynamically with `cargo_metadata`.
+
+## `src/test_workflow/gitlab_yaml.rs`
+
+Generate phase-aware GitLab YAML.
+
+This should eventually replace or complement `src/test_intel/ci_gen.rs`.
+
+## `src/test_runner.rs`
+
+Add:
+
+```rust
+pub struct TestWorkflowRunOpts { ... }
+
+pub struct TestWorkflowRunResult {
+    pub workflow_run_id: String,
+    pub pipeline_id: i64,
+    pub plan: WorkflowPlan,
+}
+
+pub async fn run_test_workflow(
+    db: &crate::state::Db,
+    client: &GitlabClient,
+    opts: &TestWorkflowRunOpts,
+) -> Result<TestWorkflowRunResult>
+```
+
+This should create one ephemeral branch and one phase-aware pipeline, not one pipeline per test.
+
+## `src/state.rs`
+
+Add persistent workflow tables.
+
+Recommended:
+
+```sql
+workflow_runs(
+  id TEXT PRIMARY KEY,
+  profile TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  base_sha TEXT,
+  head_sha TEXT,
+  pipeline_id INTEGER,
+  status TEXT NOT NULL,
+  generated_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  plan_json TEXT NOT NULL
+)
+
+workflow_nodes(
+  workflow_run_id TEXT NOT NULL,
+  node_id TEXT NOT NULL,
+  phase_index INTEGER NOT NULL,
+  lane_index INTEGER NOT NULL,
+  label TEXT NOT NULL,
+  command TEXT NOT NULL,
+  status TEXT NOT NULL,
+  pipeline_id INTEGER,
+  job_id INTEGER,
+  started_at TEXT,
+  finished_at TEXT,
+  trace_tail TEXT,
+  error_summary TEXT,
+  PRIMARY KEY(workflow_run_id, node_id)
+)
+```
+
+The TUI can function without this by deriving from GitLab every tick, but persistent workflow tables are better because they let the TUI show planned waiting nodes even across restarts.
+
+## `src/tui/action_registry.rs`
+
+Add command palette actions:
+
+```text
+tab_workflow
+workflow_run_pull_request
+workflow_run_inner_loop
+workflow_run_release_blocking
+workflow_retry_selected
+workflow_cancel_selected
+workflow_explain_selected
+workflow_next_error
+```
+
+Actions that mutate CI should require the existing capability/grant flow.
+
+## Docs
+
+Update:
+
+```text
+docs/API.md
+docs/JERYU_TUI.md
+docs/VTI.md
+```
+
+Document:
+
+```bash
+jeryu tui --tab workflow
+jeryu test workflow plan
+jeryu test workflow run
+```
+
+---
+
+# Suggested workflow profiles
+
+## `inner-loop`
+
+Fast local feedback.
+
+```text
+Phase 0: VTI plan
+Phase 1: cargo check -p jeryu --message-format=json
+Phase 2: cargo nextest run -p jeryu --lib
+```
+
+For selected VTI mode, replace or augment the generic lib test with selected subsystem filters.
+
+## `pull-request`
+
+Strong default for the workflow tab.
+
+```text
+Phase 0: VTI plan / receipt
+Phase 1: cargo check -p jeryu --message-format=json
+Phase 2: selected unit tests or cargo nextest run -p jeryu --lib
+Phase 3: integration tests / cargo test -p jeryu --test '*' -- --test-threads=1
+Phase 4: cargo run -p cargo-witness -- build
+Phase 5: cargo run -p cargo-vrc -- map --output-dir .
+Phase 6: cargo run -p cargo-aer -- scan --output aer-findings.json
+```
+
+## `release-blocking`
+
+Full validation.
+
+```text
+Phase 0: VTI full/forced plan
+Phase 1: cargo nextest run -p jeryu
+Phase 2: cargo deny check
+Phase 3: cargo run -p arc-bench -- run psd-mechanics
+Phase 4: witness / VRC / AER if release policy requires them
+```
+
+## `scheduled-hardening`
+
+Nightly/deep validation.
+
+```text
+Phase 0: hardening plan
+Phase 1: cargo semver-checks check-release
+Phase 2: cargo run -p cargo-aer -- scan --output aer-findings.json
+Phase 3: optional witness diagnose
+```
+
+---
+
+# Visual polish
+
+To make this feel “incredible” rather than merely functional:
+
+## 1. Animated running cards
+
+Use spinner frame based on `app.tick_count`:
+
+```text
+⠋ cargo check
+⠙ cargo check
+⠹ cargo check
+```
+
+## 2. Live progress bars
+
+Use historical duration estimates where exact progress is unavailable:
+
+```text
+███████░░░░░ 58%
+```
+
+## 3. Critical path highlighting
+
+The longest expected dependency chain should be bold or double-bordered:
+
+```text
+╔═ ◉ RUN integration-pool-tests ═╗
+```
+
+## 4. Error pulse
+
+Alternate red/light-red border style on failed selected cards.
+
+## 5. Collapsible phases
+
+Large phases can collapse:
+
+```text
+▾ Phase 2: Unit tests       ✓4 ◉2 ○7 ✕0
+▸ Phase 3: Integration      waiting, 5 jobs
+```
+
+## 6. Search/filter chips
+
+At the top of the board:
+
+```text
+filter: all  failed  running  waiting  subsystem:tui
+```
+
+## 7. Mini-map for huge workflows
+
+For very large workflows, a small right-side minimap could show phase statuses:
+
+```text
+Plan        ✓
+Check       ◉
+Unit        ○○○
+Integration ○○
+Proof       ○○○
+```
+
+---
+
+# Testing strategy
+
+This feature needs strong tests because layout and ordering are the whole point.
+
+## Planner tests
+
+Add tests for:
+
+* docs-only changes create one docs/check skipped node,
+* `Cargo.toml` change creates full workflow,
+* `src/tui/ui.rs` creates TUI unit test workflow,
+* `src/state.rs` creates cross-cutting integration workflow,
+* proof gates appear in `pull-request`,
+* proof gates do not appear in `inner-loop`,
+* release profile includes release-blocking commands.
+
+## Widget tests
+
+Use Ratatui `TestBackend`.
+
+Test that:
+
+* workflow tab renders with empty state,
+* `0` selects workflow,
+* parallel nodes render on same row/phase,
+* dependent nodes render below,
+* selected node is visibly highlighted,
+* failed nodes render red/error symbol,
+* running nodes render running symbol/progress,
+* waiting nodes render waiting symbol.
+
+## Navigation tests
+
+Test:
+
+* left/right move within phase,
+* up/down move between phases,
+* down preserves nearest lane,
+* next error jumps to failed node,
+* selection survives workflow refresh,
+* collapsed phase navigation skips hidden nodes.
+
+## Capture tests
+
+Update existing TUI capture flow:
+
+```bash
+cargo run -p jeryu -- tui --capture --tab workflow --output paper/assets/jeryu-tui-workflow.png
+```
+
+This should become the flagship screenshot.
+
+---
+
+# The most important implementation principle
+
+The workflow tab must not simply mirror GitLab.
+
+It should answer:
+
+> “What validation is required, why is it required, what can run now, what is blocked, what has passed, and what failed?”
+
+That means the source of truth is:
+
+```text
+WorkflowPlan + live runtime overlay
+```
+
+not just:
+
+```text
+GitLab jobs list
+```
+
+That is the architectural shift that will make the tab feel intelligent and useful.
+
+---
+
+# Final recommended end state
+
+After implementation, the product should behave like this:
+
+```bash
+jeryu tui
+```
+
+opens directly into:
+
+```text
+0:Workflow
+```
+
+The user sees every required test and gate, ordered top-to-bottom.
+
+Parallel tests are shown side-by-side.
+
+Each block is colored by state:
+
+```text
+running  → cyan/blue
+ran      → green
+error    → red
+waiting  → gray/yellow
+cached   → dim green
+skipped  → dim gray
+```
+
+Arrow keys navigate spatially.
+
+Enter opens logs/details.
+
+`e` jumps to failures.
+
+`r` retries the selected failed test.
+
+`/` searches commands/subsystems.
+
+The existing `Jobs` tab remains a GitLab/pipeline operational view.
+
+The existing `Tests` tab remains a historical bottleneck/VTI analytics view.
+
+The new `Workflow` tab becomes the default, plan-aware, visually rich validation cockpit.
+

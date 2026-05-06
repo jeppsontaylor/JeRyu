@@ -122,6 +122,7 @@ const FEED_CYCLE_TICKS: u64 = 20;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ActiveTab {
     #[default]
+    Workflow,
     Mission,
     Release,
     Jobs,
@@ -137,6 +138,7 @@ pub enum ActiveTab {
 impl ActiveTab {
     pub fn from_number(n: u8) -> Option<Self> {
         match n {
+            0 => Some(Self::Workflow),
             1 => Some(Self::Mission),
             2 => Some(Self::Release),
             3 => Some(Self::Jobs),
@@ -146,7 +148,6 @@ impl ActiveTab {
             7 => Some(Self::Cache),
             8 => Some(Self::Evidence),
             9 => Some(Self::Secrets),
-            10 => Some(Self::Git),
             _ => None,
         }
     }

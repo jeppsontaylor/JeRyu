@@ -1,5 +1,7 @@
 use super::*;
 
+const POOL_TARGET_LEASE_RECOVERY_TTL_SECS: u64 = 2 * 60 * 60;
+
 #[path = "cache_reports_scan.rs"]
 mod scan;
 #[path = "cache_reports_manager.rs"]
@@ -164,10 +166,29 @@ pub(crate) async fn du_bytes(path: &Path) -> Result<u64> {
         .await
         .with_context(|| format!("du -sb {}", path.display()))?;
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let Some(first) = stdout.split_whitespace().next() else {
-        return Ok(0);
-    };
-    Ok(first.parse::<u64>().unwrap_or(0))
+    let parsed = stdout
+        .split_whitespace()
+        .next()
+        .and_then(|first| first.parse::<u64>().ok())
+        .filter(|value| *value > 0);
+    if let Some(bytes) = parsed {
+        return Ok(bytes);
+    }
+
+    let mut total = 0_u64;
+    if path.is_file() {
+        total = path.metadata().map(|meta| meta.len()).unwrap_or(0);
+    } else if path.is_dir() {
+        for entry in WalkDir::new(path).follow_links(false) {
+            let Ok(entry) = entry else {
+                continue;
+            };
+            if entry.file_type().is_file() {
+                total = total.saturating_add(entry.metadata().map(|meta| meta.len()).unwrap_or(0));
+            }
+        }
+    }
+    Ok(total)
 }
 
 pub(crate) async fn df_usage(path: &str) -> Result<FsUsage> {

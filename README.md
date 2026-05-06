@@ -11,6 +11,11 @@
                /___/
   </pre>
   <h3>The Git-Compatible Version Control Layer for the AI Era</h3>
+  <p>
+    <a href="agent/repo-score.md">
+      <img alt="jankurai score 92" src="https://img.shields.io/badge/jankurai-92-brightgreen" />
+    </a>
+  </p>
 </div>
 
 ---

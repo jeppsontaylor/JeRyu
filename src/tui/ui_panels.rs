@@ -12,16 +12,6 @@ pub(crate) fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
         .direction(Direction::Horizontal)
         .constraints([Constraint::Min(44), Constraint::Length(42)])
         .split(rows[0]);
-    let metric_cols = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(20),
-            Constraint::Percentage(20),
-            Constraint::Percentage(20),
-            Constraint::Percentage(20),
-            Constraint::Percentage(20),
-        ])
-        .split(rows[1]);
     let body_cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
@@ -196,59 +186,11 @@ pub(crate) fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
         headline_cols[1],
     );
 
-    draw_metric_tile(
-        f,
-        metric_cols[0],
-        "Autonomy",
-        &format!("{}%", autonomy_score),
-        &meter_bar(autonomy_score, 12),
-        if autonomy_score >= 80 {
-            Color::Green
-        } else if autonomy_score >= 55 {
-            Color::Yellow
-        } else {
-            Color::Red
-        },
-    );
-    draw_metric_tile(
-        f,
-        metric_cols[1],
-        "Active Work",
-        &format!("{} jobs", app.state.recent_jobs.len()),
-        &format!("{running_jobs} running / {failed_jobs} failed"),
-        if failed_jobs > 0 {
-            Color::Red
-        } else if running_jobs > 0 {
-            Color::Cyan
-        } else {
-            Color::Green
-        },
-    );
-    draw_metric_tile(
-        f,
-        metric_cols[2],
-        "Release",
-        if release_ready { "ready" } else { "proofing" },
-        &meter_bar(release_progress, 12),
-        if release_ready {
-            Color::Green
-        } else {
-            Color::Yellow
-        },
-    );
-    draw_metric_tile(
-        f,
-        metric_cols[3],
-        "Cache Trust",
-        &format!("{} taints", app.state.active_taint_count),
-        &meter_bar(cache_trust, 12),
-        if app.state.active_taint_count > 0 {
-            Color::Magenta
-        } else {
-            Color::Green
-        },
-    );
-    // TUI v2 — Live Runners metric tile
+    let autonomy_value = format!("{}%", autonomy_score);
+    let active_work_value = format!("{} jobs", app.state.recent_jobs.len());
+    let active_work_detail = format!("{running_jobs} running / {failed_jobs} failed");
+    let release_value = if release_ready { "ready" } else { "proofing" };
+    let cache_value = format!("{} taints", app.state.active_taint_count);
     let feed_count = app.state.runner_feeds.len();
     let feed_running = app
         .state
@@ -262,19 +204,67 @@ pub(crate) fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
         .iter()
         .filter(|f| f.status == "failed")
         .count();
-    draw_metric_tile(
+    crate::tui::widgets::mission_shared::render_metric_row(
         f,
-        metric_cols[4],
-        "Live Runners",
-        &format!("{} active", feed_count),
-        &format!("{feed_running}▶ {feed_failed}✕"),
-        if feed_failed > 0 {
-            Color::Red
-        } else if feed_running > 0 {
-            Color::Cyan
-        } else {
-            Color::DarkGray
-        },
+        rows[1],
+        &[
+            crate::tui::widgets::mission_shared::MetricTile {
+                title: "Autonomy",
+                value: &autonomy_value,
+                detail: Some(&meter_bar(autonomy_score, 12)),
+                color: if autonomy_score >= 80 {
+                    Color::Green
+                } else if autonomy_score >= 55 {
+                    Color::Yellow
+                } else {
+                    Color::Red
+                },
+            },
+            crate::tui::widgets::mission_shared::MetricTile {
+                title: "Active Work",
+                value: &active_work_value,
+                detail: Some(&active_work_detail),
+                color: if failed_jobs > 0 {
+                    Color::Red
+                } else if running_jobs > 0 {
+                    Color::Cyan
+                } else {
+                    Color::Green
+                },
+            },
+            crate::tui::widgets::mission_shared::MetricTile {
+                title: "Release",
+                value: release_value,
+                detail: Some(&meter_bar(release_progress, 12)),
+                color: if release_ready {
+                    Color::Green
+                } else {
+                    Color::Yellow
+                },
+            },
+            crate::tui::widgets::mission_shared::MetricTile {
+                title: "Cache Trust",
+                value: &cache_value,
+                detail: Some(&meter_bar(cache_trust, 12)),
+                color: if app.state.active_taint_count > 0 {
+                    Color::Magenta
+                } else {
+                    Color::Green
+                },
+            },
+            crate::tui::widgets::mission_shared::MetricTile {
+                title: "Live Runners",
+                value: &format!("{} active", feed_count),
+                detail: Some(&format!("{feed_running}▶ {feed_failed}✕")),
+                color: if feed_failed > 0 {
+                    Color::Red
+                } else if feed_running > 0 {
+                    Color::Cyan
+                } else {
+                    Color::DarkGray
+                },
+            },
+        ],
     );
 
     draw_attention_queue(f, app, body_cols[0]);

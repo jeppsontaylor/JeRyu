@@ -82,12 +82,20 @@ pub struct FlowNode {
     pub is_critical_path: bool,
     pub backend: Option<BackendRef>,
     pub elapsed_secs: i64,
+    // v3 — VTI and causality:
+    pub vti_status: Option<crate::api::snapshot::VtiStatus>,
+    pub cache_verdict: Option<crate::api::snapshot::CacheVerdict>,
+    pub flake_probability: Option<f64>,
+    pub capsule_id: Option<String>,
+    pub attempt_lineage: Vec<i64>,
+    pub agent_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FlowEdge {
     pub from: i64,
     pub to: i64,
+    pub kind: crate::api::snapshot::EdgeKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

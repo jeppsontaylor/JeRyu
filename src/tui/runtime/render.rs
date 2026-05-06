@@ -29,6 +29,7 @@ pub(crate) fn cleanup_screenshot_terminal(
 /// Render one deterministic TUI frame into a PNG file.
 pub(crate) fn parse_capture_tab(tab: &str) -> Result<crate::tui::app::ActiveTab> {
     match tab.to_ascii_lowercase().as_str() {
+        "workflow" | "0" => Ok(crate::tui::app::ActiveTab::Workflow),
         "mission" => Ok(crate::tui::app::ActiveTab::Mission),
         "release" => Ok(crate::tui::app::ActiveTab::Release),
         "jobs" | "flow" => Ok(crate::tui::app::ActiveTab::Jobs),
@@ -38,8 +39,9 @@ pub(crate) fn parse_capture_tab(tab: &str) -> Result<crate::tui::app::ActiveTab>
         "cache" => Ok(crate::tui::app::ActiveTab::Cache),
         "evidence" | "audit" => Ok(crate::tui::app::ActiveTab::Evidence),
         "secrets" => Ok(crate::tui::app::ActiveTab::Secrets),
+        "git" => Ok(crate::tui::app::ActiveTab::Git),
         _ => anyhow::bail!(
-            "unknown TUI tab '{}'; expected mission, release, jobs, agents, tests, pools, cache, evidence, or secrets",
+            "unknown TUI tab '{}'; expected workflow, mission, release, jobs, agents, tests, pools, cache, evidence, secrets, or git",
             tab
         ),
     }

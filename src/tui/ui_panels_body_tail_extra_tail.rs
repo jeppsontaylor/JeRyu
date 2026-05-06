@@ -282,6 +282,7 @@ pub(crate) fn draw_help_overlay(f: &mut Frame, app: &App) {
     f.render_widget(Clear, popup);
 
     let tab_name = match app.active_tab {
+        ActiveTab::Workflow => "Workflow",
         ActiveTab::Mission => "Mission",
         ActiveTab::Release => "Release",
         ActiveTab::Jobs => "Jobs",
