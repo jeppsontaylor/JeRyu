@@ -7,15 +7,15 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1778073644`
-- Started at: `1778073644`
-- Elapsed: `425` ms
+- Run ID: `1778073664`
+- Started at: `1778073664`
+- Elapsed: `390` ms
 - Scope: `full`
 - Raw score: `73`
 - Final score: `66`
 - Decision: `fail`
 - Minimum score: `85`
-- Caps applied: `fallback-soup-in-product-code, severe-duplication-in-product-code, direct-db-access-from-wrong-layer, input-boundary-gap`
+- Caps applied: `fallback-soup-in-product-code, severe-duplication-in-product-code, direct-db-access-from-wrong-layer`
 
 ## Hard Rule Caps
 
@@ -47,7 +47,7 @@
 | `false-green-test-risk` | 76 | no |
 | `destructive-migration-risk` | 70 | no |
 | `authz-or-data-isolation-gap` | 78 | no |
-| `input-boundary-gap` | 78 | yes |
+| `input-boundary-gap` | 78 | no |
 | `agent-tool-supply-chain-gap` | 78 | no |
 | `release-readiness-gap` | 80 | no |
 | `missing-rust-property-or-integration-tests` | 82 | no |
@@ -180,18 +180,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:46b91967cc2bb505bc8ffc85e043efd06ad655da880ff979501e44d3a0976445`
    Evidence: src/capsule.rs:49 env::var("CUSTOM_ENV_CI_COMMIT_SHA").unwrap_or_else(|_| "HEAD".to_string());
-6. `high` `security` `src/dispatch.rs:378`
-   Rule: `HLT-023-INPUT-BOUNDARY-GAP`
-   Check: `HLT-023-INPUT-BOUNDARY-GAP:security` `hard` confidence `0.88`
-   Route: TLR `Security, secrets, agency`, lane `security`, owner `workspace`
-   Docs: `docs/audit-rubric.md#top-level-risk-mapping`
-   Matched term: `shell execution`
-   Reason: input handling risk needs deterministic negative tests
-   Fix: replace unsafe sinks with typed schemas, parameterized APIs, allowlists, or sandboxed execution plus negative tests
-   Rerun: `just security`
-   Fingerprint: `sha256:e587e2f7c3948da196f7bf8cf606320c2571f5d0d212f5397bbae74de03c1beb`
-   Evidence: Commands::Exec(subcmd) => match subcmd {
-7. `high` `data` `src/engine.rs:1`
+6. `high` `data` `src/engine.rs:1`
    Rule: `HLT-006-DIRECT-DB-WRONG-LAYER`
    Check: `HLT-006-DIRECT-DB-WRONG-LAYER:data` `hard` confidence `0.95`
    Route: TLR `Contracts/data`, lane `db`, owner `workspace`
@@ -201,7 +190,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:241f6796858c8bf2d839a24261ac6c515745dee4a834258a2e918be24479cfad`
    Evidence: DB marker in non-adapter layer
-8. `high` `vibe` `src/mcp/tests.rs:1`
+7. `high` `vibe` `src/mcp/tests.rs:1`
    Check: `HLT-000-SCORE-DIMENSION:vibe` `hard` confidence `0.88`
    Route: TLR `Entropy`, lane `fast`, owner `workspace`
    Reason: duplicated product code block detected
@@ -226,11 +215,9 @@ No audited runtime boundary reclassifications declared.
    Route: `Contracts/data`/`db`
 4. `high` `HLT-001-DEAD-MARKER` `src/capsule.rs` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Route: `Entropy`/`fast`
-5. `high` `HLT-023-INPUT-BOUNDARY-GAP` `src/dispatch.rs` - replace unsafe sinks with typed schemas, parameterized APIs, allowlists, or sandboxed execution plus negative tests
-   Route: `Security, secrets, agency`/`security`
-6. `high` `src/mcp/tests.rs` - extract the duplicated behavior behind one named boundary and add focused tests before changing behavior
+5. `high` `src/mcp/tests.rs` - extract the duplicated behavior behind one named boundary and add focused tests before changing behavior
    Route: `Entropy`/`fast`
-7. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
+6. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
    Route: `Entropy`/`fast`
-8. `medium` `HLT-016-SUPPLY-CHAIN-DRIFT` `.github/workflows/jankurai.yml` - wire secret, dependency, provenance, and workflow scans into an operational CI lane
+7. `medium` `HLT-016-SUPPLY-CHAIN-DRIFT` `.github/workflows/jankurai.yml` - wire secret, dependency, provenance, and workflow scans into an operational CI lane
    Route: `Security, secrets, agency`/`security`

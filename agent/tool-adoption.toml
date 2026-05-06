@@ -27,3 +27,7 @@ mode = "auto"
 [[tools]]
 id = "rust-witness"
 mode = "auto"
+
+[[tools]]
+id = "input-boundary"
+mode = "auto"

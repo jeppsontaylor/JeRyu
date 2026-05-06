@@ -45,12 +45,9 @@ impl FailureCapsule {
             .ok()
             .and_then(|value| value.parse::<i64>().ok());
 
-        let commit_sha =
-            env::var("CUSTOM_ENV_CI_COMMIT_SHA").unwrap_or_else(|_| "HEAD".to_string());
-        let ref_name =
-            env::var("CUSTOM_ENV_CI_COMMIT_REF_NAME").unwrap_or_else(|_| "main".to_string());
-        let working_directory =
-            env::var("CUSTOM_ENV_CI_PROJECT_DIR").unwrap_or_else(|_| "/builds".to_string());
+        let commit_sha = env_string_or_default("CUSTOM_ENV_CI_COMMIT_SHA", "HEAD");
+        let ref_name = env_string_or_default("CUSTOM_ENV_CI_COMMIT_REF_NAME", "main");
+        let working_directory = env_string_or_default("CUSTOM_ENV_CI_PROJECT_DIR", "/builds");
 
         // Capture relevant CUSTOM_ENV_* variables provided by GitLab Runner
         for (key, value) in env::vars() {
@@ -128,6 +125,13 @@ impl FailureCapsule {
     }
 }
 
+fn env_string_or_default(key: &str, default: &'static str) -> String {
+    match env::var(key) {
+        Ok(value) => value,
+        Err(_) => default.to_string(),
+    }
+}
+
 fn classify_failure_kind(stage: &str, exit_code: i32, log_lower: &str) -> String {
     if exit_code == 999 || log_lower.contains("quarantined") {
         return "quarantined".to_string();
@@ -158,4 +162,23 @@ fn classify_failure_kind(stage: &str, exit_code: i32, log_lower: &str) -> String
         return "test_failure".to_string();
     }
     "unknown".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::env_string_or_default;
+
+    #[test]
+    fn env_string_or_default_uses_present_value() {
+        let value = env_string_or_default(Ok("value".to_string()), "fallback");
+
+        assert_eq!(value, "value");
+    }
+
+    #[test]
+    fn env_string_or_default_uses_fallback_when_missing() {
+        let value = env_string_or_default(Err(std::env::VarError::NotPresent), "fallback");
+
+        assert_eq!(value, "fallback");
+    }
 }
