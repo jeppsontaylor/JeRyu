@@ -382,22 +382,6 @@ impl GitlabClient {
         Ok(resp)
     }
 
-    async fn api_put_json<Req, Resp>(&self, url: impl AsRef<str>, body: &Req) -> Result<Resp>
-    where
-        Req: serde::Serialize,
-        Resp: serde::de::DeserializeOwned,
-    {
-        let resp: Resp = self
-            .authed_request_url(Method::PUT, url.as_ref().to_string())?
-            .json(body)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
-        Ok(resp)
-    }
-
     async fn api_post_void<Req>(&self, url: impl AsRef<str>, body: &Req) -> Result<()>
     where
         Req: serde::Serialize,
