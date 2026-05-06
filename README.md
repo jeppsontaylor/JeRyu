@@ -2,20 +2,13 @@
   <img src="assets/jeryu_fierce_dragon_logo_transparent.png" alt="JeRyu fierce dragon logo" width="100%" />
 </p>
 
-<div align="center">
-  <pre>
-      __     ___
-   _ / /___ / _ \__ __ __ __
-  // // -_) |   / // // // /
- \___/\__/__|_\_\_, / \_,_/
-               /___/
-  </pre>
-  <h3>The Git-Compatible Version Control Layer for the AI Era</h3>
+<div align="left">
   <p>
     <a href="agent/repo-score.md">
       <img alt="jankurai score 92" src="https://img.shields.io/badge/jankurai-92-brightgreen" />
     </a>
   </p>
+  <h3>The Git-Compatible Version Control Layer for the AI Era</h3>
 </div>
 
 ---
