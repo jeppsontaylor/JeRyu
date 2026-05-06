@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/jeryu_header.png" alt="JeRyu" width="100%" />
+  <img src="assets/jeryu_fierce_dragon_logo_transparent.png" alt="JeRyu fierce dragon logo" width="100%" />
 </p>
 
 <div align="center">
