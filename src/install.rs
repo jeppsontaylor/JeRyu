@@ -15,8 +15,6 @@ use std::time::Instant;
 use tempfile::Builder;
 use tokio::process::Command;
 
-use crate::install_demo;
-
 const JERYU_PATH_START: &str = "# >>> jeryu path >>>";
 const JERYU_PATH_END: &str = "# <<< jeryu path <<<";
 
@@ -115,64 +113,57 @@ pub struct UninstallReport {
     pub path_block_removed: bool,
 }
 
+/// Resolved install runtime options.
+///
+/// Field order here is grouped by concern (target, safety gates, output mode,
+/// UX) and intentionally diverges from the flat clap layout in
+/// `crate::cli::InstallCommand`. Initialise by name; clap is the only
+/// canonical source for default values and CLI ergonomics.
 #[derive(Debug, Clone)]
 pub struct InstallOptions {
+    // --- target ---
+    /// Install prefix; expands `~` against the current user.
     pub prefix: PathBuf,
-    pub dry_run: bool,
-    pub json: bool,
-    pub yes: bool,
-    pub color: ColorMode,
-    pub interactive: InteractiveMode,
+    /// Strategy for managing the user's PATH (advise, update, skip).
     pub path_mode: PathMode,
-    pub verbose: bool,
+    // --- safety gates ---
+    /// Plan only; do not mutate the host filesystem.
+    pub dry_run: bool,
+    /// Skip interactive confirmation (`--yes`).
+    pub yes: bool,
+    /// Allow installing system-level dependencies.
     pub install_deps: bool,
+    /// Permit invoking `sudo` for privileged steps.
     pub allow_sudo: bool,
+    // --- output / UX ---
+    /// Emit machine-readable JSON instead of human prose.
+    pub json: bool,
+    /// Verbose progress logging.
+    pub verbose: bool,
+    /// Color rendering policy.
+    pub color: ColorMode,
+    /// Interactive prompt policy.
+    pub interactive: InteractiveMode,
 }
 
-#[derive(Debug, Clone)]
-pub enum InstallAction {
-    Local,
-    Doctor,
-    Smoke,
-    Server,
-    Uninstall,
-    RenderDemo {
-        output: PathBuf,
-        png: Option<PathBuf>,
-    },
+pub async fn run_local(opts: &InstallOptions) -> Result<i32> {
+    install_local(opts).await
 }
 
-pub async fn execute_install(action: Option<InstallAction>, opts: InstallOptions) -> Result<i32> {
-    match action.unwrap_or(InstallAction::Local) {
-        InstallAction::Local => install_local(&opts).await,
-        InstallAction::Doctor => doctor(&opts).await,
-        InstallAction::Smoke => smoke(&opts).await,
-        InstallAction::Server => server(&opts).await,
-        InstallAction::Uninstall => uninstall(&opts).await,
-        InstallAction::RenderDemo { output, png } => {
-            if opts.json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({
-                        "action": "render-demo",
-                        "output": output,
-                        "png": png,
-                        "dry_run": opts.dry_run,
-                    }))?
-                );
-            }
-            if opts.dry_run {
-                println!(
-                    "dry-run: would render install demo GIF to {}",
-                    output.display()
-                );
-                return Ok(0);
-            }
-            install_demo::render_install_demo(&install_demo::Args { output, png })?;
-            println!("install demo rendered");
-            Ok(0)
-        }
-    }
+pub async fn run_doctor(opts: &InstallOptions) -> Result<i32> {
+    doctor(opts).await
+}
+
+pub async fn run_smoke(opts: &InstallOptions) -> Result<i32> {
+    smoke(opts).await
+}
+
+pub async fn run_server(opts: &InstallOptions) -> Result<i32> {
+    server(opts).await
+}
+
+pub async fn run_uninstall(opts: &InstallOptions) -> Result<i32> {
+    uninstall(opts).await
 }
 
 fn current_exe_string() -> String {
