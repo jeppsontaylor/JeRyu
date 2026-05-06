@@ -603,6 +603,10 @@ impl GitlabClient {
         Ok(())
     }
 
+    pub async fn requeue_job(&self, project_id: i64, job_id: i64) -> Result<()> {
+        self.retry_job(project_id, job_id).await
+    }
+
     // -- Webhooks -----------------------------------------------------------
 
     pub async fn create_group_webhook(

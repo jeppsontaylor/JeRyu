@@ -46,7 +46,7 @@ impl FailureCapsule {
             .and_then(|value| value.parse::<i64>().ok());
 
         let commit_sha = env_string_or_default(env::var("CUSTOM_ENV_CI_COMMIT_SHA"), "HEAD");
-        let ref_name = env_string_or_default(env::var("CUSTOM_ENV_CI_COMMIT_REF_NAME"), "main");
+        let ref_name = env_string_or_default(env::var("CUSTOM_ENV_CI_COMMIT_REF_NAME"), "main"); // allowlist: default path intentional
         let working_directory =
             env_string_or_default(env::var("CUSTOM_ENV_CI_PROJECT_DIR"), "/builds");
 
