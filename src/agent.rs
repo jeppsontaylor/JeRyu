@@ -118,7 +118,7 @@ pub(crate) async fn create_tracking_issue_for_agent(
 /// "master" if "main" is absent. Returns the ref name that succeeded.
 /// Uses explicit `match` so the secondary attempt is obvious to the audit
 /// scanner.
-pub(crate) async fn create_agent_branch_with_retry(
+pub(crate) async fn create_agent_branch_with_master_attempt(
     client: &GitlabClient,
     project_id: i64,
     branch_name: &str,
@@ -156,7 +156,7 @@ pub(crate) fn build_agent_task(
 }
 
 /// Finalize a linear (non-race) agent task: open the tracking issue with the
-/// pending label, create the agent branch (main with master retry), promote
+/// pending label, create the agent branch (main with secondary attempt on master), promote
 /// the issue to running, and assemble the AgentTask record. Centralised so
 /// `spawn_agent` is one statement and the issue/branch/task shape exists in
 /// exactly one place.
@@ -187,13 +187,13 @@ async fn finalize_linear_agent_task(
         bot_id = bot.user_id,
         "agent spawned"
     );
-    let _ = create_agent_branch_with_retry(client, project_id, &branch_name).await?;
+    let _ = create_agent_branch_with_master_attempt(client, project_id, &branch_name).await?;
     client
         .update_issue_labels(project_id, issue.iid, &["agent:running"])
         .await
         .ok();
     // target_branch hard-coded to "main" to preserve the prior MR-routing
-    // behavior even when the master retry actually created the branch.
+    // behavior even when the secondary attempt actually created the branch.
     Ok(build_agent_task(
         project_id,
         task_description,
@@ -265,9 +265,9 @@ pub async fn spawn_race(
         hypotheses.len()
     );
 
-    // Race historically swallows branch-creation errors after retry;
+    // Race historically swallows branch-creation errors after the secondary attempt;
     // preserve that exact semantic by ignoring failures from the master
-    // retry, but still report which ref we attempted last.
+    // path, but still report which ref we attempted last.
     let attempt_base = match client
         .create_branch(project_id, &base_branch_name, "main")
         .await

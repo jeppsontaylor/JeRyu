@@ -1,7 +1,7 @@
 //! Owner: Cache Gateway subsystem — Cargo registry proxy
 //! Proof: `cargo nextest run -p jeryu -- gateway::cargo`
 //! Invariants: Cargo registry caching never crosses trust namespaces or serves unverified content as trusted.
-use super::singleflight::Singleflight;
+use super::{fetch_bytes_with_singleflight, singleflight::Singleflight};
 use anyhow::Result;
 use std::sync::Arc;
 
@@ -20,10 +20,7 @@ impl CargoAdapter {
     pub fn new(upstream_url: &str) -> Self {
         Self {
             upstream_url: upstream_url.to_string(),
-            http_client: Client::builder()
-                .timeout(std::time::Duration::from_secs(30))
-                .build()
-                .unwrap_or_default(),
+            http_client: super::oci::build_http_client(30),
             fetch_coalescer: Arc::new(Singleflight::new()),
         }
     }
@@ -32,50 +29,18 @@ impl CargoAdapter {
     /// for the same crate and version.
     pub async fn fetch_crate(&self, name: &str, version: &str) -> Result<Vec<u8>> {
         let key = format!("{}:{}", name, version);
-
-        if let Some(mut rx) = self.fetch_coalescer.join_or_start(&key) {
-            // Another task is already fetching this crate, await its result.
-            tracing::info!("Singleflight: joining active fetch for cargo crate {}", key);
-            match rx.recv().await {
-                Ok(Ok(bytes)) => return Ok(bytes),
-                Ok(Err(e)) => anyhow::bail!("Coalesced fetch failed: {}", e),
-                Err(_) => anyhow::bail!("Fetch coalescer sender dropped for {}", key),
-            }
-        }
-
-        tracing::info!("Singleflight: initiating fetch for cargo crate {}", key);
-        // We are the elected fetcher. Handle panics by wrapping in a Drop guard.
-        let guard = super::singleflight::SingleflightGuard::new(&self.fetch_coalescer, &key);
-        let result = self.do_fetch_crate(name, version).await;
-
-        match &result {
-            Ok(bytes) => {
-                guard.complete(Ok(bytes.clone()));
-            }
-            Err(e) => {
-                guard.complete(Err(e.to_string()));
-            }
-        }
-
-        result
-    }
-
-    async fn do_fetch_crate(&self, name: &str, version: &str) -> Result<Vec<u8>> {
         let url = format!(
             "{}/api/v1/crates/{}/{}/download",
             self.upstream_url, name, version
         );
-        let resp = self.http_client.get(&url).send().await?;
-        if !resp.status().is_success() {
-            anyhow::bail!(
-                "Failed to fetch cargo crate {} {}: HTTP {}",
-                name,
-                version,
-                resp.status()
-            );
-        }
-        let bytes = resp.bytes().await?;
-        Ok(bytes.to_vec())
+        fetch_bytes_with_singleflight(
+            &self.fetch_coalescer,
+            &key,
+            "cargo crate",
+            "cargo crate",
+            || self.http_client.get(&url).send(),
+        )
+        .await
     }
 }
 
