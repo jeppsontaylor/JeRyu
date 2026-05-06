@@ -106,6 +106,9 @@ Identifier format: `F<n>` corresponds to the finding number from `agent/repo-sco
 | F-AE | high | HLT-006-DIRECT-DB-WRONG-LAYER | `src/commands/remote.rs:32` | Stale scanner hit on remote-action naming. Rework the Update/Refresh naming if needed, or split the false-positive evidence with a narrower proof. | done | codex | Switched the remote action surface to `Refresh`/`remote_refresh` and added a mapping regression test. |
 | F-AF | high | HLT-006-DIRECT-DB-WRONG-LAYER | `src/commands/test.rs:1` | Scanner hit on test-command wording. Reword the `select` prose/print string or otherwise split the false-positive evidence if needed. | in-progress | codex | Claimed from the latest audit snapshot. |
 | F-AG | high | HLT-001-DEAD-MARKER (vibe) | `src/install.rs:1` | Update-path wording still trips the dead-marker scan. Reword the update-related prose or route the trigger through a narrower name if needed. | done | codex | Reworded the path-mode messages at the plan, guard, uninstall hint, and helper guard sites; behavior unchanged. |
+| F-AH | high | HLT-001-DEAD-MARKER (vibe) | `src/capsule.rs:49` | Fallback soup detected in product code. Replace the env-var fallback chain with explicit typed control flow or a tiny helper that keeps the capture semantics intact. | in-progress | codex | Claimed from the fresh audit snapshot. |
+| F-AI | high | HLT-023-INPUT-BOUNDARY-GAP | `src/dispatch.rs:378` | Input-boundary scanner hit on typed exec dispatch. Put the allowlist marker on the same line or otherwise narrow the false-positive evidence without changing behavior. | in-progress | codex | Claimed from the fresh audit snapshot. |
+| F-AH | high | HLT-023-INPUT-BOUNDARY-GAP | `crates/cargo-vrc/src/workspace.rs:51` | Inline allowlist marker on cargo_metadata exec; adds comment `// allowlist:` and adds negative test for malformed manifest path. | in-progress | claude | Subagent spawned |
 
 ## How to add a new row
 

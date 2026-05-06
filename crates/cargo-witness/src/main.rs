@@ -185,9 +185,8 @@ fn resolve_workspace_root(manifest_path: Option<&std::path::Path>) -> Result<Pat
             .to_path_buf())
     } else {
         let metadata_query = cargo_metadata::MetadataCommand::new();
-        let metadata = metadata_query
-            .exec()
-            .context("failed to read cargo metadata via the workspace allowlist")?;
+        #[rustfmt::skip]
+        let metadata = metadata_query.exec().context("failed to read cargo metadata via the workspace allowlist")?;
         Ok(metadata.workspace_root.as_std_path().to_path_buf())
     }
 }
