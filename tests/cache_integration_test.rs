@@ -67,7 +67,11 @@ async fn test_cache_brain_rejection_no_namespace() -> Result<()> {
     let db = setup_production_db().await?;
     let epoch_mgr = EpochManager::new(db.pool());
     let taint_mgr = TaintManager::new(db.pool());
-    let brain = CacheBrain::new(epoch_mgr, taint_mgr, db.pool());
+    let store = cache_brain_adapter::SqlxActionCacheStore::boxed(
+        db.pool(),
+        cache_brain_adapter::AdapterBackend::Sqlite,
+    );
+    let brain = CacheBrain::with_store(epoch_mgr, taint_mgr, store);
 
     let unit = BuildUnit {
         unit_type: BuildUnitType::GenericStep {
@@ -101,7 +105,11 @@ async fn test_action_cache_roundtrip_hit() -> Result<()> {
     let db = setup_production_db().await?;
     let epoch_mgr = EpochManager::new(db.pool());
     let taint_mgr = TaintManager::new(db.pool());
-    let brain = CacheBrain::new(epoch_mgr, taint_mgr, db.pool());
+    let store = cache_brain_adapter::SqlxActionCacheStore::boxed(
+        db.pool(),
+        cache_brain_adapter::AdapterBackend::Sqlite,
+    );
+    let brain = CacheBrain::with_store(epoch_mgr, taint_mgr, store);
 
     let sig = "test_roundtrip_signature_001";
 
@@ -151,7 +159,11 @@ async fn test_taint_propagation_blocks_cache_hit() -> Result<()> {
     let db = setup_production_db().await?;
     let epoch_mgr = EpochManager::new(db.pool());
     let taint_mgr = TaintManager::new(db.pool());
-    let brain = CacheBrain::new(epoch_mgr, taint_mgr.clone(), db.pool());
+    let store = cache_brain_adapter::SqlxActionCacheStore::boxed(
+        db.pool(),
+        cache_brain_adapter::AdapterBackend::Sqlite,
+    );
+    let brain = CacheBrain::with_store(epoch_mgr, taint_mgr.clone(), store);
 
     let sig = "taint_test_sig_001";
 

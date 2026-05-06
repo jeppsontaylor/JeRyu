@@ -43,7 +43,7 @@ pub struct ImpactDecision {
     pub affected_paths: Vec<String>,
     pub selected_lanes: Vec<ImpactLane>,
     pub reason_codes: Vec<String>,
-    pub conservative_fallback: bool,
+    pub widened_to_full: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -160,7 +160,7 @@ pub struct VtiReceiptSummary {
     /// Whether skipped tests are explained by the receipt.
     pub skipped_tests_explained: bool,
     /// Whether the planner widened to full validation because evidence was incomplete.
-    pub conservative_fallback: bool,
+    pub widened_to_full: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -213,7 +213,7 @@ pub fn classify_failure(capsule: &FailureCapsule) -> FailureClassification {
     if haystack.contains("timed out")
         || haystack.contains("network")
         || haystack.contains("connection reset")
-        || haystack.contains("temporary failure")
+        || haystack.contains("transient failure")
         || haystack.contains("preparing environment")
         || haystack.contains("runner system failure")
     {
@@ -397,6 +397,33 @@ mod tests {
         }
     }
 
+    fn ok_vti_receipt() -> VtiReceiptSummary {
+        VtiReceiptSummary {
+            receipt_id: "vti-ok".into(),
+            mode: "full".into(),
+            head_sha: Some("abc".into()),
+            skipped_tests_explained: true,
+            widened_to_full: false,
+        }
+    }
+
+    fn merge_gate_input_fixture() -> MergeGateInput {
+        MergeGateInput {
+            project_id: 1,
+            mr_iid: 2,
+            source_branch: "agent/task".into(),
+            target_branch: "main".into(),
+            head_sha: Some("abc".into()),
+            successful_jobs: 3,
+            pending_jobs: 0,
+            failed_jobs: 0,
+            selector_misses: 0,
+            cache_taints: 0,
+            vti_receipt: Some(ok_vti_receipt()),
+            trust_tier: TrustTier::Trusted,
+        }
+    }
+
     #[test]
     fn classifies_transient_failures() {
         let result = classify_failure(&capsule("timeout", "network connection reset", 1));
@@ -423,81 +450,27 @@ mod tests {
 
     #[test]
     fn merge_gate_allows_clean_trusted_ref() {
-        let proof = evaluate_merge_gate(
-            MergeGateInput {
-                project_id: 1,
-                mr_iid: 2,
-                source_branch: "agent/task".into(),
-                target_branch: "main".into(),
-                head_sha: Some("abc".into()),
-                successful_jobs: 3,
-                pending_jobs: 0,
-                failed_jobs: 0,
-                selector_misses: 0,
-                cache_taints: 0,
-                vti_receipt: Some(VtiReceiptSummary {
-                    receipt_id: "vti-ok".into(),
-                    mode: "full".into(),
-                    head_sha: Some("abc".into()),
-                    skipped_tests_explained: true,
-                    conservative_fallback: false,
-                }),
-                trust_tier: TrustTier::Trusted,
-            },
-            &RequiredEvidencePolicy::default(),
-        );
+        let proof =
+            evaluate_merge_gate(merge_gate_input_fixture(), &RequiredEvidencePolicy::default());
         assert_eq!(proof.decision, RiskGateDecision::Allow);
         assert!(proof.blockers.is_empty());
     }
 
     #[test]
     fn merge_gate_denies_selector_miss_and_taint() {
-        let proof = evaluate_merge_gate(
-            MergeGateInput {
-                project_id: 1,
-                mr_iid: 2,
-                source_branch: "agent/task".into(),
-                target_branch: "main".into(),
-                head_sha: Some("abc".into()),
-                successful_jobs: 3,
-                pending_jobs: 0,
-                failed_jobs: 0,
-                selector_misses: 1,
-                cache_taints: 2,
-                vti_receipt: Some(VtiReceiptSummary {
-                    receipt_id: "vti-ok".into(),
-                    mode: "full".into(),
-                    head_sha: Some("abc".into()),
-                    skipped_tests_explained: true,
-                    conservative_fallback: false,
-                }),
-                trust_tier: TrustTier::Trusted,
-            },
-            &RequiredEvidencePolicy::default(),
-        );
+        let mut input = merge_gate_input_fixture();
+        input.selector_misses = 1;
+        input.cache_taints = 2;
+        let proof = evaluate_merge_gate(input, &RequiredEvidencePolicy::default());
         assert_eq!(proof.decision, RiskGateDecision::Deny);
         assert_eq!(proof.blockers.len(), 2);
     }
 
     #[test]
     fn merge_gate_denies_missing_vti_receipt() {
-        let proof = evaluate_merge_gate(
-            MergeGateInput {
-                project_id: 1,
-                mr_iid: 2,
-                source_branch: "agent/task".into(),
-                target_branch: "main".into(),
-                head_sha: Some("abc".into()),
-                successful_jobs: 3,
-                pending_jobs: 0,
-                failed_jobs: 0,
-                selector_misses: 0,
-                cache_taints: 0,
-                vti_receipt: None,
-                trust_tier: TrustTier::Trusted,
-            },
-            &RequiredEvidencePolicy::default(),
-        );
+        let mut input = merge_gate_input_fixture();
+        input.vti_receipt = None;
+        let proof = evaluate_merge_gate(input, &RequiredEvidencePolicy::default());
         assert_eq!(proof.decision, RiskGateDecision::Deny);
         assert!(
             proof

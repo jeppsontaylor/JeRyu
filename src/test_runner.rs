@@ -183,17 +183,17 @@ pub async fn run_test(
             .latest_successful_test_execution(&opts.test_command)
             .await
     {
-        let old_sha = &cached_run.version;
+        let cached_sha = &cached_run.version;
         let mut can_skip = false;
         let mut skip_reason = String::new();
 
-        if old_sha == &opts.commit_sha {
+        if cached_sha == &opts.commit_sha {
             can_skip = true;
             skip_reason = "Exact commit cache hit".to_string();
-        } else if old_sha != "latest" && !old_sha.is_empty() {
-            // Determine impact between old (cached) and new (current)
+        } else if cached_sha != "latest" && !cached_sha.is_empty() {
+            // Determine impact between the cached and current revisions.
             if let Ok(impact_plan) =
-                crate::impact::plan_for_push(client, opts.project_id, old_sha, &opts.commit_sha)
+                crate::impact::plan_for_push(client, opts.project_id, cached_sha, &opts.commit_sha)
                     .await
             {
                 if impact_plan.selected_lanes.len() == 1
@@ -214,7 +214,7 @@ pub async fn run_test(
         }
 
         if can_skip {
-            tracing::info!(test_command = %opts.test_command, reason = %skip_reason, "test skipped: internal database validated old test is still valid");
+            tracing::info!(test_command = %opts.test_command, reason = %skip_reason, "test skipped: internal database validated cached test is still valid");
             return Ok(TestRunResult {
                 pipeline_id: 0,
                 job_id: None,
@@ -222,7 +222,7 @@ pub async fn run_test(
                 status: "success".to_string(),
                 duration_secs: Some(0.0),
                 trace_tail: format!(
-                    "Test skipped.\n✅ Auto-pruned by jeryu.\nReason: The internal database determined the old test is still valid ({skip_reason}).\nNote: Supply --force to override this optimization."
+                    "Test skipped.\n✅ Auto-pruned by jeryu.\nReason: The internal database determined the cached test is still valid ({skip_reason}).\nNote: Supply --force to override this optimization."
                 ),
                 passed: true,
             });
@@ -311,7 +311,7 @@ pub async fn run_test(
         client
             .trigger_pipeline(opts.project_id, &branch_name, Vec::new())
             .await
-            .context("failed to trigger fallback test pipeline")?
+            .context("failed to trigger recovery test pipeline")?
     };
 
     // Cancel any older pipelines on this branch (from the branch-create event)

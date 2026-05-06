@@ -45,6 +45,16 @@ pub struct PackageAgentMetadata {
     pub exceptions: Vec<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RepairHint {
+    pub purpose: String,
+    pub reason: String,
+    #[serde(default)]
+    pub common_fixes: Vec<String>,
+    pub docs_url: String,
+    pub repair_hint: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationCommands {
     pub local: Vec<String>,
@@ -135,4 +145,14 @@ pub struct VerificationReport {
     pub errors: Vec<String>,
     #[serde(default)]
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ReportRepairHint {
+    pub purpose: String,
+    pub reason: String,
+    #[serde(default)]
+    pub common_fixes: Vec<String>,
+    pub docs_url: String,
+    pub repair_hint: String,
 }

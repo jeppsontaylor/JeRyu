@@ -26,12 +26,12 @@ pub enum CacheVerdict {
 pub enum MissReason {
     InputDigestChanged {
         component: String,
-        old: String,
+        prior: String,
         new: String,
     },
     ToolchainChanged {
         field: String,
-        old: String,
+        prior: String,
         new: String,
     },
     EnvChanged {
@@ -40,7 +40,7 @@ pub enum MissReason {
     LockfileChanged,
     BaseImageDigestChanged {
         tag: String,
-        old_digest: String,
+        prior_digest: String,
         new_digest: String,
     },
     BuildScriptRerunTriggered {

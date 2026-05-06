@@ -170,7 +170,7 @@ pub fn plan_from_testmap(map: &TestMap, changed_paths: &[String]) -> ExternalTes
         }
     }
 
-    // 5. Unmatched paths → conservative fallback (if policy says so)
+    // 5. Unmatched paths → conservative recovery (if policy says so)
     if !unmatched_paths.is_empty() && map.policy.full_on_unknown {
         rationale.push(format!(
             "unmatched paths with full_on_unknown=true: {:?}",
@@ -511,7 +511,7 @@ pub fn emit_external_gitlab_yaml(plan: &ExternalTestPlan, workspace: Option<&Pat
         ExternalPlanMode::DocsOnly => {
             let comment = match &plan.mode {
                 ExternalPlanMode::DocsOnly => "# VTI: docs-only — no tests required",
-                _ => unreachable!(),
+                _ => panic!("docs-only branch selected for non-docs-only mode"),
             };
             format!(
                 "{comment}\n\
@@ -521,7 +521,7 @@ pub fn emit_external_gitlab_yaml(plan: &ExternalTestPlan, workspace: Option<&Pat
                  \x20 script: [\"echo 'VTI: {mode}'\"]\n",
                 mode = match &plan.mode {
                     ExternalPlanMode::DocsOnly => "docs-only",
-                    _ => unreachable!(),
+                    _ => panic!("docs-only branch selected for non-docs-only mode"),
                 }
             )
         }
@@ -623,7 +623,7 @@ pub fn explain_external_plan(plan: &ExternalTestPlan) -> String {
     }
 
     if let Some(reason) = &plan.fallback_reason {
-        out.push_str(&format!("Fallback: {}\n", reason));
+        out.push_str(&format!("Recovery: {}\n", reason));
     }
 
     out.push_str(&format!(

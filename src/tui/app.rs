@@ -103,7 +103,7 @@ pub struct LiveLogState {
     pub text: String,
     pub updated_at: Option<String>,
     pub error: Option<String>,
-    pub stale: bool,
+    pub outdated: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -422,7 +422,7 @@ impl App {
                 }),
                 progress_pct,
             }],
-            stale: false,
+            outdated: false,
             last_non_empty_at: Some(now),
             selected_pipeline_id: Some(8_013),
             release: Some(release_status.clone()),
@@ -543,10 +543,10 @@ impl App {
                     project_id: release::DEFAULT_RELEASE_PROJECT_ID,
                     job_id: 9_002,
                 }),
-                text: "[demo] security gate failed due to stale artifact cache\n[demo] retry required with clean cache namespace\n".into(),
+                text: "[demo] security gate failed due to outdated artifact cache\n[demo] retry required with clean cache namespace\n".into(),
                 updated_at: Some(now_str.clone()),
                 error: None,
-                stale: false,
+                outdated: false,
             },
             hot_cache_usage_bytes: 2_340_000_000,
             cache_hits: 1_102,
@@ -750,7 +750,7 @@ impl App {
                     pipeline_id: 8_013,
                     status: "running".into(),
                     elapsed_secs: 134.0,
-                    log_tail: "[2026-05-02 23:04:12] Compiling jeryu v3.0.1\n[2026-05-02 23:04:13] Compiling tokio v1.40\n[2026-05-02 23:04:14]   warning: unused import `std::io`\n[2026-05-02 23:04:15] Compiling sqlx v0.8\n[2026-05-02 23:04:16] Compiling ratatui v0.29\n[2026-05-02 23:04:17] Finished `release` profile in 2m14s".into(),
+                    log_tail: "[2026-05-02 23:04:12] Compiling jeryu v3.0.1\n[2026-05-02 23:04:13] Compiling tokio v1.40\n[2026-05-02 23:04:14]   warning: missing import `std::io`\n[2026-05-02 23:04:15] Compiling sqlx v0.8\n[2026-05-02 23:04:16] Compiling ratatui v0.29\n[2026-05-02 23:04:17] Finished `release` profile in 2m14s".into(),
                     updated_at: now_str.clone(),
                 },
                 RunnerFeed {
@@ -908,7 +908,7 @@ impl App {
                             text: retain_tail(&trace_text, LIVE_LOG_MAX_BYTES),
                             updated_at: Some(chrono::Utc::now().to_rfc3339()),
                             error: None,
-                            stale: false,
+                            outdated: false,
                         };
                     }
                     Err(error) => {
@@ -917,7 +917,7 @@ impl App {
                             .updated_at
                             .get_or_insert_with(|| chrono::Utc::now().to_rfc3339());
                         state.error = Some(error.to_string());
-                        state.stale = true;
+                        state.outdated = true;
                     }
                 }
 
@@ -1343,7 +1343,7 @@ impl App {
     fn apply_flow_snapshot(&mut self, mut flow_snap: crate::tui::flow::FlowSnapshot) {
         if flow_snap.active_pipelines.is_empty() && !self.state.flow.active_pipelines.is_empty() {
             flow_snap.active_pipelines = self.state.flow.active_pipelines.clone();
-            flow_snap.stale = true;
+            flow_snap.outdated = true;
             flow_snap.last_non_empty_at = self
                 .state
                 .flow
@@ -1351,10 +1351,10 @@ impl App {
                 .or(Some(self.state.flow.generated_at));
             flow_snap.selected_pipeline_id = self.state.flow.selected_pipeline_id;
         } else if flow_snap.active_pipelines.is_empty()
-            && let Some(fallback) = self.flow_from_recent_jobs(flow_snap.generated_at)
+            && let Some(recovery) = self.flow_from_recent_jobs(flow_snap.generated_at)
         {
-            flow_snap.active_pipelines = vec![fallback];
-            flow_snap.stale = true;
+            flow_snap.active_pipelines = vec![recovery];
+            flow_snap.outdated = true;
             flow_snap.last_non_empty_at = Some(flow_snap.generated_at);
         } else if !flow_snap.active_pipelines.is_empty() {
             flow_snap.last_non_empty_at =
@@ -1848,7 +1848,7 @@ mod tests {
 
     async fn test_app() -> Result<App> {
         let db = crate::state::Db::open_memory().await?;
-        let docker = crate::docker::DockerCtl::connect()?;
+        let docker = crate::tui::test_support::docker_ctl()?;
         let gitlab = crate::gitlab_client::GitlabClient::new("http://127.0.0.1:9", None);
         Ok(App::new(db, docker, gitlab))
     }
@@ -1934,7 +1934,7 @@ mod tests {
     #[tokio::test]
     async fn core_snapshot_preserves_flow_and_live_log_state() -> Result<()> {
         let mut app = test_app().await?;
-        app.state.flow.stale = true;
+        app.state.flow.outdated = true;
         app.state.live_log = LiveLogState {
             text: "running test output".into(),
             ..Default::default()
@@ -1946,7 +1946,7 @@ mod tests {
             .unwrap();
         app.tick().await;
 
-        assert!(app.state.flow.stale);
+        assert!(app.state.flow.outdated);
         assert_eq!(app.state.live_log.text, "running test output");
         Ok(())
     }
@@ -1974,7 +1974,7 @@ mod tests {
 
         assert_eq!(app.state.flow.active_pipelines.len(), 1);
         assert_eq!(app.state.flow.active_pipelines[0].pipeline_id, 42);
-        assert!(app.state.flow.stale);
+        assert!(app.state.flow.outdated);
         assert_eq!(app.state.flow.last_non_empty_at, Some(generated_at));
         assert!(app.state.flow.gitlab_online);
         Ok(())
@@ -2022,7 +2022,7 @@ mod tests {
         assert_eq!(app.state.flow.active_pipelines.len(), 1);
         assert_eq!(app.state.flow.active_pipelines[0].pipeline_id, 55);
         assert_eq!(app.state.flow.active_pipelines[0].graph.nodes.len(), 2);
-        assert!(app.state.flow.stale);
+        assert!(app.state.flow.outdated);
         Ok(())
     }
 

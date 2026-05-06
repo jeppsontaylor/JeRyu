@@ -10,7 +10,7 @@ pub struct FlowSnapshot {
     pub generated_at: DateTime<Utc>,
     pub gitlab_online: bool,
     pub active_pipelines: Vec<PipelineFlow>,
-    pub stale: bool,
+    pub outdated: bool,
     pub last_non_empty_at: Option<DateTime<Utc>>,
     pub selected_pipeline_id: Option<i64>,
     pub release: Option<crate::release::ReleaseAttemptView>,

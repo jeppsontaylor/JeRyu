@@ -168,7 +168,7 @@ pub async fn run_bootstrap() -> Result<()> {
 
     // Step 5: Create root PAT programmatically (bypassing OAuth ROPC)
     println!("  [5/8] Creating root PAT via gitlab-rails...");
-    let pat = format!("glpat-{}", generate_password(20));
+    let pat = format!("jeryu-pat-{}", generate_password(20));
 
     let rails_script = format!(
         "u = User.find_by_username('root');\

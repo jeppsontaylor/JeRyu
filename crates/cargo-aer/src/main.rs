@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 
-use cargo_aer::{init_records, markdown_report, sarif_report, scan_workspace, stale_records};
+use cargo_aer::{incomplete_records, init_records, markdown_report, sarif_report, scan_workspace};
 use cargo_vrc::load_workspace;
 
 #[derive(Parser)]
@@ -24,7 +24,7 @@ enum Command {
         output: PathBuf,
     },
     Init,
-    Stale,
+    Review,
     Report {
         #[arg(long, default_value = "aer-findings.json")]
         input: PathBuf,
@@ -71,12 +71,12 @@ fn run() -> Result<()> {
                 println!("{}", path.display());
             }
         }
-        Command::Stale => {
+        Command::Review => {
             let snapshot = load_workspace(cli.manifest_path.as_deref())?;
-            let findings = stale_records(&snapshot.workspace_root)?;
+            let findings = incomplete_records(&snapshot.workspace_root)?;
             println!("{}", serde_json::to_string_pretty(&findings)?);
             if !findings.is_empty() {
-                bail!("found stale or incomplete AER records");
+                bail!("found incomplete AER records");
             }
         }
         Command::Report {

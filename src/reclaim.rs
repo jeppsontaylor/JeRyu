@@ -325,7 +325,7 @@ pub async fn run_auto_gc(
         Err(e) => warn!(error = %e, "orphan volume prune failed"),
     }
 
-    // 2. Clean up stale release clones and /tmp build artifacts using tokio::fs.
+    // 2. Clean up outdated release clones and /tmp build artifacts using tokio::fs.
     let home = dirs::home_dir().unwrap_or_default();
     let age_threshold = if is_emergency {
         std::time::Duration::from_secs(30 * 60) // 30m — today's artifacts are fair game
@@ -356,7 +356,7 @@ pub async fn run_auto_gc(
         }
     }
 
-    // 4. Clean up old GitLab CI artifact zips (time-based sweep, then hard size cap)
+    // 4. Clean up prior GitLab CI artifact zips (time-based sweep, then hard size cap)
     let artifact_dir = crate::config::data_dir().join("gitlab/data/gitlab-rails/shared/artifacts");
     if artifact_dir.is_dir() {
         report.artifacts_removed += sweep_stale_files(&artifact_dir, ".zip", age_threshold).await;
@@ -499,7 +499,7 @@ async fn sweep_stale_dirs(
 
     info!(
         count = stale_paths.len(),
-        "batch removing stale directories"
+        "batch removing outdated directories"
     );
 
     // Try user-owned deletion first (fast path — no sudo needed for ubuntu-owned dirs).
@@ -575,7 +575,7 @@ async fn sweep_stale_files(
 
             if is_stale {
                 if let Err(e) = tokio::fs::remove_file(entry.path()).await {
-                    warn!(path = %entry.path().display(), error = %e, "failed to remove stale artifact");
+                    warn!(path = %entry.path().display(), error = %e, "failed to remove outdated artifact");
                 } else {
                     removed += 1;
                 }

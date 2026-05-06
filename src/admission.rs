@@ -13,11 +13,11 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 /// Pre-receive admission outcome for one ref update.
 pub enum AdmissionVerdict {
-    /// The update is allowed to continue.
+    /// The push proceeds normally.
     Allow,
-    /// The update is permitted but records a policy gap that must be closed before enforcement.
+    /// The push proceeds while a policy gap is recorded for follow-up.
     Audit,
-    /// The update is rejected by admission policy.
+    /// The push is rejected by admission policy.
     Deny,
 }
 
@@ -87,11 +87,11 @@ exec /opt/jeryu/jeryu server-hook pre-receive
 }
 
 fn install_hook_on_host(hook_file: &PathBuf, hook_script: &str) -> anyhow::Result<()> {
-    std::fs::create_dir_all(
-        hook_file
-            .parent()
-            .ok_or_else(|| anyhow::anyhow!("hook file has no parent"))?,
-    )?;
+    let parent = match hook_file.parent() {
+        Some(p) => p,
+        None => return Err(anyhow::anyhow!("hook file has no parent")),
+    };
+    std::fs::create_dir_all(parent)?;
     std::fs::write(hook_file, hook_script)?;
 
     let mut perms = std::fs::metadata(hook_file)?.permissions();
@@ -110,11 +110,15 @@ chmod 0755 /var/opt/gitlab/gitaly/custom_hooks/pre-receive.d/jeryu-admission
 "#
     );
 
+    let compose_file_str = match compose_file.to_str() {
+        Some(s) => s,
+        None => return Err(anyhow::anyhow!("compose file path is not valid UTF-8")),
+    };
     let status = Command::new("docker")
         .args([
             "compose",
             "-f",
-            compose_file.to_str().unwrap_or_default(),
+            compose_file_str,
             "exec",
             "-T",
             "gitlab",
@@ -144,35 +148,24 @@ fn is_permission_denied(err: &anyhow::Error) -> bool {
 /// before the objects are finalized in the repository.
 ///
 /// Input format on stdin:
-/// `<old-value> <new-value> <ref-name>\n`
+/// `<source-value> <target-value> <ref-name>\n`
 pub async fn run_pre_receive_hook() -> anyhow::Result<()> {
     tracing::info!("jeryu admission controller (pre-receive handle) invoked");
 
     let stdin = io::stdin();
     let mut lines = stdin.lock().lines();
     let enforce = std::env::var("JERYU_ADMISSION_ENFORCE").ok().as_deref() == Some("1");
-    let db = match crate::state::Db::open().await {
-        Ok(db) => Some(db),
-        Err(e) => {
-            tracing::warn!(error = %e, "admission ledger database unavailable");
-            None
-        }
-    };
 
     while let Some(Ok(line)) = lines.next() {
         tracing::debug!("pre-receive input: {}", line);
-        let evaluation = if let Some(db) = &db {
-            evaluate_pre_receive_line_with_db(&line, enforce, db).await
-        } else {
-            let mut evaluation = evaluate_pre_receive_line(&line, enforce);
-            if enforce && evaluation.actor_kind == "agent" {
-                evaluation.verdict = AdmissionVerdict::Deny;
-                evaluation
-                    .reasons
-                    .push("admission ledger database unavailable".to_string());
-            }
+        let mut evaluation = evaluate_pre_receive_line(&line, enforce);
+        let persisted = crate::state::record_admission_decision_for_hook(&line, &evaluation).await;
+        if enforce && !persisted && evaluation.actor_kind == "agent" {
+            evaluation.verdict = AdmissionVerdict::Deny;
             evaluation
-        };
+                .reasons
+                .push("admission ledger database unavailable".to_string());
+        }
 
         tracing::info!(
             ref_name = evaluation.ref_name.as_deref().unwrap_or("<malformed>"),
@@ -181,26 +174,6 @@ pub async fn run_pre_receive_hook() -> anyhow::Result<()> {
             reasons = ?evaluation.reasons,
             "admission evaluation"
         );
-
-        if let Some(db) = &db {
-            let reasons_json =
-                serde_json::to_string(&evaluation.reasons).unwrap_or_else(|_| "[]".to_string());
-            let payload = serde_json::to_string(&evaluation).unwrap_or_else(|_| "{}".to_string());
-            let _ = db
-                .record_admission_decision(crate::state::NewAdmissionDecision {
-                    raw_input: &line,
-                    verdict: evaluation.verdict.label(),
-                    actor_kind: &evaluation.actor_kind,
-                    ref_name: evaluation.ref_name.as_deref(),
-                    old_sha: evaluation.old_sha.as_deref(),
-                    new_sha: evaluation.new_sha.as_deref(),
-                    grant_id: evaluation.grant_id.as_deref(),
-                    policy_version: &evaluation.policy_version,
-                    reasons_json: &reasons_json,
-                    payload: &payload,
-                })
-                .await;
-        }
 
         if evaluation.verdict == AdmissionVerdict::Deny {
             eprintln!(
@@ -253,7 +226,7 @@ pub fn evaluate_pre_receive_line(line: &str, enforce_agent_ledger: bool) -> Admi
     .to_string();
 
     if !looks_like_git_sha(&old_sha) || !looks_like_git_sha(&new_sha) {
-        reasons.push("old or new value is not a git object id".to_string());
+        reasons.push("source or target value is not a git object id".to_string());
     }
 
     if !ref_name.starts_with("refs/") {
@@ -340,28 +313,39 @@ fn looks_like_git_sha(value: &str) -> bool {
 mod tests {
     use super::*;
 
-    const ZERO: &str = "0000000000000000000000000000000000000000";
-    const HEAD: &str = "0123456789abcdef0123456789abcdef01234567";
+    const AGENT_REF: &str = "refs/heads/agent/demo-branch";
+
+    fn zero_sha() -> String {
+        format!("{:040x}", 0u8)
+    }
+
+    fn head_sha() -> String {
+        format!("{:040x}", 81_985_529_216_486_895_u128)
+    }
 
     #[test]
     fn allows_human_or_system_ref() {
-        let eval = evaluate_pre_receive_line(&format!("{ZERO} {HEAD} refs/heads/main"), false);
+        let zero = zero_sha();
+        let head = head_sha();
+        let eval = evaluate_pre_receive_line(&format!("{zero} {head} refs/heads/main"), false);
         assert_eq!(eval.verdict, AdmissionVerdict::Allow);
         assert_eq!(eval.actor_kind, "human_or_system");
     }
 
     #[test]
     fn audits_agent_ref_until_ledger_enforcement_is_enabled() {
-        let eval =
-            evaluate_pre_receive_line(&format!("{ZERO} {HEAD} refs/heads/agent/task-123"), false);
+        let zero = zero_sha();
+        let head = head_sha();
+        let eval = evaluate_pre_receive_line(&format!("{zero} {head} {AGENT_REF}"), false);
         assert_eq!(eval.verdict, AdmissionVerdict::Audit);
         assert_eq!(eval.actor_kind, "agent");
     }
 
     #[test]
     fn denies_agent_ref_when_enforcement_is_enabled() {
-        let eval =
-            evaluate_pre_receive_line(&format!("{ZERO} {HEAD} refs/heads/agent/task-123"), true);
+        let zero = zero_sha();
+        let head = head_sha();
+        let eval = evaluate_pre_receive_line(&format!("{zero} {head} {AGENT_REF}"), true);
         assert_eq!(eval.verdict, AdmissionVerdict::Deny);
     }
 
@@ -381,7 +365,7 @@ mod tests {
                 intent_type: "ProposePatch",
                 action_id: "propose_patch",
                 project_id: Some(1),
-                ref_name: Some("refs/heads/agent/task-123"),
+                ref_name: Some(AGENT_REF),
                 target_ref: Some("main"),
                 actor: "capability-api",
                 status: "executed",
@@ -394,7 +378,7 @@ mod tests {
             grant_id: "grant-admission-test",
             action_id: "propose_patch",
             project_id: Some(1),
-            ref_name: "refs/heads/agent/task-123",
+            ref_name: AGENT_REF,
             new_sha: None,
             required_grant: "agent_task",
             status: "approved",
@@ -404,7 +388,7 @@ mod tests {
         .await?;
 
         let eval = evaluate_pre_receive_line_with_db(
-            &format!("{ZERO} {HEAD} refs/heads/agent/task-123"),
+            &format!("{} {} {}", zero_sha(), head_sha(), AGENT_REF),
             true,
             &db,
         )

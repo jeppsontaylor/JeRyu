@@ -44,29 +44,27 @@ fn repair_from_compile_packets(
         .with_context(|| format!("failed to parse {}", compile_path.display()))?;
 
     // Find the first error (highest priority).
-    let primary = packets
-        .packets
-        .iter()
-        .find(|p| p.level == "error")
-        .or_else(|| packets.packets.first());
-
-    let Some(primary) = primary else {
-        return Ok(None);
+    let primary = match packets.packets.iter().find(|p| p.level == "error") {
+        Some(err) => err,
+        None => match packets.packets.first() {
+            Some(first) => first,
+            None => return Ok(None),
+        },
     };
 
     // Check witness graph for pub-item context.
     let witness = load_witness_graph_if_present(workspace_root);
-    let pub_items_in_scope = witness
+    let pub_items_in_scope = match witness
         .as_ref()
         .and_then(|graph| graph.crates.iter().find(|c| c.name == primary.owning_arc))
-        .map(|crate_witness| {
-            crate_witness
-                .pub_items
-                .iter()
-                .map(|item| item.signature.clone())
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+    {
+        Some(crate_witness) => crate_witness
+            .pub_items
+            .iter()
+            .map(|item| item.signature.clone())
+            .collect::<Vec<_>>(),
+        None => Vec::new(),
+    };
 
     // Estimate context bytes from the primary file.
     let context_bytes = fs::metadata(workspace_root.join(&primary.file))
@@ -103,20 +101,19 @@ fn repair_from_runtime_packet(workspace_root: &Path, runtime_path: &Path) -> Res
         .with_context(|| format!("failed to parse {}", runtime_path.display()))?;
 
     let witness = load_witness_graph_if_present(workspace_root);
-    let pub_items_in_scope = if let Some(cell) = &packet.cell {
-        witness
+    let pub_items_in_scope = match &packet.cell {
+        Some(cell) => match witness
             .as_ref()
             .and_then(|graph| graph.crates.iter().find(|c| &c.name == cell))
-            .map(|crate_witness| {
-                crate_witness
-                    .pub_items
-                    .iter()
-                    .map(|item| item.signature.clone())
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default()
-    } else {
-        vec![]
+        {
+            Some(crate_witness) => crate_witness
+                .pub_items
+                .iter()
+                .map(|item| item.signature.clone())
+                .collect::<Vec<_>>(),
+            None => Vec::new(),
+        },
+        None => Vec::new(),
     };
 
     let context_bytes = fs::metadata(workspace_root.join(&packet.file))
@@ -126,7 +123,10 @@ fn repair_from_runtime_packet(workspace_root: &Path, runtime_path: &Path) -> Res
     Ok(RepairBundle {
         status: "action-required".to_string(),
         failure_type: "runtime-panic".to_string(),
-        primary_arc: packet.cell.clone().unwrap_or_else(|| "<unmatched>".into()),
+        primary_arc: match packet.cell.clone() {
+            Some(cell) => cell,
+            None => "<unmatched>".into(),
+        },
         primary_file: packet.file.clone(),
         primary_line: packet.line,
         error_summary: format!("[{}] {}", packet.code, packet.message),
@@ -193,12 +193,12 @@ mod tests {
     fn temp_dir(name: &str) -> PathBuf {
         let path = std::env::temp_dir().join(format!(
             "how_to_code_rust-{name}-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_nanos()
+            match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+                Ok(elapsed) => elapsed.as_nanos(),
+                Err(_) => 0,
+            }
         ));
-        fs::create_dir_all(&path).expect("create temp dir");
+        fs::create_dir_all(&path).expect("create scratch dir");
         path
     }
 

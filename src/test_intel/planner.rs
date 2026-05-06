@@ -160,7 +160,7 @@ impl TestPlan {
 pub fn plan_tests(changed_paths: &[String]) -> TestPlan {
     // 1. Empty diff → conservative full
     if changed_paths.is_empty() {
-        return TestPlan::full("empty diff, conservative fallback");
+        return TestPlan::full("empty diff, conservative recovery");
     }
 
     // 2. Global invalidator check
@@ -187,7 +187,7 @@ pub fn plan_tests(changed_paths: &[String]) -> TestPlan {
         return plan;
     }
 
-    // 6. Pre-extract changed test files before the no-subsystem fallback.
+    // 6. Pre-extract changed test files before the no-subsystem recovery.
     // If tests/*.rs files changed, they are always run regardless of subsystem match.
     let changed_test_files: Vec<String> = changed_paths
         .iter()
@@ -195,9 +195,9 @@ pub fn plan_tests(changed_paths: &[String]) -> TestPlan {
         .cloned()
         .collect();
 
-    // 7. If no subsystem matched and no test files changed, fallback to full
+    // 7. If no subsystem matched and no test files changed, recovery to full
     if affected.is_empty() && changed_test_files.is_empty() {
-        let mut plan = TestPlan::full("no subsystem matched changed paths; conservative fallback");
+        let mut plan = TestPlan::full("no subsystem matched changed paths; conservative recovery");
         plan.changed_paths = changed_paths.to_vec();
         return plan;
     }

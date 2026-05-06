@@ -616,7 +616,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let lease_dir = dir.path().join("target").join(LEASES_DIR_NAME);
         fs::create_dir_all(&lease_dir).unwrap();
-        let stale = CargoLeaseRecord {
+        let expired = CargoLeaseRecord {
             kind: "local-cargo".to_string(),
             scope_key: "scope".to_string(),
             target_dir: dir.path().display().to_string(),
@@ -628,16 +628,16 @@ mod tests {
         };
         let active = CargoLeaseRecord {
             pid: std::process::id(),
-            ..stale.clone()
+            ..expired.clone()
         };
         fs::write(
-            lease_dir.join("stale-a.json"),
-            serde_json::to_vec_pretty(&stale).unwrap(),
+            lease_dir.join("expired-a.json"),
+            serde_json::to_vec_pretty(&expired).unwrap(),
         )
         .unwrap();
         fs::write(
-            lease_dir.join("stale-b.json"),
-            serde_json::to_vec_pretty(&stale).unwrap(),
+            lease_dir.join("expired-b.json"),
+            serde_json::to_vec_pretty(&expired).unwrap(),
         )
         .unwrap();
         fs::write(
@@ -651,7 +651,7 @@ mod tests {
         assert_eq!(scan.observed_files, 3);
         assert_eq!(scan.stale_files, 2);
         assert!(lease_dir.join("active.json").exists());
-        assert!(!lease_dir.join("stale-a.json").exists());
+        assert!(!lease_dir.join("expired-a.json").exists());
     }
 
     #[test]

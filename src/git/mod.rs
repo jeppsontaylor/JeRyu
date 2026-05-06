@@ -2,6 +2,7 @@
 //! Proof: `cargo test -p jeryu -- git_`
 //! Invariants: Git runs exactly once per command invocation; records are additive and redacted.
 
+pub mod bridge;
 pub mod classify;
 pub mod event;
 pub mod executor;
@@ -9,7 +10,6 @@ pub mod invocation;
 pub mod mirror;
 pub mod policy;
 pub mod receipt;
-pub mod shim;
 pub mod snapshot;
 pub mod store;
 pub mod system;

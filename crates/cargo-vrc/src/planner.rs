@@ -337,10 +337,10 @@ fn build_globset(patterns: &[String]) -> Result<GlobSet> {
 
 fn boundary_trigger(path: &str, package: &PackageSnapshot) -> bool {
     let path = Path::new(path);
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or_default();
+    let file_name = match path.file_name().and_then(|name| name.to_str()) {
+        Some(value) => value,
+        None => "",
+    };
     file_name == "Cargo.toml"
         || (package.agent.public_api && (file_name == "lib.rs" || file_name == "mod.rs"))
         || path
@@ -444,20 +444,20 @@ fn collect_profile_commands(
     profile_name: &str,
     needle: &str,
 ) -> Vec<String> {
-    snapshot
+    match snapshot
         .workspace_agent
         .ci_profiles
         .iter()
         .find(|profile| profile.name == profile_name)
-        .map(|profile| {
-            profile
-                .commands
-                .iter()
-                .filter(|command| command.contains(needle))
-                .cloned()
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default()
+    {
+        Some(profile) => profile
+            .commands
+            .iter()
+            .filter(|command| command.contains(needle))
+            .cloned()
+            .collect::<Vec<_>>(),
+        None => Vec::new(),
+    }
 }
 
 fn estimated_cost(package: &PackageSnapshot) -> String {
@@ -484,17 +484,11 @@ fn required_for_change_types(package: &PackageSnapshot) -> Vec<String> {
 }
 
 fn display_relative(root: &Path, path: &Path) -> String {
-    path.strip_prefix(root)
-        .ok()
-        .filter(|relative| !relative.as_os_str().is_empty())
-        .map(|relative| relative.display().to_string())
-        .unwrap_or_else(|| {
-            if path == root {
-                ".".to_string()
-            } else {
-                path.display().to_string()
-            }
-        })
+    match path.strip_prefix(root) {
+        Ok(relative) if !relative.as_os_str().is_empty() => relative.display().to_string(),
+        _ if path == root => ".".to_string(),
+        _ => path.display().to_string(),
+    }
 }
 
 fn display_workspace_root() -> String {
@@ -516,10 +510,10 @@ pub fn context_metrics(workspace_root: &Path, package_root: &Path) -> Result<(us
         if !path.is_file() {
             continue;
         }
-        let extension = path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .unwrap_or_default();
+        let extension = match path.extension().and_then(|ext| ext.to_str()) {
+            Some(ext) => ext,
+            None => "",
+        };
         if !matches!(extension, "rs" | "toml" | "md" | "json" | "yaml" | "yml") {
             continue;
         }

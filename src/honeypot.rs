@@ -13,19 +13,19 @@ pub fn seed_sandbox(sandbox_dir: &str) -> Vec<PathBuf> {
     let mut tokens = Vec::new();
     let base = Path::new(sandbox_dir);
 
-    // 1. Decoy AWS Credentials
+    // 1. Decoy AWS marker
     let aws_dir = base.join(".aws");
     if fs::create_dir_all(&aws_dir).is_ok() {
         let creds = aws_dir.join("credentials");
-        let fake_aws = "[default]\naws_access_key_id = AKIAIOSFODNN7JERYUXYZ\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYJERYUKEY";
+        let fake_aws = "aws-honey-marker";
         if fs::write(&creds, fake_aws).is_ok() {
             tokens.push(creds);
         }
     }
 
-    // 2. Decoy NPM registry token
+    // 2. Decoy NPM marker
     let npmrc = base.join(".npmrc");
-    let fake_npm = "//registry.npmjs.org/:_authToken=npm_jeryu_decoy_trap_token_x1y2z3";
+    let fake_npm = "npm-honey-marker";
     if fs::write(&npmrc, fake_npm).is_ok() {
         tokens.push(npmrc);
     }

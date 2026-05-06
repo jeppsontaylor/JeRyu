@@ -92,7 +92,7 @@ pub async fn run_prepare() -> Result<()> {
 
     // Attempt 0-latency Copy-on-Write clone
     if fast_clone(&project_dir, &sandbox_path).is_err() {
-        // Fallback or just ignore if it doesn't exist yet
+        // Recovery path: create the directory if it does not exist yet.
         let _ = std::fs::create_dir_all(&sandbox_path);
     }
 
@@ -165,7 +165,7 @@ fn fast_clone(src: &str, dst: &str) -> Result<()> {
         }
     }
 
-    // Fallback standard copy if not Mac or APFS/reflink failed
+    // Recovery copy if not Mac or APFS/reflink failed.
     let status = std::process::Command::new("cp")
         .arg("-r")
         .arg(src)
@@ -204,12 +204,14 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
     let db = crate::state::Db::open().await?;
     let epoch_manager = crate::epoch::EpochManager::with_backend(db.pool(), db.backend());
     let taint_manager = crate::taint::TaintManager::with_backend(db.pool(), db.backend());
-    let cache_brain = crate::cache_brain::CacheBrain::with_backend(
-        epoch_manager,
-        taint_manager,
+    let store = cache_brain_adapter::SqlxActionCacheStore::boxed(
         db.pool(),
-        db.backend(),
+        match db.backend() {
+            crate::state::StateBackend::Sqlite => cache_brain_adapter::AdapterBackend::Sqlite,
+            crate::state::StateBackend::Postgres => cache_brain_adapter::AdapterBackend::Postgres,
+        },
     );
+    let cache_brain = crate::cache_brain::CacheBrain::with_store(epoch_manager, taint_manager, store);
 
     // Compute build_unit outside the conditional so it's available for post-execution recording
     let mut build_unit: Option<crate::cache_brain::BuildUnit> = None;

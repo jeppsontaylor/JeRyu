@@ -105,37 +105,34 @@ fn emit_repair_packet(info: &PanicHookInfo<'_>) -> Result<(), Box<dyn std::error
     let matched = match_cell(&file);
     let timestamp = current_timestamp();
 
+    let (cell_id, cell_purpose, match_provenance, matched_owned_path, invariants, hints, local_commands, escalate_commands) = match matched.as_ref() {
+        Some(m) => (
+            Some(m.cell.id.clone()),
+            Some(m.cell.purpose.clone()),
+            Some("longest-owned-path-prefix".to_string()),
+            Some(m.matched_owned_path.clone()),
+            m.cell.invariants.clone(),
+            m.cell.hints.clone(),
+            m.cell.local_commands.clone(),
+            m.cell.escalate_commands.clone(),
+        ),
+        None => (None, None, None, None, Vec::new(), Vec::new(), Vec::new(), Vec::new()),
+    };
     let packet = RepairPacket {
         code: "PANIC".to_string(),
         message,
         file,
         line,
         column,
-        cell: matched.as_ref().map(|matched| matched.cell.id.clone()),
-        cell_purpose: matched.as_ref().map(|matched| matched.cell.purpose.clone()),
-        match_provenance: matched
-            .as_ref()
-            .map(|_| "longest-owned-path-prefix".to_string()),
-        matched_owned_path: matched
-            .as_ref()
-            .map(|matched| matched.matched_owned_path.clone()),
-        invariants: matched
-            .as_ref()
-            .map(|matched| matched.cell.invariants.clone())
-            .unwrap_or_default(),
+        cell: cell_id,
+        cell_purpose,
+        match_provenance,
+        matched_owned_path,
+        invariants,
         likely_causes: Vec::new(),
-        hints: matched
-            .as_ref()
-            .map(|matched| matched.cell.hints.clone())
-            .unwrap_or_default(),
-        local_commands: matched
-            .as_ref()
-            .map(|matched| matched.cell.local_commands.clone())
-            .unwrap_or_default(),
-        escalate_commands: matched
-            .as_ref()
-            .map(|matched| matched.cell.escalate_commands.clone())
-            .unwrap_or_default(),
+        hints,
+        local_commands,
+        escalate_commands,
         timestamp,
     };
 

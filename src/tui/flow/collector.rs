@@ -99,7 +99,7 @@ pub async fn run_collector(
         if snap.active_pipelines.is_empty() {
             if !last_active_pipelines.is_empty() {
                 snap.active_pipelines = last_active_pipelines.clone();
-                snap.stale = true;
+                snap.outdated = true;
                 snap.last_non_empty_at = last_active_seen_at;
             }
         } else {

@@ -98,11 +98,12 @@ fn main() -> Result<()> {
         bail!("missing command; use: tui-capture [opts] -- ./your-tui");
     }
 
-    let font_path = args
-        .font
-        .clone()
-        .or_else(find_font)
-        .context("could not find a monospace font; pass --font /path/to/DejaVuSansMono.ttf")?;
+    let font_path = match args.font.clone() {
+        Some(path) => path,
+        None => find_font().context(
+            "could not find a monospace font; pass --font /path/to/DejaVuSansMono.ttf",
+        )?,
+    };
     let font_bytes = fs::read(&font_path)
         .with_context(|| format!("failed to read font {}", font_path.display()))?;
     let font = Font::try_from_vec(font_bytes)

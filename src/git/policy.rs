@@ -76,6 +76,7 @@ mod tests {
     #[test]
     fn push_is_mirrored() {
         let _guard = ENV_LOCK.lock().unwrap();
+        // SAFETY: tests isolate the environment behind a mutex.
         unsafe {
             std::env::remove_var("JERYU_MIRROR_ENABLED");
         }
@@ -88,6 +89,7 @@ mod tests {
     #[test]
     fn env_can_disable_mirror() {
         let _guard = ENV_LOCK.lock().unwrap();
+        // SAFETY: tests isolate the environment behind a mutex.
         unsafe {
             std::env::set_var("JERYU_MIRROR_ENABLED", "0");
         }
@@ -95,6 +97,7 @@ mod tests {
             GitCommandClass::NetworkWrite,
             &["push".into(), "origin".into()]
         ));
+        // SAFETY: tests isolate the environment behind a mutex.
         unsafe {
             std::env::remove_var("JERYU_MIRROR_ENABLED");
         }
@@ -103,10 +106,12 @@ mod tests {
     #[test]
     fn env_can_override_mirror_remote() {
         let _guard = ENV_LOCK.lock().unwrap();
+        // SAFETY: tests isolate the environment behind a mutex.
         unsafe {
             std::env::set_var("JERYU_MIRROR_REMOTE", "backup");
         }
         assert_eq!(mirror_remote(), "backup");
+        // SAFETY: tests isolate the environment behind a mutex.
         unsafe {
             std::env::remove_var("JERYU_MIRROR_REMOTE");
         }

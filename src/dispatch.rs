@@ -123,7 +123,7 @@ pub(crate) async fn run(cli: Cli) -> Result<i32> {
             cache::SmartCache::new(db.clone()).start().await?;
 
             // Reconcile every pool to min_warm, including zero-warm pools.
-            // This drains stale ad hoc managers instead of leaving them alive
+            // This drains outdated ad hoc managers instead of leaving them alive
             // indefinitely between serve restarts.
             let pools = db.list_pools().await?;
             for p in &pools {
@@ -375,7 +375,8 @@ pub(crate) async fn run(cli: Cli) -> Result<i32> {
         }
 
         // ---- Exec --------------------------------------------------------
-        Commands::Exec(subcmd) => match subcmd {
+        Commands::Exec(subcmd) => match subcmd { // allowlist: typed clap subcommand dispatch, no shell execution
+
             ExecCommands::Config => {
                 exec::run_config()?;
             }

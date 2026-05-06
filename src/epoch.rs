@@ -131,7 +131,7 @@ mod tests {
         // New epoch
         assert_eq!(mgr.get_epoch(scope).await.unwrap(), 1);
 
-        // Old objects are now invalid
+        // Previous objects are now invalid
         assert!(!mgr.is_valid(scope, 0).await.unwrap());
 
         // New objects built today at epoch 1 are valid

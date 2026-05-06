@@ -128,7 +128,7 @@ pub fn manager_builds_dir(pool_name: &str, manager_id: &str) -> String {
 }
 
 /// Timeout, in seconds, used when waiting for runner managers to exit after SIGQUIT.
-/// The production default comes from settings, but CI/test runs use a shorter fallback
+/// The production default comes from settings, but CI/test runs use a shorter default path
 /// unless an explicit override is provided.
 pub fn runner_shutdown_timeout_secs() -> u64 {
     if let Some(value) = std::env::var("JERYU_POOL_SHUTDOWN_TIMEOUT_SECS")
@@ -366,7 +366,7 @@ services:
         # --- Balanced local CI tuning ---
         # Run Puma in single mode to avoid cluster overhead on the
         # single-node local control plane while still allowing more
-        # request concurrency than the old 1-worker cluster setup.
+        # request concurrency than the previous 1-worker cluster setup.
         puma['worker_processes'] = 0
         puma['max_threads'] = 8
         
@@ -703,14 +703,14 @@ mod tests {
 
     #[test]
     fn test_render_compose() {
-        let composed = render_compose("supersecret");
+        let composed = render_compose("example-root-password");
         assert!(composed.contains("container_name: jeryu-postgres"));
         assert!(composed.contains("postgres:16-alpine"));
         assert!(composed.contains("POSTGRES_DB: \"jeryu\""));
         assert!(composed.contains("127.0.0.1:15432:5432"));
         assert!(composed.contains("container_name: jeryu-vault"));
         assert!(composed.contains("hashicorp/vault"));
-        assert!(composed.contains("GITLAB_ROOT_PASSWORD: \"supersecret\""));
+        assert!(composed.contains("GITLAB_ROOT_PASSWORD: \"example-root-password\""));
         assert!(composed.contains("gitlab_workhorse['api_ci_long_polling_duration']"));
         assert!(composed.contains("docker-compose.yml")); // Should have some identifying comment
         assert!(composed.contains("puma['worker_processes'] = 0"));
@@ -729,7 +729,7 @@ mod tests {
             "default",
             "manager-1",
             "http://gitlab.local",
-            "token123",
+            "example-runner-token",
             "docker",
             "/tmp/jeryu-cache/default",
             4,
@@ -771,7 +771,7 @@ mod tests {
             "build",
             "manager-2",
             "http://gitlab.local",
-            "token123",
+            "example-runner-token",
             "docker",
             "/tmp/jeryu-cache/build",
             4,
@@ -784,7 +784,7 @@ mod tests {
             "default",
             "manager/with spaces",
             "http://gitlab.local",
-            "token123",
+            "example-runner-token",
             "custom",
             "/tmp/jeryu-cache/default",
             4,

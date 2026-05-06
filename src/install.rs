@@ -543,7 +543,7 @@ async fn doctor(opts: &InstallOptions) -> Result<i32> {
 }
 
 async fn smoke(opts: &InstallOptions) -> Result<i32> {
-    let tmp = tempfile::tempdir().context("creating smoke temp dir")?;
+    let tmp = tempfile::tempdir().context("creating smoke scratch dir")?;
     let smoke_opts = InstallOptions {
         prefix: tmp.path().to_path_buf(),
         dry_run: opts.dry_run,
@@ -727,7 +727,7 @@ async fn install_binary(prefix: &Path) -> Result<()> {
     let tmp = Builder::new()
         .prefix("jeryu-install-")
         .tempfile_in(prefix)
-        .with_context(|| format!("creating temp file in {}", prefix.display()))?;
+        .with_context(|| format!("creating scratch file in {}", prefix.display()))?;
     let tmp_path = tmp.path().to_path_buf();
     fs::copy(&source, &tmp_path)
         .with_context(|| format!("copying {} -> {}", source.display(), tmp_path.display()))?;
@@ -844,6 +844,7 @@ async fn run_privileged(cmd: &str, args: &[&str]) -> Result<()> {
 }
 
 fn is_root() -> bool {
+    // SAFETY: geteuid is a pure libc query with no aliasing or lifetime concerns.
     unsafe { libc::geteuid() == 0 }
 }
 

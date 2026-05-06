@@ -567,7 +567,7 @@ async fn remote_install(
         ServiceMode::Manual => {
             print_manual_service_guidance(&cfg);
         }
-        ServiceMode::Auto => unreachable!("effective service mode should not remain Auto"),
+        ServiceMode::Auto => panic!("effective service mode should not remain Auto"),
     }
     save_remote_config(&cfg)?;
     println!("remote host ready: {} ({})", cfg.alias, cfg.target);
@@ -600,7 +600,7 @@ async fn remote_update(cfg: &RemoteConfig, opts: &RemoteCommonOptions) -> Result
             print_manual_service_guidance(cfg);
             Ok(0)
         }
-        ServiceMode::Auto => unreachable!("resolved service mode should never be Auto"),
+        ServiceMode::Auto => panic!("resolved service mode should never be Auto"),
     }
 }
 
@@ -662,7 +662,7 @@ async fn remote_logs(cfg: &RemoteConfig, opts: &RemoteCommonOptions) -> Result<i
         ServiceMode::Manual => {
             bail!("remote host uses manual service mode; there is no systemd journal to tail");
         }
-        ServiceMode::Auto => unreachable!("resolved service mode should never be Auto"),
+        ServiceMode::Auto => panic!("resolved service mode should never be Auto"),
     }
     Ok(0)
 }
@@ -683,7 +683,7 @@ async fn remote_service(
                 cfg.remote_bin
             );
         }
-        ServiceMode::Auto => unreachable!("resolved service mode should never be Auto"),
+        ServiceMode::Auto => panic!("resolved service mode should never be Auto"),
     }
     Ok(0)
 }
@@ -807,7 +807,7 @@ async fn remote_uninstall(cfg: &RemoteConfig, opts: &RemoteCommonOptions) -> Res
             let cmd = "rm -f \"$HOME/.jeryu/bin/jeryu\"";
             run_remote_shell(cfg, &cmd, false).await?;
         }
-        ServiceMode::Auto => unreachable!("resolved service mode should never be Auto"),
+        ServiceMode::Auto => panic!("resolved service mode should never be Auto"),
     }
     let _ = fs::remove_file(config_path(&cfg.alias));
     Ok(0)
@@ -879,7 +879,7 @@ async fn collect_report(cfg: &RemoteConfig) -> Result<RemoteReport> {
             run_remote_shell_status(cfg, "systemctl --user is-active jeryu.service").await?
         }
         ServiceMode::Manual => manual_service_active(cfg).await?,
-        ServiceMode::Auto => unreachable!("resolved service mode should never be Auto"),
+        ServiceMode::Auto => panic!("resolved service mode should never be Auto"),
     };
     Ok(RemoteReport {
         alias: cfg.alias.clone(),

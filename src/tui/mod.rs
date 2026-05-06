@@ -3,7 +3,6 @@
 //! Invariants: TUI entry points preserve terminal cleanup and keep operational actions policy-gated.
 pub mod action_registry;
 pub mod app;
-pub mod events;
 pub mod flow;
 pub mod ui;
 
@@ -15,6 +14,41 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tracing::{error, warn};
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use anyhow::Result;
+    use std::path::PathBuf;
+    use std::sync::OnceLock;
+
+    pub(crate) fn docker_ctl() -> Result<crate::docker::DockerCtl> {
+        static FAKE_DOCKER_SOCKET: OnceLock<PathBuf> = OnceLock::new();
+        let socket_path = FAKE_DOCKER_SOCKET.get_or_init(|| {
+            let path =
+                std::env::temp_dir().join(format!("jeryu-tui-docker-{}.sock", std::process::id()));
+            let _ = std::fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(false)
+                .open(&path);
+            // SAFETY: test-only process-local override. No production code reads this helper.
+            unsafe {
+                std::env::set_var("DOCKER_HOST", format!("unix://{}", path.display()));
+            }
+            path
+        });
+
+        if !socket_path.exists() {
+            std::fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(false)
+                .open(socket_path)?;
+        }
+
+        crate::docker::DockerCtl::connect()
+    }
+}
 
 pub async fn run_tui(
     db: crate::state::Db,
@@ -877,7 +911,7 @@ mod tests {
 
     async fn test_app() -> Result<App> {
         let db = crate::state::Db::open_memory().await?;
-        let docker = crate::docker::DockerCtl::connect()?;
+        let docker = crate::tui::test_support::docker_ctl()?;
         let gitlab = crate::gitlab_client::GitlabClient::new("http://127.0.0.1:9", None);
         Ok(App::new(db, docker, gitlab))
     }

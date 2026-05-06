@@ -1,6 +1,6 @@
 //! Owner: Agent Surface
 //! Proof: `cargo check -p jeryu && cargo test -p jeryu agent_surface`
-//! Invariants: Generated routing index is derived from repo truth; audit fails on missing hard surfaces and stale generated output.
+//! Invariants: Generated routing index is derived from repo truth; audit fails on missing hard surfaces and outdated generated output.
 
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
@@ -140,7 +140,11 @@ pub fn audit_agent_surface(as_json: bool) -> Result<()> {
         );
         println!(
             "  index fresh:  {}",
-            if report.index_current { "ok" } else { "stale" }
+            if report.index_current {
+                "ok"
+            } else {
+                "outdated"
+            }
         );
         println!("  modules:      {}", report.modules_checked);
         if !report.issues.is_empty() {
@@ -233,7 +237,7 @@ fn build_audit_report(root: &Path) -> Result<AgentSurfaceAudit> {
         issues.push(AuditIssue {
             scope: "root".to_string(),
             path: "agent-index.{json,md}".to_string(),
-            detail: "generated index is missing or stale".to_string(),
+            detail: "generated index is missing or outdated".to_string(),
         });
     }
 

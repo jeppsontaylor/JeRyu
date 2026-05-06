@@ -10,17 +10,20 @@ use crate::model::{ChangeClassification, CrateChange, WitnessDiff, WitnessGraph}
 /// - `InterfaceChanged` — pub signatures changed, must escalate
 /// - `ImplementationOnly` — only internals changed, stay local
 /// - `Unchanged` — no change
-/// - `Added` — new crate in `new` not in `old`
-/// - `Removed` — crate in `old` missing from `new`
-pub fn diff_witness_graphs(old: &WitnessGraph, new: &WitnessGraph) -> WitnessDiff {
-    let old_map: HashMap<&str, &crate::model::CrateWitness> =
-        old.crates.iter().map(|c| (c.name.as_str(), c)).collect();
-    let new_map: HashMap<&str, &crate::model::CrateWitness> =
-        new.crates.iter().map(|c| (c.name.as_str(), c)).collect();
+/// - `Added` — new crate in `current` not in `prior`
+/// - `Removed` — crate in `prior` missing from `current`
+pub fn diff_witness_graphs(prior: &WitnessGraph, current: &WitnessGraph) -> WitnessDiff {
+    let prior_map: HashMap<&str, &crate::model::CrateWitness> =
+        prior.crates.iter().map(|c| (c.name.as_str(), c)).collect();
+    let current_map: HashMap<&str, &crate::model::CrateWitness> = current
+        .crates
+        .iter()
+        .map(|c| (c.name.as_str(), c))
+        .collect();
 
-    let mut all_names: Vec<&str> = old_map
+    let mut all_names: Vec<&str> = prior_map
         .keys()
-        .chain(new_map.keys())
+        .chain(current_map.keys())
         .copied()
         .collect::<std::collections::BTreeSet<_>>()
         .into_iter()
@@ -30,7 +33,7 @@ pub fn diff_witness_graphs(old: &WitnessGraph, new: &WitnessGraph) -> WitnessDif
     let mut changes = Vec::new();
 
     for name in all_names {
-        match (old_map.get(name), new_map.get(name)) {
+        match (prior_map.get(name), current_map.get(name)) {
             (None, Some(_new_crate)) => {
                 changes.push(CrateChange {
                     name: name.to_string(),
@@ -59,10 +62,10 @@ pub fn diff_witness_graphs(old: &WitnessGraph, new: &WitnessGraph) -> WitnessDif
                         .to_string(),
                 });
             }
-            (Some(old_crate), Some(new_crate)) => {
-                let interface_changed = old_crate.interface_hash != new_crate.interface_hash;
+            (Some(prior_crate), Some(current_crate)) => {
+                let interface_changed = prior_crate.interface_hash != current_crate.interface_hash;
                 let implementation_changed =
-                    old_crate.implementation_hash != new_crate.implementation_hash;
+                    prior_crate.implementation_hash != current_crate.implementation_hash;
 
                 if !interface_changed && !implementation_changed {
                     continue; // Skip unchanged crates entirely.
@@ -90,14 +93,14 @@ pub fn diff_witness_graphs(old: &WitnessGraph, new: &WitnessGraph) -> WitnessDif
                 let reason = if interface_changed {
                     format!(
                         "interface hash changed ({} → {}); pub API shift requires rdep validation",
-                        &old_crate.interface_hash[..12],
-                        &new_crate.interface_hash[..12]
+                        &prior_crate.interface_hash[..12],
+                        &current_crate.interface_hash[..12]
                     )
                 } else {
                     format!(
                         "implementation hash changed ({} → {}); interface stable — local-only validation",
-                        &old_crate.implementation_hash[..12],
-                        &new_crate.implementation_hash[..12]
+                        &prior_crate.implementation_hash[..12],
+                        &current_crate.implementation_hash[..12]
                     )
                 };
 
@@ -111,7 +114,7 @@ pub fn diff_witness_graphs(old: &WitnessGraph, new: &WitnessGraph) -> WitnessDif
                     reason,
                 });
             }
-            (None, None) => unreachable!(),
+            (None, None) => panic!("unexpected witness diff state"),
         }
     }
 
@@ -161,18 +164,18 @@ mod tests {
 
     #[test]
     fn unchanged_crates_are_skipped() {
-        let old = make_graph(vec![make_crate("a", "hash1", "hash2")]);
-        let new = make_graph(vec![make_crate("a", "hash1", "hash2")]);
-        let diff = diff_witness_graphs(&old, &new);
+        let prior = make_graph(vec![make_crate("a", "hash1", "hash2")]);
+        let current = make_graph(vec![make_crate("a", "hash1", "hash2")]);
+        let diff = diff_witness_graphs(&prior, &current);
         assert_eq!(diff.total_crates_changed, 0);
         assert!(!diff.escalation_required);
     }
 
     #[test]
     fn implementation_only_change_stays_local() {
-        let old = make_graph(vec![make_crate("a", "same-iface", "impl-old-xxxxx")]);
-        let new = make_graph(vec![make_crate("a", "same-iface", "impl-new-xxxxx")]);
-        let diff = diff_witness_graphs(&old, &new);
+        let prior = make_graph(vec![make_crate("a", "same-iface", "impl-prior-xxxxx")]);
+        let current = make_graph(vec![make_crate("a", "same-iface", "impl-current-xxxxx")]);
+        let diff = diff_witness_graphs(&prior, &current);
         assert_eq!(diff.total_crates_changed, 1);
         assert!(!diff.escalation_required);
         assert_eq!(
@@ -184,9 +187,9 @@ mod tests {
 
     #[test]
     fn interface_change_triggers_escalation() {
-        let old = make_graph(vec![make_crate("a", "old-iface-xxx", "impl-hash-xxx")]);
-        let new = make_graph(vec![make_crate("a", "new-iface-xxx", "impl-hash-xxx")]);
-        let diff = diff_witness_graphs(&old, &new);
+        let prior = make_graph(vec![make_crate("a", "prior-iface-xxx", "impl-hash-xxx")]);
+        let current = make_graph(vec![make_crate("a", "current-iface-xxx", "impl-hash-xxx")]);
+        let diff = diff_witness_graphs(&prior, &current);
         assert_eq!(diff.total_crates_changed, 1);
         assert!(diff.escalation_required);
         assert_eq!(
@@ -198,18 +201,18 @@ mod tests {
 
     #[test]
     fn added_crate_detected() {
-        let old = make_graph(vec![]);
-        let new = make_graph(vec![make_crate("b", "hash1", "hash2")]);
-        let diff = diff_witness_graphs(&old, &new);
+        let prior = make_graph(vec![]);
+        let current = make_graph(vec![make_crate("b", "hash1", "hash2")]);
+        let diff = diff_witness_graphs(&prior, &current);
         assert_eq!(diff.total_crates_changed, 1);
         assert_eq!(diff.changes[0].classification, ChangeClassification::Added);
     }
 
     #[test]
     fn removed_crate_detected() {
-        let old = make_graph(vec![make_crate("c", "hash1", "hash2")]);
-        let new = make_graph(vec![]);
-        let diff = diff_witness_graphs(&old, &new);
+        let prior = make_graph(vec![make_crate("c", "hash1", "hash2")]);
+        let current = make_graph(vec![]);
+        let diff = diff_witness_graphs(&prior, &current);
         assert_eq!(diff.total_crates_changed, 1);
         assert_eq!(
             diff.changes[0].classification,

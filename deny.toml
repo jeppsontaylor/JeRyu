@@ -43,7 +43,6 @@ skip = [
     { crate = "rand@0.8.6", reason = "Transitive random dependency; tracked as V2.0.1 duplicate baseline." },
     { crate = "rand_chacha@0.3.1", reason = "Transitive random dependency; tracked as V2.0.1 duplicate baseline." },
     { crate = "rand_core@0.6.4", reason = "Transitive random dependency; tracked as V2.0.1 duplicate baseline." },
-    { crate = "redox_syscall@0.5.18", reason = "Transitive platform dependency; tracked as V2.0.1 duplicate baseline." },
     { crate = "sha2@0.10.9", reason = "Transitive crypto dependency; tracked as V2.0.1 duplicate baseline." },
     { crate = "windows-sys@0.48.0", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },
     { crate = "windows-sys@0.52.0", reason = "Transitive Windows target dependency; tracked as V2.0.1 duplicate baseline." },

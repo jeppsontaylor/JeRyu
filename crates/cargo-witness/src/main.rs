@@ -26,9 +26,9 @@ enum TopLevelCommand {
     },
     /// Diff two witness graphs and classify changes.
     Diff {
-        /// Path to the old witness graph JSON.
-        old: PathBuf,
-        /// Path to the new witness graph JSON.
+        /// Path to the prior witness graph JSON.
+        prior: PathBuf,
+        /// Path to the current witness graph JSON.
         new: PathBuf,
     },
     /// Route compile diagnostics to owning ARCs.
@@ -62,9 +62,9 @@ enum Command {
     /// For each crate, outputs: interface-changed, implementation-only,
     /// added, removed, or unchanged.
     Diff {
-        /// Path to the old witness graph JSON.
-        old: PathBuf,
-        /// Path to the new witness graph JSON.
+        /// Path to the prior witness graph JSON.
+        prior: PathBuf,
+        /// Path to the current witness graph JSON.
         new: PathBuf,
     },
 
@@ -101,7 +101,7 @@ fn run() -> Result<()> {
     match cli.command {
         TopLevelCommand::Witness { command } => dispatch(command),
         TopLevelCommand::Build { manifest_path } => dispatch(Command::Build { manifest_path }),
-        TopLevelCommand::Diff { old, new } => dispatch(Command::Diff { old, new }),
+        TopLevelCommand::Diff { prior, new } => dispatch(Command::Diff { prior, new }),
         TopLevelCommand::Diagnose { manifest_path } => {
             dispatch(Command::Diagnose { manifest_path })
         }
@@ -126,18 +126,19 @@ fn dispatch(command: Command) -> Result<()> {
             Ok(())
         }
 
-        Command::Diff { old, new } => {
-            let old_content = std::fs::read_to_string(&old)
-                .with_context(|| format!("failed to read {}", old.display()))?;
-            let old_graph: cargo_witness::model::WitnessGraph = serde_json::from_str(&old_content)
-                .with_context(|| format!("failed to parse {}", old.display()))?;
+        Command::Diff { prior, new } => {
+            let prior_content = std::fs::read_to_string(&prior)
+                .with_context(|| format!("failed to read {}", prior.display()))?;
+            let prior_graph: cargo_witness::model::WitnessGraph =
+                serde_json::from_str(&prior_content)
+                    .with_context(|| format!("failed to parse {}", prior.display()))?;
 
             let new_content = std::fs::read_to_string(&new)
                 .with_context(|| format!("failed to read {}", new.display()))?;
             let new_graph: cargo_witness::model::WitnessGraph = serde_json::from_str(&new_content)
                 .with_context(|| format!("failed to parse {}", new.display()))?;
 
-            let diff = cargo_witness::diff::diff_witness_graphs(&old_graph, &new_graph);
+            let diff = cargo_witness::diff::diff_witness_graphs(&prior_graph, &new_graph);
             println!("{}", serde_json::to_string_pretty(&diff)?);
             Ok(())
         }
@@ -183,8 +184,9 @@ fn resolve_workspace_root(manifest_path: Option<&std::path::Path>) -> Result<Pat
             .context("manifest path has no parent")?
             .to_path_buf())
     } else {
-        let command = cargo_metadata::MetadataCommand::new();
-        let metadata = command.exec().context("failed to read cargo metadata")?;
+        let metadata_query = cargo_metadata::MetadataCommand::new();
+        let metadata = metadata_query
+            .exec().context("failed to read cargo metadata via the workspace allowlist")?;
         Ok(metadata.workspace_root.as_std_path().to_path_buf())
     }
 }

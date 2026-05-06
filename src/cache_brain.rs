@@ -1,14 +1,20 @@
 //! Owner: Cache Decision Brain (Trust + Taint + Epoch Integration)
 //! Proof: `cargo test -p jeryu -- cache_brain`
 //! Invariants: Cache hits require matching trust tier; tainted objects never produce hits; epoch mismatch forces miss; all three checks must pass before a hit is returned
+//!
+//! All persistent storage access is delegated to `cache-brain-adapter` to keep
+//! this module free of direct database surface (per the architectural rule
+//! HLT-006-DIRECT-DB-WRONG-LAYER).
+
+use std::sync::Arc;
 
 use anyhow::Result;
+use cache_brain_adapter::ActionCacheStore;
 use serde::{Deserialize, Serialize};
 
 use crate::epoch::EpochManager;
 use crate::explain::{CacheVerdict, MissReason};
 use crate::policy::{PolicyEngine, TrustTier};
-use crate::state::{StateBackend, backend_sql};
 use crate::taint::TaintManager;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,47 +44,31 @@ pub struct BuildUnit {
 pub struct CacheBrain {
     epoch_manager: EpochManager,
     taint_manager: TaintManager,
-    pool: sqlx::AnyPool,
-    backend: StateBackend,
+    store: Arc<dyn ActionCacheStore>,
 }
 
 impl CacheBrain {
-    pub fn new(
+    /// Construct a `CacheBrain` from an adapter store. The store carries any
+    /// concrete database surface; this module is intentionally backend-free.
+    pub fn with_store(
         epoch_manager: EpochManager,
         taint_manager: TaintManager,
-        pool: sqlx::AnyPool,
-    ) -> Self {
-        Self::with_backend(epoch_manager, taint_manager, pool, StateBackend::Sqlite)
-    }
-
-    pub fn with_backend(
-        epoch_manager: EpochManager,
-        taint_manager: TaintManager,
-        pool: sqlx::AnyPool,
-        backend: StateBackend,
+        store: Arc<dyn ActionCacheStore>,
     ) -> Self {
         Self {
             epoch_manager,
             taint_manager,
-            pool,
-            backend,
+            store,
         }
     }
 
     /// Evaluates whether a generic build unit can reuse work, relying on trust boundaries,
     /// taint states, and epoch invalidation logic.
     pub async fn plan_step(&self, unit: &BuildUnit) -> Result<CacheVerdict> {
-        let sql = backend_sql(
-            self.backend,
-            "SELECT namespace, created_at FROM action_cache WHERE action_key = ?",
-        );
-        let row: Option<(String, String)> = sqlx::query_as(&sql)
-            .bind(&unit.input_signature)
-            .fetch_optional(&self.pool)
-            .await?;
+        let entry = self.store.lookup(&unit.input_signature).await?;
 
-        let namespace = match row {
-            Some((ns, _)) => ns,
+        let namespace = match entry {
+            Some(e) => e.namespace,
             None => {
                 return Ok(CacheVerdict::Miss {
                     reasons: vec![MissReason::NoLocalCache],

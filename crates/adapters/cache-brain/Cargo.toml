@@ -1,0 +1,13 @@
+[package]
+name = "cache-brain-adapter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = "0.1"
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "postgres", "any"] }

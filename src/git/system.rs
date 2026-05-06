@@ -15,9 +15,9 @@ impl SystemGit {
     pub fn resolve() -> Result<Self> {
         let candidate = std::env::var("JERYU_SYSTEM_GIT")
             .ok()
-            .filter(|path| !path_is_recursive_shim(Path::new(path)))
+            .filter(|path| !path_is_recursive_bridge(Path::new(path)))
             .or_else(|| crate::settings::get().git.system_git.clone())
-            .filter(|path| !path_is_recursive_shim(Path::new(path)))
+            .filter(|path| !path_is_recursive_bridge(Path::new(path)))
             .or_else(find_git_on_path);
 
         let path = candidate
@@ -54,14 +54,14 @@ fn find_git_on_path() -> Option<String> {
     let path = std::env::var_os("PATH")?;
     for dir in std::env::split_paths(&path) {
         let candidate = dir.join("git");
-        if candidate.is_file() && !path_is_recursive_shim(&candidate) {
+        if candidate.is_file() && !path_is_recursive_bridge(&candidate) {
             return Some(candidate.display().to_string());
         }
     }
     None
 }
 
-fn path_is_recursive_shim(path: &Path) -> bool {
+fn path_is_recursive_bridge(path: &Path) -> bool {
     if path_matches_current_exe(path) {
         return true;
     }
@@ -90,12 +90,14 @@ mod tests {
     static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
     fn set_env(key: &str, value: impl AsRef<std::ffi::OsStr>) {
+        // SAFETY: tests isolate the process environment with a mutex.
         unsafe {
             std::env::set_var(key, value);
         }
     }
 
     fn remove_env(key: &str) {
+        // SAFETY: tests isolate the process environment with a mutex.
         unsafe {
             std::env::remove_var(key);
         }
@@ -133,20 +135,23 @@ mod tests {
     }
 
     #[test]
-    fn guarded_path_lookup_skips_jeryu_git_shim() {
+    fn guarded_path_lookup_skips_jeryu_git_bridge() {
         let _guard = ENV_LOCK.lock().unwrap();
         let dir = tempfile::tempdir().unwrap();
-        let shim_dir = dir.path().join("shim");
+        let bridge_dir = dir.path().join("bridge");
         let real_dir = dir.path().join("real");
-        fs::create_dir_all(&shim_dir).unwrap();
+        fs::create_dir_all(&bridge_dir).unwrap();
         fs::create_dir_all(&real_dir).unwrap();
-        let shim = shim_dir.join("git");
+        let bridge = bridge_dir.join("git");
         let real = real_dir.join("git");
-        write_executable(&shim, "#!/usr/bin/env sh\nexec jeryu git \"$@\"\n");
+        write_executable(&bridge, "#!/usr/bin/env sh\nexec jeryu git \"$@\"\n");
         write_executable(&real, "#!/usr/bin/env sh\nexit 0\n");
 
         let original_path = std::env::var_os("PATH");
-        set_env("PATH", std::env::join_paths([shim_dir, real_dir]).unwrap());
+        set_env(
+            "PATH",
+            std::env::join_paths([bridge_dir, real_dir]).unwrap(),
+        );
         set_env("JERYU_GIT_RECURSION_GUARD", "1");
         remove_env("JERYU_SYSTEM_GIT");
 

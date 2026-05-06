@@ -110,7 +110,7 @@ pub struct SccacheSettings {
 #[serde(default)]
 pub struct ReleaseSettings {
     /// Path to the release artifact repository root on disk.
-    /// Equivalent to the old JERYU_RELEASE_REPO_ROOT env var.
+    /// Equivalent to the previous JERYU_RELEASE_REPO_ROOT env var.
     pub repo_root: Option<String>,
     /// Default GitLab project ID for release tracking.
     pub default_project_id: i64,
@@ -138,7 +138,7 @@ pub struct MirrorSettings {
 #[serde(default)]
 pub struct SandboxSettings {
     /// Enable strict network namespace isolation in the custom executor sandbox.
-    /// Equivalent to the old JERYU_STRICT_SANDBOX env var (presence = enabled).
+    /// Equivalent to the previous JERYU_STRICT_SANDBOX env var (presence = enabled).
     pub strict_network_isolation: bool,
 }
 
@@ -279,7 +279,7 @@ pub fn settings_path() -> std::path::PathBuf {
 
 /// Load settings from `~/.jeryu/settings.json`.
 /// Creates the file with defaults if it does not exist.
-/// Unknown keys are ignored (forward-compat); missing keys use defaults (back-compat).
+/// Unknown keys are ignored for forward compatibility; missing keys use defaults for backward compatibility.
 pub fn load() -> Result<Settings> {
     let path = settings_path();
 

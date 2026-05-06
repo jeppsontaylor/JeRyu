@@ -429,7 +429,7 @@ enum ReleaseHealth {
     RemotePassed,
     E2ePassed,
     Failed,
-    Stale,
+    Outdated,
 }
 
 impl ReleaseHealth {
@@ -441,7 +441,7 @@ impl ReleaseHealth {
             Self::RemotePassed => "remote-passed",
             Self::E2ePassed => "e2e-passed",
             Self::Failed => "failed",
-            Self::Stale => "stale",
+            Self::Outdated => "outdated",
         }
     }
 
@@ -453,7 +453,7 @@ impl ReleaseHealth {
             Self::RemotePassed => "awaiting-final-proof",
             Self::E2ePassed => "released",
             Self::Failed => "requires-investigation",
-            Self::Stale => "artifact-contract-broken",
+            Self::Outdated => "artifact-contract-broken",
         }
     }
 }
@@ -845,7 +845,7 @@ fn punchlist_freshness(root: &Path, winning_sha: Option<&str>, version: Option<&
         {
             freshness.to_string()
         }
-        (Some(_), Some(_)) => "stale-for-sha".to_string(),
+        (Some(_), Some(_)) => "outdated-for-sha".to_string(),
         _ => "missing-winning-sha".to_string(),
     }
 }
@@ -1025,7 +1025,7 @@ fn derive_release_health(attempt: &ReleaseAttempt, evidence: &ReleaseEvidence) -
         return ReleaseHealth::E2ePassed;
     }
     if !evidence.release_identity_ok {
-        return ReleaseHealth::Stale;
+        return ReleaseHealth::Outdated;
     }
     if matches!(evidence.state_status.as_deref(), Some("failed"))
         || attempt.canary_status == "failed"
@@ -1039,13 +1039,13 @@ fn derive_release_health(attempt: &ReleaseAttempt, evidence: &ReleaseEvidence) -
         return ReleaseHealth::RemotePassed;
     }
     if matches!(evidence.state_status.as_deref(), Some("passed")) && !evidence.has_e2e_gate {
-        return ReleaseHealth::Stale;
+        return ReleaseHealth::Outdated;
     }
     if matches!(evidence.state_status.as_deref(), Some("running"))
         || attempt.canary_status == "running"
     {
         return if is_stale_attempt(attempt, evidence) {
-            ReleaseHealth::Stale
+            ReleaseHealth::Outdated
         } else {
             ReleaseHealth::Running
         };
@@ -1076,7 +1076,7 @@ fn derived_note(
     {
         return Some(note.clone());
     }
-    if health == ReleaseHealth::Stale {
+    if health == ReleaseHealth::Outdated {
         return Some("release evidence is incomplete for this version".to_string());
     }
     None
@@ -1630,7 +1630,7 @@ pub async fn build_progress_report(
     } else if !release_execution.e2e_gate {
         Some("canary e2e gate missing".to_string())
     } else if !release_execution.punchlist_current {
-        Some("punchlist is stale for winning sha".to_string())
+        Some("punchlist is outdated for winning sha".to_string())
     } else {
         None
     };
@@ -2277,10 +2277,7 @@ async fn pipeline_matches_release_sha(
         .await
     {
         Ok(variables) => Ok(variables.iter().any(|variable| {
-            matches!(
-                variable.key.as_str(),
-                "JERYU_RELEASE_SHA"
-            ) && variable.value == release_sha
+            matches!(variable.key.as_str(), "JERYU_RELEASE_SHA") && variable.value == release_sha
         })),
         Err(err) => {
             warn!(
@@ -2503,7 +2500,7 @@ pub async fn build_pipeline_doctor_report(
             let slow = slow_factor
                 .map(|value| format!("{value:.2}x"))
                 .unwrap_or_else(|| "n/a".to_string());
-            "trace looks stale relative to historical runtime; recycle the runner or retry after checking trace capture".to_string()
+            "trace looks outdated relative to historical runtime; recycle the runner or retry after checking trace capture".to_string()
                 + &format!(" (avg={}, slow={})", avg, slow)
         } else if stuck_suspected && job.status == "running" {
             "cancel/retry this job or recycle its runner; it is materially slower than historical timing".to_string()
@@ -2624,7 +2621,7 @@ pub fn render_pipeline_doctor_text(report: &PipelineDoctorReport) -> String {
                 let _ = writeln!(out, "      recommendation: {}", job.recommendation);
             }
             if job.stale_trace_suspected {
-                let _ = writeln!(out, "      trace: stale compared with historical timing");
+                let _ = writeln!(out, "      trace: outdated compared with historical timing");
             }
         }
     }

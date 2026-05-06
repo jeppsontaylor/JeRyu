@@ -11,7 +11,7 @@ use crate::model::{BenchVariantResult, ExceptionCaseResult, ExceptionCaseSpec, S
 
 pub fn run(output: &Path) -> Result<ScenarioReport> {
     let root = workspace_root();
-    let manifest_path = root.join("proof/labs/exception-zoo/manifest.json");
+    let manifest_path = root.join("proof/examples/labs/exception-zoo/manifest.json");
     let payload = fs::read_to_string(&manifest_path)
         .with_context(|| format!("failed to read {}", manifest_path.display()))?;
     let specs: Vec<ExceptionCaseSpec> = serde_json::from_str(&payload)
@@ -79,18 +79,17 @@ pub fn run(output: &Path) -> Result<ScenarioReport> {
 fn run_scan_case(root: &Path, spec: &ExceptionCaseSpec) -> Result<(bool, String)> {
     let manifest = root.join(&spec.manifest_path);
     let report = scan_workspace(Some(&manifest))?;
-    let observed = report
+    let observed = match report
         .findings
         .iter()
         .find(|finding| finding.class_id == spec.expected_signal)
-        .map(|finding| finding.class_id.clone())
-        .unwrap_or_else(|| {
-            report
-                .findings
-                .first()
-                .map(|finding| finding.class_id.clone())
-                .unwrap_or_else(|| "no-finding".to_string())
-        });
+    {
+        Some(finding) => finding.class_id.clone(),
+        None => match report.findings.first() {
+            Some(finding) => finding.class_id.clone(),
+            None => "no-finding".to_string(),
+        },
+    };
     Ok((observed == spec.expected_signal, observed))
 }
 
@@ -118,11 +117,14 @@ fn run_cargo_case(
 }
 
 fn first_signal(output: &str) -> String {
-    output
+    if let Some(line) = output
         .lines()
         .find(|line| line.contains("error") || line.contains("panicked"))
-        .map(|line| line.trim().to_string())
-        .unwrap_or_else(|| "no-error-line-found".to_string())
+    {
+        line.trim().to_string()
+    } else {
+        "no-error-line-found".to_string()
+    }
 }
 
 fn workspace_root() -> PathBuf {

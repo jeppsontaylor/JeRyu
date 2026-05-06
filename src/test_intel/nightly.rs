@@ -178,7 +178,7 @@ pub fn learn_from_audit(report: &AuditReport) -> LearnResult {
 
     if report.accuracy < 0.95 {
         suggestions.push(format!(
-            "WARNING: VTI accuracy {:.1}% is below 95% threshold. Consider fallback to full until rules are fixed.",
+            "WARNING: VTI accuracy {:.1}% is below 95% threshold. Consider recovery to full until rules are fixed.",
             report.accuracy * 100.0
         ));
     }
@@ -280,7 +280,7 @@ fn extract_test_patterns(command: &str) -> Vec<String> {
         }
     }
     if patterns.is_empty() && !command.is_empty() {
-        // Fallback: use the whole command as a pattern
+        // Recovery path: use the whole command as a pattern
         patterns.push(command.to_string());
     }
     patterns
@@ -392,7 +392,7 @@ mod tests {
     }
 
     #[test]
-    fn extract_patterns_fallback() {
+    fn extract_patterns_recovery() {
         let patterns = extract_test_patterns("cargo test --lib");
         assert_eq!(patterns, vec!["cargo test --lib"]);
     }

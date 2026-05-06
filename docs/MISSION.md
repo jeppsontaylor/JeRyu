@@ -59,7 +59,7 @@ The most common complaints about modern Git and CI workflows are structural:
 - logs and status views rarely explain why work ran, skipped, stalled, failed,
   retried, or was canceled;
 - approval, secrets, and credential models were designed around humans and broad
-  automation tokens, not scoped autonomous agents.
+  automation grants, not scoped autonomous agents.
 
 These are all symptoms of the same missing layer. Current systems are good at
 executing predefined work, but weak at deciding what work is still valid after
@@ -126,7 +126,7 @@ interfaces:
 - **Confidence Gate**: classifies whether a failure is likely transient,
   infrastructural, flaky, or a real product regression.
 - **Risk Gate**: enforces least-privilege policy for merges, deploys, secrets,
-  remote access, cache promotion, token use, and destructive operations.
+  remote access, cache promotion, scoped credential use, and destructive operations.
 - **Proof Receipt**: records why a validation plan was sufficient, what ran, what
   was skipped, what evidence was reused, and what uncertainty remains.
 

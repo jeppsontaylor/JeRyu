@@ -113,16 +113,16 @@ pub(crate) struct CapabilityContext {
     request_id: String,
     actor: String,
     protocol_version: String,
-    compat: bool,
+    bridge_mode: bool,
 }
 
 impl CapabilityContext {
-    pub(crate) fn compat() -> Self {
+    pub(crate) fn bridge() -> Self {
         Self {
-            request_id: format!("compat-{}", uuid::Uuid::new_v4()),
-            actor: "compat-capability-client".to_string(),
-            protocol_version: "compat-agent-intent".to_string(),
-            compat: true,
+            request_id: format!("bridge-{}", uuid::Uuid::new_v4()),
+            actor: "bridge-capability-client".to_string(),
+            protocol_version: "bridge-agent-intent".to_string(),
+            bridge_mode: true,
         }
     }
 
@@ -131,7 +131,7 @@ impl CapabilityContext {
             request_id,
             actor,
             protocol_version,
-            compat: false,
+            bridge_mode: false,
         }
     }
 }
@@ -139,7 +139,7 @@ impl CapabilityContext {
 #[derive(Debug)]
 enum ParsedCapabilityRequest {
     Enveloped(Box<AgentActionRequest>),
-    Compat(AgentIntent),
+    Bridge(AgentIntent),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -232,7 +232,7 @@ pub async fn start_capability_server(
                                     request_id = %ctx.request_id,
                                     actor = %ctx.actor,
                                     protocol_version = %ctx.protocol_version,
-                                    compat = ctx.compat,
+                                    bridge_mode = ctx.bridge_mode,
                                     "capability request accepted"
                                 );
                                 execute_intent(intent, &ctx, &client).await
@@ -858,7 +858,7 @@ async fn record_branch_capability_grant(
         "protocol_version": ctx.protocol_version,
         "request_id": ctx.request_id,
         "actor": ctx.actor,
-        "compat": ctx.compat,
+        "bridge_mode": ctx.bridge_mode,
         "scope": {
             "project_id": project_id,
             "ref_name": ref_name,
@@ -921,14 +921,14 @@ fn parse_capability_request(bytes: &[u8]) -> anyhow::Result<ParsedCapabilityRequ
     }
 
     let intent = serde_json::from_slice::<AgentIntent>(bytes)?;
-    Ok(ParsedCapabilityRequest::Compat(intent))
+    Ok(ParsedCapabilityRequest::Bridge(intent))
 }
 
 fn validate_capability_request(
     parsed: ParsedCapabilityRequest,
 ) -> anyhow::Result<(AgentIntent, CapabilityContext)> {
     match parsed {
-        ParsedCapabilityRequest::Compat(intent) => Ok((intent, CapabilityContext::compat())),
+        ParsedCapabilityRequest::Bridge(intent) => Ok((intent, CapabilityContext::bridge())),
         ParsedCapabilityRequest::Enveloped(request) => {
             if request.protocol_version != CAPABILITY_PROTOCOL_VERSION {
                 anyhow::bail!(
@@ -971,7 +971,7 @@ fn validate_capability_request(
                 request_id: request.request_id,
                 actor: request.actor,
                 protocol_version: request.protocol_version,
-                compat: false,
+                bridge_mode: false,
             };
             Ok((request.intent, ctx))
         }
@@ -1018,7 +1018,7 @@ mod tests {
         let parsed = parse_capability_request(&framed).unwrap();
         let (intent, ctx) = validate_capability_request(parsed).unwrap();
         assert!(matches!(intent, AgentIntent::ListAllowedActions));
-        assert!(!ctx.compat);
+        assert!(!ctx.bridge_mode);
         assert_eq!(ctx.actor, "agent:test");
     }
 

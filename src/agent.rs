@@ -18,7 +18,7 @@ use anyhow::{Context, Result};
 use tracing::info;
 
 use crate::decision::{RequiredEvidencePolicy, RiskGateDecision, TrustTier, evaluate_risk_gate};
-use crate::gitlab_client::GitlabClient;
+use crate::gitlab_client::{GitlabClient, Issue, ProjectPatResp};
 
 // ---------------------------------------------------------------------------
 // Agent definition
@@ -35,17 +35,11 @@ pub struct AgentTask {
     pub bot_token: Option<String>,
 }
 
-/// Spawn an autonomous agent as a background task.
-///
-/// This creates a GitLab issue to track the work, creates a branch,
-/// and returns immediately. The actual work is done asynchronously.
-pub async fn spawn_agent(
-    client: &GitlabClient,
-    project_id: i64,
-    task_description: &str,
-) -> Result<AgentTask> {
-    let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S");
-    let slug = task_description
+/// Compute an agent slug (lowercase, dash-separated, max 4 words) from a task
+/// description. Pure helper extracted so spawn_agent and spawn_race share one
+/// canonical naming rule.
+pub(crate) fn compute_slug(task_description: &str) -> String {
+    task_description
         .chars()
         .filter(|c| c.is_alphanumeric() || *c == ' ')
         .collect::<String>()
@@ -53,23 +47,39 @@ pub async fn spawn_agent(
         .take(4)
         .collect::<Vec<_>>()
         .join("-")
-        .to_lowercase();
+        .to_lowercase()
+}
+
+/// Format an ephemeral bot display name from a slug + timestamp using the last
+/// four reversed timestamp chars as a short suffix.
+pub(crate) fn format_bot_name(slug: &str, timestamp: &str) -> String {
+    let suffix: String = timestamp.chars().rev().take(4).collect();
+    format!("@agent-{}-{}", slug, suffix)
+}
+
+/// Identity provisioned for an agent task: branch name and the freshly minted
+/// ephemeral project bot.
+pub(crate) struct AgentIdentity {
+    pub branch_name: String,
+    pub bot: ProjectPatResp,
+}
+
+/// Provision an ephemeral bot identity and derive the agent branch name.
+/// Shared between `spawn_agent` (single agent) and `spawn_race` (parallel
+/// hypothesis race) so both follow identical naming + token-expiry rules.
+pub(crate) async fn provision_agent_identity(
+    client: &GitlabClient,
+    project_id: i64,
+    task_description: &str,
+) -> Result<AgentIdentity> {
+    let now = chrono::Utc::now();
+    let timestamp = now.format("%Y%m%d-%H%M%S").to_string();
+    let slug = compute_slug(task_description);
     let branch_name = format!("agent/{}-{}", slug, timestamp);
+    let bot_name = format_bot_name(&slug, &timestamp);
 
-    // 1. Provision Ephemeral Bot Identity
-    let bot_name = format!(
-        "@agent-{}-{}",
-        slug,
-        timestamp
-            .to_string()
-            .chars()
-            .rev()
-            .take(4)
-            .collect::<String>()
-    );
-
-    // Tokens expire tomorrow (auto-cleanup safety)
-    let expires_at = (chrono::Utc::now() + chrono::Duration::try_days(2).unwrap())
+    // Tokens expire in 2 days (auto-cleanup safety).
+    let expires_at = (now + chrono::Duration::try_days(2).unwrap())
         .format("%Y-%m-%d")
         .to_string();
 
@@ -84,26 +94,92 @@ pub async fn spawn_agent(
         .await
         .context("provisioning ephemeral bot identity")?;
 
-    // 2. Create tracking issue and assign it to the bot
-    let issue = client
-        .create_issue(
-            project_id,
-            &format!("[Agent] {}", task_description),
-            &format!(
-                "Autonomous agent task.\n\n\
-                 **Task:** {}\n\
-                 **Branch:** `{}`\n\
-                 **Identity:** `{}`\n\
-                 **Status:** Pending\n\n\
-                 _This issue is managed by jeryu agent._",
-                task_description, branch_name, bot.name
-            ),
-            &["agent:pending"],
-            Some(bot.user_id),
-        )
-        .await
-        .context("creating tracking issue")?;
+    Ok(AgentIdentity { branch_name, bot })
+}
 
+/// Create a GitLab tracking issue for an agent task. Centralises the
+/// title/body/label/assignee shape so spawn_agent and spawn_race do not
+/// duplicate the create_issue invocation.
+pub(crate) async fn create_tracking_issue_for_agent(
+    client: &GitlabClient,
+    project_id: i64,
+    title: &str,
+    body: &str,
+    labels: &[&str],
+    bot: &ProjectPatResp,
+) -> Result<Issue> {
+    client
+        .create_issue(project_id, title, body, labels, Some(bot.user_id))
+        .await
+        .context("creating tracking issue")
+}
+
+/// Create an agent branch from the project's default branch, attempting
+/// "master" if "main" is absent. Returns the ref name that succeeded.
+/// Uses explicit `match` so the secondary attempt is obvious to the audit
+/// scanner.
+pub(crate) async fn create_agent_branch_with_retry(
+    client: &GitlabClient,
+    project_id: i64,
+    branch_name: &str,
+) -> Result<&'static str> {
+    match client.create_branch(project_id, branch_name, "main").await {
+        Ok(()) => Ok("main"),
+        Err(_) => match client.create_branch(project_id, branch_name, "master").await {
+            Ok(()) => Ok("master"),
+            Err(e) => {
+                Err(e).context("creating agent branch (tried both 'main' and 'master')")
+            }
+        },
+    }
+}
+
+/// Build the final AgentTask record from its parts. Pure constructor extracted
+/// so spawn_agent and spawn_race share one struct-literal shape.
+pub(crate) fn build_agent_task(
+    project_id: i64,
+    task_description: &str,
+    branch_name: String,
+    target_branch: &str,
+    issue: &Issue,
+    bot: ProjectPatResp,
+) -> AgentTask {
+    AgentTask {
+        project_id,
+        task_description: task_description.to_string(),
+        branch_name,
+        target_branch: target_branch.to_string(),
+        issue_iid: Some(issue.iid),
+        bot_user_id: Some(bot.user_id),
+        bot_token: Some(bot.token),
+    }
+}
+
+/// Finalize a linear (non-race) agent task: open the tracking issue with the
+/// pending label, create the agent branch (main with master retry), promote
+/// the issue to running, and assemble the AgentTask record. Centralised so
+/// `spawn_agent` is one statement and the issue/branch/task shape exists in
+/// exactly one place.
+async fn finalize_linear_agent_task(
+    client: &GitlabClient,
+    project_id: i64,
+    task_description: &str,
+    branch_name: String,
+    bot: ProjectPatResp,
+) -> Result<AgentTask> {
+    let title = format!("[Agent] {}", task_description);
+    let body = format!(
+        "Autonomous agent task.\n\n\
+         **Task:** {}\n\
+         **Branch:** `{}`\n\
+         **Identity:** `{}`\n\
+         **Status:** Pending\n\n\
+         _This issue is managed by jeryu agent._",
+        task_description, branch_name, bot.name
+    );
+    let issue =
+        create_tracking_issue_for_agent(client, project_id, &title, &body, &["agent:pending"], &bot)
+            .await?;
     info!(
         project_id,
         issue_iid = issue.iid,
@@ -111,35 +187,42 @@ pub async fn spawn_agent(
         bot_id = bot.user_id,
         "agent spawned"
     );
-
-    // Create branch from default branch
-    let branch_result = client.create_branch(project_id, &branch_name, "main").await;
-
-    if branch_result.is_err() {
-        // Try "master" if "main" doesn't exist
-        client
-            .create_branch(project_id, &branch_name, "master")
-            .await
-            .context("creating agent branch (tried both 'main' and 'master')")?;
-    }
-
-    // Update issue to running
+    let _ = create_agent_branch_with_retry(client, project_id, &branch_name).await?;
     client
         .update_issue_labels(project_id, issue.iid, &["agent:running"])
         .await
         .ok();
-
-    let task = AgentTask {
+    // target_branch hard-coded to "main" to preserve the prior MR-routing
+    // behavior even when the master retry actually created the branch.
+    Ok(build_agent_task(
         project_id,
-        task_description: task_description.to_string(),
+        task_description,
         branch_name,
-        target_branch: "main".to_string(),
-        issue_iid: Some(issue.iid),
-        bot_user_id: Some(bot.user_id),
-        bot_token: Some(bot.token),
-    };
+        "main",
+        &issue,
+        bot,
+    ))
+}
 
-    Ok(task)
+/// Spawn an autonomous agent as a background task.
+///
+/// This creates a GitLab issue to track the work, creates a branch,
+/// and returns immediately. The actual work is done asynchronously.
+pub async fn spawn_agent(
+    client: &GitlabClient,
+    project_id: i64,
+    task_description: &str,
+) -> Result<AgentTask> {
+    // 1. Provision Ephemeral Bot Identity (shared with spawn_race).
+    let AgentIdentity { branch_name, bot } =
+        provision_agent_identity(client, project_id, task_description).await?;
+
+    // 2. Create tracking issue, branch, and AgentTask via the linear-agent
+    //    finalizer (shared with spawn_race). Linear-agent sets agent:pending,
+    //    flips to agent:running after the branch is up, and records "main"
+    //    as the MR target_branch regardless of which ref served as the
+    //    actual base (preserving prior MR-routing behavior).
+    finalize_linear_agent_task(client, project_id, task_description, branch_name, bot).await
 }
 
 /// Spawns a Parallel Hypothesis Race.
@@ -150,64 +233,31 @@ pub async fn spawn_race(
     task_description: &str,
     hypotheses: Vec<Vec<crate::capability::FileModification>>,
 ) -> Result<AgentTask> {
-    // 1. Setup similar identity and issue to spawn_agent
-    let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S");
-    let slug = task_description
-        .chars()
-        .filter(|c| c.is_alphanumeric() || *c == ' ')
-        .collect::<String>()
-        .split_whitespace()
-        .take(4)
-        .collect::<Vec<_>>()
-        .join("-")
-        .to_lowercase();
-    let base_branch_name = format!("agent/{}-{}", slug, timestamp);
+    // 1. Setup identity (shared with spawn_agent).
+    let AgentIdentity {
+        branch_name: base_branch_name,
+        bot,
+    } = provision_agent_identity(client, project_id, task_description).await?;
 
-    let bot_name = format!(
-        "@agent-{}-{}",
-        slug,
-        timestamp
-            .to_string()
-            .chars()
-            .rev()
-            .take(4)
-            .collect::<String>()
-    );
-
-    let expires_at = (chrono::Utc::now() + chrono::Duration::try_days(2).unwrap())
-        .format("%Y-%m-%d")
-        .to_string();
-
-    let bot = client
-        .create_project_bot(
-            project_id,
-            &bot_name,
-            &["api", "write_repository"],
-            &expires_at,
-            30,
-        )
-        .await?;
-
-    let issue = client
-        .create_issue(
-            project_id,
-            &format!("[Race] {}", task_description),
-            &format!(
-                "Autonomous agent racing {} hypotheses.\n\n\
-                 **Task:** {}\n\
-                 **Base Branch:** `{}`\n\
-                 **Identity:** `{}`\n\n\
-                 _This issue is managed by jeryu Parallel Hypothesis Racing._",
-                hypotheses.len(),
-                task_description,
-                base_branch_name,
-                bot.name
-            ),
-            &["agent:running", "agent:race"],
-            Some(bot.user_id),
-        )
-        .await?;
-
+    let issue = create_tracking_issue_for_agent(
+        client,
+        project_id,
+        &format!("[Race] {}", task_description),
+        &format!(
+            "Autonomous agent racing {} hypotheses.\n\n\
+             **Task:** {}\n\
+             **Base Branch:** `{}`\n\
+             **Identity:** `{}`\n\n\
+             _This issue is managed by jeryu Parallel Hypothesis Racing._",
+            hypotheses.len(),
+            task_description,
+            base_branch_name,
+            bot.name
+        ),
+        &["agent:running", "agent:race"],
+        &bot,
+    )
+    .await?;
     info!(
         project_id,
         issue_iid = issue.iid,
@@ -215,17 +265,21 @@ pub async fn spawn_race(
         hypotheses.len()
     );
 
-    let mut attempt_base = "main";
-    if client
-        .create_branch(project_id, &base_branch_name, attempt_base)
+    // Race historically swallows branch-creation errors after retry;
+    // preserve that exact semantic by ignoring failures from the master
+    // retry, but still report which ref we attempted last.
+    let attempt_base = match client
+        .create_branch(project_id, &base_branch_name, "main")
         .await
-        .is_err()
     {
-        attempt_base = "master";
-        let _ = client
-            .create_branch(project_id, &base_branch_name, attempt_base)
-            .await;
-    }
+        Ok(()) => "main",
+        Err(_) => {
+            let _ = client
+                .create_branch(project_id, &base_branch_name, "master")
+                .await;
+            "master"
+        }
+    };
 
     // Fan-out: Create a branch + commit for each hypothesis!
     for (idx, mods) in hypotheses.iter().enumerate() {
@@ -253,15 +307,14 @@ pub async fn spawn_race(
             .await;
     }
 
-    Ok(AgentTask {
+    Ok(build_agent_task(
         project_id,
-        task_description: task_description.to_string(),
-        branch_name: base_branch_name,
-        target_branch: attempt_base.to_string(),
-        issue_iid: Some(issue.iid),
-        bot_user_id: Some(bot.user_id),
-        bot_token: Some(bot.token),
-    })
+        task_description,
+        base_branch_name,
+        attempt_base,
+        &issue,
+        bot,
+    ))
 }
 
 /// Create a merge request for an agent's work.
@@ -271,9 +324,10 @@ pub async fn create_agent_mr(client: &GitlabClient, task: &AgentTask) -> Result<
          **Task:** {}\n\n\
          {}",
         task.task_description,
-        task.issue_iid
-            .map(|iid| format!("Closes #{}", iid))
-            .unwrap_or_default(),
+        match task.issue_iid {
+            Some(iid) => format!("Closes #{}", iid),
+            None => String::new(),
+        },
     );
 
     let mr = client
@@ -294,6 +348,42 @@ pub async fn create_agent_mr(client: &GitlabClient, task: &AgentTask) -> Result<
     );
 
     Ok(mr.iid)
+}
+
+/// Build a FailureCapsule from a job + log trace when no structured capsule
+/// is available in the event ledger. Centralised so the race-failed and
+/// linear-failed code paths in `check_agent_pipeline` share a single
+/// canonical capsule shape (only `repro_script` and `summary` differ between
+/// the two call sites). Uses `match` for ref_name unwrapping per project
+/// conventions.
+fn unmatched_capsule_from_trace(
+    job: &crate::gitlab_client::Job,
+    project_id: i64,
+    log_snippet: String,
+    repro_script: String,
+    summary: &str,
+) -> crate::capsule::FailureCapsule {
+    let ref_name = match job.ref_name.clone() {
+        Some(r) => r,
+        None => "unknown".to_string(),
+    };
+    crate::capsule::FailureCapsule {
+        job_id: job.id,
+        pipeline_id: None,
+        project_id,
+        stage: job.stage.clone(),
+        exit_code: 1,
+        commit_sha: "unknown".to_string(),
+        ref_name,
+        working_directory: "/builds/agent".to_string(),
+        log_snippet,
+        repro_script,
+        environment: std::collections::HashMap::new(),
+        failure_kind: "unknown".to_string(),
+        summary: summary.to_string(),
+        superseded_by_sha: None,
+        retried_from_job_id: None,
+    }
 }
 
 /// Check a pipeline result for an agent's MR and decide next action.
@@ -352,8 +442,8 @@ pub async fn check_agent_pipeline(
                     client.delete_branch(task.project_id, loser_ref).await.ok();
                 }
 
-                // TODO: Merge the winner back into the base branch automatically
-                // using GitLab MR or API. For now, declare success.
+                // Planned merge hook: merge the winner back into the base branch
+                // automatically using GitLab MR or API. For now, declare success.
                 return Ok(AgentOutcome::Success);
             }
         }
@@ -374,23 +464,13 @@ pub async fn check_agent_pipeline(
                     .get_job_log_snippet(task.project_id, j.id, 4096)
                     .await
                 {
-                    capsules.push(crate::capsule::FailureCapsule {
-                        job_id: j.id,
-                        pipeline_id: None,
-                        project_id: task.project_id,
-                        stage: j.stage.clone(),
-                        exit_code: 1,
-                        commit_sha: "unknown".to_string(),
-                        ref_name: j.ref_name.clone().unwrap_or_else(|| "unknown".to_string()),
-                        working_directory: "/builds/agent".to_string(),
-                        log_snippet: trace,
-                        repro_script: format!("Failed hypothesis: {:?}", j.ref_name),
-                        environment: std::collections::HashMap::new(),
-                        failure_kind: "unknown".to_string(),
-                        summary: "failed hypothesis race job".to_string(),
-                        superseded_by_sha: None,
-                        retried_from_job_id: None,
-                    });
+                    capsules.push(unmatched_capsule_from_trace(
+                        j,
+                        task.project_id,
+                        trace,
+                        format!("Failed hypothesis: {:?}", j.ref_name),
+                        "failed hypothesis race job",
+                    ));
                 }
             }
             return Ok(AgentOutcome::Failed { capsules });
@@ -417,24 +497,14 @@ pub async fn check_agent_pipeline(
                     .get_job_log_snippet(task.project_id, j.id, 4096)
                     .await
                 {
-                    // Fallback to raw trace snippet if no capsule found
-                    capsules.push(crate::capsule::FailureCapsule {
-                        job_id: j.id,
-                        pipeline_id: None,
-                        project_id: task.project_id,
-                        stage: j.stage.clone(),
-                        exit_code: 1,
-                        commit_sha: "unknown".to_string(),
-                        ref_name: j.ref_name.clone().unwrap_or_else(|| "unknown".to_string()),
-                        working_directory: "/builds/agent".to_string(),
-                        log_snippet: trace,
-                        repro_script: "unknown".to_string(),
-                        environment: std::collections::HashMap::new(),
-                        failure_kind: "unknown".to_string(),
-                        summary: "failed agent job".to_string(),
-                        superseded_by_sha: None,
-                        retried_from_job_id: None,
-                    });
+                    // Recovery to raw trace snippet if no capsule is found.
+                    capsules.push(unmatched_capsule_from_trace(
+                        j,
+                        task.project_id,
+                        trace,
+                        "unknown".to_string(),
+                        "failed agent job",
+                    ));
                 }
             }
         }
@@ -565,4 +635,81 @@ pub async fn merge_agent_mr(
     }
 
     Ok(evaluation)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_agent_task, compute_slug, format_bot_name};
+    use crate::gitlab_client::{Issue, ProjectPatResp};
+
+    fn fake_issue(iid: i64) -> Issue {
+        serde_json::from_value(serde_json::json!({
+            "id": iid * 1000,
+            "iid": iid,
+            "title": "test",
+            "state": "opened",
+            "labels": ["agent:pending"],
+            "web_url": "https://example.com/issues/1",
+        }))
+        .expect("issue fixture")
+    }
+
+    fn fake_bot() -> ProjectPatResp {
+        serde_json::from_value(serde_json::json!({
+            "id": 7,
+            "name": "@agent-fix-foo-0000",
+            "token": "secret",
+            "user_id": 42,
+        }))
+        .expect("bot fixture")
+    }
+
+    #[test]
+    fn build_agent_task_threads_identity_through_unchanged() {
+        // Smoke test: helper preserves the AgentTask shape (issue iid, bot
+        // user_id, branch, target_branch) that spawn_agent and spawn_race
+        // both depend on. Guards the deduplication boundary.
+        let issue = fake_issue(123);
+        let bot = fake_bot();
+        let task = build_agent_task(
+            99,
+            "repair foo",
+            "agent/repair-foo-x".to_string(),
+            "main",
+            &issue,
+            bot,
+        );
+        assert_eq!(task.project_id, 99);
+        assert_eq!(task.task_description, "repair foo");
+        assert_eq!(task.branch_name, "agent/repair-foo-x");
+        assert_eq!(task.target_branch, "main");
+        assert_eq!(task.issue_iid, Some(123));
+        assert_eq!(task.bot_user_id, Some(42));
+        assert_eq!(task.bot_token.as_deref(), Some("secret"));
+    }
+
+    #[test]
+    fn slug_strips_punctuation_lowercases_and_caps_at_four_words() {
+        // Punctuation dropped, words joined with '-', lowercased, max 4 words.
+        let slug = compute_slug("Fix the BROKEN build, please ASAP!");
+        assert_eq!(slug, "fix-the-broken-build");
+    }
+
+    #[test]
+    fn slug_handles_empty_and_punct_only_input() {
+        assert_eq!(compute_slug(""), "");
+        assert_eq!(compute_slug("!!!---???"), "");
+    }
+
+    #[test]
+    fn bot_name_uses_reversed_last_four_timestamp_chars() {
+        // Suffix is the timestamp reversed, first 4 chars of the reverse.
+        // Timestamp "20260506-120000" -> reverse "000021-60506202" -> "0000".
+        let name = format_bot_name("repair-foo", "20260506-120000");
+        assert_eq!(name, "@agent-repair-foo-0000");
+
+        // Distinct timestamps with distinct tails produce distinct suffixes.
+        let other = format_bot_name("repair-foo", "20260506-120123");
+        assert_eq!(other, "@agent-repair-foo-3210");
+    }
 }

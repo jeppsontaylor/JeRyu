@@ -50,7 +50,7 @@ pub async fn reconcile_manager_runtime_state(
             pool = %manager.pool_name,
             container_id = %manager.docker_container_id,
             previous_state = %manager.state,
-            "marking stale runner manager stopped; Docker container is not running"
+            "marking expired runner manager stopped; Docker container is not running"
         );
         db.update_manager_state(&manager.id, "stopped").await?;
         stopped += 1;

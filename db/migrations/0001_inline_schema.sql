@@ -1,0 +1,19 @@
+-- Migration: 0001 — inline schema marker
+--
+-- jeryu's durable state is a local SQLite (or in-memory) cache, and the
+-- live schema is embedded in `src/state.rs`, `src/epoch.rs`, and
+-- `src/cache_brain.rs`. Migrations are applied via `CREATE TABLE IF NOT
+-- EXISTS` at startup, not from this directory.
+--
+-- This file exists so the `[db]` boundary in `agent/boundaries.toml`
+-- routes to a real migration artifact while the in-code schema remains
+-- authoritative. If the schema is ever extracted into discrete migration
+-- files, replace this marker with a real `0001_initial.sql` and continue
+-- numbering forward.
+--
+-- Authoritative schema sources (do not duplicate here without a plan):
+--   src/state.rs:810   pools, managers, job_events, ci_job_runs, ...
+--   src/epoch.rs:100   cache_epochs
+--
+-- Intentionally a no-op:
+SELECT 1 AS inline_schema_marker;

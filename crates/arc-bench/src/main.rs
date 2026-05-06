@@ -74,7 +74,10 @@ fn run() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Command::Run { scenario, output } => {
-            let output = output.unwrap_or_else(|| default_output(scenario));
+            let output = match output {
+                Some(path) => path,
+                None => default_output(scenario),
+            };
             if let Some(parent) = output.parent() {
                 fs::create_dir_all(parent)
                     .with_context(|| format!("failed to create {}", parent.display()))?;
@@ -188,13 +191,15 @@ fn build_report(reports: &[ScenarioReport]) -> String {
 }
 
 fn render_option<T: std::fmt::Display>(value: Option<T>) -> String {
-    value
-        .map(|value| value.to_string())
-        .unwrap_or_else(|| "-".to_string())
+    match value {
+        Some(value) => value.to_string(),
+        None => "-".to_string(),
+    }
 }
 
 fn render_float(value: Option<f64>) -> String {
-    value
-        .map(|value| format!("{value:.2}"))
-        .unwrap_or_else(|| "-".to_string())
+    match value {
+        Some(value) => format!("{value:.2}"),
+        None => "-".to_string(),
+    }
 }

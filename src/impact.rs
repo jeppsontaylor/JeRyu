@@ -1,6 +1,6 @@
 //! Owner: Change Impact Analysis
 //! Proof: `cargo test -p jeryu -- impact`
-//! Invariants: Conservative fallback on empty diff or broad config change; docs-only skips heavy validation
+//! Invariants: Conservative widening on empty diff or broad config change; docs-only skips heavy validation
 
 use anyhow::{Context, Result};
 use git2::{Cred, DiffOptions, FetchOptions, Oid, RemoteCallbacks, Repository, build::RepoBuilder};
@@ -21,11 +21,8 @@ pub async fn plan_for_push(
             after: after.to_string(),
             affected_paths: Vec::new(),
             selected_lanes: vec![ImpactLane::Full],
-            reason_codes: vec![
-                "new_branch_push".to_string(),
-                "conservative_fallback".to_string(),
-            ],
-            conservative_fallback: true,
+            reason_codes: vec!["new_branch_push".to_string(), "widened_to_full".to_string()],
+            widened_to_full: true,
         });
     }
 
@@ -46,13 +43,13 @@ pub fn plan_from_changed_paths(
 ) -> ImpactDecision {
     let mut lanes = Vec::new();
     let mut reasons = Vec::new();
-    let mut fallback = false;
+    let mut widened_to_full = false;
 
     if changed_paths.is_empty() {
         lanes.push(ImpactLane::Full);
         reasons.push("empty_diff".to_string());
-        reasons.push("conservative_fallback".to_string());
-        fallback = true;
+        reasons.push("widened_to_full".to_string());
+        widened_to_full = true;
     } else {
         let touches_src = changed_paths
             .iter()
@@ -76,7 +73,7 @@ pub fn plan_from_changed_paths(
         if touches_broad {
             lanes.push(ImpactLane::Full);
             reasons.push("broad_config_change".to_string());
-            fallback = true;
+            widened_to_full = true;
         } else if touches_docs_only {
             lanes.push(ImpactLane::DocsOnly);
             reasons.push("docs_only_change".to_string());
@@ -92,8 +89,8 @@ pub fn plan_from_changed_paths(
             if lanes.is_empty() {
                 lanes.push(ImpactLane::Full);
                 reasons.push("unknown_file_change".to_string());
-                reasons.push("conservative_fallback".to_string());
-                fallback = true;
+                reasons.push("widened_to_full".to_string());
+                widened_to_full = true;
             }
         }
     }
@@ -113,7 +110,7 @@ pub fn plan_from_changed_paths(
         affected_paths: changed_paths,
         selected_lanes: lanes,
         reason_codes: reasons,
-        conservative_fallback: fallback,
+        widened_to_full,
     }
 }
 
@@ -143,7 +140,7 @@ pub fn render_plan_payload(plan: &ImpactDecision) -> serde_json::Value {
         "affected_paths": plan.affected_paths,
         "selected_lanes": plan.selected_lanes,
         "reason_codes": plan.reason_codes,
-        "conservative_fallback": plan.conservative_fallback,
+        "widened_to_full": plan.widened_to_full,
         "generated_ci_yaml": build_dynamic_yaml(plan),
     })
 }
@@ -215,17 +212,17 @@ mod tests {
     }
 
     #[test]
-    fn config_changes_fallback_to_full() {
+    fn config_changes_widen_to_full() {
         let plan = plan_from_changed_paths(1, "a", "b", vec!["Cargo.toml".to_string()]);
         assert_eq!(plan.selected_lanes, vec![ImpactLane::Full]);
-        assert!(plan.conservative_fallback);
+        assert!(plan.widened_to_full);
     }
 
     #[test]
     fn markdown_only_selects_docs_lane() {
         let plan = plan_from_changed_paths(1, "a", "b", vec!["README.md".to_string()]);
         assert_eq!(plan.selected_lanes, vec![ImpactLane::DocsOnly]);
-        assert!(!plan.conservative_fallback);
+        assert!(!plan.widened_to_full);
         assert!(plan.reason_codes.contains(&"docs_only_change".to_string()));
     }
 
@@ -242,7 +239,7 @@ mod tests {
             ],
         );
         assert_eq!(plan.selected_lanes, vec![ImpactLane::DocsOnly]);
-        assert!(!plan.conservative_fallback);
+        assert!(!plan.widened_to_full);
     }
 
     #[test]
@@ -261,14 +258,14 @@ mod tests {
     fn rust_toolchain_triggers_full() {
         let plan = plan_from_changed_paths(1, "a", "b", vec!["rust-toolchain.toml".to_string()]);
         assert_eq!(plan.selected_lanes, vec![ImpactLane::Full]);
-        assert!(plan.conservative_fallback);
+        assert!(plan.widened_to_full);
     }
 
     #[test]
     fn cargo_dir_triggers_full() {
         let plan = plan_from_changed_paths(1, "a", "b", vec![".cargo/config.toml".to_string()]);
         assert_eq!(plan.selected_lanes, vec![ImpactLane::Full]);
-        assert!(plan.conservative_fallback);
+        assert!(plan.widened_to_full);
     }
 
     #[test]
@@ -288,7 +285,7 @@ mod tests {
     fn unknown_file_type_selects_non_code() {
         let plan = plan_from_changed_paths(1, "a", "b", vec!["data/fixture.json".to_string()]);
         assert_eq!(plan.selected_lanes, vec![ImpactLane::Full]);
-        assert!(plan.conservative_fallback);
+        assert!(plan.widened_to_full);
         assert!(
             plan.reason_codes
                 .contains(&"unknown_file_change".to_string())

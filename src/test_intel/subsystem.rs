@@ -163,7 +163,7 @@ pub const SUBSYSTEMS: &[Subsystem] = &[
     },
     Subsystem {
         id: "state",
-        description: "Postgres-primary state database, SQLite fallback, migrations, CRUD operations",
+        description: "Postgres-primary state database, SQLite recovery, migrations, CRUD operations",
         owned_paths: &["src/state.rs"],
         unit_filter: "test(/state|sqlite|db|migrat/)",
         integration_tests: &[

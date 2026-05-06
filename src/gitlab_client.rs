@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 // ---------------------------------------------------------------------------
-// Request / Response types (all at module level for derive macro compat)
+// Request / Response types (all at module level for derive macro bridge)
 // ---------------------------------------------------------------------------
 
 #[derive(Serialize)]

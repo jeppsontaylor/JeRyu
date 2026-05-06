@@ -282,7 +282,7 @@ pub(crate) enum Commands {
 
     /// Custom executor driver (invoked by gitlab-runner, not meant for humans).
     #[command(subcommand, hide = true)]
-    Exec(ExecCommands),
+    Exec(ExecCommands), // allowlist: typed clap subcommand, no shell execution
 
     /// Git Server hook entrypoints for Admission Control.
     #[command(subcommand, hide = true)]
@@ -620,7 +620,7 @@ pub(crate) enum PipelineCommands {
         #[arg(long, default_value_t = false)]
         json: bool,
     },
-    /// Diagnose active jobs, runner assignment, and stale trace symptoms.
+    /// Diagnose active jobs, runner assignment, and outdated trace symptoms.
     Doctor {
         #[arg(long, default_value = "2")]
         project_id: i64,

@@ -6,14 +6,14 @@ Scope: convert JeRyu from an ambitious agent-aware GitLab control plane into a p
 
 ## Current Findings
 
-Local review confirms the main v2 upgrade risks in `tips/upgrade/v2/*.txt`:
+Local review confirms the main v2 upgrade risks captured in the retained upgrade review corpus and current implementation:
 
 - `docs/API.md` previously said `ProposePatch`, `RacePatches`, and `RequestMerge` were deferred, while `src/capability.rs` actively handled them. V2.0.1 docs now mark them active and grant-required.
 - `src/capability.rs::RequestMerge` now returns a versioned advisory merge-gate proof over selector/cache evidence, but is not yet a full MR/pipeline/approval merge gate.
 - `src/admission.rs` now evaluates pre-receive lines into versioned allow/audit/deny records, persists hook decisions, and can allow enforced agent refs when they match active capability grants. GitLab commit API writes now bind grants to the returned commit SHA. Signed grants, peer identity, path scopes, and SHA binding for non-commit Git write paths remain to be built.
 - `src/capability.rs` and `src/test_runner.rs` still build GitLab CI YAML with string interpolation; safe typed CI generation remains a post-cleanup hardening item.
 - `src/test_runner.rs` creates scratch branches from `main` instead of an immutable requested SHA/ref.
-- `src/impact.rs` now treats unknown files as full-validation fallback instead of docs-only, closing the unsafe non-code shortcut called out by the V2 tips.
+- `src/impact.rs` now treats unknown files as full-validation fallback instead of docs-only, closing the unsafe non-code shortcut called out by the V2 review notes.
 - VTI is conservative but still path/glob driven; it lacks coverage, history, flake, confidence calibration, and proof receipts.
 - The state layer now supports Postgres as the primary backend for concurrent agent workloads and keeps SQLite as the embedded fallback. Core state operations now have a disposable-container Postgres proof lane; remaining state work is to move every direct SQL caller behind `Db` methods and promote that lane into CI.
 - TUI docs now describe the nine-tab model and deterministic PNG capture path.
@@ -21,7 +21,7 @@ Local review confirms the main v2 upgrade risks in `tips/upgrade/v2/*.txt`:
 
 ## V2 Tip Disposition
 
-The raw review corpus in `tips/upgrade/v2/*.txt` is retained as release evidence. The repeated recommendations resolve into four buckets:
+The raw review corpus is retained as release evidence. The repeated recommendations resolve into four buckets:
 
 - **Implemented in the V2.0.1 cleanup:** version tracking, Postgres-primary state with SQLite fallback, disposable Postgres proof, unknown-file full fallback, recursive VTI subsystem globs, canonical action listing for capability discovery, advisory merge proof records, branch-write capability grants with commit-SHA binding for GitLab commit API writes, persisted admission decisions, TUI screenshot capture, warning-clean proof lanes, and the IEEE/Markdown paper package.
 - **Partially implemented but not yet release-complete:** intent ledger, admission enforcement, merge readiness, VTI proof receipts, cache taint decisions, and TUI proof panes. These exist as working surfaces or advisory records but need stricter schemas, scoped evidence, and caller-independent enforcement before being marketed as complete.

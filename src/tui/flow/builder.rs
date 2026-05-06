@@ -187,7 +187,7 @@ pub fn build_graph(pipeline_id: i64, jobs: Vec<JobEvent>) -> FlowGraph {
         columns.push(FlowColumn {
             key: kind,
             title: kind.to_str().to_string(),
-            status: "active".to_string(), // placeholder
+            status: "active".to_string(), // default until job state arrives
             eta: None,                    // pipeline-level eta goes here later
             lane_groups,
         });

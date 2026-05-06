@@ -13,3 +13,7 @@
 /paper/*.bbl
 /paper/*.blg
 /paper/*.log
+# jankurai scaffold .gitignore
+# Keep Jankurai receipts local without hiding the rest of target/.
+target/jankurai/
+.jankurai/

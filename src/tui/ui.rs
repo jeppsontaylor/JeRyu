@@ -150,8 +150,8 @@ fn top_attention(app: &App) -> (String, Color, String) {
     )
 }
 
-/// Returns (stale_age_secs, stale_color, stale_label) based on last_sync_at.
-fn stale_indicator(app: &App) -> (i64, Color, &'static str) {
+/// Returns (outdated_age_secs, outdated_color, outdated_label) based on last_sync_at.
+fn outdated_indicator(app: &App) -> (i64, Color, &'static str) {
     let age = app
         .state
         .last_sync_at
@@ -160,13 +160,13 @@ fn stale_indicator(app: &App) -> (i64, Color, &'static str) {
     if age < 5 {
         (age, Color::Green, "")
     } else if age < 30 {
-        (age, Color::DarkGray, "[STALE]")
+        (age, Color::DarkGray, "[OUTDATED]")
     } else if age < 120 {
-        (age, Color::Yellow, "[STALE]")
+        (age, Color::Yellow, "[OUTDATED]")
     } else if age < 300 {
-        (age, Color::LightRed, "[STALE]")
+        (age, Color::LightRed, "[OUTDATED]")
     } else {
-        (age, Color::Red, "!! DATA STALE !!")
+        (age, Color::Red, "!! DATA OUTDATED !!")
     }
 }
 
@@ -232,7 +232,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 // ---------------------------------------------------------------------------
 
 fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
-    let (stale_age, stale_color, stale_label) = stale_indicator(app);
+    let (outdated_age, outdated_color, outdated_label) = outdated_indicator(app);
 
     let gitlab_span = if app.state.gitlab_ready {
         Span::styled("GitLab:OK", Style::default().fg(Color::Green))
@@ -255,11 +255,11 @@ fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
         Span::styled(" rel:none", Style::default().fg(Color::DarkGray))
     };
 
-    let stale_span = if !stale_label.is_empty() {
+    let outdated_span = if !outdated_label.is_empty() {
         Span::styled(
-            format!(" {}({}s)", stale_label, stale_age),
+            format!(" {}({}s)", outdated_label, outdated_age),
             Style::default()
-                .fg(stale_color)
+                .fg(outdated_color)
                 .add_modifier(Modifier::BOLD),
         )
     } else {
@@ -301,7 +301,7 @@ fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
             }),
         ),
         release_span,
-        stale_span,
+        outdated_span,
         Span::raw("  "),
     ];
 
@@ -498,7 +498,7 @@ fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
         .saturating_sub(if app.state.proxy_healthy { 0 } else { 8 })
         .min(100);
     let (headline, headline_color, next_action) = top_attention(app);
-    let (_, stale_color, stale_label) = stale_indicator(app);
+    let (_, outdated_color, outdated_label) = outdated_indicator(app);
 
     f.render_widget(
         Paragraph::new(vec![
@@ -527,12 +527,12 @@ fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
             Line::from(vec![
                 Span::styled("  Freshness: ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
-                    if stale_label.is_empty() {
+                    if outdated_label.is_empty() {
                         "fresh"
                     } else {
-                        stale_label
+                        outdated_label
                     },
-                    Style::default().fg(stale_color),
+                    Style::default().fg(outdated_color),
                 ),
                 Span::styled("   Command: ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
@@ -2766,23 +2766,23 @@ fn draw_release_banner(f: &mut Frame, app: &App, area: Rect) {
 
 #[allow(dead_code)]
 fn draw_flow_board(f: &mut Frame, app: &App, area: Rect) {
-    let (stale_age, stale_color, _stale_label) = stale_indicator(app);
-    let flow_stale = app.state.flow.stale;
-    let title = if flow_stale {
+    let (outdated_age, outdated_color, _outdated_label) = outdated_indicator(app);
+    let flow_outdated = app.state.flow.outdated;
+    let title = if flow_outdated {
         if let Some(last) = app.state.flow.last_non_empty_at {
             let age = chrono::Utc::now()
                 .signed_duration_since(last)
                 .num_seconds()
                 .max(0);
-            format!(" FLOW BOARD [stale {}s] ", age)
+            format!(" FLOW BOARD [outdated {}s] ", age)
         } else {
-            format!(" FLOW BOARD [stale {}s] ", stale_age)
+            format!(" FLOW BOARD [outdated {}s] ", outdated_age)
         }
     } else {
         " FLOW BOARD ".to_string()
     };
-    let border_color = if flow_stale {
-        stale_color
+    let border_color = if flow_outdated {
+        outdated_color
     } else {
         Color::DarkGray
     };
@@ -2940,9 +2940,9 @@ fn draw_logs(f: &mut Frame, app: &mut App, area: Rect) {
     };
     let log_state = &app.state.live_log;
     let title_state = if let Some(error) = &log_state.error {
-        format!("stale: {}", short_text(error, 48))
-    } else if log_state.stale {
-        "stale".to_string()
+        format!("outdated: {}", short_text(error, 48))
+    } else if log_state.outdated {
+        "outdated".to_string()
     } else if log_state.target.is_some() {
         "live".to_string()
     } else {
@@ -2962,7 +2962,7 @@ fn draw_logs(f: &mut Frame, app: &mut App, area: Rect) {
         .borders(Borders::ALL)
         .border_style(Style::default().fg(if app.maximize_logs {
             Color::Cyan
-        } else if log_state.stale || log_state.error.is_some() {
+        } else if log_state.outdated || log_state.error.is_some() {
             Color::Yellow
         } else {
             pane_border(ActivePane::Jobs, app)

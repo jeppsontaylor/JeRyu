@@ -12,13 +12,25 @@ agent-refresh:
     cargo run -p jeryu -- repo audit-agent-surface --json
 
 fast:
-    cargo check --workspace
-    cargo nextest run -p jeryu --lib
+    # fast-lane
+    mkdir -p target/jankurai/cache
+    CARGO_INCREMENTAL=0 cargo check --workspace --message-format=json
+    CARGO_INCREMENTAL=0 cargo nextest run -p jeryu --lib
+
+proof:
+    mkdir -p target/jankurai
+    jankurai proof . --changed-fast --out target/jankurai/fast-score.json
+
+check-fast:
+    CARGO_INCREMENTAL=1 cargo check -p jeryu --tests
+
+test-fast:
+    CARGO_INCREMENTAL=1 cargo nextest run -p jeryu --lib --no-fail-fast
 
 medium:
-    cargo check --workspace
-    cargo nextest run -p jeryu --lib
-    cargo test -p jeryu --tests -- --test-threads=1
+    CARGO_INCREMENTAL=0 cargo check --workspace --message-format=json
+    CARGO_INCREMENTAL=0 cargo nextest run -p jeryu --lib
+    CARGO_INCREMENTAL=0 cargo test -p jeryu --tests -- --test-threads=1
     cargo run -p cargo-witness -- build
     cargo run -p cargo-vrc -- map --output-dir .
 
@@ -43,3 +55,16 @@ tui-screenshots:
 
 tui-screenshot-smoke:
     cargo run --release -p tui-capture -- --cols 48 --rows 6 --out target/tui-capture/smoke.png --dump-text target/tui-capture/smoke.txt -- bash -lc "printf '┌────────────────────────┐\n│ Unicode border test    │\n│ Blocks: █ ▓ ▒ ░        │\n└────────────────────────┘\n'; sleep 2"
+score:
+	rm -f agent/repo-score.json agent/repo-score.md
+	jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md --score-history agent/score-history.jsonl --score-history-csv agent/score-history.csv
+doctor:
+	jankurai doctor --fail-on high
+	jankurai security run . --out target/jankurai/security/evidence.json
+rust-map:
+	jankurai rust map .
+rust-witness:
+	jankurai rust witness build .
+rust-diagnose:
+	jankurai rust diagnose .
+check: fast score security rust-map rust-witness rust-diagnose

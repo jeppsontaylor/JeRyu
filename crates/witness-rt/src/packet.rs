@@ -155,6 +155,74 @@ pub struct HookConfig {
     pub application: Option<String>,
 }
 
+impl RepairPacket {
+    /// Build a [`RepairPacket`] for an assertion-style failure.
+    ///
+    /// Used by the `agent_ensure!`, `agent_bail!`, `agent_expect!`, and
+    /// `agent_ok!` macros to centralize packet construction. Caller must
+    /// pass `file` / `line` / `column` captured from
+    /// `std::panic::Location::caller()` *at the macro call site*, not from
+    /// inside this helper, so the location reflects user code rather than
+    /// this function.
+    ///
+    /// All optional cell-context and escalation fields default to empty / `None`;
+    /// the panic hook fills those in later when it processes the emitted
+    /// packet against the cell registry.
+    #[doc(hidden)]
+    pub fn for_assert(
+        code: String,
+        message: String,
+        file: String,
+        line: u32,
+        column: u32,
+        hint: String,
+        local_commands: Vec<String>,
+        timestamp: String,
+    ) -> Self {
+        Self {
+            code,
+            message,
+            file,
+            line,
+            column,
+            cell: None,
+            cell_purpose: None,
+            match_provenance: None,
+            matched_owned_path: None,
+            invariants: vec![],
+            likely_causes: vec![],
+            hints: vec![hint],
+            local_commands,
+            escalate_commands: vec![],
+            timestamp,
+        }
+    }
+}
+
+/// Build a [`RepairPacket`] from assertion-style inputs, emit it, and panic.
+///
+/// Centralizes the "capture caller, build packet, emit, panic" sequence used
+/// by the `agent_ensure!`, `agent_bail!`, `agent_expect!`, and `agent_ok!`
+/// macros. Marked `#[track_caller]` so `Location::caller()` resolves to the
+/// macro call site (user code), preserving accurate panic attribution.
+#[doc(hidden)]
+#[track_caller]
+pub fn emit_and_panic(code: &str, message: String, hint: &str, local_commands: Vec<String>) -> ! {
+    let caller = ::std::panic::Location::caller();
+    let packet = RepairPacket::for_assert(
+        code.to_string(),
+        message.clone(),
+        caller.file().to_string(),
+        caller.line(),
+        caller.column(),
+        hint.to_string(),
+        local_commands,
+        crate::current_timestamp(),
+    );
+    crate::emit_repair_packet_direct(&packet);
+    panic!("[{}] {}", code, message);
+}
+
 impl HookConfig {
     /// Create a default hook config rooted at `workspace_root`.
     ///

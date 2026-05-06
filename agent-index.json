@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-05T23:06:48.567532226+00:00",
-  "repo_root": "/home/ubuntu/JeRyu",
+  "generated_at": "2026-05-06T12:43:13.498380+00:00",
+  "repo_root": "/Users/bentaylor/Code/JeRyu",
   "token_budget_path": "token-budget.toml",
   "entries": [
     {
@@ -48,7 +48,7 @@
       "path": "src/agent_surface.rs",
       "owner": "Agent Surface",
       "proof": "`cargo check -p jeryu && cargo test -p jeryu agent_surface`",
-      "invariants": "Generated routing index is derived from repo truth; audit fails on missing hard surfaces and stale generated output.",
+      "invariants": "Generated routing index is derived from repo truth; audit fails on missing hard surfaces and outdated generated output.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
         "check",
@@ -662,7 +662,7 @@
       "path": "src/gateway/mod.rs",
       "owner": "Cache Gateway subsystem (module root)",
       "proof": "`cargo nextest run -p jeryu -- gateway`",
-      "invariants": "Gateway modules preserve namespace isolation, singleflight behavior, and upstream fallback semantics.",
+      "invariants": "Gateway modules preserve namespace isolation, singleflight behavior, and upstream recovery semantics.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
         "check",
@@ -910,29 +910,6 @@
       ]
     },
     {
-      "id": "git::shim",
-      "path": "src/git/shim.rs",
-      "owner": "Git shim helpers",
-      "proof": "`cargo test -p jeryu -- git_shim`",
-      "invariants": "Shims are opt-in and resolve to the configured system git path.",
-      "default_change_type": "cross-module",
-      "proof_lanes": [
-        "check",
-        "unit",
-        "integration",
-        "full"
-      ],
-      "proof_commands": [
-        "cargo check -p jeryu --message-format=json",
-        "cargo nextest run -p jeryu --lib",
-        "cargo test -p jeryu --test '*' -- --test-threads=1",
-        "cargo nextest run -p jeryu"
-      ],
-      "widening_rules": [
-        "cross-module changes widen to the full integration ring"
-      ]
-    },
-    {
       "id": "git::snapshot",
       "path": "src/git/snapshot.rs",
       "owner": "Git repository state snapshot",
@@ -1069,7 +1046,7 @@
       "path": "src/impact.rs",
       "owner": "Change Impact Analysis",
       "proof": "`cargo test -p jeryu -- impact`",
-      "invariants": "Conservative fallback on empty diff or broad config change; docs-only skips heavy validation",
+      "invariants": "Conservative widening on empty diff or broad config change; docs-only skips heavy validation",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
         "check",
@@ -1141,7 +1118,7 @@
       "path": "src/local.rs",
       "owner": "Local agent command wrappers",
       "proof": "`cargo test -p jeryu -- local`",
-      "invariants": "Local Cargo commands reuse jeryu-owned caches by default and never leave stale leases on the happy path.",
+      "invariants": "Local Cargo commands reuse jeryu-owned caches by default and never leave expired leases on the happy path.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
         "check",
@@ -1484,7 +1461,7 @@
     {
       "id": "state",
       "path": "src/state.rs",
-      "owner": "State Store (Postgres primary, SQLite fallback)",
+      "owner": "State Store (Postgres primary, SQLite recovery)",
       "proof": "`cargo test -p jeryu -- state`",
       "invariants": "append-only event log; manager state machine (starting→online→draining→stopped)",
       "default_change_type": "state-change",
@@ -1545,7 +1522,7 @@
       "path": "src/test_intel/cache.rs",
       "owner": "VTI Test Intelligence subsystem — plan cache",
       "proof": "`cargo nextest run -p jeryu -- test_intel::cache`",
-      "invariants": "Cached plans are keyed by inputs that affect test selection and expire on stale evidence.",
+      "invariants": "Cached plans are keyed by inputs that affect test selection and expire on outdated evidence.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
         "check",
@@ -1746,23 +1723,6 @@
       "owner": "Interactive TUI subsystem — application state and refresh loop",
       "proof": "`cargo nextest run -p jeryu -- tui::app`",
       "invariants": "UI state refreshes are bounded, non-blocking, and derived from durable control-plane state.",
-      "default_change_type": "leaf-bugfix",
-      "proof_lanes": [
-        "check",
-        "unit"
-      ],
-      "proof_commands": [
-        "cargo check -p jeryu --message-format=json",
-        "cargo nextest run -p jeryu --lib"
-      ],
-      "widening_rules": []
-    },
-    {
-      "id": "tui::events",
-      "path": "src/tui/events.rs",
-      "owner": "Interactive TUI subsystem — event handling stubs",
-      "proof": "`cargo nextest run -p jeryu -- tui::events`",
-      "invariants": "Input handling maps keys to registered actions without bypassing capability policy.",
       "default_change_type": "leaf-bugfix",
       "proof_lanes": [
         "check",

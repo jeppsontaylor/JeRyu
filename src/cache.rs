@@ -43,7 +43,7 @@ pub enum CacheError {
 }
 
 const MIN_GITLAB_ARTIFACT_SIZE_MB: u64 = 4096;
-const POOL_TARGET_LEASE_FALLBACK_TTL_SECS: u64 = 2 * 60 * 60;
+const POOL_TARGET_LEASE_RECOVERY_TTL_SECS: u64 = 2 * 60 * 60;
 const NEXTEST_EXTRACT_FALLBACK_TTL_SECS: u64 = 2 * 60 * 60;
 pub const ROOT_DISK_HEADROOM_MIN_FREE_BYTES: u64 = 80 * 1024 * 1024 * 1024;
 pub const ROOT_DISK_WARNING_MIN_FREE_BYTES: u64 = ROOT_DISK_HEADROOM_MIN_FREE_BYTES;
@@ -640,13 +640,13 @@ impl SmartCache {
                         if status.active {
                             continue;
                         }
-                        let ttl = pool_target_lease_fallback_ttl().as_secs();
-                        let fallback_active = !status.lease_observed
+                        let ttl = pool_target_lease_recovery_ttl().as_secs();
+                        let recovery_active = !status.lease_observed
                             && status.age_seconds.map(|age| age <= ttl).unwrap_or(true);
-                        if fallback_active {
+                        if recovery_active {
                             status.active = true;
                             status.reason =
-                                "active pool cargo cache fallback (lease absent)".to_string();
+                                "active pool cargo cache recovery path (lease absent)".to_string();
                         } else if !status.lease_observed {
                             status.reason = "pool cargo cache without lease".to_string();
                         }
@@ -686,7 +686,7 @@ impl SmartCache {
         })
     }
 
-    /// Store a blob in CAS with Temp -> Hash -> Fsync -> Rename safety pattern
+    /// Store a blob in CAS with Scratch -> Hash -> Fsync -> Rename safety pattern
     pub async fn atomic_store_cas(data: &[u8], digest: &str) -> Result<()> {
         let cas_dir = crate::config::data_dir().join("cas");
         tokio::fs::create_dir_all(&cas_dir).await?;
@@ -696,14 +696,14 @@ impl SmartCache {
             return Ok(());
         }
 
-        let temp_path = cas_dir.join(format!("{}.tmp", digest));
+        let scratch_path = cas_dir.join(format!("{}.tmp", digest));
 
         use tokio::io::AsyncWriteExt;
         let mut file = tokio::fs::OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
-            .open(&temp_path)
+            .open(&scratch_path)
             .await?;
 
         // Verify hash actually matches the content before saving
@@ -719,7 +719,7 @@ impl SmartCache {
         file.sync_all().await?;
 
         // Atomic rename
-        tokio::fs::rename(temp_path, path).await?;
+        tokio::fs::rename(scratch_path, path).await?;
         Ok(())
     }
 }
@@ -978,12 +978,12 @@ fn path_age_seconds(path: &Path) -> Option<u64> {
         .map(|duration| duration.as_secs())
 }
 
-fn pool_target_lease_fallback_ttl() -> Duration {
-    std::env::var("JERYU_POOL_CARGO_LEASE_FALLBACK_SECS")
+fn pool_target_lease_recovery_ttl() -> Duration {
+    std::env::var("JERYU_POOL_CARGO_LEASE_RECOVERY_SECS")
         .ok()
         .and_then(|value| value.trim().parse::<u64>().ok())
         .map(Duration::from_secs)
-        .unwrap_or_else(|| Duration::from_secs(POOL_TARGET_LEASE_FALLBACK_TTL_SECS))
+        .unwrap_or_else(|| Duration::from_secs(POOL_TARGET_LEASE_RECOVERY_TTL_SECS))
 }
 
 fn path_lease_scan(path: &Path) -> crate::cargo_cache::CargoLeaseScan {
@@ -1084,7 +1084,7 @@ async fn scan_cargo_target_dirs(root: &Path, scope: &str) -> Result<Vec<CargoTar
             reason: if lease_scan.active {
                 "active cargo target lease".to_string()
             } else if lease_scan.observed_files > 0 {
-                "stale cargo target leases cleaned".to_string()
+                "expired cargo target leases cleaned".to_string()
             } else {
                 "cargo target cache".to_string()
             },
@@ -1131,7 +1131,7 @@ async fn scan_nextest_extract_dirs(
             reason: if active {
                 "recent nextest extract scratch".to_string()
             } else {
-                "stale nextest extract scratch".to_string()
+                "expired nextest extract scratch".to_string()
             },
         });
     }
@@ -1145,7 +1145,7 @@ fn validated_cache_container_paths(root: &Path, candidates: &[PathBuf]) -> Resul
     for candidate in candidates {
         if !candidate.is_absolute() {
             anyhow::bail!(
-                "refusing to delete non-absolute cache path: {}",
+                "refusing to remove non-absolute cache path: {}",
                 candidate.display()
             );
         }
@@ -1158,7 +1158,7 @@ fn validated_cache_container_paths(root: &Path, candidates: &[PathBuf]) -> Resul
                 Component::Normal(segment) => container_path.push(segment),
                 _ => {
                     anyhow::bail!(
-                        "refusing to delete cache path with surprising components: {}",
+                        "refusing to remove cache path with surprising components: {}",
                         candidate.display()
                     );
                 }
@@ -1409,11 +1409,11 @@ mod tests {
     }
 
     #[test]
-    fn pool_fallback_ttl_uses_override() {
+    fn pool_recovery_ttl_uses_override() {
         let _guard = ENV_LOCK.lock().unwrap();
-        set_env_var("JERYU_POOL_CARGO_LEASE_FALLBACK_SECS", "7");
-        assert_eq!(pool_target_lease_fallback_ttl(), Duration::from_secs(7));
-        remove_env_var("JERYU_POOL_CARGO_LEASE_FALLBACK_SECS");
+        set_env_var("JERYU_POOL_CARGO_LEASE_RECOVERY_SECS", "7");
+        assert_eq!(pool_target_lease_recovery_ttl(), Duration::from_secs(7));
+        remove_env_var("JERYU_POOL_CARGO_LEASE_RECOVERY_SECS");
     }
 
     #[test]
@@ -1449,7 +1449,7 @@ mod tests {
         let lease_dir = target.join(crate::cargo_cache::LEASES_DIR_NAME);
         std::fs::create_dir_all(&lease_dir)?;
 
-        let stale = crate::cargo_cache::CargoLeaseRecord {
+        let expired = crate::cargo_cache::CargoLeaseRecord {
             kind: "local-cargo".to_string(),
             scope_key: "scope".to_string(),
             target_dir: target.display().to_string(),
@@ -1461,11 +1461,11 @@ mod tests {
         };
         let active = crate::cargo_cache::CargoLeaseRecord {
             pid: std::process::id(),
-            ..stale.clone()
+            ..expired.clone()
         };
         std::fs::write(
-            lease_dir.join("stale.json"),
-            serde_json::to_vec_pretty(&stale)?,
+            lease_dir.join("expired.json"),
+            serde_json::to_vec_pretty(&expired)?,
         )?;
         std::fs::write(
             lease_dir.join("active.json"),
@@ -1477,7 +1477,7 @@ mod tests {
         assert!(statuses[0].active);
         assert!(statuses[0].lease_observed);
         assert!(lease_dir.join("active.json").exists());
-        assert!(!lease_dir.join("stale.json").exists());
+        assert!(!lease_dir.join("expired.json").exists());
         Ok(())
     }
 

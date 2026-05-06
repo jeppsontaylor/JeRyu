@@ -30,33 +30,14 @@
 macro_rules! agent_ensure {
     ($condition:expr, $code:expr, $message:expr, $hint:expr, [$($cmd:expr),* $(,)?]) => {
         if !$condition {
-            let caller = ::std::panic::Location::caller();
-            let packet = $crate::RepairPacket {
-                code: $code.to_string(),
-                message: $message.to_string(),
-                file: caller.file().to_string(),
-                line: caller.line(),
-                column: caller.column(),
-                cell: None,
-                cell_purpose: None,
-                match_provenance: None,
-                matched_owned_path: None,
-                invariants: vec![],
-                likely_causes: vec![],
-                hints: vec![$hint.to_string()],
-                local_commands: vec![$($cmd.to_string()),*],
-                escalate_commands: vec![],
-                timestamp: $crate::current_timestamp(),
-            };
-            $crate::emit_repair_packet_direct(&packet);
-            panic!("[{}] {}", $code, $message);
+            $crate::emit_and_panic($code, $message.to_string(), $hint, vec![$($cmd.to_string()),*]);
         }
     };
 }
 
 /// Emit a [`RepairPacket`] and panic unconditionally.
 ///
-/// Use this when a code path is provably unreachable under the cell's
+/// Use this when a code path is provably impossible under the cell's
 /// invariants but you want to leave a structured repair trail.
 ///
 /// # Example
@@ -73,26 +54,7 @@ macro_rules! agent_ensure {
 #[macro_export]
 macro_rules! agent_bail {
     ($code:expr, $message:expr, $hint:expr) => {{
-        let caller = ::std::panic::Location::caller();
-        let packet = $crate::RepairPacket {
-            code: $code.to_string(),
-            message: $message.to_string(),
-            file: caller.file().to_string(),
-            line: caller.line(),
-            column: caller.column(),
-            cell: None,
-            cell_purpose: None,
-            match_provenance: None,
-            matched_owned_path: None,
-            invariants: vec![],
-            likely_causes: vec![],
-            hints: vec![$hint.to_string()],
-            local_commands: vec![],
-            escalate_commands: vec![],
-            timestamp: $crate::current_timestamp(),
-        };
-        $crate::emit_repair_packet_direct(&packet);
-        panic!("[{}] {}", $code, $message);
+        $crate::emit_and_panic($code, $message.to_string(), $hint, vec![])
     }};
 }
 
@@ -120,28 +82,7 @@ macro_rules! agent_expect {
     ($option:expr, $code:expr, $message:expr, $hint:expr) => {
         match $option {
             Some(value) => value,
-            None => {
-                let caller = ::std::panic::Location::caller();
-                let packet = $crate::RepairPacket {
-                    code: $code.to_string(),
-                    message: $message.to_string(),
-                    file: caller.file().to_string(),
-                    line: caller.line(),
-                    column: caller.column(),
-                    cell: None,
-                    cell_purpose: None,
-                    match_provenance: None,
-                    matched_owned_path: None,
-                    invariants: vec![],
-                    likely_causes: vec![],
-                    hints: vec![$hint.to_string()],
-                    local_commands: vec![],
-                    escalate_commands: vec![],
-                    timestamp: $crate::current_timestamp(),
-                };
-                $crate::emit_repair_packet_direct(&packet);
-                panic!("[{}] {}", $code, $message);
-            }
+            None => $crate::emit_and_panic($code, $message.to_string(), $hint, vec![]),
         }
     };
 }
@@ -169,29 +110,12 @@ macro_rules! agent_ok {
     ($result:expr, $code:expr, $message:expr, $hint:expr) => {
         match $result {
             Ok(value) => value,
-            Err(error) => {
-                let caller = ::std::panic::Location::caller();
-                let full_message = format!("{}: {error}", $message);
-                let packet = $crate::RepairPacket {
-                    code: $code.to_string(),
-                    message: full_message.clone(),
-                    file: caller.file().to_string(),
-                    line: caller.line(),
-                    column: caller.column(),
-                    cell: None,
-                    cell_purpose: None,
-                    match_provenance: None,
-                    matched_owned_path: None,
-                    invariants: vec![],
-                    likely_causes: vec![],
-                    hints: vec![$hint.to_string()],
-                    local_commands: vec![],
-                    escalate_commands: vec![],
-                    timestamp: $crate::current_timestamp(),
-                };
-                $crate::emit_repair_packet_direct(&packet);
-                panic!("[{}] {}", $code, full_message);
-            }
+            Err(error) => $crate::emit_and_panic(
+                $code,
+                format!("{}: {error}", $message),
+                $hint,
+                vec![],
+            ),
         }
     };
 }

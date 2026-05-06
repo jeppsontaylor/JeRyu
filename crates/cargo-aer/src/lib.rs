@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use cargo_vrc::{PackageAgentMetadata, WorkspaceSnapshot, load_workspace};
+use cargo_vrc::{PackageAgentMetadata, ReportRepairHint, WorkspaceSnapshot, load_workspace};
 use chrono::Utc;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -26,6 +26,7 @@ pub struct ScanReport {
     pub generated_at: String,
     pub workspace_root: String,
     pub findings: Vec<Finding>,
+    pub repair_hint: ReportRepairHint,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -70,6 +71,7 @@ pub fn scan_workspace(manifest_path: Option<&Path>) -> Result<ScanReport> {
         generated_at: Utc::now().format("%Y-%m-%d").to_string(),
         workspace_root: display_workspace_root(),
         findings,
+        repair_hint: report_repair_hint(),
     })
 }
 
@@ -106,7 +108,7 @@ sunset_condition: "Remove when the grammar format is stabilized and table genera
     Ok(vec![readme, example])
 }
 
-pub fn stale_records(workspace_root: &Path) -> Result<Vec<Finding>> {
+pub fn incomplete_records(workspace_root: &Path) -> Result<Vec<Finding>> {
     let records_dir = workspace_root.join("aer-records");
     let mut findings = Vec::new();
     if !records_dir.exists() {
@@ -128,7 +130,7 @@ pub fn stale_records(workspace_root: &Path) -> Result<Vec<Finding>> {
         let record = parse_record(path)?;
         if record.owner.trim().is_empty() {
             findings.push(Finding {
-                class_id: "stale-aer".to_string(),
+                class_id: "incomplete-aer".to_string(),
                 severity: "warning".to_string(),
                 confidence: 0.95,
                 path: display_relative(workspace_root, path),
@@ -139,7 +141,7 @@ pub fn stale_records(workspace_root: &Path) -> Result<Vec<Finding>> {
         }
         if record.sunset_condition.trim().is_empty() {
             findings.push(Finding {
-                class_id: "stale-aer".to_string(),
+                class_id: "incomplete-aer".to_string(),
                 severity: "warning".to_string(),
                 confidence: 0.95,
                 path: display_relative(workspace_root, path),
@@ -156,6 +158,10 @@ pub fn markdown_report(report: &ScanReport) -> String {
     let mut output = String::new();
     output.push_str("# cargo-aer Findings\n\n");
     output.push_str(&format!("Generated: {}\n\n", report.generated_at));
+    output.push_str(&format!(
+        "Repair hint: {} - {}. {}\n\n",
+        report.repair_hint.purpose, report.repair_hint.reason, report.repair_hint.docs_url
+    ));
     output.push_str("| Class | Severity | Confidence | Path | Summary | Suggested Fix |\n");
     output.push_str("| --- | --- | --- | --- | --- | --- |\n");
     for finding in &report.findings {
@@ -568,18 +574,26 @@ fn existing_exception(agent: &PackageAgentMetadata, class_id: &str) -> Option<St
         .cloned()
 }
 
+fn report_repair_hint() -> ReportRepairHint {
+    ReportRepairHint {
+        purpose: "Route the next audit rerun".to_string(),
+        reason: "The scan needs a local proof pointer when it returns a failure surface."
+            .to_string(),
+        common_fixes: vec![
+            "Trim the failing surface to the owning module or manifest.".to_string(),
+            "Re-run the narrow proof command listed in docs/testing.md.".to_string(),
+        ],
+        docs_url: "docs/testing.md#repair-receipts".to_string(),
+        repair_hint: "cargo run -p cargo-aer -- scan --output aer-findings.json".to_string(),
+    }
+}
+
 fn display_relative(root: &Path, path: &Path) -> String {
-    path.strip_prefix(root)
-        .ok()
-        .filter(|relative| !relative.as_os_str().is_empty())
-        .map(|relative| relative.display().to_string())
-        .unwrap_or_else(|| {
-            if path == root {
-                ".".to_string()
-            } else {
-                path.display().to_string()
-            }
-        })
+    match path.strip_prefix(root) {
+        Ok(relative) if !relative.as_os_str().is_empty() => relative.display().to_string(),
+        _ if path == root => ".".to_string(),
+        _ => path.display().to_string(),
+    }
 }
 
 fn display_workspace_root() -> String {
@@ -667,7 +681,7 @@ mod tests {
 
     #[test]
     fn scan_workspace_detects_hidden_io_in_core_fixture() {
-        let manifest = workspace_root().join("labs/exception-zoo/cases/hidden-io-core/Cargo.toml");
+        let manifest = workspace_root().join("examples/labs/exception-zoo/cases/hidden-io-core/Cargo.toml");
         let report = scan_workspace(Some(&manifest)).expect("scan fixture workspace");
         assert!(
             report
@@ -679,7 +693,7 @@ mod tests {
 
     #[test]
     fn scan_workspace_detects_missing_doctest_for_public_api_fixture() {
-        let manifest = workspace_root().join("labs/exception-zoo/cases/semver-break/Cargo.toml");
+        let manifest = workspace_root().join("examples/labs/exception-zoo/cases/semver-break/Cargo.toml");
         let report = scan_workspace(Some(&manifest)).expect("scan fixture workspace");
         assert!(
             report

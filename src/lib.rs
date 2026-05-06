@@ -13,7 +13,7 @@
 //! |---|---|---|
 //! | `engine` | Webhook server, reconciliation | `api-change` |
 //! | `release` | Release pipeline, canary | `release-change` |
-//! | `state` | Postgres-primary state, SQLite fallback, all queries | `state-change` |
+//! | `state` | Postgres-primary state, SQLite recovery, all queries | `state-change` |
 //! | `exec` | Custom executor, sandbox | `security-relevant` |
 //! | `secrets` | Vault, rotation | `security-relevant` |
 //! | `honeypot` | Supply-chain detonation | `security-relevant` |
@@ -30,7 +30,7 @@
 
 // Public API documentation is tracked through module ownership headers,
 // generated agent indexes, and the paper/docs surface. Keep proof runs
-// warning-clean instead of flooding agents with placeholder item docs.
+// warning-clean instead of flooding agents with generated item docs.
 #![allow(missing_docs)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::must_use_candidate)]

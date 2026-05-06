@@ -67,7 +67,7 @@ pub fn classify_phase(job_name: &str) -> Phase {
     } else if lower.contains("prod") || lower.contains("deploy") {
         Phase::Prod
     } else {
-        // Fallback
+        // Recovery default
         Phase::Build
     }
 }

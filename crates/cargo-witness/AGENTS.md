@@ -5,7 +5,7 @@ Witness graph and repair routing for agent-native Rust workspaces.
 ## What This Crate Does
 
 - `cargo witness build` — generates `.witness/witness-graph.json` with dual hashes per crate
-- `cargo witness diff <old> <new>` — classifies changes as interface vs implementation
+- `cargo witness diff <prior> <new>` — classifies changes as interface vs implementation
 - `cargo witness diagnose` — routes `cargo check` errors to owning ARCs
 - `cargo witness repair` — assembles minimal repair bundles from failure packets
 

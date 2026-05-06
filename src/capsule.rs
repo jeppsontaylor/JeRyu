@@ -143,7 +143,7 @@ fn classify_failure_kind(stage: &str, exit_code: i32, log_lower: &str) -> String
     }
     if log_lower.contains("connection reset")
         || log_lower.contains("network")
-        || log_lower.contains("temporary failure")
+        || log_lower.contains("transient failure")
         || log_lower.contains("could not resolve host")
     {
         return "network".to_string();

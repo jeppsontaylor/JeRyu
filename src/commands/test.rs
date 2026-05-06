@@ -4,6 +4,110 @@ use anyhow::Result;
 use jeryu::{state, test_intel, test_runner};
 use std::path::PathBuf;
 
+/// Parse a comma-separated string into a trimmed, non-empty `Vec<String>`.
+fn split_csv(input: &str) -> Vec<String> {
+    input
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// Convert an optional comma-separated `--tags` argument into the
+/// `Option<Vec<String>>` shape that the test runner expects. Returns
+/// `None` when the user did not pass `--tags` (so the runner can fall
+/// back to its default tag inference).
+fn parse_tag_list(tags: Option<String>) -> Option<Vec<String>> {
+    tags.map(|raw| split_csv(&raw))
+}
+
+/// Resolve the current commit SHA via `git log -1 --format=%H`,
+/// falling back to the literal string `"latest"` when git is
+/// unavailable or the working copy has no commits.
+fn current_commit_sha() -> String {
+    std::process::Command::new("git")
+        .args(["log", "-1", "--format=%H"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|_| "latest".to_string())
+}
+
+/// Run `git diff --name-only <base> <head>` from `cwd` and return the
+/// list of changed paths. Used by every test command that needs the
+/// diff between two refs to drive selection.
+fn git_diff_changed_paths(cwd: &std::path::Path, base: &str, head: &str) -> Result<Vec<String>> {
+    let diff_output = std::process::Command::new("git")
+        .current_dir(cwd)
+        .args(["diff", "--name-only", base, head])
+        .output()?;
+    if !diff_output.status.success() {
+        anyhow::bail!(
+            "git diff failed: {}",
+            String::from_utf8_lossy(&diff_output.stderr)
+        );
+    }
+    Ok(String::from_utf8_lossy(&diff_output.stdout)
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| line.to_string())
+        .collect())
+}
+
+/// Serialize `value` as pretty JSON to `path`, creating parent
+/// directories as needed, and emit a stderr breadcrumb describing what
+/// was written.
+fn write_json_artifact<T: serde::Serialize>(
+    path: &std::path::Path,
+    value: &T,
+    description: &str,
+) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, serde_json::to_string_pretty(value)?)?;
+    eprintln!("Wrote {} to {}", description, path.display());
+    Ok(())
+}
+
+/// Resolve audit/learn inputs (CSV strings + optional workspace) into a
+/// computed [`test_intel::nightly::AuditReport`]. Used by both
+/// `TestCommands::Audit` and `TestCommands::Learn` so the parsing,
+/// optional testmap load, and `audit_selector` invocation only live in
+/// one place.
+fn build_audit_report(
+    changed: &str,
+    failed: &str,
+    all_tests: &str,
+    sha: &str,
+    workspace: Option<&PathBuf>,
+) -> test_intel::nightly::AuditReport {
+    let changed_paths = split_csv(changed);
+    let failed_tests = split_csv(failed);
+    let all_test_list = split_csv(all_tests);
+
+    let mut external_map = None;
+    if let Some(workspace_path) = workspace {
+        let testmap_path = workspace_path.join(".jeryu/testmap.toml");
+        if testmap_path.exists() {
+            external_map = match test_intel::testmap::load_testmap(&testmap_path) {
+                Ok(m) => Some(m),
+                Err(e) => {
+                    eprintln!("Warning: failed to load testmap: {}", e);
+                    None
+                }
+            };
+        }
+    }
+
+    test_intel::nightly::audit_selector(
+        &changed_paths,
+        &failed_tests,
+        &all_test_list,
+        sha,
+        external_map.as_ref(),
+    )
+}
+
 pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
     let (client, _) = load_client()?;
     let db = state::Db::open().await?;
@@ -17,29 +121,15 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             timeout,
             force,
         } => {
-            let commit_sha = std::process::Command::new("git")
-                .args(["log", "-1", "--format=%H"])
-                .output()
-                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-                .unwrap_or_else(|_| "latest".to_string());
-
-            let tag_list = tags.map(|tags| {
-                tags.split(',')
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>()
-            });
-
             let opts = test_runner::TestRunOpts {
                 project_id,
                 test_command: command,
                 job_name: None,
                 image,
-                tags: tag_list,
+                tags: parse_tag_list(tags),
                 timeout_secs: timeout,
                 force,
-                commit_sha,
+                commit_sha: current_commit_sha(),
             };
             println!("━━━ jeryu test run ━━━\n");
             println!("  Project ID: {}", opts.project_id);
@@ -76,20 +166,12 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             tags,
             timeout,
         } => {
-            let tag_list = tags.map(|tags| {
-                tags.split(',')
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>()
-            });
-
             let opts = test_runner::TestRunOpts {
                 project_id,
                 test_command: command,
                 job_name: None,
                 image,
-                tags: tag_list,
+                tags: parse_tag_list(tags),
                 timeout_secs: timeout,
                 force: false,
                 commit_sha: String::new(),
@@ -114,30 +196,16 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             max_parallel,
             force,
         } => {
-            let commit_sha = std::process::Command::new("git")
-                .args(["log", "-1", "--format=%H"])
-                .output()
-                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-                .unwrap_or_else(|_| "latest".to_string());
-
-            let tag_list = tags.map(|tags| {
-                tags.split(',')
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>()
-            });
-
             let opts = test_runner::TestBatchOpts {
                 project_id,
                 test_commands: commands.clone(),
                 job_name_prefix: Some("batch-test".to_string()),
                 image,
-                tags: tag_list,
+                tags: parse_tag_list(tags),
                 timeout_secs: timeout,
                 max_parallel,
                 force,
-                commit_sha,
+                commit_sha: current_commit_sha(),
             };
             println!("🧪 Starting batched test run...");
             println!("   Commands:  {}", opts.test_commands.len());
@@ -327,24 +395,7 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             let cwd = repo_root
                 .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
-            // Get changed files via git diff
-            let diff_output = std::process::Command::new("git")
-                .current_dir(&cwd)
-                .args(["diff", "--name-only", &base, &head])
-                .output()?;
-
-            if !diff_output.status.success() {
-                anyhow::bail!(
-                    "git diff failed: {}",
-                    String::from_utf8_lossy(&diff_output.stderr)
-                );
-            }
-
-            let changed_paths: Vec<String> = String::from_utf8_lossy(&diff_output.stdout)
-                .lines()
-                .filter(|line| !line.is_empty())
-                .map(|line| line.to_string())
-                .collect();
+            let changed_paths = git_diff_changed_paths(&cwd, &base, &head)?;
 
             // Run the VTI planner
             let plan = test_intel::planner::plan_tests(&changed_paths);
@@ -367,7 +418,7 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
                 println!("  Selected:   {} test commands", plan.selected_tests.len());
                 println!("  Skipped:    {} subsystems", plan.skipped_subsystems.len());
                 if let Some(reason) = &plan.fallback_reason {
-                    println!("  Fallback:   {}", reason);
+                    println!("  Recovery:   {}", reason);
                 }
                 println!();
                 for test in &plan.selected_tests {
@@ -387,19 +438,11 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
 
             if let Some(plan_path) = emit_plan {
                 let json_value = test_intel::explain::explain_json(&plan);
-                if let Some(parent) = plan_path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-                std::fs::write(&plan_path, serde_json::to_string_pretty(&json_value)?)?;
-                eprintln!("Wrote test plan to {}", plan_path.display());
+                write_json_artifact(&plan_path, &json_value, "test plan")?;
             }
 
             if let Some(receipt_path) = emit_receipt {
-                if let Some(parent) = receipt_path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-                std::fs::write(&receipt_path, serde_json::to_string_pretty(&receipt)?)?;
-                eprintln!("Wrote VTI receipt to {}", receipt_path.display());
+                write_json_artifact(&receipt_path, &receipt, "VTI receipt")?;
             }
         }
         TestCommands::ExplainPlan { plan_path } => {
@@ -425,24 +468,7 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             let map =
                 test_intel::testmap::load_testmap(&testmap_path).map_err(|e| anyhow::anyhow!(e))?;
 
-            // Get changed files via git diff
-            let diff_output = std::process::Command::new("git")
-                .current_dir(&workspace)
-                .args(["diff", "--name-only", &base, &head])
-                .output()?;
-
-            if !diff_output.status.success() {
-                anyhow::bail!(
-                    "git diff failed: {}",
-                    String::from_utf8_lossy(&diff_output.stderr)
-                );
-            }
-
-            let changed_paths: Vec<String> = String::from_utf8_lossy(&diff_output.stdout)
-                .lines()
-                .filter(|line| !line.is_empty())
-                .map(|line| line.to_string())
-                .collect();
+            let changed_paths = git_diff_changed_paths(&workspace, &base, &head)?;
 
             let plan = test_intel::testmap::plan_from_testmap(&map, &changed_paths);
 
@@ -463,7 +489,7 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
                 println!("  Selected:  {} CI jobs", plan.selected_jobs.len());
                 println!("  Skipped:   {} CI jobs", plan.skipped_jobs.len());
                 if let Some(reason) = &plan.fallback_reason {
-                    println!("  Fallback:  {}", reason);
+                    println!("  Recovery:  {}", reason);
                 }
                 println!();
                 for job in &plan.selected_jobs {
@@ -483,20 +509,12 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
 
             if let Some(plan_path) = emit_plan {
                 let json_value = test_intel::testmap::explain_external_json(&plan);
-                if let Some(parent) = plan_path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-                std::fs::write(&plan_path, serde_json::to_string_pretty(&json_value)?)?;
-                eprintln!("Wrote test plan to {}", plan_path.display());
+                write_json_artifact(&plan_path, &json_value, "test plan")?;
             }
 
             if let Some(skipped_path) = emit_skipped {
                 let json_value = test_intel::testmap::explain_external_skipped_json(&plan);
-                if let Some(parent) = skipped_path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-                std::fs::write(&skipped_path, serde_json::to_string_pretty(&json_value)?)?;
-                eprintln!("Wrote VTI skipped metadata to {}", skipped_path.display());
+                write_json_artifact(&skipped_path, &json_value, "VTI skipped metadata")?;
             }
         }
         TestCommands::Audit {
@@ -507,43 +525,8 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             json,
             workspace,
         } => {
-            let changed_paths: Vec<String> = changed
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-            let failed_tests: Vec<String> = failed
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-            let all_test_list: Vec<String> = all_tests
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-
-            let mut external_map = None;
-            if let Some(workspace_path) = workspace {
-                let testmap_path = workspace_path.join(".jeryu/testmap.toml");
-                if testmap_path.exists() {
-                    external_map = match test_intel::testmap::load_testmap(&testmap_path) {
-                        Ok(m) => Some(m),
-                        Err(e) => {
-                            eprintln!("Warning: failed to load testmap: {}", e);
-                            None
-                        }
-                    };
-                }
-            }
-
-            let report = test_intel::nightly::audit_selector(
-                &changed_paths,
-                &failed_tests,
-                &all_test_list,
-                &sha,
-                external_map.as_ref(),
-            );
+            let report =
+                build_audit_report(&changed, &failed, &all_tests, &sha, workspace.as_ref());
 
             if json {
                 let json_value = test_intel::nightly::explain_audit_json(&report);
@@ -576,43 +559,8 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             json,
             workspace,
         } => {
-            let changed_paths: Vec<String> = changed
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-            let failed_tests: Vec<String> = failed
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-            let all_test_list: Vec<String> = all_tests
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-
-            let mut external_map = None;
-            if let Some(workspace_path) = workspace {
-                let testmap_path = workspace_path.join(".jeryu/testmap.toml");
-                if testmap_path.exists() {
-                    external_map = match test_intel::testmap::load_testmap(&testmap_path) {
-                        Ok(m) => Some(m),
-                        Err(e) => {
-                            eprintln!("Warning: failed to load testmap: {}", e);
-                            None
-                        }
-                    };
-                }
-            }
-
-            let report = test_intel::nightly::audit_selector(
-                &changed_paths,
-                &failed_tests,
-                &all_test_list,
-                &sha,
-                external_map.as_ref(),
-            );
+            let report =
+                build_audit_report(&changed, &failed, &all_tests, &sha, workspace.as_ref());
             let result = test_intel::nightly::learn_from_audit(&report);
 
             if json {

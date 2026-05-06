@@ -45,6 +45,7 @@ fn repo_file(rel: &str) -> PathBuf {
 }
 
 fn is_root() -> bool {
+    // SAFETY: geteuid is a pure libc query with no aliasing or lifetime concerns.
     unsafe { libc::geteuid() == 0 }
 }
 

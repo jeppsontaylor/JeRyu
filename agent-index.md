@@ -1,6 +1,6 @@
 # Agent Index
 
-Generated: `2026-05-05T23:06:48.567532226+00:00`
+Generated: `2026-05-06T12:43:13.498380+00:00`
 
 | Module | Change Type | Proof Commands | Owner |
 |---|---|---|---|
@@ -52,7 +52,6 @@ Generated: `2026-05-05T23:06:48.567532226+00:00`
 | `src/git/mod.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git event plane and passthrough executor |
 | `src/git/policy.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git execution policy |
 | `src/git/receipt.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git execution receipts |
-| `src/git/shim.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git shim helpers |
 | `src/git/snapshot.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git repository state snapshot |
 | `src/git/store.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git event persistence |
 | `src/git/system.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | System Git resolution |
@@ -82,7 +81,7 @@ Generated: `2026-05-05T23:06:48.567532226+00:00`
 | `src/sccache_mgr.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | sccache Management subsystem |
 | `src/secrets.rs` | `security-relevant` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo test -p jeryu -- secrets exec honeypot admission | Secrets & Vault Lifecycle |
 | `src/settings.rs` | `api-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | User settings subsystem |
-| `src/state.rs` | `state-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | State Store (Postgres primary, SQLite fallback) |
+| `src/state.rs` | `state-change` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1 | State Store (Postgres primary, SQLite recovery) |
 | `src/taint.rs` | `security-relevant` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo test -p jeryu -- secrets exec honeypot admission | Taint Tracking (Detonation Lane) |
 | `src/telemetry.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Runner Telemetry subsystem |
 | `src/test_intel/cache.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | VTI Test Intelligence subsystem — plan cache |
@@ -96,7 +95,6 @@ Generated: `2026-05-05T23:06:48.567532226+00:00`
 | `src/test_runner.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | CI Test Runner subsystem |
 | `src/tui/action_registry.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | TUI action surface and capability action contract. |
 | `src/tui/app.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Interactive TUI subsystem — application state and refresh loop |
-| `src/tui/events.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Interactive TUI subsystem — event handling stubs |
 | `src/tui/flow/builder.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Interactive TUI subsystem — flow graph builder |
 | `src/tui/flow/collector.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Interactive TUI subsystem — flow snapshot collector |
 | `src/tui/flow/eta.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Interactive TUI subsystem — flow ETA estimation |

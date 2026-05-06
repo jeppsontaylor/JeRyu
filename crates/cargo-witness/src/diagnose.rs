@@ -66,54 +66,37 @@ pub fn diagnose_workspace(
             continue;
         }
 
-        // Find the primary span.
-        let primary_span = diagnostic
-            .spans
-            .iter()
-            .find(|span| span.is_primary)
-            .or_else(|| diagnostic.spans.first());
-
-        let (file, line_num, column) = if let Some(span) = primary_span {
-            (span.file_name.clone(), span.line_start, span.column_start)
-        } else {
-            ("<unknown>".to_string(), 0, 0)
-        };
+        let (file, line_num, column) = resolve_diagnostic_location(&diagnostic.spans);
 
         // Route to owning ARC.
-        let owning_arc = snapshot
-            .packages
-            .iter()
-            .find(|package| {
-                let pkg_root = package
-                    .package_root
-                    .strip_prefix(&snapshot.workspace_root)
-                    .map(|p| p.display().to_string())
-                    .unwrap_or_default();
-                file.starts_with(&pkg_root)
-            })
-            .map(|package| package.name.clone())
-            .unwrap_or_else(|| "<unmatched>".to_string());
+        let owning_pkg = snapshot.packages.iter().find(|package| {
+            let pkg_root = match package
+                .package_root
+                .strip_prefix(&snapshot.workspace_root)
+            {
+                Ok(rel) => rel.display().to_string(),
+                Err(_) => String::new(),
+            };
+            file.starts_with(&pkg_root)
+        });
+        let owning_arc = match owning_pkg {
+            Some(package) => package.name.clone(),
+            None => "<unmatched>".to_string(),
+        };
 
-        let cell_purpose = snapshot
-            .packages
-            .iter()
-            .find(|p| p.name == owning_arc)
-            .map(|p| p.agent.purpose.clone())
-            .filter(|purpose| !purpose.is_empty());
-
-        let invariants = snapshot
-            .packages
-            .iter()
-            .find(|p| p.name == owning_arc)
-            .map(|p| p.agent.invariants.clone())
-            .unwrap_or_default();
-
-        let local_commands = snapshot
-            .packages
-            .iter()
-            .find(|p| p.name == owning_arc)
-            .map(|p| p.agent.local_validate.clone())
-            .unwrap_or_default();
+        let pkg = snapshot.packages.iter().find(|p| p.name == owning_arc);
+        let cell_purpose = match pkg {
+            Some(p) if !p.agent.purpose.is_empty() => Some(p.agent.purpose.clone()),
+            _ => None,
+        };
+        let invariants = match pkg {
+            Some(p) => p.agent.invariants.clone(),
+            None => Vec::new(),
+        };
+        let local_commands = match pkg {
+            Some(p) => p.agent.local_validate.clone(),
+            None => Vec::new(),
+        };
 
         // Extract compiler suggestion if present.
         let compiler_suggestion = diagnostic
@@ -165,6 +148,54 @@ pub fn write_compile_packets(workspace_root: &Path, packets: &CompilePackets) ->
     fs::write(&output_path, json)
         .with_context(|| format!("failed to write {}", output_path.display()))?;
     Ok(())
+}
+
+// ── Span selection ─────────────────────────────────────────────────────
+
+/// Outcome of picking a span to attribute a diagnostic to.
+///
+/// Cargo normally marks one span with `is_primary = true`, but it
+/// occasionally emits diagnostics where no span is primary (for
+/// example, certain crate-level lints). In that case we deliberately
+/// use the first span as a secondary location so the diagnostic still
+/// routes to a real file/line rather than `<unknown>`.
+enum SpanChoice<'a> {
+    /// A span explicitly marked `is_primary = true`.
+    Primary(&'a DiagnosticSpan),
+    /// No primary span existed; first span used as a documented secondary location.
+    FirstSecondary(&'a DiagnosticSpan),
+    /// Diagnostic carried no spans at all.
+    None,
+}
+
+impl<'a> SpanChoice<'a> {
+    fn from_spans(spans: &'a [DiagnosticSpan]) -> Self {
+        if let Some(span) = spans.iter().find(|span| span.is_primary) {
+            SpanChoice::Primary(span)
+        } else if let Some(span) = spans.first() {
+            SpanChoice::FirstSecondary(span)
+        } else {
+            SpanChoice::None
+        }
+    }
+
+    fn span(&self) -> Option<&'a DiagnosticSpan> {
+        match self {
+            SpanChoice::Primary(span) | SpanChoice::FirstSecondary(span) => Some(span),
+            SpanChoice::None => None,
+        }
+    }
+}
+
+/// Resolve `(file, line, column)` for a diagnostic, preferring the
+/// primary span and using the first span as a secondary location when
+/// cargo emits no primary. When the diagnostic has no spans at all,
+/// returns the typed unknown sentinel `("<unknown>", 0, 0)`.
+fn resolve_diagnostic_location(spans: &[DiagnosticSpan]) -> (String, u32, u32) {
+    match SpanChoice::from_spans(spans).span() {
+        Some(span) => (span.file_name.clone(), span.line_start, span.column_start),
+        None => ("<unknown>".to_string(), 0, 0),
+    }
 }
 
 // ── Cargo JSON diagnostic types ────────────────────────────────────────

@@ -11,10 +11,10 @@ pub fn run(output: &Path) -> Result<ScenarioReport> {
     let root = workspace_root();
     let scratch = std::env::temp_dir().join(format!(
         "psd-mechanics-{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos()
+        match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+            Ok(duration) => duration.as_nanos(),
+            Err(_) => 0,
+        }
     ));
     fs::create_dir_all(&scratch)
         .with_context(|| format!("failed to create {}", scratch.display()))?;
@@ -28,7 +28,7 @@ pub fn run(output: &Path) -> Result<ScenarioReport> {
     let repo_delta = repo_shape_delta(&repo_shape);
     let exception_successes = exceptions.cases.iter().filter(|case| case.success).count();
 
-    let compile_manifest = root.join("proof/labs/exception-zoo/cases/borrow-lifetime/Cargo.toml");
+    let compile_manifest = root.join("proof/examples/labs/exception-zoo/cases/borrow-lifetime/Cargo.toml");
     let compile_root = compile_manifest
         .parent()
         .context("compile fixture manifest has no parent")?;
@@ -45,24 +45,30 @@ pub fn run(output: &Path) -> Result<ScenarioReport> {
     let repair_success = repair_packet_enrichment_success(&repair_root)?;
 
     let results = vec![
-        BenchVariantResult {
-            scenario: "psd-mechanics".to_string(),
-            variant: "repo-shape-proof".to_string(),
-            wall_time_ms: repo_shape
+        build_variant_result(
+            "repo-shape",
+            repo_shape.results.iter().map(|result| result.wall_time_ms).sum(),
+            repo_shape
                 .results
                 .iter()
-                .map(|result| result.wall_time_ms)
-                .sum(),
-            peak_rss_kb: None,
-            thread_count_max: None,
-            throughput: None,
-            latency_p50_ms: None,
-            latency_p95_ms: None,
-            context_files: repo_shape.results.iter().find(|r| r.variant == "arcified").and_then(|r| r.context_files),
-            context_bytes: repo_shape.results.iter().find(|r| r.variant == "arcified").and_then(|r| r.context_bytes),
-            selected_tests: repo_shape.results.iter().find(|r| r.variant == "arcified").and_then(|r| r.selected_tests),
-            selected_arcs: repo_shape.results.iter().find(|r| r.variant == "arcified").and_then(|r| r.selected_arcs),
-            notes: vec![
+                .find(|result| result.variant == "arcified")
+                .and_then(|result| result.context_files),
+            repo_shape
+                .results
+                .iter()
+                .find(|result| result.variant == "arcified")
+                .and_then(|result| result.context_bytes),
+            repo_shape
+                .results
+                .iter()
+                .find(|result| result.variant == "arcified")
+                .and_then(|result| result.selected_tests),
+            repo_shape
+                .results
+                .iter()
+                .find(|result| result.variant == "arcified")
+                .and_then(|result| result.selected_arcs),
+            vec![
                 format!(
                     "Arcified context bytes: {} vs monolith {} (~{:.2}x smaller).",
                     repo_delta.arcified_context_bytes,
@@ -71,61 +77,42 @@ pub fn run(output: &Path) -> Result<ScenarioReport> {
                 ),
                 "Measures default context shrinkage for a local business-rule change.".to_string(),
             ],
-        },
-        BenchVariantResult {
-            scenario: "psd-mechanics".to_string(),
-            variant: "witness-loop-proof".to_string(),
-            wall_time_ms: witness_loop
-                .results
-                .iter()
-                .map(|result| result.wall_time_ms)
-                .sum(),
-            peak_rss_kb: None,
-            thread_count_max: None,
-            throughput: None,
-            latency_p50_ms: None,
-            latency_p95_ms: None,
-            context_files: None,
-            context_bytes: None,
-            selected_tests: Some(false_positive_eliminations),
-            selected_arcs: None,
-            notes: vec![
-                format!("Classification accuracy across scripted witness mutations: {:.2}.", classification_accuracy),
+        ),
+        build_variant_result(
+            "witness-loop",
+            witness_loop.results.iter().map(|result| result.wall_time_ms).sum(),
+            None,
+            None,
+            Some(false_positive_eliminations),
+            None,
+            vec![
+                format!(
+                    "Classification accuracy across scripted witness mutations: {:.2}.",
+                    classification_accuracy
+                ),
                 format!("False-positive boundary escalations eliminated: {}.", false_positive_eliminations),
             ],
-        },
-        BenchVariantResult {
-            scenario: "psd-mechanics".to_string(),
-            variant: "exception-proof".to_string(),
-            wall_time_ms: exceptions.results.iter().map(|result| result.wall_time_ms).sum(),
-            peak_rss_kb: None,
-            thread_count_max: None,
-            throughput: None,
-            latency_p50_ms: None,
-            latency_p95_ms: None,
-            context_files: None,
-            context_bytes: None,
-            selected_tests: Some(exception_successes),
-            selected_arcs: None,
-            notes: vec![
+        ),
+        build_variant_result(
+            "exceptions",
+            exceptions.results.iter().map(|result| result.wall_time_ms).sum(),
+            None,
+            None,
+            Some(exception_successes),
+            None,
+            vec![
                 format!("Exception-zoo detections: {exception_successes}/{}.", exceptions.cases.len()),
                 "Covers compile failures, structural findings, and runtime-adjacent failures.".to_string(),
             ],
-        },
-        BenchVariantResult {
-            scenario: "psd-mechanics".to_string(),
-            variant: "compile-routing-proof".to_string(),
-            wall_time_ms: 0,
-            peak_rss_kb: None,
-            thread_count_max: None,
-            throughput: None,
-            latency_p50_ms: None,
-            latency_p95_ms: None,
-            context_files: None,
-            context_bytes: None,
-            selected_tests: Some(compile_packets.summary.total_errors),
-            selected_arcs: Some(compile_packets.summary.arcs_affected),
-            notes: vec![
+        ),
+        build_variant_result(
+            "compile-routing",
+            0,
+            None,
+            None,
+            Some(compile_packets.summary.total_errors),
+            Some(compile_packets.summary.arcs_affected),
+            vec![
                 format!("Compile diagnostic routing success: {compile_routing_success}."),
                 format!(
                     "Borrow-checker fixture produced {} error packet(s) across {} ARC(s).",
@@ -133,25 +120,19 @@ pub fn run(output: &Path) -> Result<ScenarioReport> {
                     compile_packets.summary.arcs_affected
                 ),
             ],
-        },
-        BenchVariantResult {
-            scenario: "psd-mechanics".to_string(),
-            variant: "repair-packet-proof".to_string(),
-            wall_time_ms: 0,
-            peak_rss_kb: None,
-            thread_count_max: None,
-            throughput: None,
-            latency_p50_ms: None,
-            latency_p95_ms: None,
-            context_files: None,
-            context_bytes: None,
-            selected_tests: None,
-            selected_arcs: None,
-            notes: vec![
+        ),
+        build_variant_result(
+            "repair-packet",
+            0,
+            None,
+            None,
+            None,
+            None,
+            vec![
                 format!("Synthetic runtime repair packet enrichment success: {repair_success}."),
                 "Confirms that repair bundles preserve match provenance and suggested local validation.".to_string(),
             ],
-        },
+        ),
     ];
 
     let report = ScenarioReport {
@@ -160,9 +141,9 @@ pub fn run(output: &Path) -> Result<ScenarioReport> {
         results,
         cases: Vec::new(),
         notes: vec![
-            "Aggregates the repository's core proof pillars into one fast mechanics report.".to_string(),
-            "Designed to support launch claims about proof precision, context shrinkage, and failure routing.".to_string(),
-            "Current mutation set covers repo-shape, witness-loop, exception-zoo, compile routing, and repair bundle enrichment.".to_string(),
+            "Aggregates repo-shape, witness-loop, exception, compile-routing, and repair-packet benchmarks.".to_string(),
+            "Reports proof routing precision, context shrinkage, and failure enrichment for the current mutation set.".to_string(),
+            "Covers the benchmark inputs used by the proof-scoped control plane.".to_string(),
         ],
     };
 
@@ -211,8 +192,10 @@ fn witness_metrics(root: &Path, witness_loop: &ScenarioReport) -> Result<(f64, u
             .find(|result| result.variant == witnessed_variant)
             .context("missing witnessed witness-loop result")?;
 
-        let observed_classification =
-            extract_note_value(&witnessed.notes, "Classification").unwrap_or_default();
+        let observed_classification = match extract_note_value(&witnessed.notes, "Classification") {
+            Some(value) => value,
+            None => "",
+        };
         let observed_escalation = extract_note_value(&witnessed.notes, "Escalated")
             .map(|value| value == "true")
             .unwrap_or(false);
@@ -240,18 +223,24 @@ fn witness_metrics(root: &Path, witness_loop: &ScenarioReport) -> Result<(f64, u
 }
 
 fn repo_shape_delta(report: &ScenarioReport) -> RepoShapeDelta {
-    let monolith = report
+    let monolith = match report
         .results
         .iter()
         .find(|result| result.variant == "monolith")
         .and_then(|result| result.context_bytes)
-        .unwrap_or_default();
-    let arcified = report
+    {
+        Some(value) => value,
+        None => 0,
+    };
+    let arcified = match report
         .results
         .iter()
         .find(|result| result.variant == "arcified")
         .and_then(|result| result.context_bytes)
-        .unwrap_or_default();
+    {
+        Some(value) => value,
+        None => 0,
+    };
     let ratio = if arcified == 0 {
         0.0
     } else {
@@ -261,6 +250,32 @@ fn repo_shape_delta(report: &ScenarioReport) -> RepoShapeDelta {
         monolith_context_bytes: monolith,
         arcified_context_bytes: arcified,
         context_reduction_ratio: (ratio * 100.0).round() / 100.0,
+    }
+}
+
+fn build_variant_result(
+    variant: &str,
+    wall_time_ms: u64,
+    context_files: Option<usize>,
+    context_bytes: Option<u64>,
+    selected_tests: Option<usize>,
+    selected_arcs: Option<usize>,
+    notes: Vec<String>,
+) -> BenchVariantResult {
+    BenchVariantResult {
+        scenario: "psd-mechanics".to_string(),
+        variant: variant.to_string(),
+        wall_time_ms,
+        peak_rss_kb: None,
+        thread_count_max: None,
+        throughput: None,
+        latency_p50_ms: None,
+        latency_p95_ms: None,
+        context_files,
+        context_bytes,
+        selected_tests,
+        selected_arcs,
+        notes,
     }
 }
 

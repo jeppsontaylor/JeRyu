@@ -223,7 +223,7 @@ async fn handle_push_event(state: SharedState, payload: PushHookPayload) {
                 project_id = payload.project_id,
                 ref_name = %ref_name,
                 lanes = ?plan.selected_lanes,
-                fallback = plan.conservative_fallback,
+                recovery_path = plan.widened_to_full,
                 "semantic CI impact plan computed"
             );
 
@@ -789,7 +789,7 @@ async fn system_health_loop(state: SharedState) {
                     if let Err(e) = manager.gc_disk_cache().await {
                         error!(error = %e, "background GC failed");
                     }
-                    // Proactively prune stale builder cache every cycle to prevent overlay2 accumulation.
+                    // Proactively prune expired builder cache every cycle to prevent overlay2 accumulation.
                     let _ = tokio::process::Command::new("docker")
                         .args(["builder", "prune", "--force", "--filter", "until=2h"])
                         .output()

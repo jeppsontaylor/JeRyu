@@ -564,7 +564,7 @@ impl DockerCtl {
             .context("removing cache dir via docker")?;
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            warn!(path = %cache_dir.display(), stderr = %stderr, "docker rm fallback warning");
+            warn!(path = %cache_dir.display(), stderr = %stderr, "docker rm recovery warning");
         }
         Ok(())
     }

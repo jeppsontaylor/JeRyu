@@ -32,9 +32,9 @@ pub fn explain(plan: &TestPlan) -> String {
         out.push('\n');
     }
 
-    // Fallback reason
+    // Recovery reason
     if let Some(reason) = &plan.fallback_reason {
-        out.push_str(&format!("⚠ Fallback: {}\n\n", reason));
+        out.push_str(&format!("⚠ Recovery: {}\n\n", reason));
     }
 
     // Selected tests

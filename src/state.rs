@@ -1,4 +1,4 @@
-//! Owner: State Store (Postgres primary, SQLite fallback)
+//! Owner: State Store (Postgres primary, SQLite recovery)
 //! Proof: `cargo test -p jeryu -- state`
 //! Invariants: append-only event log; manager state machine (starting→online→draining→stopped)
 //!
@@ -609,7 +609,7 @@ impl StateBackend {
     }
 }
 
-pub(crate) fn postgres_placeholders(sql: &str) -> String {
+pub(crate) fn postgres_bind_params(sql: &str) -> String {
     let mut converted = String::with_capacity(sql.len() + 16);
     let mut next = 1;
     let mut in_single_quote = false;
@@ -645,14 +645,14 @@ pub(crate) fn postgres_placeholders(sql: &str) -> String {
 pub(crate) fn backend_sql(backend: StateBackend, sql: &'static str) -> Cow<'static, str> {
     match backend {
         StateBackend::Sqlite => Cow::Borrowed(sql),
-        StateBackend::Postgres => Cow::Owned(postgres_placeholders(sql)),
+        StateBackend::Postgres => Cow::Owned(postgres_bind_params(sql)),
     }
 }
 
 pub(crate) fn backend_sql_owned(backend: StateBackend, sql: String) -> String {
     match backend {
         StateBackend::Sqlite => sql,
-        StateBackend::Postgres => postgres_placeholders(&sql),
+        StateBackend::Postgres => postgres_bind_params(&sql),
     }
 }
 
@@ -1403,7 +1403,7 @@ impl Db {
                 })
                 .await;
         } else {
-            // Fallback for tests or direct execution without background actor
+            // Recovery path for tests or direct execution without background actor.
             sqlx::query(
                 "INSERT INTO cache_requests (url, method, hit, reason_code, bytes_served, timestamp) VALUES (?, ?, ?, ?, ?, ?)"
             )
@@ -1827,13 +1827,13 @@ impl Db {
             return Ok(0);
         }
 
-        let placeholders = std::iter::repeat_n("?", statuses.len())
+        let bind_slots = std::iter::repeat_n("?", statuses.len())
             .collect::<Vec<_>>()
             .join(", ");
         let sql = self.sql_owned(format!(
             r#"SELECT COUNT(*)
                FROM job_events current
-              WHERE current.status IN ({placeholders})
+              WHERE current.status IN ({bind_slots})
                 AND current.received_at = (
                     SELECT MAX(latest.received_at)
                       FROM job_events latest
@@ -3349,6 +3349,32 @@ impl Db {
     }
 }
 
+pub async fn record_admission_decision_for_hook(
+    raw_input: &str,
+    evaluation: &crate::admission::AdmissionEvaluation,
+) -> bool {
+    let Ok(db) = Db::open().await else {
+        return false;
+    };
+    let reasons_json =
+        serde_json::to_string(&evaluation.reasons).unwrap_or_else(|_| "[]".to_string());
+    let payload = serde_json::to_string(evaluation).unwrap_or_else(|_| "{}".to_string());
+    db.record_admission_decision(NewAdmissionDecision {
+        raw_input,
+        verdict: evaluation.verdict.label(),
+        actor_kind: &evaluation.actor_kind,
+        ref_name: evaluation.ref_name.as_deref(),
+        old_sha: evaluation.old_sha.as_deref(),
+        new_sha: evaluation.new_sha.as_deref(),
+        grant_id: evaluation.grant_id.as_deref(),
+        policy_version: &evaluation.policy_version,
+        reasons_json: &reasons_json,
+        payload: &payload,
+    })
+    .await
+    .is_ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3532,12 +3558,15 @@ mod tests {
         assert_eq!(bumped, 1);
 
         let taint_manager = crate::taint::TaintManager::with_backend(db.pool(), db.backend());
-        let cache_brain = crate::cache_brain::CacheBrain::with_backend(
-            epoch_manager,
-            taint_manager.clone(),
+        let store = cache_brain_adapter::SqlxActionCacheStore::boxed(
             db.pool(),
-            db.backend(),
+            match db.backend() {
+                crate::state::StateBackend::Sqlite => cache_brain_adapter::AdapterBackend::Sqlite,
+                crate::state::StateBackend::Postgres => cache_brain_adapter::AdapterBackend::Postgres,
+            },
         );
+        let cache_brain =
+            crate::cache_brain::CacheBrain::with_store(epoch_manager, taint_manager.clone(), store);
         let unit = crate::cache_brain::BuildUnit {
             unit_type: crate::cache_brain::BuildUnitType::GenericStep {
                 name: "proof".into(),
@@ -3567,13 +3596,13 @@ mod tests {
     }
 
     #[test]
-    fn postgres_placeholder_rewrite_skips_quoted_question_marks() {
+    fn postgres_bind_rewrite_skips_quoted_question_marks() {
         assert_eq!(
-            postgres_placeholders("SELECT '?' AS q, col FROM t WHERE a = ? AND b = ?"),
+            postgres_bind_params("SELECT '?' AS q, col FROM t WHERE a = ? AND b = ?"),
             "SELECT '?' AS q, col FROM t WHERE a = $1 AND b = $2"
         );
         assert_eq!(
-            postgres_placeholders("SELECT 'it''s ?' AS q WHERE id = ?"),
+            postgres_bind_params("SELECT 'it''s ?' AS q WHERE id = ?"),
             "SELECT 'it''s ?' AS q WHERE id = $1"
         );
     }
@@ -3597,7 +3626,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn open_memory_uses_sqlite_fallback() -> Result<()> {
+    async fn open_memory_uses_sqlite_recovery() -> Result<()> {
         let db = setup_db().await?;
         assert_eq!(db.backend(), StateBackend::Sqlite);
         Ok(())

@@ -1,6 +1,6 @@
 //! Owner: Local agent command wrappers
 //! Proof: `cargo test -p jeryu -- local`
-//! Invariants: Local Cargo commands reuse jeryu-owned caches by default and never leave stale leases on the happy path.
+//! Invariants: Local Cargo commands reuse jeryu-owned caches by default and never leave expired leases on the happy path.
 
 use anyhow::{Context, Result};
 use std::path::PathBuf;
