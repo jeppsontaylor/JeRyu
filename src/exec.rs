@@ -24,8 +24,8 @@ fn custom_executor_bootstrap_script() -> &'static str {
     r#"
 set -eu
 if ! command -v docker >/dev/null 2>&1; then
-  apt-get update -qq >/dev/null
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq docker.io >/dev/null
+  (apt-get -qq update)>/dev/null
+  DEBIAN_FRONTEND=noninteractive apt-get -y -qq install docker.io >/dev/null
 fi
 if command -v docker >/dev/null 2>&1; then
   ln -sf "$(command -v docker)" /usr/local/bin/docker || true
@@ -204,7 +204,7 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
     let db = crate::state::Db::open().await?;
     let epoch_manager = crate::epoch::EpochManager::with_backend(db.pool(), db.backend());
     let taint_manager = crate::taint::TaintManager::with_backend(db.pool(), db.backend());
-    let store = cache_brain_adapter::SqlxActionCacheStore::boxed(
+    let store = cache_brain_adapter::create_action_store(
         db.pool(),
         match db.backend() {
             crate::state::StateBackend::Sqlite => cache_brain_adapter::AdapterBackend::Sqlite,

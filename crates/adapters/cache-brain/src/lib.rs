@@ -60,6 +60,18 @@ impl SqlxActionCacheStore {
     }
 }
 
+/// Create an action-cache store backed by the configured pool.
+///
+/// Callers in `src/` should use this factory instead of naming the
+/// concrete implementation type directly, keeping the `sqlx` token
+/// confined to `crates/adapters/`.
+pub fn create_action_store(
+    pool: sqlx::AnyPool,
+    backend: AdapterBackend,
+) -> std::sync::Arc<dyn ActionCacheStore> {
+    SqlxActionCacheStore::boxed(pool, backend)
+}
+
 fn postgres_bind_params(sql: &str) -> String {
     let mut converted = String::with_capacity(sql.len() + 16);
     let mut next = 1;
