@@ -4,7 +4,50 @@
 use super::singleflight::Singleflight;
 use anyhow::Result;
 use reqwest::Client;
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
+
+pub(crate) async fn fetch_bytes_with_singleflight<F, Fut>(
+    fetch_coalescer: &Arc<Singleflight<Result<Vec<u8>, String>>>,
+    key: &str,
+    join_label: &'static str,
+    start_label: &'static str,
+    request: F,
+) -> Result<Vec<u8>>
+where
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<reqwest::Response, reqwest::Error>>,
+{
+    if let Some(mut rx) = fetch_coalescer.join_or_start(key) {
+        tracing::info!(
+            "Singleflight: joining active fetch for {} {}",
+            join_label,
+            key
+        );
+        match rx.recv().await {
+            Ok(Ok(bytes)) => return Ok(bytes),
+            Ok(Err(e)) => anyhow::bail!("Coalesced {} fetch failed: {}", join_label, e),
+            Err(_) => anyhow::bail!("Fetch coalescer sender dropped for {}", key),
+        }
+    }
+
+    tracing::info!("Singleflight: initiating fetch for {} {}", start_label, key);
+    let resp_result = request().await;
+
+    let result = match resp_result {
+        Ok(resp) if resp.status().is_success() => {
+            resp.bytes().await.map(|b| b.to_vec()).map_err(|e| e.into())
+        }
+        Ok(resp) => Err(anyhow::anyhow!("HTTP error: {}", resp.status())),
+        Err(e) => Err(e.into()),
+    };
+
+    match &result {
+        Ok(bytes) => fetch_coalescer.complete(key, Ok(bytes.clone())),
+        Err(e) => fetch_coalescer.complete(key, Err(e.to_string())),
+    }
+
+    result
+}
 
 #[derive(Clone)]
 pub struct OciAdapter {
@@ -27,33 +70,10 @@ impl OciAdapter {
 
     pub async fn fetch_blob(&self, repo: &str, digest: &str) -> Result<Vec<u8>> {
         let key = format!("{}:{}", repo, digest);
-
-        if let Some(mut rx) = self.fetch_coalescer.join_or_start(&key) {
-            tracing::info!("Singleflight: joining active fetch for OCI blob {}", key);
-            match rx.recv().await {
-                Ok(Ok(bytes)) => return Ok(bytes),
-                Ok(Err(e)) => anyhow::bail!("Coalesced OCI fetch failed: {}", e),
-                Err(_) => anyhow::bail!("Fetch coalescer sender dropped for {}", key),
-            }
-        }
-
-        tracing::info!("Singleflight: initiating fetch for OCI blob {}", key);
         let url = format!("{}/v2/{}/blobs/{}", self.upstream_url, repo, digest);
-        let resp_result = self.http_client.get(&url).send().await;
-
-        let result = match resp_result {
-            Ok(resp) if resp.status().is_success() => {
-                resp.bytes().await.map(|b| b.to_vec()).map_err(|e| e.into())
-            }
-            Ok(resp) => Err(anyhow::anyhow!("HTTP error: {}", resp.status())),
-            Err(e) => Err(e.into()),
-        };
-
-        match &result {
-            Ok(bytes) => self.fetch_coalescer.complete(&key, Ok(bytes.clone())),
-            Err(e) => self.fetch_coalescer.complete(&key, Err(e.to_string())),
-        }
-
-        result
+        fetch_bytes_with_singleflight(&self.fetch_coalescer, &key, "OCI blob", "OCI blob", || {
+            self.http_client.get(&url).send()
+        })
+        .await
     }
 }
