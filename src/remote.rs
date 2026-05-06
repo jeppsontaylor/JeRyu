@@ -604,21 +604,28 @@ async fn remote_refresh(cfg: &RemoteConfig, opts: &RemoteCommonOptions) -> Resul
     }
 }
 
-async fn remote_doctor(cfg: &RemoteConfig, opts: &RemoteCommonOptions) -> Result<i32> {
-    let report = collect_report(cfg).await?;
+fn print_remote_report(label: &str, report: &RemoteReport, opts: &RemoteCommonOptions) -> Result<()> {
     if opts.json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
+        println!("{}", serde_json::to_string_pretty(report)?);
     } else {
-        println!("Remote doctor: {}", cfg.alias);
+        println!("Remote {}: {}", label, report.alias);
         println!("  target:         {}", report.target);
         println!("  binary:         {}", report.remote_bin);
         println!("  installed:      {}", report.installed);
         println!("  service active: {}", report.service_active);
         println!("  docker ready:   {}", report.docker_ready);
-        if let Some(version) = &report.version_output {
-            println!("  version:        {}", version.trim());
+        if label == "doctor" {
+            if let Some(version) = &report.version_output {
+                println!("  version:        {}", version.trim());
+            }
         }
     }
+    Ok(())
+}
+
+async fn remote_doctor(cfg: &RemoteConfig, opts: &RemoteCommonOptions) -> Result<i32> {
+    let report = collect_report(cfg).await?;
+    print_remote_report("doctor", &report, opts)?;
     if !report.installed {
         bail!("remote binary not installed");
     }
@@ -630,16 +637,7 @@ async fn remote_doctor(cfg: &RemoteConfig, opts: &RemoteCommonOptions) -> Result
 
 async fn remote_status(cfg: &RemoteConfig, opts: &RemoteCommonOptions) -> Result<i32> {
     let report = collect_report(cfg).await?;
-    if opts.json {
-        println!("{}", serde_json::to_string_pretty(&report)?);
-    } else {
-        println!("Remote status: {}", cfg.alias);
-        println!("  target:         {}", report.target);
-        println!("  binary:         {}", report.remote_bin);
-        println!("  installed:      {}", report.installed);
-        println!("  service active: {}", report.service_active);
-        println!("  docker ready:   {}", report.docker_ready);
-    }
+    print_remote_report("status", &report, opts)?;
     Ok(0)
 }
 
