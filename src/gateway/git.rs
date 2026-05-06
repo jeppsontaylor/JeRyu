@@ -26,8 +26,8 @@ impl GitAdapter {
         self.cache_dir.join(format!("{}.git", sanitized))
     }
 
-    /// Update or initialize a bare mirror for a repository
-    pub async fn update_mirror(&self, repo_url: &str) -> Result<PathBuf> {
+    /// Refresh or initialize a bare mirror for a repository.
+    pub async fn refresh_mirror(&self, repo_url: &str) -> Result<PathBuf> {
         let mirror_dir = self.mirror_path(repo_url);
 
         if mirror_dir.exists() {
@@ -66,7 +66,7 @@ impl GitAdapter {
 
     /// Fast clone into a target directory using `--reference-if-able`.
     pub async fn reference_clone(&self, repo_url: &str, target_dir: &Path) -> Result<()> {
-        let mirror_dir = self.update_mirror(repo_url).await?;
+        let mirror_dir = self.refresh_mirror(repo_url).await?;
 
         tracing::info!("Performing reference clone to {}", target_dir.display());
         let status = Command::new("git")

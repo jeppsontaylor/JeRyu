@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:c386c233e95802602f6dd1c7c8c9285ff1fbf66c9ab55295994ccf4bfd30abab",
-  "input_fingerprint": "sha256:445cee8499721db9abb6a37d12a56ec2b9cd9aea3a13bdbf53a457ef210c882e",
+  "report_fingerprint": "sha256:0fb0aed15f8dbe2c4fe55c6abe0ed7f169f73735028fcd0b3d9edce2ff0ac413",
+  "input_fingerprint": "sha256:7089cb06cc14fdc889de9f01809494202d9200fce4033e47971b3e45fcf6a1e2",
   "policy_fingerprint": "sha256:396aa94b1d9d3e43a5531652f3c52172e9b5e57cc1b5de44febdc48207e3f918",
   "manifest_fingerprints": {
     "owner_map": "sha256:8a15e0d3457b4a4476fe23ee9b16f87b6bbc4e025ec982ce8dfd6cd60cc3e69f",
@@ -11,7 +11,7 @@
     "standard_version": "sha256:8218ee450313a74e73eb990aaadedecba61d4c0d48ada0b6f368b4f7bf2fd9de"
   },
   "dirty_worktree": true,
-  "generated_at": "1778074707",
+  "generated_at": "1778075134",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.8.0",
@@ -24,15 +24,14 @@
   "observed_conformance_level": "HL2",
   "conformance_decision": "block",
   "conformance_blockers": [
-    "HLT-024-AGENT-TOOL-SUPPLY-GAP on agent/repo-score.json",
-    "HLT-001-DEAD-MARKER on src/commands/test.rs",
-    "HLT-006-DIRECT-DB-WRONG-LAYER on src/gateway/git.rs",
-    "HLT-000-SCORE-DIMENSION:vibe on src/release.rs"
+    "HLT-001-DEAD-MARKER on src/dispatch.rs",
+    "HLT-006-DIRECT-DB-WRONG-LAYER on src/git/store.rs",
+    "HLT-000-SCORE-DIMENSION:vibe on src/remote.rs"
   ],
   "repo": ".",
-  "run_id": "1778074707",
-  "started_at": "1778074707",
-  "elapsed_ms": 398,
+  "run_id": "1778075134",
+  "started_at": "1778075134",
+  "elapsed_ms": 416,
   "scope": {
     "mode": "full",
     "paths": []
@@ -43,7 +42,7 @@
     "status": "fail",
     "minimum_score": 85,
     "passed": false,
-    "hard_findings": 4,
+    "hard_findings": 3,
     "soft_findings": 4,
     "ratchet": {
       "baseline_score": 66,
@@ -59,7 +58,7 @@
     }
   },
   "git": {
-    "head": "6e4ad0a",
+    "head": "c10a9b4",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -86,8 +85,7 @@
   "caps_applied": [
     "fallback-soup-in-product-code",
     "severe-duplication-in-product-code",
-    "direct-db-access-from-wrong-layer",
-    "agent-tool-supply-chain-gap"
+    "direct-db-access-from-wrong-layer"
   ],
   "hard_rules": [
     {
@@ -336,7 +334,7 @@
         "security lane present",
         "canonical security lane wrapper present",
         "agent-readiness audit gate found in CI",
-        "rust bad-behavior advisory signals: 931",
+        "rust bad-behavior advisory signals: 926",
         "ci bad-behavior advisory signals: 2",
         "gittools bad-behavior advisory signals: 1",
         "secret scanning command is operational"
@@ -354,7 +352,7 @@
         "code file exceeds 1000 LOC",
         "duplicate code block marker found",
         "fallback soup marker found",
-        "rust bad-behavior advisory signals: 931",
+        "rust bad-behavior advisory signals: 926",
         "ci bad-behavior advisory signals: 2",
         "gittools bad-behavior advisory signals: 1",
         "no hard bad-behavior findings across detector-backed language families"
@@ -371,7 +369,7 @@
         "structured db boundary manifest present",
         "migration directory present",
         "data access appears compartmentalized",
-        "strict DB boundary violation: src/gateway/git.rs"
+        "strict DB boundary violation: src/git/store.rs"
       ],
       "notes": [
         "direct DB access leaks out of the data boundary"
@@ -1295,30 +1293,6 @@
       "owner": "agent"
     },
     {
-      "severity": "high",
-      "category": "security",
-      "path": "agent/repo-score.json",
-      "problem": "agent tool or configuration trust surface requires supply-chain evidence",
-      "agent_fix": "pin and review agent tools, MCP servers, hooks, and rule files; keep untrusted tool output separate from trusted policy",
-      "evidence": [
-        "\"\\\"\\\\\\\"\\\\\\\\\\\\\\\"src/commands/test.rs:32 .unwrap_or_else(|_| \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"latest\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\".to_string())\\\\\\\\\\\\\\\"\\\\\\\"\\\"\""
-      ],
-      "check_id": "HLT-024-AGENT-TOOL-SUPPLY-GAP:security",
-      "hardness": "hard",
-      "confidence": 0.88,
-      "evidence_kind": "policy-manifest",
-      "rerun_command": "just security",
-      "fingerprint": "sha256:371c50605043a1e39a10d162934c2b2149e2c98bef9d970bebc1f3359736148f",
-      "rule_id": "HLT-024-AGENT-TOOL-SUPPLY-GAP",
-      "tlr": "Security, secrets, agency",
-      "lane": "security",
-      "docs_url": "docs/audit-rubric.md#top-level-risk-mapping",
-      "owner": "agent",
-      "line": 1304,
-      "matched_term": "agent tool supply",
-      "reason": "agent tool supply-chain changes alter execution authority"
-    },
-    {
       "severity": "medium",
       "category": "data",
       "path": "db/",
@@ -1345,29 +1319,29 @@
     {
       "severity": "high",
       "category": "vibe",
-      "path": "src/commands/test.rs",
+      "path": "src/dispatch.rs",
       "problem": "fallback soup detected in product code",
       "agent_fix": "collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance",
       "evidence": [
-        "src/commands/test.rs:278 test_runner::retry_job_by_name(&client, project_id, pipeline_id, &job_name).await?;"
+        "src/dispatch.rs:22 let webhook_secret = std::env::var(\"JERYU_WEBHOOK_SECRET\").unwrap_or_default();"
       ],
       "check_id": "HLT-001-DEAD-MARKER:vibe",
       "hardness": "hard",
       "confidence": 0.88,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:34d35878c2e211c07dee32866d5681d06eae80e4e70fe01d61a05a3b26d6d1cc",
+      "fingerprint": "sha256:353a53515eb880a965267ae98e62b69faa515559b7fa3285205219796a5b3501",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
       "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
       "owner": "workspace",
-      "line": 278
+      "line": 22
     },
     {
       "severity": "high",
       "category": "data",
-      "path": "src/gateway/git.rs",
+      "path": "src/git/store.rs",
       "problem": "direct database access appears in a wrong layer",
       "agent_fix": "move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward",
       "evidence": [
@@ -1378,7 +1352,7 @@
       "confidence": 0.95,
       "evidence_kind": "sql",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:bc9848eaecc78d0f4b34b01dcb9e01d395e4e7043370a9f0629957717a494d33",
+      "fingerprint": "sha256:f4e9d0670e7a4f492f3ab388ef67013a43d2b069f7bd789e2ad45ed2c3d1b796",
       "rule_id": "HLT-006-DIRECT-DB-WRONG-LAYER",
       "tlr": "Contracts/data",
       "lane": "db",
@@ -1389,18 +1363,18 @@
     {
       "severity": "high",
       "category": "vibe",
-      "path": "src/release.rs",
+      "path": "src/remote.rs",
       "problem": "duplicated product code block detected",
       "agent_fix": "extract the duplicated behavior behind one named boundary and add focused tests before changing behavior",
       "evidence": [
-        "duplicate block also appears at src/release.rs:1"
+        "duplicate block also appears at src/remote.rs:1"
       ],
       "check_id": "HLT-000-SCORE-DIMENSION:vibe",
       "hardness": "hard",
       "confidence": 0.88,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:0751a667ea9f1fd7a787e5e0e2c32408274606371bb3c2d1eea5501857d1d74a",
+      "fingerprint": "sha256:8fa94f822f7a8de06018029d63534ab18011cfc9705c474d653a75b379594773",
       "tlr": "Entropy",
       "lane": "fast",
       "owner": "workspace",
@@ -1409,7 +1383,7 @@
   ],
   "agent_fix_queue": [
     {
-      "path": "src/gateway/git.rs",
+      "path": "src/git/store.rs",
       "priority": "high",
       "rule_id": "HLT-006-DIRECT-DB-WRONG-LAYER",
       "tlr": "Contracts/data",
@@ -1439,17 +1413,7 @@
       "why": "`Data truth and workflow safety` scored 70 below the standard floor of 85"
     },
     {
-      "path": "agent/repo-score.json",
-      "priority": "high",
-      "rule_id": "HLT-024-AGENT-TOOL-SUPPLY-GAP",
-      "tlr": "Security, secrets, agency",
-      "lane": "security",
-      "owner": "agent",
-      "task": "pin and review agent tools, MCP servers, hooks, and rule files; keep untrusted tool output separate from trusted policy",
-      "why": "agent tool or configuration trust surface requires supply-chain evidence"
-    },
-    {
-      "path": "src/commands/test.rs",
+      "path": "src/dispatch.rs",
       "priority": "high",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
@@ -1459,7 +1423,7 @@
       "why": "fallback soup detected in product code"
     },
     {
-      "path": "src/release.rs",
+      "path": "src/remote.rs",
       "priority": "high",
       "tlr": "Entropy",
       "lane": "fast",

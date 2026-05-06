@@ -817,11 +817,7 @@ fn lane_progress(
         .filter(|job| job.lane == lane)
         .filter(|job| effective_progress_status(statuses, &job.id, pipeline_status) == "success")
         .count();
-    let percent = if total == 0 {
-        0.0
-    } else {
-        (passed as f64 / total as f64) * 100.0
-    };
+    let percent = lane_progress_percent(total, passed);
     LaneProgress {
         passed,
         total,
@@ -1535,12 +1531,9 @@ pub async fn build_progress_report(
             .as_ref()
             .map(|summary| summary_job_items(summary, true, false))
             .unwrap_or_else(|| {
-                schema
-                    .jobs
-                    .iter()
-                    .filter(|job| job.lane == "release-blocking")
-                    .filter(|job| {
-                        !matches!(
+                collect_job_ids(&schema.jobs, |job| {
+                    job.lane == "release-blocking"
+                        && !matches!(
                             effective_progress_status(
                                 progress_statuses,
                                 &job.id,
@@ -1548,35 +1541,25 @@ pub async fn build_progress_report(
                             ),
                             "success" | "skipped" | "omitted" | "vti-skipped"
                         )
-                    })
-                    .map(|job| job.id.clone())
-                    .collect::<Vec<_>>()
+                })
             })
     } else {
-        schema
-            .jobs
-            .iter()
-            .filter(|job| job.lane == "release-blocking")
-            .filter(|job| {
-                !matches!(
+        collect_job_ids(&schema.jobs, |job| {
+            job.lane == "release-blocking"
+                && !matches!(
                     effective_progress_status(progress_statuses, &job.id, progress_pipeline_status),
                     "success" | "skipped" | "omitted" | "vti-skipped"
                 )
-            })
-            .map(|job| job.id.clone())
-            .collect::<Vec<_>>()
+        })
     };
     let non_blocking_failed = if use_punchlist_summary {
         punchlist_summary
             .as_ref()
             .map(|summary| summary_job_items(summary, false, true))
             .unwrap_or_else(|| {
-                schema
-                    .jobs
-                    .iter()
-                    .filter(|job| !job.release_blocking)
-                    .filter(|job| {
-                        matches!(
+                collect_job_ids(&schema.jobs, |job| {
+                    !job.release_blocking
+                        && matches!(
                             effective_progress_status(
                                 progress_statuses,
                                 &job.id,
@@ -1584,23 +1567,16 @@ pub async fn build_progress_report(
                             ),
                             "failed" | "canceled"
                         )
-                    })
-                    .map(|job| job.id.clone())
-                    .collect::<Vec<_>>()
+                })
             })
     } else {
-        schema
-            .jobs
-            .iter()
-            .filter(|job| !job.release_blocking)
-            .filter(|job| {
-                matches!(
+        collect_job_ids(&schema.jobs, |job| {
+            !job.release_blocking
+                && matches!(
                     effective_progress_status(progress_statuses, &job.id, progress_pipeline_status),
                     "failed" | "canceled"
                 )
-            })
-            .map(|job| job.id.clone())
-            .collect::<Vec<_>>()
+        })
     };
     let attempt_view = if let Some(sha) = winning_sha.as_ref() {
         build_release_status_report(
@@ -1798,16 +1774,31 @@ fn pipeline_lane_progress(
             passed += 1;
         }
     }
-    let percent = if total == 0 {
-        0.0
-    } else {
-        (passed as f64 / total as f64) * 100.0
-    };
+    let percent = lane_progress_percent(total, passed);
     LaneProgress {
         passed,
         total,
         percent,
     }
+}
+
+fn lane_progress_percent(total: usize, passed: usize) -> f64 {
+    if total == 0 {
+        0.0
+    } else {
+        (passed as f64 / total as f64) * 100.0
+    }
+}
+
+fn collect_job_ids<F>(jobs: &[CiSchemaJob], predicate: F) -> Vec<String>
+where
+    F: Fn(&CiSchemaJob) -> bool,
+{
+    jobs
+        .iter()
+        .filter(|job| predicate(job))
+        .map(|job| job.id.clone())
+        .collect::<Vec<_>>()
 }
 
 fn effective_job_status<'a>(
@@ -1846,6 +1837,27 @@ fn display_job_status(status: &str) -> &str {
     match status {
         "omitted" => "vti-skipped",
         other => other,
+    }
+}
+
+fn write_pipeline_item_section(out: &mut String, heading: &str, items: &[PipelineExplainItem]) {
+    if items.is_empty() {
+        return;
+    }
+
+    use std::fmt::Write as _;
+
+    let _ = writeln!(out);
+    let _ = writeln!(out, "  {heading}:");
+    for item in items {
+        let _ = writeln!(
+            out,
+            "    - {} [{} / {} / {}]",
+            item.id,
+            item.runner_pool,
+            item.kind,
+            display_job_status(&item.status)
+        );
     }
 }
 
@@ -2363,48 +2375,13 @@ pub fn render_pipeline_explain_text(report: &PipelineExplainReport) -> String {
             report.release_execution.percent
         );
     }
-    if !report.blocking_failed.is_empty() {
-        let _ = writeln!(out);
-        let _ = writeln!(out, "  Blocking failed:");
-        for item in &report.blocking_failed {
-            let _ = writeln!(
-                out,
-                "    - {} [{} / {} / {}]",
-                item.id,
-                item.runner_pool,
-                item.kind,
-                display_job_status(&item.status)
-            );
-        }
-    }
-    if !report.blocking_pending.is_empty() {
-        let _ = writeln!(out);
-        let _ = writeln!(out, "  Blocking pending:");
-        for item in &report.blocking_pending {
-            let _ = writeln!(
-                out,
-                "    - {} [{} / {} / {}]",
-                item.id,
-                item.runner_pool,
-                item.kind,
-                display_job_status(&item.status)
-            );
-        }
-    }
-    if !report.non_blocking_failed.is_empty() {
-        let _ = writeln!(out);
-        let _ = writeln!(out, "  Non-blocking failed:");
-        for item in &report.non_blocking_failed {
-            let _ = writeln!(
-                out,
-                "    - {} [{} / {} / {}]",
-                item.id,
-                item.runner_pool,
-                item.kind,
-                display_job_status(&item.status)
-            );
-        }
-    }
+    write_pipeline_item_section(&mut out, "Blocking failed", &report.blocking_failed);
+    write_pipeline_item_section(&mut out, "Blocking pending", &report.blocking_pending);
+    write_pipeline_item_section(
+        &mut out,
+        "Non-blocking failed",
+        &report.non_blocking_failed,
+    );
     if !report.incomplete_milestones.is_empty() {
         let _ = writeln!(out);
         let _ = writeln!(out, "  Incomplete milestones:");
@@ -3541,6 +3518,86 @@ mod tests {
         }
     }
 
+    /// Canonical "ready-to-promote" `ReleaseAttemptView` test fixture rooted at
+    /// `release_dir`. Tests mutate fields they care about rather than re-spelling
+    /// the struct.
+    fn sample_release_view(attempt: ReleaseAttempt, release_dir: &str) -> ReleaseAttemptView {
+        ReleaseAttemptView {
+            attempt,
+            release_dir: release_dir.to_string(),
+            canary_state_path: format!("{release_dir}/deploy-canary-c-state.json"),
+            gate_remote_canary_path: format!("{release_dir}/gate-remote-canary.json"),
+            gate_canary_e2e_path: format!("{release_dir}/gate-canary-e2e.json"),
+            gate_canary_telemetry_path: format!("{release_dir}/gate-canary-telemetry.json"),
+            telemetry_diag_path: format!("{release_dir}/gate-canary-telemetry-diagnostics.json"),
+            canary_state: "e2e-passed".into(),
+            eligibility: "ready".into(),
+            phase: Some("e2e".into()),
+            detail: None,
+            state_status: Some("success".into()),
+            has_remote_gate: true,
+            has_telemetry_gate: true,
+            has_e2e_gate: true,
+            has_telemetry_diag: true,
+            release_identity_ok: true,
+            canary_public_url: Some("https://example.invalid".into()),
+        }
+    }
+
+    /// Build a `CiSchemaJob` test fixture from common defaults. Tests pass the
+    /// fields that vary; everything else is filled in with neutral defaults.
+    fn sample_ci_schema_job(
+        id: &str,
+        section: &str,
+        summary: &str,
+        runner: &str,
+        kind: &str,
+        component: &str,
+        depends_on: Vec<String>,
+        estimated_cost: &str,
+    ) -> CiSchemaJob {
+        CiSchemaJob {
+            id: id.into(),
+            lane: "release-blocking".into(),
+            release_blocking: true,
+            section: section.into(),
+            summary: summary.into(),
+            runner_tags: runner.into(),
+            runner_pool: runner.into(),
+            kind: kind.into(),
+            component: component.into(),
+            pipeline_product: "main-candidate".into(),
+            evidence_driven: false,
+            depends_on,
+            evidence_outputs: vec![],
+            estimated_cost: estimated_cost.into(),
+        }
+    }
+
+    /// Canonical "passed canary" `ReleaseAttempt` test fixture. Tests that need a
+    /// different state mutate the returned value rather than re-spelling the struct.
+    fn sample_release_attempt(version: &str) -> ReleaseAttempt {
+        ReleaseAttempt {
+            id: 1,
+            project_id: 2,
+            ref_name: "main".into(),
+            sha: "abcdef1234567890".into(),
+            version: version.into(),
+            upstream_pipeline_id: Some(77),
+            upstream_status: "success".into(),
+            release_pipeline_id: Some(88),
+            release_pipeline_status: Some("success".into()),
+            production_pipeline_id: None,
+            production_pipeline_status: None,
+            canary_status: "passed".into(),
+            canary_started_at: Some("2026-04-16T00:00:00Z".into()),
+            canary_finished_at: Some("2026-04-16T00:10:00Z".into()),
+            canary_note: Some("done".into()),
+            created_at: "2026-04-16T00:00:00Z".into(),
+            updated_at: "2026-04-16T00:10:01Z".into(),
+        }
+    }
+
     #[test]
     fn version_uses_sha_prefix() {
         assert_eq!(
@@ -3552,23 +3609,12 @@ mod tests {
     #[test]
     fn status_text_includes_state_paths() {
         let attempt = ReleaseAttempt {
-            id: 1,
-            project_id: 2,
-            ref_name: "main".into(),
-            sha: "abcdef1234567890".into(),
-            version: "ci-abcdef123456".into(),
-            upstream_pipeline_id: Some(77),
-            upstream_status: "success".into(),
-            release_pipeline_id: Some(88),
             release_pipeline_status: Some("running".into()),
-            production_pipeline_id: None,
-            production_pipeline_status: None,
             canary_status: "running".into(),
-            canary_started_at: Some("2026-04-16T00:00:00Z".into()),
             canary_finished_at: None,
             canary_note: Some("launching".into()),
-            created_at: "2026-04-16T00:00:00Z".into(),
             updated_at: "2026-04-16T00:00:01Z".into(),
+            ..sample_release_attempt("ci-abcdef123456")
         };
         let report = ReleaseStatusReport {
             generated_at: "2026-04-16T00:00:02Z".into(),
@@ -3590,91 +3636,98 @@ mod tests {
 
     #[test]
     fn auto_promotion_requires_complete_canary_evidence() {
-        let attempt = ReleaseAttempt {
-            id: 1,
-            project_id: 2,
-            ref_name: "main".into(),
-            sha: "abcdef1234567890".into(),
-            version: "ci-abcdef123456".into(),
-            upstream_pipeline_id: Some(77),
-            upstream_status: "success".into(),
-            release_pipeline_id: Some(88),
-            release_pipeline_status: Some("success".into()),
-            production_pipeline_id: None,
-            production_pipeline_status: None,
-            canary_status: "passed".into(),
-            canary_started_at: Some("2026-04-16T00:00:00Z".into()),
-            canary_finished_at: Some("2026-04-16T00:10:00Z".into()),
-            canary_note: Some("done".into()),
-            created_at: "2026-04-16T00:00:00Z".into(),
-            updated_at: "2026-04-16T00:10:01Z".into(),
-        };
-        let view = ReleaseAttemptView {
-            attempt,
-            release_dir: "/tmp/release".into(),
-            canary_state_path: "/tmp/release/deploy-canary-c-state.json".into(),
-            gate_remote_canary_path: "/tmp/release/gate-remote-canary.json".into(),
-            gate_canary_e2e_path: "/tmp/release/gate-canary-e2e.json".into(),
-            gate_canary_telemetry_path: "/tmp/release/gate-canary-telemetry.json".into(),
-            telemetry_diag_path: "/tmp/release/gate-canary-telemetry-diagnostics.json".into(),
-            canary_state: "e2e-passed".into(),
-            eligibility: "ready".into(),
-            phase: Some("e2e".into()),
-            detail: None,
-            state_status: Some("success".into()),
-            has_remote_gate: true,
-            has_telemetry_gate: true,
-            has_e2e_gate: true,
-            has_telemetry_diag: true,
-            release_identity_ok: true,
-            canary_public_url: Some("https://example.invalid".into()),
-        };
+        let attempt = sample_release_attempt("ci-abcdef123456");
+        let view = sample_release_view(attempt, "/tmp/release");
         assert!(should_trigger_production_promotion_with_gate(&view, false));
     }
 
     #[test]
     fn auto_promotion_stops_when_prod_gate_already_exists() {
         let version = "ci-abcdef123456";
-        let attempt = ReleaseAttempt {
-            id: 1,
-            project_id: 2,
-            ref_name: "main".into(),
-            sha: "abcdef1234567890".into(),
-            version: version.into(),
-            upstream_pipeline_id: Some(77),
-            upstream_status: "success".into(),
-            release_pipeline_id: Some(88),
-            release_pipeline_status: Some("success".into()),
-            production_pipeline_id: None,
-            production_pipeline_status: None,
-            canary_status: "passed".into(),
-            canary_started_at: Some("2026-04-16T00:00:00Z".into()),
-            canary_finished_at: Some("2026-04-16T00:10:00Z".into()),
-            canary_note: Some("done".into()),
-            created_at: "2026-04-16T00:00:00Z".into(),
-            updated_at: "2026-04-16T00:10:01Z".into(),
-        };
-        let view = ReleaseAttemptView {
-            attempt,
-            release_dir: format!("/tmp/{version}"),
-            canary_state_path: format!("/tmp/{version}/deploy-canary-c-state.json"),
-            gate_remote_canary_path: format!("/tmp/{version}/gate-remote-canary.json"),
-            gate_canary_e2e_path: format!("/tmp/{version}/gate-canary-e2e.json"),
-            gate_canary_telemetry_path: format!("/tmp/{version}/gate-canary-telemetry.json"),
-            telemetry_diag_path: format!("/tmp/{version}/gate-canary-telemetry-diagnostics.json"),
-            canary_state: "e2e-passed".into(),
-            eligibility: "ready".into(),
-            phase: Some("e2e".into()),
-            detail: None,
-            state_status: Some("success".into()),
-            has_remote_gate: true,
-            has_telemetry_gate: true,
-            has_e2e_gate: true,
-            has_telemetry_diag: true,
-            release_identity_ok: true,
-            canary_public_url: Some("https://example.invalid".into()),
-        };
+        let attempt = sample_release_attempt(version);
+        let view = sample_release_view(attempt, &format!("/tmp/{version}"));
         assert!(!should_trigger_production_promotion_with_gate(&view, true));
+    }
+
+    #[test]
+    fn pipeline_explain_text_lists_all_item_sections() {
+        let report = PipelineExplainReport {
+            generated_at: "2026-04-16T00:00:00Z".into(),
+            project_id: 2,
+            pipeline_id: 88,
+            pipeline_sha: "abcdef1234567890".into(),
+            pipeline_ref: "main".into(),
+            pipeline_status: "running".into(),
+            release_critical: LaneProgress {
+                passed: 1,
+                total: 1,
+                percent: 100.0,
+            },
+            extended: LaneProgress {
+                passed: 0,
+                total: 0,
+                percent: 0.0,
+            },
+            research: LaneProgress {
+                passed: 0,
+                total: 0,
+                percent: 0.0,
+            },
+            release_execution: LaneProgress {
+                passed: 1,
+                total: 2,
+                percent: 50.0,
+            },
+            current_blocker: None,
+            release_eligible: true,
+            blocking_failed: vec![PipelineExplainItem {
+                id: "build".into(),
+                status: "failed".into(),
+                stage: Some("test".into()),
+                runner_pool: "build".into(),
+                kind: "compile".into(),
+                component: "workspace".into(),
+                evidence_driven: false,
+                estimated_cost: "medium".into(),
+                evidence_outputs: vec![],
+                depends_on: vec![],
+            }],
+            blocking_pending: vec![PipelineExplainItem {
+                id: "lint".into(),
+                status: "pending".into(),
+                stage: None,
+                runner_pool: "default".into(),
+                kind: "lint".into(),
+                component: "shell".into(),
+                evidence_driven: true,
+                estimated_cost: "small".into(),
+                evidence_outputs: vec![],
+                depends_on: vec!["build".into()],
+            }],
+            non_blocking_failed: vec![PipelineExplainItem {
+                id: "docs".into(),
+                status: "canceled".into(),
+                stage: Some("verify".into()),
+                runner_pool: "default".into(),
+                kind: "docs".into(),
+                component: "docs".into(),
+                evidence_driven: false,
+                estimated_cost: "small".into(),
+                evidence_outputs: vec![],
+                depends_on: vec![],
+            }],
+            non_blocking_pending: vec![],
+            incomplete_milestones: vec![],
+            untracked_jobs: vec![],
+        };
+
+        let text = render_pipeline_explain_text(&report);
+        assert!(text.contains("Blocking failed:"));
+        assert!(text.contains("Blocking pending:"));
+        assert!(text.contains("Non-blocking failed:"));
+        assert!(text.contains("build [build / compile / failed]"));
+        assert!(text.contains("lint [default / lint / pending]"));
+        assert!(text.contains("docs [default / docs / canceled]"));
     }
 
     #[test]
@@ -3701,38 +3754,26 @@ mod tests {
     #[test]
     fn omitted_jobs_do_not_count_as_pending_for_successful_pipeline() {
         let schema = vec![
-            CiSchemaJob {
-                id: "compile-workspace".into(),
-                lane: "release-blocking".into(),
-                release_blocking: true,
-                section: "Clean Checkout".into(),
-                summary: "workspace check".into(),
-                runner_tags: "build".into(),
-                runner_pool: "build".into(),
-                kind: "compile".into(),
-                component: "workspace-build".into(),
-                pipeline_product: "main-candidate".into(),
-                evidence_driven: false,
-                depends_on: vec![],
-                evidence_outputs: vec![],
-                estimated_cost: "medium".into(),
-            },
-            CiSchemaJob {
-                id: "test-rust-nextest-4".into(),
-                lane: "release-blocking".into(),
-                release_blocking: true,
-                section: "Bootstrap Stability".into(),
-                summary: "workspace nextest partition".into(),
-                runner_tags: "build".into(),
-                runner_pool: "build".into(),
-                kind: "contract".into(),
-                component: "workspace-nextest".into(),
-                pipeline_product: "main-candidate".into(),
-                evidence_driven: false,
-                depends_on: vec!["compile-workspace".into()],
-                evidence_outputs: vec![],
-                estimated_cost: "heavy".into(),
-            },
+            sample_ci_schema_job(
+                "compile-workspace",
+                "Clean Checkout",
+                "workspace check",
+                "build",
+                "compile",
+                "workspace-build",
+                vec![],
+                "medium",
+            ),
+            sample_ci_schema_job(
+                "test-rust-nextest-4",
+                "Bootstrap Stability",
+                "workspace nextest partition",
+                "build",
+                "contract",
+                "workspace-nextest",
+                vec!["compile-workspace".into()],
+                "heavy",
+            ),
         ];
         let mut statuses = HashMap::new();
         statuses.insert(
@@ -3753,38 +3794,26 @@ mod tests {
     #[test]
     fn selected_vti_graph_omits_absent_schema_jobs() {
         let schema = vec![
-            CiSchemaJob {
-                id: "compile-workspace".into(),
-                lane: "release-blocking".into(),
-                release_blocking: true,
-                section: "Clean Checkout".into(),
-                summary: "workspace check".into(),
-                runner_tags: "build".into(),
-                runner_pool: "build".into(),
-                kind: "compile".into(),
-                component: "workspace-build".into(),
-                pipeline_product: "main-candidate".into(),
-                evidence_driven: false,
-                depends_on: vec![],
-                evidence_outputs: vec![],
-                estimated_cost: "medium".into(),
-            },
-            CiSchemaJob {
-                id: "lint-shell".into(),
-                lane: "release-blocking".into(),
-                release_blocking: true,
-                section: "Static Analysis".into(),
-                summary: "shell lint".into(),
-                runner_tags: "default".into(),
-                runner_pool: "default".into(),
-                kind: "lint".into(),
-                component: "shell".into(),
-                pipeline_product: "main-candidate".into(),
-                evidence_driven: false,
-                depends_on: vec![],
-                evidence_outputs: vec![],
-                estimated_cost: "small".into(),
-            },
+            sample_ci_schema_job(
+                "compile-workspace",
+                "Clean Checkout",
+                "workspace check",
+                "build",
+                "compile",
+                "workspace-build",
+                vec![],
+                "medium",
+            ),
+            sample_ci_schema_job(
+                "lint-shell",
+                "Static Analysis",
+                "shell lint",
+                "default",
+                "lint",
+                "shell",
+                vec![],
+                "small",
+            ),
         ];
         let mut aggregated = HashMap::new();
         aggregated.insert(

@@ -236,7 +236,7 @@ pub fn classify_failure(capsule: &FailureCapsule) -> FailureClassification {
     FailureClassification::Unknown
 }
 
-pub fn recommend_retry(capsule: &FailureCapsule) -> RetryDecision {
+pub fn failure_response_for(capsule: &FailureCapsule) -> RetryDecision {
     match classify_failure(capsule) {
         FailureClassification::Infrastructure | FailureClassification::Transient => {
             if capsule.failure_kind == "quarantined" {
@@ -251,7 +251,7 @@ pub fn recommend_retry(capsule: &FailureCapsule) -> RetryDecision {
 }
 
 pub fn recommend_recovery(capsule: &FailureCapsule) -> RetryDecision {
-    recommend_retry(capsule)
+    failure_response_for(capsule)
 }
 
 pub fn is_branch_creation_push(before_sha: &str) -> bool {
@@ -435,8 +435,8 @@ mod tests {
     }
 
     #[test]
-    fn recommends_retry_for_transient_failures() {
-        let result = recommend_retry(&capsule("timeout", "timed out", 124));
+    fn recommends_failure_response_for_transient_failures() {
+        let result = failure_response_for(&capsule("timeout", "timed out", 124));
         assert_eq!(result, RetryDecision::RetryOnce);
     }
 

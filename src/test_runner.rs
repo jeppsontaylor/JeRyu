@@ -427,8 +427,8 @@ pub async fn run_test_batch(
     Ok(results.into_iter().flatten().collect())
 }
 
-/// Retry a specific failed job from the latest pipeline.
-pub async fn retry_job_by_name(
+/// Requeue a specific failed job from the latest pipeline.
+pub async fn requeue_job_by_name(
     client: &GitlabClient,
     project_id: i64,
     pipeline_id: i64,
@@ -441,8 +441,8 @@ pub async fn retry_job_by_name(
     })?;
 
     if job.status == "failed" || job.status == "canceled" {
-        client.retry_job(project_id, job.id).await?;
-        info!(project_id, job_id = job.id, job_name, "retried job");
+        client.requeue_job(project_id, job.id).await?;
+        info!(project_id, job_id = job.id, job_name, "requeued job");
 
         // Wait for the retried job to complete
         wait_for_test_result(client, project_id, pipeline_id, job_name, 600).await
@@ -457,6 +457,16 @@ pub async fn retry_job_by_name(
             passed: job.status == "success",
         })
     }
+}
+
+/// Retry compatibility wrapper.
+pub async fn retry_job_by_name(
+    client: &GitlabClient,
+    project_id: i64,
+    pipeline_id: i64,
+    job_name: &str,
+) -> Result<TestRunResult> {
+    requeue_job_by_name(client, project_id, pipeline_id, job_name).await
 }
 
 /// Get the results of all jobs in a pipeline.

@@ -806,8 +806,8 @@ pub(crate) enum TestCommands {
         #[arg(long, default_value = "2")]
         project_id: i64,
     },
-    /// Retry a specific failed job by name.
-    Retry {
+    /// Requeue a specific failed job by name.
+    Requeue {
         pipeline_id: i64,
         job_name: String,
         #[arg(long, default_value = "2")]

@@ -3,16 +3,15 @@
 //! Invariants: Each command invokes the real git binary exactly once before any optional mirror step.
 
 use anyhow::Result;
-use chrono::Utc;
 
 use crate::git::event::GitCommandEvent;
 use crate::git::invocation::GitInvocation;
 use crate::git::mirror::{mirror_push_plan, parse_push_mirror_plan};
 use crate::git::policy::{mirror_remote, should_mirror, strict_mode_enabled};
 use crate::git::snapshot::{capture, snapshot_or_empty};
-use crate::git::store::store_git_event;
+use crate::git::store::{store_git_event, store_git_side_effects};
 use crate::git::system::SystemGit;
-use crate::state::{Db, GitMirrorJob, GitRefUpdate};
+use crate::state::Db;
 
 pub async fn execute_git(db: Option<&Db>, argv: &[String]) -> Result<i32> {
     let cwd = std::env::current_dir()?;
@@ -43,45 +42,31 @@ pub async fn execute_git(db: Option<&Db>, argv: &[String]) -> Result<i32> {
         if !mirrored && strict_mode_enabled() {
             final_exit_code = 1;
         }
-
-        if let (Some(db), Some(plan)) = (db, mirror_plan.as_ref()) {
-            let job = GitMirrorJob {
-                id: 0,
-                request_id: invocation.request_id.clone(),
-                remote_name: plan.remote_name.clone(),
-                branch_name: plan.ref_name.clone(),
-                status: mirror_status.clone(),
-                detail: plan.git_args.join(" "),
-                created_at: Utc::now().to_rfc3339(),
-            };
-            if let Err(err) = db.record_git_mirror_job(&job).await {
-                tracing::warn!(error = %err, request_id = %invocation.request_id, "failed to record git mirror job");
-                sidecar_status = "db_write_failed".to_string();
-            }
+        if let Some(db) = db {
+            record_git_side_effects(
+                db,
+                &invocation,
+                &before,
+                after.as_ref(),
+                &mirror_status,
+                mirror_plan.as_ref(),
+                &mut sidecar_status,
+            )
+            .await;
         }
     }
 
     if let Some(db) = db {
-        if let Some(update) =
-            ref_update_from_snapshots(&invocation, &before, after.as_ref(), &mirror_status)
-        {
-            if let Err(err) = db.record_git_ref_update(&update).await {
-                tracing::warn!(error = %err, request_id = %invocation.request_id, "failed to record git ref update");
-                sidecar_status = "db_write_failed".to_string();
-            }
-        }
-
-        let event = GitCommandEvent::from_invocation(
+        record_git_command_event(
+            db,
             &invocation,
             before,
             after,
             final_exit_code,
             sidecar_status,
-            mirror_status.clone(),
-        );
-        if let Err(err) = store_git_event(db, &event).await {
-            tracing::warn!(error = %err, request_id = %invocation.request_id, "failed to record git command event");
-        }
+            mirror_status,
+        )
+        .await;
     }
 
     Ok(final_exit_code)
@@ -91,33 +76,45 @@ pub async fn execute_git_once(argv: &[String]) -> Result<i32> {
     execute_git(None, argv).await
 }
 
-fn ref_update_from_snapshots(
+async fn record_git_side_effects(
+    db: &Db,
     invocation: &GitInvocation,
-    before: &crate::git::GitSnapshot,
-    after: Option<&crate::git::GitSnapshot>,
+    before: &crate::git::snapshot::GitSnapshot,
+    after: Option<&crate::git::snapshot::GitSnapshot>,
     mirror_status: &str,
-) -> Option<GitRefUpdate> {
-    let after = after?;
-    let changed = before.head != after.head || before.branch != after.branch;
-    if !changed && !invocation.is_push() {
-        return None;
-    }
+    mirror_plan: Option<&crate::git::mirror::PushMirrorPlan>,
+    sidecar_status: &mut String,
+) {
+    store_git_side_effects(
+        db,
+        invocation,
+        before,
+        after,
+        mirror_status,
+        mirror_plan,
+        sidecar_status,
+    )
+    .await;
+}
 
-    Some(GitRefUpdate {
-        id: 0,
-        request_id: invocation.request_id.clone(),
-        ref_name: after
-            .branch
-            .clone()
-            .or_else(|| before.branch.clone())
-            .unwrap_or_else(|| "HEAD".to_string()),
-        before_sha: before.head.clone(),
-        after_sha: after.head.clone(),
-        status: if invocation.is_push() {
-            mirror_status.to_string()
-        } else {
-            "observed".to_string()
-        },
-        created_at: Utc::now().to_rfc3339(),
-    })
+async fn record_git_command_event(
+    db: &Db,
+    invocation: &GitInvocation,
+    before: crate::git::snapshot::GitSnapshot,
+    after: Option<crate::git::snapshot::GitSnapshot>,
+    final_exit_code: i32,
+    sidecar_status: String,
+    mirror_status: String,
+) {
+    let event = GitCommandEvent::from_invocation(
+        invocation,
+        before,
+        after,
+        final_exit_code,
+        sidecar_status,
+        mirror_status,
+    );
+    if let Err(err) = store_git_event(db, &event).await {
+        tracing::warn!(error = %err, request_id = %invocation.request_id, "failed to record git command event");
+    }
 }

@@ -265,20 +265,21 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
                 println!("  {} {:<40} {:>8} {}", icon, r.job_name, r.status, dur);
             }
         }
-        TestCommands::Retry {
+        TestCommands::Requeue {
             pipeline_id,
             job_name,
             project_id,
         } => {
             println!(
-                "🔄 Retrying job '{}' in pipeline {}...",
+                "🔄 Requeuing job '{}' in pipeline {}...",
                 job_name, pipeline_id
             );
             let result =
-                test_runner::retry_job_by_name(&client, project_id, pipeline_id, &job_name).await?;
+                test_runner::requeue_job_by_name(&client, project_id, pipeline_id, &job_name)
+                    .await?;
 
             if result.passed {
-                println!("✅ Job '{}' passed on retry!", job_name);
+                println!("✅ Job '{}' passed after requeue!", job_name);
             } else {
                 println!("❌ Job '{}' still failing: {}", job_name, result.status);
             }

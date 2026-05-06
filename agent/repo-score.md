@@ -7,15 +7,15 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1778074707`
-- Started at: `1778074707`
-- Elapsed: `398` ms
+- Run ID: `1778075134`
+- Started at: `1778075134`
+- Elapsed: `416` ms
 - Scope: `full`
 - Raw score: `75`
 - Final score: `66`
 - Decision: `fail`
 - Minimum score: `85`
-- Caps applied: `fallback-soup-in-product-code, severe-duplication-in-product-code, direct-db-access-from-wrong-layer, agent-tool-supply-chain-gap`
+- Caps applied: `fallback-soup-in-product-code, severe-duplication-in-product-code, direct-db-access-from-wrong-layer`
 
 ## Hard Rule Caps
 
@@ -48,7 +48,7 @@
 | `destructive-migration-risk` | 70 | no |
 | `authz-or-data-isolation-gap` | 78 | no |
 | `input-boundary-gap` | 78 | no |
-| `agent-tool-supply-chain-gap` | 78 | yes |
+| `agent-tool-supply-chain-gap` | 78 | no |
 | `release-readiness-gap` | 80 | no |
 | `missing-rust-property-or-integration-tests` | 82 | no |
 | `no-agent-friendly-exception-pattern` | 76 | no |
@@ -177,18 +177,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:262623223bf7765f338bb28717a6e0aaf5af0494fe90a7d65291c43eb584cc6e`
    Evidence: contract surface found, generated contract artifacts found, polyglot boundary layout present, public API drift checks found
-4. `high` `security` `agent/repo-score.json:1304`
-   Rule: `HLT-024-AGENT-TOOL-SUPPLY-GAP`
-   Check: `HLT-024-AGENT-TOOL-SUPPLY-GAP:security` `hard` confidence `0.88`
-   Route: TLR `Security, secrets, agency`, lane `security`, owner `agent`
-   Docs: `docs/audit-rubric.md#top-level-risk-mapping`
-   Matched term: `agent tool supply`
-   Reason: agent tool supply-chain changes alter execution authority
-   Fix: pin and review agent tools, MCP servers, hooks, and rule files; keep untrusted tool output separate from trusted policy
-   Rerun: `just security`
-   Fingerprint: `sha256:371c50605043a1e39a10d162934c2b2149e2c98bef9d970bebc1f3359736148f`
-   Evidence: "\"\\\"\\\\\\\"src/commands/test.rs:32 .unwrap_or_else(|_| \\\\\\\\\\\\\\\"latest\\\\\\\\\\\\\\\".to_string())\\\\\\\"\\\"\""
-5. `medium` `data` `db/`
+4. `medium` `data` `db/`
    Rule: `HLT-006-DIRECT-DB-WRONG-LAYER`
    Check: `HLT-006-DIRECT-DB-WRONG-LAYER:data` `soft` confidence `0.76`
    Route: TLR `Contracts/data`, lane `db`, owner `data`
@@ -198,7 +187,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:f855856de7c0ff9d64ef1ee4de6f0fc8cde87f79b8dc47769b55f46bbc35d71f`
    Evidence: database surface present, structured db boundary manifest present, migration directory present, data access appears compartmentalized
-6. `high` `vibe` `src/commands/test.rs:278`
+5. `high` `vibe` `src/dispatch.rs:22`
    Rule: `HLT-001-DEAD-MARKER`
    Check: `HLT-001-DEAD-MARKER:vibe` `hard` confidence `0.88`
    Route: TLR `Entropy`, lane `fast`, owner `workspace`
@@ -206,9 +195,9 @@ No audited runtime boundary reclassifications declared.
    Reason: fallback soup detected in product code
    Fix: collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Rerun: `just fast`
-   Fingerprint: `sha256:34d35878c2e211c07dee32866d5681d06eae80e4e70fe01d61a05a3b26d6d1cc`
-   Evidence: src/commands/test.rs:278 test_runner::retry_job_by_name(&client, project_id, pipeline_id, &job_name).await?;
-7. `high` `data` `src/gateway/git.rs:1`
+   Fingerprint: `sha256:353a53515eb880a965267ae98e62b69faa515559b7fa3285205219796a5b3501`
+   Evidence: src/dispatch.rs:22 let webhook_secret = std::env::var("JERYU_WEBHOOK_SECRET").unwrap_or_default();
+6. `high` `data` `src/git/store.rs:1`
    Rule: `HLT-006-DIRECT-DB-WRONG-LAYER`
    Check: `HLT-006-DIRECT-DB-WRONG-LAYER:data` `hard` confidence `0.95`
    Route: TLR `Contracts/data`, lane `db`, owner `workspace`
@@ -216,16 +205,16 @@ No audited runtime boundary reclassifications declared.
    Reason: direct database access appears in a wrong layer
    Fix: move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward
    Rerun: `just fast`
-   Fingerprint: `sha256:bc9848eaecc78d0f4b34b01dcb9e01d395e4e7043370a9f0629957717a494d33`
+   Fingerprint: `sha256:f4e9d0670e7a4f492f3ab388ef67013a43d2b069f7bd789e2ad45ed2c3d1b796`
    Evidence: DB marker in non-adapter layer
-8. `high` `vibe` `src/release.rs:1`
+7. `high` `vibe` `src/remote.rs:1`
    Check: `HLT-000-SCORE-DIMENSION:vibe` `hard` confidence `0.88`
    Route: TLR `Entropy`, lane `fast`, owner `workspace`
    Reason: duplicated product code block detected
    Fix: extract the duplicated behavior behind one named boundary and add focused tests before changing behavior
    Rerun: `just fast`
-   Fingerprint: `sha256:0751a667ea9f1fd7a787e5e0e2c32408274606371bb3c2d1eea5501857d1d74a`
-   Evidence: duplicate block also appears at src/release.rs:1
+   Fingerprint: `sha256:8fa94f822f7a8de06018029d63534ab18011cfc9705c474d653a75b379594773`
+   Evidence: duplicate block also appears at src/remote.rs:1
 
 ## Policy
 
@@ -235,19 +224,17 @@ No audited runtime boundary reclassifications declared.
 
 ## Agent Fix Queue
 
-1. `high` `HLT-006-DIRECT-DB-WRONG-LAYER` `src/gateway/git.rs` - move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward
+1. `high` `HLT-006-DIRECT-DB-WRONG-LAYER` `src/git/store.rs` - move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward
    Route: `Contracts/data`/`db`
 2. `medium` `HLT-007-HANDWRITTEN-CONTRACT` `agent/boundaries.toml` - add generated contracts and boundary checks for public APIs, data access, and cross-runtime seams
    Route: `Contracts/data`/`contract`
 3. `medium` `HLT-006-DIRECT-DB-WRONG-LAYER` `db/` - move durable truth into migrations, constraints, adapters, and application-owned transactions
    Route: `Contracts/data`/`db`
-4. `high` `HLT-024-AGENT-TOOL-SUPPLY-GAP` `agent/repo-score.json` - pin and review agent tools, MCP servers, hooks, and rule files; keep untrusted tool output separate from trusted policy
-   Route: `Security, secrets, agency`/`security`
-5. `high` `HLT-001-DEAD-MARKER` `src/commands/test.rs` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
+4. `high` `HLT-001-DEAD-MARKER` `src/dispatch.rs` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Route: `Entropy`/`fast`
-6. `high` `src/release.rs` - extract the duplicated behavior behind one named boundary and add focused tests before changing behavior
+5. `high` `src/remote.rs` - extract the duplicated behavior behind one named boundary and add focused tests before changing behavior
    Route: `Entropy`/`fast`
-7. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
+6. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
    Route: `Entropy`/`fast`
-8. `medium` `HLT-016-SUPPLY-CHAIN-DRIFT` `.github/workflows/jankurai.yml` - wire secret, dependency, provenance, and workflow scans into an operational CI lane
+7. `medium` `HLT-016-SUPPLY-CHAIN-DRIFT` `.github/workflows/jankurai.yml` - wire secret, dependency, provenance, and workflow scans into an operational CI lane
    Route: `Security, secrets, agency`/`security`
