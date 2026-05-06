@@ -101,6 +101,7 @@ Identifier format: `F<n>` corresponds to the finding number from `agent/repo-sco
 | F-Z | high | HLT-004-UNMAPPED-PROOF | `agent/test-map.json` | Row is stale. The repo-shape bench subtree now has a stable `cargo test -p arc-bench` proof route. | done | codex | Added the narrowest stable prefix route for `examples/labs/repo-shape-bench/arcified/`. |
 | F-AA | high | HLT-001-DEAD-MARKER (vibe) | `src/agent_surface.rs:92` | Fallback soup detected in product code. Collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance. | done | claude | All unwrap_or_default/or_else replaced with explicit match; 0 hits remaining; committed. |
 | F-AB | high | HLT-000-SCORE-DIMENSION (vibe) | `src/gitlab_client.rs:1` | Duplicate block detected. Extract the duplicated behavior behind one named boundary and add focused tests before changing behavior. | in-progress | claude | Subagent spawned. |
+| F-AC | high | HLT-006-DIRECT-DB-WRONG-LAYER | `src/cli.rs:1` | Stale scanner hit on CLI path-mode wording. Reword the `update` prose/test strings or otherwise split the false-positive evidence if needed. | in-progress | codex | Claimed from the safe-pull scan; needs a narrow proof before any broader refactor. |
 
 ## How to add a new row
 

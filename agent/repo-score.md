@@ -7,9 +7,9 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1778072822`
-- Started at: `1778072822`
-- Elapsed: `411` ms
+- Run ID: `1778072948`
+- Started at: `1778072948`
+- Elapsed: `429` ms
 - Scope: `full`
 - Raw score: `73`
 - Final score: `66`
@@ -78,7 +78,7 @@
 | Context economy and agent instructions | 7 | 100 | 7.00 | root `AGENTS.md` present; root `AGENTS.md` stays short |
 | Jankurai tool adoption and CI replacement | 7 | 31 | 2.17 | control-plane files present; applicable=16 |
 | Python containment and polyglot hygiene | 4 | 100 | 4.00 | no Python files in scope |
-| Build speed signals | 4 | 70 | 2.80 | build acceleration markers found; targeted test/build commands found |
+| Build speed signals | 4 | 85 | 3.40 | build acceleration markers found; targeted test/build commands found |
 
 ## Rendered UX QA
 
@@ -150,17 +150,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just security`
    Fingerprint: `sha256:d24ab5697e66411af8d5424d1d36ebf888793ebced3685d5fa95bb912e9f12e2`
    Evidence: lockfile present, secret or dependency scan tooling found, provenance/SBOM tooling found, security lane present
-3. `medium` `proof` `Justfile`
-   Rule: `HLT-018-PERF-CONCURRENCY-DRIFT`
-   Check: `HLT-018-PERF-CONCURRENCY-DRIFT:proof` `soft` confidence `0.76`
-   Route: TLR `Verification`, lane `fast`, owner `workspace`
-   Docs: `docs/testing.md`
-   Reason: `Build speed signals` scored 70 below the standard floor of 85
-   Fix: add fast deterministic build/test targets, caches, and narrow proof lanes for agent iteration
-   Rerun: `just fast`
-   Fingerprint: `sha256:a256a7390d4b91a5b0a95d6f092e524c8f4080f27fe2b62e28cf0801343d0fef`
-   Evidence: build acceleration markers found, targeted test/build commands found, locked dependency graph present, CI cache hint found
-4. `medium` `boundary` `agent/boundaries.toml`
+3. `medium` `boundary` `agent/boundaries.toml`
    Rule: `HLT-007-HANDWRITTEN-CONTRACT`
    Check: `HLT-007-HANDWRITTEN-CONTRACT:boundary` `soft` confidence `0.76`
    Route: TLR `Contracts/data`, lane `contract`, owner `agent`
@@ -170,7 +160,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:262623223bf7765f338bb28717a6e0aaf5af0494fe90a7d65291c43eb584cc6e`
    Evidence: contract surface found, generated contract artifacts found, polyglot boundary layout present, public API drift checks found
-5. `medium` `data` `db/`
+4. `medium` `data` `db/`
    Rule: `HLT-006-DIRECT-DB-WRONG-LAYER`
    Check: `HLT-006-DIRECT-DB-WRONG-LAYER:data` `soft` confidence `0.76`
    Route: TLR `Contracts/data`, lane `db`, owner `data`
@@ -180,7 +170,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:aca47fbe71cf389d6d921b828fd3f14674cdc0091a1a51cf6b1f5d22f36f172b`
    Evidence: database surface present, migration directory present, data access appears compartmentalized, strict DB boundary violation: src/cli.rs
-6. `high` `vibe` `src/bootstrap.rs:60`
+5. `high` `vibe` `src/bootstrap.rs:298`
    Rule: `HLT-001-DEAD-MARKER`
    Check: `HLT-001-DEAD-MARKER:vibe` `hard` confidence `0.88`
    Route: TLR `Entropy`, lane `fast`, owner `workspace`
@@ -188,9 +178,9 @@ No audited runtime boundary reclassifications declared.
    Reason: fallback soup detected in product code
    Fix: collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Rerun: `just fast`
-   Fingerprint: `sha256:6062631737a6d3083058e58a05c28cfadaaabc617fb910ed607edae9e5123f61`
-   Evidence: src/bootstrap.rs:60 std::env::var("JERYU_WEBHOOK_SECRET").unwrap_or_else(|_| generate_password(32));
-7. `high` `data` `src/cli.rs:1`
+   Fingerprint: `sha256:b12f65e745faa9b1056fa0dbe0048f81f5f6101153e965af25c3706405fcb82a`
+   Evidence: src/bootstrap.rs:298 let pools = db.list_pools().await.unwrap_or_default();
+6. `high` `data` `src/cli.rs:1`
    Rule: `HLT-006-DIRECT-DB-WRONG-LAYER`
    Check: `HLT-006-DIRECT-DB-WRONG-LAYER:data` `hard` confidence `0.95`
    Route: TLR `Contracts/data`, lane `db`, owner `workspace`
@@ -200,7 +190,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:325f4437620bbb395bdf8421be5d88704db775cfaefd55933ef4dcbfaceb0b4f`
    Evidence: DB marker in non-adapter layer
-8. `high` `vibe` `src/gitlab_client.rs:1`
+7. `high` `vibe` `src/gitlab_client.rs:1`
    Check: `HLT-000-SCORE-DIMENSION:vibe` `hard` confidence `0.88`
    Route: TLR `Entropy`, lane `fast`, owner `workspace`
    Reason: duplicated product code block detected
@@ -223,13 +213,11 @@ No audited runtime boundary reclassifications declared.
    Route: `Contracts/data`/`contract`
 3. `medium` `HLT-006-DIRECT-DB-WRONG-LAYER` `db/` - move durable truth into migrations, constraints, adapters, and application-owned transactions
    Route: `Contracts/data`/`db`
-4. `medium` `HLT-018-PERF-CONCURRENCY-DRIFT` `Justfile` - add fast deterministic build/test targets, caches, and narrow proof lanes for agent iteration
-   Route: `Verification`/`fast`
-5. `high` `HLT-001-DEAD-MARKER` `src/bootstrap.rs` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
+4. `high` `HLT-001-DEAD-MARKER` `src/bootstrap.rs` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Route: `Entropy`/`fast`
-6. `high` `src/gitlab_client.rs` - extract the duplicated behavior behind one named boundary and add focused tests before changing behavior
+5. `high` `src/gitlab_client.rs` - extract the duplicated behavior behind one named boundary and add focused tests before changing behavior
    Route: `Entropy`/`fast`
-7. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
+6. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
    Route: `Entropy`/`fast`
-8. `medium` `HLT-016-SUPPLY-CHAIN-DRIFT` `.github/workflows/jankurai.yml` - wire secret, dependency, provenance, and workflow scans into an operational CI lane
+7. `medium` `HLT-016-SUPPLY-CHAIN-DRIFT` `.github/workflows/jankurai.yml` - wire secret, dependency, provenance, and workflow scans into an operational CI lane
    Route: `Security, secrets, agency`/`security`

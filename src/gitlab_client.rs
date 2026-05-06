@@ -279,7 +279,7 @@ impl GitlabClient {
         format!("{}/api/v4{}", self.base_url, path)
     }
 
-    async fn get_paginated_json<T>(&self, path: &str, pat: &str) -> Result<Vec<T>>
+    async fn get_paginated_json<T>(&self, path: &str) -> Result<Vec<T>>
     where
         T: DeserializeOwned,
     {
@@ -338,13 +338,12 @@ impl GitlabClient {
             .ok_or_else(|| anyhow::anyhow!("no PAT configured — run `jeryu bootstrap` first"))
     }
 
-    fn authed_request_url(
-        &self,
-        method: Method,
-        url: String,
-    ) -> Result<reqwest::RequestBuilder> {
+    fn authed_request_url(&self, method: Method, url: String) -> Result<reqwest::RequestBuilder> {
         let pat = self.pat_value()?;
-        Ok(self.client.request(method, url).header("PRIVATE-TOKEN", pat))
+        Ok(self
+            .client
+            .request(method, url)
+            .header("PRIVATE-TOKEN", pat))
     }
 
     pub fn pat_value_for_clone(&self) -> Option<String> {
@@ -358,11 +357,8 @@ impl GitlabClient {
         Req: serde::Serialize,
         Resp: serde::de::DeserializeOwned,
     {
-        let pat = self.pat_value()?;
         let resp: Resp = self
-            .client
-            .post(url.as_ref())
-            .header("PRIVATE-TOKEN", &pat)
+            .authed_request_url(Method::POST, url.as_ref().to_string())?
             .json(body)
             .send()
             .await?
@@ -376,11 +372,8 @@ impl GitlabClient {
     where
         Resp: serde::de::DeserializeOwned,
     {
-        let pat = self.pat_value()?;
         let resp: Resp = self
-            .client
-            .get(url.as_ref())
-            .header("PRIVATE-TOKEN", &pat)
+            .authed_request_url(Method::GET, url.as_ref().to_string())?
             .send()
             .await?
             .error_for_status()?
@@ -394,11 +387,8 @@ impl GitlabClient {
         Req: serde::Serialize,
         Resp: serde::de::DeserializeOwned,
     {
-        let pat = self.pat_value()?;
         let resp: Resp = self
-            .client
-            .put(url.as_ref())
-            .header("PRIVATE-TOKEN", &pat)
+            .authed_request_url(Method::PUT, url.as_ref().to_string())?
             .json(body)
             .send()
             .await?
@@ -412,10 +402,7 @@ impl GitlabClient {
     where
         Req: serde::Serialize,
     {
-        let pat = self.pat_value()?;
-        self.client
-            .post(url.as_ref())
-            .header("PRIVATE-TOKEN", &pat)
+        self.authed_request_url(Method::POST, url.as_ref().to_string())?
             .json(body)
             .send()
             .await?
@@ -424,10 +411,7 @@ impl GitlabClient {
     }
 
     async fn api_delete_void(&self, url: impl AsRef<str>) -> Result<()> {
-        let pat = self.pat_value()?;
-        self.client
-            .delete(url.as_ref())
-            .header("PRIVATE-TOKEN", &pat)
+        self.authed_request_url(Method::DELETE, url.as_ref().to_string())?
             .send()
             .await?
             .error_for_status()?;
@@ -439,11 +423,8 @@ impl GitlabClient {
     where
         Resp: serde::de::DeserializeOwned,
     {
-        let pat = self.pat_value()?;
         let resp: Resp = self
-            .client
-            .post(url.as_ref())
-            .header("PRIVATE-TOKEN", &pat)
+            .authed_request_url(Method::POST, url.as_ref().to_string())?
             .send()
             .await?
             .error_for_status()?
@@ -454,10 +435,7 @@ impl GitlabClient {
 
     /// POST with no request body, discard response.
     async fn api_post_nobody_void(&self, url: impl AsRef<str>) -> Result<()> {
-        let pat = self.pat_value()?;
-        self.client
-            .post(url.as_ref())
-            .header("PRIVATE-TOKEN", &pat)
+        self.authed_request_url(Method::POST, url.as_ref().to_string())?
             .send()
             .await?
             .error_for_status()?;
@@ -469,10 +447,7 @@ impl GitlabClient {
     where
         Req: serde::Serialize,
     {
-        let pat = self.pat_value()?;
-        self.client
-            .put(url.as_ref())
-            .header("PRIVATE-TOKEN", &pat)
+        self.authed_request_url(Method::PUT, url.as_ref().to_string())?
             .json(body)
             .send()
             .await?
@@ -560,23 +535,22 @@ impl GitlabClient {
     // -- Jobs ---------------------------------------------------------------
 
     pub async fn list_jobs(&self, project_id: i64, scopes: &[&str]) -> Result<Vec<Job>> {
-        let pat = self.pat_value()?;
         let mut path = format!("/projects/{}/jobs", project_id);
         if !scopes.is_empty() {
             let scope_params: Vec<String> =
                 scopes.iter().map(|s| format!("scope[]={}", s)).collect();
             path = format!("{}?{}", path, scope_params.join("&"));
         }
-        let jobs: Vec<Job> = self.get_paginated_json(&path, &pat).await?;
+        let jobs: Vec<Job> = self.get_paginated_json(&path).await?;
         Ok(jobs)
     }
 
     pub async fn job_trace(&self, project_id: i64, job_id: i64) -> Result<String> {
-        let pat = self.pat_value()?;
         let trace = self
-            .client
-            .get(self.api_url(&format!("/projects/{}/jobs/{}/trace", project_id, job_id)))
-            .header("PRIVATE-TOKEN", &pat)
+            .authed_request_url(
+                Method::GET,
+                self.api_url(&format!("/projects/{}/jobs/{}/trace", project_id, job_id)),
+            )?
             .send()
             .await?
             .error_for_status()?
@@ -591,19 +565,19 @@ impl GitlabClient {
         job_id: i64,
         artifact_path: &str,
     ) -> Result<String> {
-        let pat = self.pat_value()?;
         let encoded_path = artifact_path
             .split('/')
             .map(|segment| urlencoding::encode(segment).to_string())
             .collect::<Vec<_>>()
             .join("/");
         let body = self
-            .client
-            .get(self.api_url(&format!(
-                "/projects/{}/jobs/{}/artifacts/{}",
-                project_id, job_id, encoded_path
-            )))
-            .header("PRIVATE-TOKEN", &pat)
+            .authed_request_url(
+                Method::GET,
+                self.api_url(&format!(
+                    "/projects/{}/jobs/{}/artifacts/{}",
+                    project_id, job_id, encoded_path
+                )),
+            )?
             .send()
             .await?
             .error_for_status()
@@ -673,10 +647,7 @@ impl GitlabClient {
     // -- Projects -----------------------------------------------------------
 
     pub async fn list_projects(&self) -> Result<Vec<Project>> {
-        let pat = self.pat_value()?;
-        let projects: Vec<Project> = self
-            .get_paginated_json("/projects?membership=true", &pat)
-            .await?;
+        let projects: Vec<Project> = self.get_paginated_json("/projects?membership=true").await?;
         Ok(projects)
     }
 
@@ -898,17 +869,13 @@ impl GitlabClient {
         issue_iid: i64,
         labels: &[&str],
     ) -> Result<()> {
-        let pat = self.pat_value()?;
-        self.client
-            .put(self.api_url(&format!("/projects/{}/issues/{}", project_id, issue_iid)))
-            .header("PRIVATE-TOKEN", &pat)
-            .json(&UpdateLabelsReq {
+        self.api_put_void(
+            self.api_url(&format!("/projects/{}/issues/{}", project_id, issue_iid)),
+            &UpdateLabelsReq {
                 labels: labels.join(","),
-            })
-            .send()
-            .await?
-            .error_for_status()?;
-        Ok(())
+            },
+        )
+        .await
     }
 
     pub async fn comment_on_issue(
@@ -917,18 +884,14 @@ impl GitlabClient {
         issue_iid: i64,
         body: &str,
     ) -> Result<()> {
-        let pat = self.pat_value()?;
-        self.client
-            .post(self.api_url(&format!(
+        self.api_post_void(
+            self.api_url(&format!(
                 "/projects/{}/issues/{}/notes",
                 project_id, issue_iid
-            )))
-            .header("PRIVATE-TOKEN", &pat)
-            .json(&NoteReq { body })
-            .send()
-            .await?
-            .error_for_status()?;
-        Ok(())
+            )),
+            &NoteReq { body },
+        )
+        .await
     }
 
     // -- Merge Requests -----------------------------------------------------
@@ -941,44 +904,34 @@ impl GitlabClient {
         title: &str,
         description: &str,
     ) -> Result<MergeRequest> {
-        let pat = self.pat_value()?;
         let mr: MergeRequest = self
-            .client
-            .post(self.api_url(&format!("/projects/{}/merge_requests", project_id)))
-            .header("PRIVATE-TOKEN", &pat)
-            .json(&CreateMrReq {
-                source_branch,
-                target_branch,
-                title,
-                description,
-                remove_source_branch: true,
-            })
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
+            .api_post_json(
+                self.api_url(&format!("/projects/{}/merge_requests", project_id)),
+                &CreateMrReq {
+                    source_branch,
+                    target_branch,
+                    title,
+                    description,
+                    remove_source_branch: true,
+                },
+            )
             .await?;
         info!(project_id, mr_iid = mr.iid, "created merge request");
         Ok(mr)
     }
 
     pub async fn accept_merge_request(&self, project_id: i64, mr_iid: i64) -> Result<()> {
-        let pat = self.pat_value()?;
         let url = self.api_url(&format!(
             "/projects/{}/merge_requests/{}/merge",
             project_id, mr_iid
         ));
         let resp = self
-            .client
-            .put(&url)
-            .header("PRIVATE-TOKEN", &pat)
+            .authed_request_url(Method::PUT, url.clone())?
             .send()
             .await?;
 
         if resp.status().as_u16() == 405 {
-            self.client
-                .post(&url)
-                .header("PRIVATE-TOKEN", &pat)
+            self.authed_request_url(Method::POST, url)?
                 .send()
                 .await?
                 .error_for_status()?;
@@ -997,34 +950,26 @@ impl GitlabClient {
         branch_name: &str,
         ref_name: &str,
     ) -> Result<()> {
-        let pat = self.pat_value()?;
-        self.client
-            .post(self.api_url(&format!("/projects/{}/repository/branches", project_id)))
-            .header("PRIVATE-TOKEN", &pat)
-            .json(&CreateBranchReq {
+        self.api_post_void(
+            self.api_url(&format!("/projects/{}/repository/branches", project_id)),
+            &CreateBranchReq {
                 branch: branch_name,
                 ref_name,
-            })
-            .send()
-            .await?
-            .error_for_status()?;
+            },
+        )
+        .await?;
         info!(project_id, branch_name, "created branch");
         Ok(())
     }
 
     pub async fn delete_branch(&self, project_id: i64, branch_name: &str) -> Result<()> {
-        let pat = self.pat_value()?;
         // Branch names need URL encoding
         let encoded_branch = urlencoding::encode(branch_name);
-        self.client
-            .delete(self.api_url(&format!(
-                "/projects/{}/repository/branches/{}",
-                project_id, encoded_branch
-            )))
-            .header("PRIVATE-TOKEN", &pat)
-            .send()
-            .await?
-            .error_for_status()?;
+        self.api_delete_void(self.api_url(&format!(
+            "/projects/{}/repository/branches/{}",
+            project_id, encoded_branch
+        )))
+        .await?;
         info!(project_id, branch_name, "deleted branch");
         Ok(())
     }
@@ -1037,26 +982,19 @@ impl GitlabClient {
         ref_name: &str,
         variables: Vec<(&str, &str)>,
     ) -> Result<i64> {
-        let pat = self.pat_value()?;
-        let vars = variables
+        let vars: Vec<PipelineVariable> = variables
             .into_iter()
             .map(|(k, v)| PipelineVariable { key: k, value: v })
             .collect();
-
         let resp: PipelineResp = self
-            .client
-            .post(self.api_url(&format!("/projects/{}/pipeline", project_id)))
-            .header("PRIVATE-TOKEN", &pat)
-            .json(&CreatePipelineReq {
-                ref_name,
-                variables: vars,
-            })
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
+            .api_post_json(
+                self.api_url(&format!("/projects/{}/pipeline", project_id)),
+                &CreatePipelineReq {
+                    ref_name,
+                    variables: vars,
+                },
+            )
             .await?;
-
         info!(project_id, pipeline_id = resp.id, "triggered pipeline");
         Ok(resp.id)
     }
@@ -1066,12 +1004,11 @@ impl GitlabClient {
         project_id: i64,
         ref_name: Option<&str>,
     ) -> Result<Vec<Pipeline>> {
-        let pat = self.pat_value()?;
         let mut path = format!("/projects/{}/pipelines", project_id);
         if let Some(ref_name) = ref_name {
             path.push_str(&format!("?ref={}", urlencoding::encode(ref_name)));
         }
-        let pipelines: Vec<Pipeline> = self.get_paginated_json(&path, &pat).await?;
+        let pipelines: Vec<Pipeline> = self.get_paginated_json(&path).await?;
         Ok(pipelines)
     }
 
@@ -1080,26 +1017,21 @@ impl GitlabClient {
         project_id: i64,
         pipeline_id: i64,
     ) -> Result<Vec<PipelineVariableValue>> {
-        let pat = self.pat_value()?;
         let variables: Vec<PipelineVariableValue> = self
-            .get_paginated_json(
-                &format!(
-                    "/projects/{}/pipelines/{}/variables",
-                    project_id, pipeline_id
-                ),
-                &pat,
-            )
+            .get_paginated_json(&format!(
+                "/projects/{}/pipelines/{}/variables",
+                project_id, pipeline_id
+            ))
             .await?;
         Ok(variables)
     }
 
     pub async fn list_pipeline_jobs(&self, project_id: i64, pipeline_id: i64) -> Result<Vec<Job>> {
-        let pat = self.pat_value()?;
         let mut jobs: Vec<Job> = self
-            .get_paginated_json(
-                &format!("/projects/{}/pipelines/{}/jobs", project_id, pipeline_id),
-                &pat,
-            )
+            .get_paginated_json(&format!(
+                "/projects/{}/pipelines/{}/jobs",
+                project_id, pipeline_id
+            ))
             .await?;
         for job in &mut jobs {
             job.pipeline_id = Some(pipeline_id);
@@ -1112,12 +1044,11 @@ impl GitlabClient {
         project_id: i64,
         pipeline_id: i64,
     ) -> Result<Vec<PipelineBridge>> {
-        let pat = self.pat_value()?;
         let bridges: Vec<PipelineBridge> = self
-            .get_paginated_json(
-                &format!("/projects/{}/pipelines/{}/bridges", project_id, pipeline_id),
-                &pat,
-            )
+            .get_paginated_json(&format!(
+                "/projects/{}/pipelines/{}/bridges",
+                project_id, pipeline_id
+            ))
             .await?;
         Ok(bridges)
     }
@@ -1153,50 +1084,31 @@ impl GitlabClient {
     }
 
     pub async fn get_pipeline(&self, project_id: i64, pipeline_id: i64) -> Result<Pipeline> {
-        let pat = self.pat_value()?;
-        let pipeline: Pipeline = self
-            .client
-            .get(self.api_url(&format!(
+        let pipeline = self
+            .api_get_json(self.api_url(&format!(
                 "/projects/{}/pipelines/{}",
                 project_id, pipeline_id
             )))
-            .header("PRIVATE-TOKEN", &pat)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
             .await?;
         Ok(pipeline)
     }
 
     pub async fn cancel_pipeline(&self, project_id: i64, pipeline_id: i64) -> Result<()> {
-        let pat = self.pat_value()?;
-        self.client
-            .post(self.api_url(&format!(
-                "/projects/{}/pipelines/{}/cancel",
-                project_id, pipeline_id
-            )))
-            .header("PRIVATE-TOKEN", &pat)
-            .send()
-            .await?
-            .error_for_status()?;
+        self.api_post_nobody_void(self.api_url(&format!(
+            "/projects/{}/pipelines/{}/cancel",
+            project_id, pipeline_id
+        )))
+        .await?;
         info!(project_id, pipeline_id, "cancelled pipeline");
         Ok(())
     }
 
     pub async fn get_merge_request(&self, project_id: i64, mr_iid: i64) -> Result<MergeRequest> {
-        let pat = self.pat_value()?;
-        let mr: MergeRequest = self
-            .client
-            .get(self.api_url(&format!(
+        let mr = self
+            .api_get_json(self.api_url(&format!(
                 "/projects/{}/merge_requests/{}",
                 project_id, mr_iid
             )))
-            .header("PRIVATE-TOKEN", &pat)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
             .await?;
         Ok(mr)
     }
@@ -1251,5 +1163,26 @@ mod tests {
         assert_eq!(secure.base_url, "http://localhost:8929");
         let insecure = GitlabClient::new_with_tls_policy("http://localhost:8929/", None, true);
         assert_eq!(insecure.base_url, "http://localhost:8929");
+    }
+
+    #[test]
+    fn authed_request_url_preserves_gitlab_prefix_and_token_header() {
+        let client = GitlabClient::new_with_tls_policy(
+            "http://localhost:8929/",
+            Some("pat123".into()),
+            false,
+        );
+        let request = client
+            .authed_request_url(Method::POST, client.api_url("/projects/42"))
+            .unwrap()
+            .build()
+            .unwrap();
+
+        assert_eq!(request.method(), Method::POST);
+        assert_eq!(
+            request.url().as_str(),
+            "http://localhost:8929/api/v4/projects/42"
+        );
+        assert_eq!(request.headers().get("PRIVATE-TOKEN").unwrap(), "pat123");
     }
 }

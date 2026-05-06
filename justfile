@@ -21,8 +21,18 @@ proof:
     mkdir -p target/jankurai
     jankurai proof . --changed-fast --out target/jankurai/fast-score.json
 
+audit-fast base="origin/main":
+    mkdir -p target/jankurai
+    jankurai audit . --changed-fast --changed-from {{base}} --json target/jankurai/audit-fast.json --md target/jankurai/audit-fast.md --timings-json target/jankurai/audit-timings.json --mode advisory
+
+jankurai-src-check JANKURAI_SRC="../jankurai":
+    cargo check -p jankurai --manifest-path {{JANKURAI_SRC}}/Cargo.toml --locked
+
+bench:
+    cargo bench --workspace --no-fail-fast
+
 check-fast:
-    CARGO_INCREMENTAL=1 cargo check -p jeryu --tests
+    CARGO_INCREMENTAL=1 cargo check -p jeryu --tests --locked
 
 test-fast:
     CARGO_INCREMENTAL=1 cargo nextest run -p jeryu --lib --no-fail-fast
