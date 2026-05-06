@@ -1,163 +1,15 @@
-//! Owner: Custom Executor & Sandbox Isolation
-//! Proof: `cargo test -p jeryu -- exec`
-//! Invariants: Quarantine-on-tripwire; capsule capture on failure; CAS exact-hit skip
-//!
-//! This module acts as the plugin interface for `gitlab-runner` when configured
-//! as `executor = "custom"`. It handles the lifecycle of the actual job execution:
-//! configuration, provisioning the sandbox, running the user script, and cleaning up.
-
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::env;
-use thiserror::Error;
 use tracing::info;
 
-/// Run a command with inherited stdio and bail with `error_message` on failure.
-///
-/// Centralizes the `Stdio::inherit + .status().await + bail! on !success` pattern
-/// shared across `host`, `remote`, `install`, and `repo` modules.
-pub async fn run_status_check(
-    cmd: &mut tokio::process::Command,
-    error_message: &str,
-) -> Result<()> {
-    let status = cmd
-        .stdin(std::process::Stdio::inherit())
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
-        .status()
-        .await
-        .with_context(|| error_message.to_string())?;
-    if !status.success() {
-        anyhow::bail!("{} (exit code: {:?})", error_message, status.code());
-    }
-    Ok(())
-}
-
-/// Spawn a command, stream `stdin_data` into its stdin, and bail on failure.
-///
-/// Inherits stdout/stderr; pipes stdin so callers can stream bytes into the
-/// child process. Centralizes the `.spawn() + write_all + wait + bail!` pattern.
-pub async fn run_with_stdin(
-    cmd: &mut tokio::process::Command,
-    stdin_data: &[u8],
-    error_message: &str,
-) -> Result<()> {
-    use tokio::io::AsyncWriteExt;
-    let mut child = cmd
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
-        .spawn()
-        .with_context(|| error_message.to_string())?;
-    let mut stdin = child
-        .stdin
-        .take()
-        .with_context(|| format!("{} (opening stdin)", error_message))?;
-    stdin
-        .write_all(stdin_data)
-        .await
-        .with_context(|| format!("{} (streaming stdin)", error_message))?;
-    drop(stdin);
-    let status = child
-        .wait()
-        .await
-        .with_context(|| error_message.to_string())?;
-    if !status.success() {
-        anyhow::bail!("{} (exit code: {:?})", error_message, status.code());
-    }
-    Ok(())
-}
-
-/// Typed errors for custom executor sandbox operations.
-#[derive(Debug, Error)]
-pub enum ExecError {
-    #[error("custom executor dependency bootstrap failed with status {0:?}")]
-    BootstrapFailed(Option<i32>),
-    #[error("failed to copy working directory to sandbox")]
-    SandboxCopyFailed,
-}
-
-fn custom_executor_bootstrap_script() -> &'static str {
-    r#"
-set -eu
-if ! command -v docker >/dev/null 2>&1; then
-  (apt-get -qq update)>/dev/null
-  DEBIAN_FRONTEND=noninteractive apt-get -y -qq install docker.io >/dev/null
-fi
-if command -v docker >/dev/null 2>&1; then
-  ln -sf "$(command -v docker)" /usr/local/bin/docker || true
-fi
-for _ in 1 2 3 4 5; do
-  [ -S /var/run/docker.sock ] && break
-  sleep 1
-done
-[ -S /var/run/docker.sock ] || { echo "custom executor: docker socket is missing" >&2; exit 1; }
-for _ in 1 2 3 4 5; do
-  docker info >/dev/null 2>&1 && break
-  sleep 1
-done
-docker info >/dev/null 2>&1 || { echo "custom executor: docker info failed against mounted socket" >&2; exit 1; }
-"#
-}
-
-async fn ensure_custom_executor_tools() -> Result<()> {
-    let status = tokio::process::Command::new("sh")
-        .arg("-lc")
-        .arg(custom_executor_bootstrap_script())
-        .status()
-        .await?;
-
-    if !status.success() {
-        return Err(ExecError::BootstrapFailed(status.code()).into());
-    }
-
-    Ok(())
-}
-
-fn env_string_or_default(name: &str, default: &str) -> String {
-    match env::var(name) {
-        Ok(value) => value,
-        Err(_) => default.to_string(),
-    }
-}
-
-fn env_i64_or_default(name: &str, default: i64) -> i64 {
-    match env::var(name) {
-        Ok(value) => match value.parse::<i64>() {
-            Ok(parsed) => parsed,
-            Err(_) => default,
-        },
-        Err(_) => default,
-    }
-}
-
-fn env_bool_or_default(key: &str, default: bool) -> bool {
-    match env::var(key) {
-        Ok(value) => value.trim() != "0",
-        Err(_) => default,
-    }
-}
-
-/// Handles `jeryu exec config`
-/// Tells GitLab Runner what capabilities this driver supports.
-pub fn run_config() -> Result<()> {
-    let config_json = r#"{
-  "builds_dir": "/builds",
-  "cache_dir": "/cache",
-  "builds_dir_is_shared": false,
-  "driver": {
-    "name": "jeryu God Mode Driver",
-    "version": "1.0.0"
-  }
-}"#;
-    // Driver config MUST be written to stdout for gitlab-runner to parse
-    println!("{}", config_json);
-    Ok(())
-}
+use super::support::{
+    ensure_custom_executor_tools, env_bool_or_default, env_i64_or_default,
+    env_string_or_default,
+};
 
 /// Handles `jeryu exec prepare`
 /// Provisions the actual job container sandbox.
 pub async fn run_prepare() -> Result<()> {
-    // GitLab Runner passes job metadata via CUSTOM_ENV_* variables
     let job_id = env_string_or_default("CUSTOM_ENV_CI_JOB_ID", "unknown");
     let project_dir = env_string_or_default("CUSTOM_ENV_CI_PROJECT_DIR", "/tmp/jeryu-job");
 
@@ -166,94 +18,13 @@ pub async fn run_prepare() -> Result<()> {
         project_dir, "Driver: preparing custom execution sandbox"
     );
 
-    // We create a jeryu worktree directory next to the original
     let sandbox_path = format!("{}-sandbox", project_dir);
 
-    // Attempt 0-latency Copy-on-Write clone
-    if fast_clone(&project_dir, &sandbox_path).is_err() {
-        // Recovery path: create the directory if it does not exist yet.
+    if super::support::fast_clone(&project_dir, &sandbox_path).is_err() {
         let _ = std::fs::create_dir_all(&sandbox_path);
     }
 
-    // Pillar 2: Detonation Lane Injection
-    // Seed honey tokens into the sandbox right after provisioning.
     crate::honeypot::seed_sandbox(&sandbox_path);
-
-    // Design note: For the `custom` executor, the sandbox IS the CoW fast-clone
-    // directory created above. Docker-level isolation is handled by the `docker`
-    // executor pools via config.rs render_runner_config(). The custom executor
-    // provides host-level isolation through the Detonation Lane (honeypot tripwires)
-    // and optional strict network namespacing via JERYU_STRICT_SANDBOX.
-
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::custom_executor_bootstrap_script;
-
-    #[test]
-    fn custom_executor_bootstrap_script_has_no_python_install_path() {
-        let script = custom_executor_bootstrap_script();
-        assert!(!contains_bytes(script, &[112, 121, 116, 104, 111, 110, 51]));
-        assert!(!contains_bytes(script, &[112, 121, 116, 104, 111, 110]));
-        assert!(!contains_bytes(script, &[112, 121, 51, 45, 112, 105, 112]));
-    }
-
-    fn contains_bytes(haystack: &str, needle: &[u8]) -> bool {
-        haystack
-            .as_bytes()
-            .windows(needle.len())
-            .any(|window| window == needle)
-    }
-}
-
-fn fast_clone(src: &str, dst: &str) -> Result<()> {
-    if !std::path::Path::new(src).exists() {
-        return Ok(());
-    }
-
-    // Clean target first
-    let _ = std::fs::remove_dir_all(dst);
-
-    #[cfg(target_os = "macos")]
-    {
-        // APFS Clone (0-latency, deduplicated)
-        let status = std::process::Command::new("cp")
-            .arg("-c")
-            .arg("-r")
-            .arg(src)
-            .arg(dst)
-            .status()?;
-        if status.success() {
-            return Ok(());
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        // Btrfs/XFS/Overlay reflink clone
-        let status = std::process::Command::new("cp")
-            .arg("--reflink=auto")
-            .arg("-r")
-            .arg(src)
-            .arg(dst)
-            .status()?;
-        if status.success() {
-            return Ok(());
-        }
-    }
-
-    // Recovery copy if not Mac or APFS/reflink failed.
-    let status = std::process::Command::new("cp")
-        .arg("-r")
-        .arg(src)
-        .arg(dst)
-        .status()?;
-
-    if !status.success() {
-        return Err(ExecError::SandboxCopyFailed.into());
-    }
 
     Ok(())
 }
@@ -265,19 +36,17 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
     let project_id_str = env_string_or_default("CUSTOM_ENV_CI_PROJECT_ID", "");
     let project_id = project_id_str.parse::<i64>().ok();
 
+    super::validate_script_path(script_path)?;
+
     info!(job_id, stage, script_path, "Driver: running job stage");
 
     if stage == "build_script" {
         ensure_custom_executor_tools().await?;
     }
 
-    // -----------------------------------------------------
-    // SMARTCACHE v3: CACHE BRAIN ORCHESTRATION
-    // -----------------------------------------------------
     let project_dir = env_string_or_default("CUSTOM_ENV_CI_PROJECT_DIR", "/tmp/jeryu-job");
     let sandbox_path = format!("{}-sandbox", project_dir);
 
-    // Initialize State and Cache Brain
     let db = crate::state::Db::open().await?;
     let epoch_manager = crate::epoch::EpochManager::with_backend(db.pool(), db.backend());
     let taint_manager = crate::taint::TaintManager::with_backend(db.pool(), db.backend());
@@ -291,7 +60,6 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
     let cache_brain =
         crate::cache_brain::CacheBrain::with_store(epoch_manager, taint_manager, store);
 
-    // Compute build_unit outside the conditional so it's available for post-execution recording
     let mut build_unit: Option<crate::cache_brain::BuildUnit> = None;
 
     if stage == "build_script"
@@ -358,7 +126,6 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
             let verdict = cache_brain.plan_step(unit).await?;
             tracing::info!("CacheBrain Verdict: {:?}", verdict);
 
-            // Record the verdict to cache_verdicts for audit trail and taint CTE
             let verdict_str = format!("{:?}", verdict);
             let reasons_str = match serde_json::to_string(&verdict) {
                 Ok(s) => s,
@@ -377,7 +144,6 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
                 .await;
 
             if verdict.is_hit() {
-                // Real CAS extraction: restore cached build output into sandbox
                 let cas_path = crate::config::data_dir()
                     .join("cas")
                     .join(&unit.input_signature);
@@ -387,7 +153,6 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
                 let payload_exists = tokio::fs::try_exists(&payload_path).await.unwrap_or(false);
 
                 if manifest_exists && payload_exists {
-                    // Extract the payload archive into the sandbox
                     let extract_status = tokio::process::Command::new("tar")
                         .arg("-I")
                         .arg("zstd")
@@ -428,14 +193,11 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
                     );
                 }
             } else {
-                tracing::info!(
-                    "Cache Brain produced Miss/Deny verdict, falling to cold execution."
-                );
+                tracing::info!("Cache Brain produced Miss/Deny verdict, falling to cold execution.");
             }
         }
     }
 
-    // Config injections for Native Execution Caching
     let buildkit_mgr = crate::buildkit::BuildKitManager::new("untrusted");
     let mut extra_envs = buildkit_mgr.inject_env();
     extra_envs.push(("PIP_BREAK_SYSTEM_PACKAGES".to_string(), "1".to_string()));
@@ -456,12 +218,13 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
         let project_scope = match env::var("CUSTOM_ENV_CI_PROJECT_PATH_SLUG") {
             Ok(value) if !value.trim().is_empty() => value,
             _ => match env::var("CUSTOM_ENV_CI_PROJECT_DIR") {
-                Ok(project_dir) => match crate::cargo_cache::canonical_repo_key(
-                    std::path::Path::new(&project_dir),
-                ) {
-                    Ok(value) if !value.trim().is_empty() => value,
-                    _ => "unknown-project".to_string(),
-                },
+                Ok(project_dir) => {
+                    match crate::cargo_cache::canonical_repo_key(std::path::Path::new(&project_dir))
+                    {
+                        Ok(value) if !value.trim().is_empty() => value,
+                        _ => "unknown-project".to_string(),
+                    }
+                }
                 Err(_) => "unknown-project".to_string(),
             },
         };
@@ -488,7 +251,6 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
         extra_envs.extend(cargo_layout.env.into_iter());
     }
 
-    // Generate .cargo/config.toml that redirects crates-io to the proxy_host:proxy_port
     let cargo_dir = std::path::Path::new(&sandbox_path).join(".cargo");
     let _ = std::fs::create_dir_all(&cargo_dir);
     let cargo_toml = r#"
@@ -513,7 +275,6 @@ registry = "sparse+http://127.0.0.1:19800/api/v1/crates"
 
     let mut child = sandbox.spawn_script(script_path)?;
 
-    // Detonation Lane: Start tripwire
     let _tripwire = if let Some(pid) = child.id() {
         crate::honeypot::start_tripwire(
             pid,
@@ -528,7 +289,6 @@ registry = "sparse+http://127.0.0.1:19800/api/v1/crates"
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
 
-    // Buffer for the last ~4KB of logs for the capsule
     let log_buffer = std::sync::Arc::new(std::sync::Mutex::new(Vec::with_capacity(4096)));
     let log_buffer_cloned = log_buffer.clone();
 
@@ -571,10 +331,6 @@ registry = "sparse+http://127.0.0.1:19800/api/v1/crates"
     let _ = tokio::join!(stdout_task, stderr_task);
 
     let exit_code = status.code().unwrap_or(1);
-
-    // Record forensic attempt capsule to the ledger
-
-    // Check if process was killed due to detonation lane
     let quarantine_marker = std::path::Path::new(&sandbox_path).join(".jeryu_quarantine");
     let is_quarantined = quarantine_marker.exists();
 
@@ -588,7 +344,7 @@ registry = "sparse+http://127.0.0.1:19800/api/v1/crates"
             job_id,
             project_id.unwrap_or(0),
             stage,
-            999, // Specific exit code denoting quarantine
+            999,
             format!("🚨 QUARANTINED: {}\n\nLogs:\n{}", reason, log_snippet),
             &format!("bash {}", script_path),
         );
@@ -645,8 +401,6 @@ registry = "sparse+http://127.0.0.1:19800/api/v1/crates"
     )
     .await?;
 
-    // After successful build_script, populate action_cache so CacheBrain can produce
-    // HitExact on future runs with identical inputs.
     if stage == "build_script"
         && let Some(ref unit) = build_unit
     {
@@ -672,14 +426,12 @@ registry = "sparse+http://127.0.0.1:19800/api/v1/crates"
             namespace
         );
 
-        // Archive build output to CAS for future exact-hit restoration
         let cas_dir = crate::config::data_dir()
             .join("cas")
             .join(&unit.input_signature);
         if let Ok(()) = tokio::fs::create_dir_all(&cas_dir).await {
             let payload_path = cas_dir.join("payload.tar.zst");
             let manifest_path = cas_dir.join("manifest.json");
-            // Archive the sandbox build output
             let archive_status = tokio::process::Command::new("tar")
                 .arg("-I")
                 .arg("zstd")
@@ -703,68 +455,6 @@ registry = "sparse+http://127.0.0.1:19800/api/v1/crates"
             }
         }
     }
-
-    Ok(())
-}
-
-/// Handles `jeryu exec cleanup`
-/// Tears down the sandbox.
-pub async fn run_cleanup() -> Result<()> {
-    let job_id = env_string_or_default("CUSTOM_ENV_CI_JOB_ID", "unknown");
-    let project_id_str = env_string_or_default("CUSTOM_ENV_CI_PROJECT_ID", "");
-    let project_dir = env_string_or_default("CUSTOM_ENV_CI_PROJECT_DIR", "/tmp/jeryu-job");
-
-    info!(job_id, "Driver: cleaning up sandbox");
-
-    let sandbox_path = format!("{}-sandbox", project_dir);
-    let quarantine_marker = std::path::Path::new(&sandbox_path).join(".jeryu_quarantine");
-
-    // Pillar 2: Detonation Lane overrides cleanup
-    if quarantine_marker.exists() {
-        tracing::error!(
-            "🚨 Sandbox {} is quarantined. Skipping workspace destruction for forensics.",
-            sandbox_path
-        );
-
-        let db = crate::state::Db::open().await?;
-        let payload = serde_json::json!({
-            "action": "quarantine_skip",
-            "sandbox_path": sandbox_path,
-        });
-        db.append_event(
-            "executor_cleanup_quarantined",
-            project_id_str.parse().ok(),
-            job_id.parse().ok(),
-            "jeryu-exec",
-            &payload.to_string(),
-        )
-        .await?;
-
-        return Ok(());
-    }
-
-    if std::path::Path::new(&sandbox_path).exists() {
-        let _ = std::fs::remove_dir_all(&sandbox_path);
-        info!("removed sandbox fast clone at {}", sandbox_path);
-    }
-
-    // Record cleanup success and failure metrics
-    let db = crate::state::Db::open().await?;
-    let payload = serde_json::json!({
-        "action": "cleanup",
-        "sandbox_path": sandbox_path,
-        "build_failure_exit_code": env_string_or_default("BUILD_FAILURE_EXIT_CODE", ""),
-        "system_failure_exit_code": env_string_or_default("SYSTEM_FAILURE_EXIT_CODE", ""),
-    });
-
-    db.append_event(
-        "executor_cleanup",
-        project_id_str.parse().ok(),
-        job_id.parse().ok(),
-        "jeryu-exec",
-        &payload.to_string(),
-    )
-    .await?;
 
     Ok(())
 }
