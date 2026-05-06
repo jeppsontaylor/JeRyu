@@ -26,6 +26,53 @@ async fn spawn_http_server() -> (String, tokio::task::JoinHandle<()>) {
     (format!("http://{addr}"), server)
 }
 
+async fn initialize_session(
+    client: &reqwest::Client,
+    base: &str,
+    origin: &str,
+    init_body: serde_json::Value,
+) -> (reqwest::Response, String) {
+    let resp = client
+        .post(format!("{base}/mcp"))
+        .header("Origin", origin)
+        .header("Mcp-Method", "initialize")
+        .json(&init_body)
+        .send()
+        .await
+        .unwrap();
+    let session = resp
+        .headers()
+        .get("Mcp-Session-Id")
+        .and_then(|v| v.to_str().ok())
+        .unwrap()
+        .to_string();
+    (resp, session)
+}
+
+/// Spawn a test HTTP server, create an HTTP client, perform an MCP initialize
+/// handshake, and return `(base_url, client, session_id, server_handle)`.
+async fn setup_authenticated_session()
+-> (String, reqwest::Client, String, tokio::task::JoinHandle<()>) {
+    let (base, server) = spawn_http_server().await;
+    let client = reqwest::Client::new();
+    let origin = base.clone();
+    let (_init_resp, session) = initialize_session(
+        &client,
+        &base,
+        &origin,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": MCP_PROTOCOL_VERSION
+            }
+        }),
+    )
+    .await;
+    (base, client, session, server)
+}
+
 #[test]
 fn manifest_includes_capability_tools() {
     let manifest = tool_manifest();
@@ -126,34 +173,8 @@ async fn stdio_initialize_and_tools_list_work() {
 
 #[tokio::test]
 async fn http_transport_initializes_and_executes_tools() {
-    let (base, server) = spawn_http_server().await;
-    let client = reqwest::Client::new();
-
+    let (base, client, session, server) = setup_authenticated_session().await;
     let origin = base.clone();
-
-    let init_resp = client
-        .post(format!("{base}/mcp"))
-        .header("Origin", &origin)
-        .header("Mcp-Method", "initialize")
-        .json(&json!({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": MCP_PROTOCOL_VERSION,
-                "clientInfo": { "name": "reqwest", "version": "0.1.0" }
-            }
-        }))
-        .send()
-        .await
-        .unwrap();
-    assert!(init_resp.status().is_success());
-    let session = init_resp
-        .headers()
-        .get("Mcp-Session-Id")
-        .and_then(|v| v.to_str().ok())
-        .unwrap()
-        .to_string();
 
     let list_resp = client
         .post(format!("{base}/mcp"))
@@ -231,32 +252,8 @@ async fn http_transport_rejects_malformed_json() {
 
 #[tokio::test]
 async fn http_transport_rejects_unknown_tools() {
-    let (base, server) = spawn_http_server().await;
-    let client = reqwest::Client::new();
-
+    let (base, client, session, server) = setup_authenticated_session().await;
     let origin = base.clone();
-
-    let init_resp = client
-        .post(format!("{base}/mcp"))
-        .header("Origin", &origin)
-        .header("Mcp-Method", "initialize")
-        .json(&json!({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": MCP_PROTOCOL_VERSION
-            }
-        }))
-        .send()
-        .await
-        .unwrap();
-    let session = init_resp
-        .headers()
-        .get("Mcp-Session-Id")
-        .and_then(|v| v.to_str().ok())
-        .unwrap()
-        .to_string();
 
     let resp = client
         .post(format!("{base}/mcp"))
