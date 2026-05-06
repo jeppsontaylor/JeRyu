@@ -100,9 +100,8 @@ fn main() -> Result<()> {
 
     let font_path = match args.font.clone() {
         Some(path) => path,
-        None => find_font().context(
-            "could not find a monospace font; pass --font /path/to/DejaVuSansMono.ttf",
-        )?,
+        None => find_font()
+            .context("could not find a monospace font; pass --font /path/to/DejaVuSansMono.ttf")?,
     };
     let font_bytes = fs::read(&font_path)
         .with_context(|| format!("failed to read font {}", font_path.display()))?;

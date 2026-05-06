@@ -7,9 +7,9 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1778073158`
-- Started at: `1778073158`
-- Elapsed: `404` ms
+- Run ID: `1778073444`
+- Started at: `1778073444`
+- Elapsed: `415` ms
 - Scope: `full`
 - Raw score: `73`
 - Final score: `66`
@@ -160,7 +160,18 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:262623223bf7765f338bb28717a6e0aaf5af0494fe90a7d65291c43eb584cc6e`
    Evidence: contract surface found, generated contract artifacts found, polyglot boundary layout present, public API drift checks found
-4. `medium` `data` `db/`
+4. `high` `security` `crates/cargo-vrc/src/workspace.rs:51`
+   Rule: `HLT-023-INPUT-BOUNDARY-GAP`
+   Check: `HLT-023-INPUT-BOUNDARY-GAP:security` `hard` confidence `0.88`
+   Route: TLR `Security, secrets, agency`, lane `security`, owner `tools`
+   Docs: `docs/audit-rubric.md#top-level-risk-mapping`
+   Matched term: `shell execution`
+   Reason: input handling risk needs deterministic negative tests
+   Fix: replace unsafe sinks with typed schemas, parameterized APIs, allowlists, or sandboxed execution plus negative tests
+   Rerun: `just security`
+   Fingerprint: `sha256:dfa7c0c022c6f87c936b4fffd52e920ee5bd0cc761c2db2a8f203a455fcd3536`
+   Evidence: let metadata = metadata_query.exec().context(
+5. `medium` `data` `db/`
    Rule: `HLT-006-DIRECT-DB-WRONG-LAYER`
    Check: `HLT-006-DIRECT-DB-WRONG-LAYER:data` `soft` confidence `0.76`
    Route: TLR `Contracts/data`, lane `db`, owner `data`
@@ -168,9 +179,9 @@ No audited runtime boundary reclassifications declared.
    Reason: `Data truth and workflow safety` scored 65 below the standard floor of 85
    Fix: move durable truth into migrations, constraints, adapters, and application-owned transactions
    Rerun: `just fast`
-   Fingerprint: `sha256:3e028f0cb66b8cd278669ddc3466db432bb9d0e98362a63ed98016980059300a`
-   Evidence: database surface present, migration directory present, data access appears compartmentalized, strict DB boundary violation: src/commands/remote.rs
-5. `high` `vibe` `src/cache.rs:907`
+   Fingerprint: `sha256:23d29cc9907455da54ce276186e9034295838ec602a9728adfc376e86166e20f`
+   Evidence: database surface present, migration directory present, data access appears compartmentalized, strict DB boundary violation: src/docker.rs
+6. `high` `vibe` `src/capability.rs:377`
    Rule: `HLT-001-DEAD-MARKER`
    Check: `HLT-001-DEAD-MARKER:vibe` `hard` confidence `0.88`
    Route: TLR `Entropy`, lane `fast`, owner `workspace`
@@ -178,9 +189,9 @@ No audited runtime boundary reclassifications declared.
    Reason: fallback soup detected in product code
    Fix: collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Rerun: `just fast`
-   Fingerprint: `sha256:d94cbb82d8e543b7e61a84f9459bc1609f3b01a4020aa74bcfcae4e489aeb893`
-   Evidence: src/cache.rs:907 .ok_or_else(|| anyhow::anyhow!("df output missing data row"))?;
-6. `high` `data` `src/commands/remote.rs:1`
+   Fingerprint: `sha256:b97f90d5c0c7fa36ed811c553d3433f4eb75b35f5d5bfd64f342909b4e429bf7`
+   Evidence: src/capability.rs:377 let title = mr_title.unwrap_or_else(|| commit_message.clone());
+7. `high` `data` `src/docker.rs:1`
    Rule: `HLT-006-DIRECT-DB-WRONG-LAYER`
    Check: `HLT-006-DIRECT-DB-WRONG-LAYER:data` `hard` confidence `0.95`
    Route: TLR `Contracts/data`, lane `db`, owner `workspace`
@@ -188,19 +199,8 @@ No audited runtime boundary reclassifications declared.
    Reason: direct database access appears in a wrong layer
    Fix: move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward
    Rerun: `just fast`
-   Fingerprint: `sha256:87736f2b3aae126a7ed8ab4f9f5cb37ae0948883e40a30b3220aba83b5273c2b`
+   Fingerprint: `sha256:8c981f627f99223d1eff6c05d429ebbac0510f386240f7cb7b46bb71fd6bbebd`
    Evidence: DB marker in non-adapter layer
-7. `high` `security` `src/dispatch.rs:378`
-   Rule: `HLT-023-INPUT-BOUNDARY-GAP`
-   Check: `HLT-023-INPUT-BOUNDARY-GAP:security` `hard` confidence `0.88`
-   Route: TLR `Security, secrets, agency`, lane `security`, owner `workspace`
-   Docs: `docs/audit-rubric.md#top-level-risk-mapping`
-   Matched term: `shell execution`
-   Reason: input handling risk needs deterministic negative tests
-   Fix: replace unsafe sinks with typed schemas, parameterized APIs, allowlists, or sandboxed execution plus negative tests
-   Rerun: `just security`
-   Fingerprint: `sha256:e587e2f7c3948da196f7bf8cf606320c2571f5d0d212f5397bbae74de03c1beb`
-   Evidence: Commands::Exec(subcmd) => match subcmd {
 8. `high` `vibe` `src/install.rs:1`
    Check: `HLT-000-SCORE-DIMENSION:vibe` `hard` confidence `0.88`
    Route: TLR `Entropy`, lane `fast`, owner `workspace`
@@ -218,16 +218,16 @@ No audited runtime boundary reclassifications declared.
 
 ## Agent Fix Queue
 
-1. `high` `HLT-006-DIRECT-DB-WRONG-LAYER` `src/commands/remote.rs` - move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward
+1. `high` `HLT-006-DIRECT-DB-WRONG-LAYER` `src/docker.rs` - move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward
    Route: `Contracts/data`/`db`
 2. `medium` `HLT-007-HANDWRITTEN-CONTRACT` `agent/boundaries.toml` - add generated contracts and boundary checks for public APIs, data access, and cross-runtime seams
    Route: `Contracts/data`/`contract`
 3. `medium` `HLT-006-DIRECT-DB-WRONG-LAYER` `db/` - move durable truth into migrations, constraints, adapters, and application-owned transactions
    Route: `Contracts/data`/`db`
-4. `high` `HLT-001-DEAD-MARKER` `src/cache.rs` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
-   Route: `Entropy`/`fast`
-5. `high` `HLT-023-INPUT-BOUNDARY-GAP` `src/dispatch.rs` - replace unsafe sinks with typed schemas, parameterized APIs, allowlists, or sandboxed execution plus negative tests
+4. `high` `HLT-023-INPUT-BOUNDARY-GAP` `crates/cargo-vrc/src/workspace.rs` - replace unsafe sinks with typed schemas, parameterized APIs, allowlists, or sandboxed execution plus negative tests
    Route: `Security, secrets, agency`/`security`
+5. `high` `HLT-001-DEAD-MARKER` `src/capability.rs` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
+   Route: `Entropy`/`fast`
 6. `high` `src/install.rs` - extract the duplicated behavior behind one named boundary and add focused tests before changing behavior
    Route: `Entropy`/`fast`
 7. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests

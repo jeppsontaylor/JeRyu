@@ -70,10 +70,7 @@ pub fn diagnose_workspace(
 
         // Route to owning ARC.
         let owning_pkg = snapshot.packages.iter().find(|package| {
-            let pkg_root = match package
-                .package_root
-                .strip_prefix(&snapshot.workspace_root)
-            {
+            let pkg_root = match package.package_root.strip_prefix(&snapshot.workspace_root) {
                 Ok(rel) => rel.display().to_string(),
                 Err(_) => String::new(),
             };

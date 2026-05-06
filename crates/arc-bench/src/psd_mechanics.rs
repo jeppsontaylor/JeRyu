@@ -28,7 +28,8 @@ pub fn run(output: &Path) -> Result<ScenarioReport> {
     let repo_delta = repo_shape_delta(&repo_shape);
     let exception_successes = exceptions.cases.iter().filter(|case| case.success).count();
 
-    let compile_manifest = root.join("proof/examples/labs/exception-zoo/cases/borrow-lifetime/Cargo.toml");
+    let compile_manifest =
+        root.join("proof/examples/labs/exception-zoo/cases/borrow-lifetime/Cargo.toml");
     let compile_root = compile_manifest
         .parent()
         .context("compile fixture manifest has no parent")?;

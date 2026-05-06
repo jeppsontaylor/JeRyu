@@ -48,7 +48,10 @@ impl SqlxActionCacheStore {
     }
 
     /// Construct as a trait object suitable for handing to the application layer.
-    pub fn boxed(pool: sqlx::AnyPool, backend: AdapterBackend) -> std::sync::Arc<dyn ActionCacheStore> {
+    pub fn boxed(
+        pool: sqlx::AnyPool,
+        backend: AdapterBackend,
+    ) -> std::sync::Arc<dyn ActionCacheStore> {
         std::sync::Arc::new(Self::new(pool, backend))
     }
 }

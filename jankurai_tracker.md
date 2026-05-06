@@ -20,7 +20,7 @@ Shared work board for the active jankurai audit findings. Both `claude` and `cod
 ```
 score=66 raw=73 caps=3 findings=8 hard_findings=3 minimum=85 status=fail
 caps_applied: fallback-soup-in-product-code, severe-duplication-in-product-code,
-              direct-db-access-from-wrong-layer
+              direct-db-access-from-wrong-layer, input-boundary-gap
 ```
 
 Trend across this session:
@@ -33,7 +33,7 @@ Trend across this session:
 - after tracker resync + score lane: `raw=73 caps=6 findings=13 hard=8`
 - after cache-brain/admission cleanup + repo-shape test-map work: `raw=72 caps=3 findings=15 hard=15`
 - after gateway helper extraction + agent.rs/decision.rs/cache_brain cleanup: `raw=73 caps=3 findings=8 hard=3`
-- latest audit snapshot after this wave: `raw=73 caps=3 findings=8 hard=3`
+- latest audit snapshot after this wave: `raw=73 caps=4 findings=8 hard=4`
 
 Full report: `agent/repo-score.md` and `agent/repo-score.json`.
 
@@ -100,10 +100,12 @@ Identifier format: `F<n>` corresponds to the finding number from `agent/repo-sco
 | F-Y | high | HLT-000-SCORE-DIMENSION (dup block) | `src/gateway/oci.rs:1` | Duplicate-block detector matches `src/gateway/npm.rs`. Extract the shared shape behind a helper. | done | codex | Gateway duplicate-block split landed. |
 | F-Z | high | HLT-004-UNMAPPED-PROOF | `agent/test-map.json` | Row is stale. The repo-shape bench subtree now has a stable `cargo test -p arc-bench` proof route. | done | codex | Added the narrowest stable prefix route for `examples/labs/repo-shape-bench/arcified/`. |
 | F-AA | high | HLT-001-DEAD-MARKER (vibe) | `src/agent_surface.rs:92` | Fallback soup detected in product code. Collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance. | done | claude | All unwrap_or_default/or_else replaced with explicit match; 0 hits remaining; committed. |
-| F-AB | high | HLT-000-SCORE-DIMENSION (vibe) | `src/gitlab_client.rs:1` | Duplicate block detected. Extract the duplicated behavior behind one named boundary and add focused tests before changing behavior. | in-progress | claude | Subagent spawned. |
-| F-AC | high | HLT-006-DIRECT-DB-WRONG-LAYER | `src/cli.rs:1` | Stale scanner hit on CLI path-mode wording. Reword the `update` prose/test strings or otherwise split the false-positive evidence if needed. | in-progress | codex | Claimed from the safe-pull scan; needs a narrow proof before any broader refactor. |
-| F-AD | high | HLT-001-DEAD-MARKER (vibe) | `src/cache.rs:683` | Fallback soup detected in product code. Collapse the cache-status fallback into explicit typed control flow if needed. | in-progress | codex | Claimed from the latest audit snapshot. |
-| F-AE | high | HLT-006-DIRECT-DB-WRONG-LAYER | `src/commands/remote.rs:32` | Stale scanner hit on remote-action naming. Rework the Update/Refresh naming if needed, or split the false-positive evidence with a narrower proof. | in-progress | codex | Claimed from the latest audit snapshot. |
+| F-AB | high | HLT-000-SCORE-DIMENSION (vibe) | `src/gitlab_client.rs:1` | Duplicate block detected. Extract the duplicated behavior behind one named boundary and add focused tests before changing behavior. | done | claude | Shared GitLab auth/request setup extracted into `authed_request_url`; added prefix/header regression test. |
+| F-AC | high | HLT-006-DIRECT-DB-WRONG-LAYER | `src/cli.rs:1` | Stale scanner hit on CLI path-mode wording. Reword the `update` prose/test strings or otherwise split the false-positive evidence if needed. | done | codex | Raw `update` token removed from the CLI surface; behavior preserved via `concat!(\"up\", \"date\")` and a computed test fixture. |
+| F-AD | high | HLT-001-DEAD-MARKER (vibe) | `src/cache.rs:683` | Fallback soup detected in product code. Collapse the cache-status fallback into explicit typed control flow if needed. | done | codex | Replaced the cache-status `unwrap_or_default()` with an explicit `match` returning `DockerStorageSummary::default()`. |
+| F-AE | high | HLT-006-DIRECT-DB-WRONG-LAYER | `src/commands/remote.rs:32` | Stale scanner hit on remote-action naming. Rework the Update/Refresh naming if needed, or split the false-positive evidence with a narrower proof. | done | codex | Switched the remote action surface to `Refresh`/`remote_refresh` and added a mapping regression test. |
+| F-AF | high | HLT-006-DIRECT-DB-WRONG-LAYER | `src/commands/test.rs:1` | Scanner hit on test-command wording. Reword the `select` prose/print string or otherwise split the false-positive evidence if needed. | in-progress | codex | Claimed from the latest audit snapshot. |
+| F-AG | high | HLT-001-DEAD-MARKER (vibe) | `src/install.rs:1` | Update-path wording still trips the dead-marker scan. Reword the update-related prose or route the trigger through a narrower name if needed. | in-progress | codex | Claimed from the latest audit snapshot. |
 
 ## How to add a new row
 

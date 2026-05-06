@@ -3,7 +3,7 @@ pub mod planner;
 pub mod workspace;
 
 pub use model::{
-    AgentMap, PackageAgentMetadata, ReportRepairHint, RepairHint, SelectedArc, SelectedTest,
+    AgentMap, PackageAgentMetadata, RepairHint, ReportRepairHint, SelectedArc, SelectedTest,
     TestEntry, TestMap, ValidationCommands, VerificationReport, VrcPlan, WorkspaceAgentMetadata,
 };
 pub use planner::{

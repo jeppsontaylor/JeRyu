@@ -105,7 +105,16 @@ fn emit_repair_packet(info: &PanicHookInfo<'_>) -> Result<(), Box<dyn std::error
     let matched = match_cell(&file);
     let timestamp = current_timestamp();
 
-    let (cell_id, cell_purpose, match_provenance, matched_owned_path, invariants, hints, local_commands, escalate_commands) = match matched.as_ref() {
+    let (
+        cell_id,
+        cell_purpose,
+        match_provenance,
+        matched_owned_path,
+        invariants,
+        hints,
+        local_commands,
+        escalate_commands,
+    ) = match matched.as_ref() {
         Some(m) => (
             Some(m.cell.id.clone()),
             Some(m.cell.purpose.clone()),
@@ -116,7 +125,16 @@ fn emit_repair_packet(info: &PanicHookInfo<'_>) -> Result<(), Box<dyn std::error
             m.cell.local_commands.clone(),
             m.cell.escalate_commands.clone(),
         ),
-        None => (None, None, None, None, Vec::new(), Vec::new(), Vec::new(), Vec::new()),
+        None => (
+            None,
+            None,
+            None,
+            None,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        ),
     };
     let packet = RepairPacket {
         code: "PANIC".to_string(),

@@ -408,7 +408,7 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             } else if explain {
                 print!("{}", test_intel::explain::explain(&plan));
             } else {
-                println!("━━━ jeryu test select ━━━\n");
+                println!("━━━ jeryu smart test pick ━━━\n");
                 println!("  Base:       {}", base);
                 println!("  Head:       {}", head);
                 println!("  Changed:    {} files", changed_paths.len());
@@ -535,7 +535,7 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
                 print!("{}", test_intel::nightly::explain_audit(&report));
             }
 
-            // Persist misses to DB
+            // Persist misses through the state store
             // (plan_id=None for CLI audits — no linked test_plans record)
             for miss in &report.misses {
                 if let Err(e) = db

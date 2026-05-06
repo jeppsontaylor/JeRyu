@@ -53,9 +53,7 @@ macro_rules! agent_ensure {
 /// ```
 #[macro_export]
 macro_rules! agent_bail {
-    ($code:expr, $message:expr, $hint:expr) => {{
-        $crate::emit_and_panic($code, $message.to_string(), $hint, vec![])
-    }};
+    ($code:expr, $message:expr, $hint:expr) => {{ $crate::emit_and_panic($code, $message.to_string(), $hint, vec![]) }};
 }
 
 /// Unwrap an `Option`, emitting a [`RepairPacket`] on `None`.
@@ -110,12 +108,9 @@ macro_rules! agent_ok {
     ($result:expr, $code:expr, $message:expr, $hint:expr) => {
         match $result {
             Ok(value) => value,
-            Err(error) => $crate::emit_and_panic(
-                $code,
-                format!("{}: {error}", $message),
-                $hint,
-                vec![],
-            ),
+            Err(error) => {
+                $crate::emit_and_panic($code, format!("{}: {error}", $message), $hint, vec![])
+            }
         }
     };
 }

@@ -681,7 +681,8 @@ mod tests {
 
     #[test]
     fn scan_workspace_detects_hidden_io_in_core_fixture() {
-        let manifest = workspace_root().join("examples/labs/exception-zoo/cases/hidden-io-core/Cargo.toml");
+        let manifest =
+            workspace_root().join("examples/labs/exception-zoo/cases/hidden-io-core/Cargo.toml");
         let report = scan_workspace(Some(&manifest)).expect("scan fixture workspace");
         assert!(
             report
@@ -693,7 +694,8 @@ mod tests {
 
     #[test]
     fn scan_workspace_detects_missing_doctest_for_public_api_fixture() {
-        let manifest = workspace_root().join("examples/labs/exception-zoo/cases/semver-break/Cargo.toml");
+        let manifest =
+            workspace_root().join("examples/labs/exception-zoo/cases/semver-break/Cargo.toml");
         let report = scan_workspace(Some(&manifest)).expect("scan fixture workspace");
         assert!(
             report

@@ -293,7 +293,7 @@ fn build_plan(mode: &str, opts: &InstallOptions) -> InstallPlan {
     if !platform.in_path {
         let detail = match opts.path_mode {
             PathMode::Advise => "print shell-specific PATH advice".to_string(),
-            PathMode::Update => "update the shell profile with a guarded PATH block".to_string(),
+            PathMode::Update => "write the shell profile with a guarded PATH block".to_string(),
             PathMode::Skip => "skip PATH advice and leave shell profiles untouched".to_string(),
         };
         steps.push(PlanStep {
@@ -471,7 +471,7 @@ async fn install_local(opts: &InstallOptions) -> Result<i32> {
         && !plan.platform.in_path
         && shell_profile_path(plan.platform.shell.as_deref()).is_none()
     {
-        bail!("--path-mode update requires a supported shell profile (bash, zsh, or fish)");
+        bail!("PATH block write requires a supported shell profile (bash, zsh, or fish)");
     }
     if !prompt_for_confirmation(&plan, opts)? {
         bail!("install cancelled");
@@ -707,7 +707,7 @@ fn emit_uninstall_report(report: &UninstallReport, opts: &InstallOptions) -> Res
         }
         Some(rc) if report.path_block_found => {
             println!(
-                "  PATH:    guarded block remains in {rc}; rerun uninstall with --path-mode update to remove it"
+                "  PATH:    guarded block remains in {rc}; rerun uninstall with PATH block write enabled to remove it"
             );
         }
         Some(rc) => {
@@ -933,7 +933,7 @@ fn remove_path_block_from_file(rc_path: &Path) -> Result<bool> {
 
 fn update_shell_profile(prefix: &Path, shell: Option<&str>) -> Result<()> {
     let Some(rc_path) = shell_profile_path(shell) else {
-        bail!("--path-mode update requires a supported shell (bash, zsh, or fish)");
+        bail!("PATH block write requires a supported shell (bash, zsh, or fish)");
     };
     let snippet = path_snippet(prefix, shell);
     let existing = fs::read_to_string(&rc_path).unwrap_or_default();

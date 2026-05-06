@@ -43,4 +43,4 @@ pub mod macros;
 pub mod packet;
 
 pub use hook::{current_timestamp, emit_repair_packet_direct, install_panic_hook, register_cells};
-pub use packet::{emit_and_panic, CellRegistration, HookConfig, RepairPacket};
+pub use packet::{CellRegistration, HookConfig, RepairPacket, emit_and_panic};
