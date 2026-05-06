@@ -7,7 +7,7 @@
 //! one GitLab REST endpoint. No magic.
 
 use anyhow::{Context, Result};
-use reqwest::Client;
+use reqwest::{Client, Method};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -290,9 +290,7 @@ impl GitlabClient {
         loop {
             let url = self.paginated_url(path, page, per_page);
             let resp = self
-                .client
-                .get(&url)
-                .header("PRIVATE-TOKEN", pat)
+                .authed_request_url(Method::GET, url)?
                 .send()
                 .await?
                 .error_for_status()?;
@@ -340,8 +338,146 @@ impl GitlabClient {
             .ok_or_else(|| anyhow::anyhow!("no PAT configured — run `jeryu bootstrap` first"))
     }
 
+    fn authed_request_url(
+        &self,
+        method: Method,
+        url: String,
+    ) -> Result<reqwest::RequestBuilder> {
+        let pat = self.pat_value()?;
+        Ok(self.client.request(method, url).header("PRIVATE-TOKEN", pat))
+    }
+
     pub fn pat_value_for_clone(&self) -> Option<String> {
         self.pat.clone()
+    }
+
+    // -- Private HTTP helpers -----------------------------------------------
+
+    async fn api_post_json<Req, Resp>(&self, url: impl AsRef<str>, body: &Req) -> Result<Resp>
+    where
+        Req: serde::Serialize,
+        Resp: serde::de::DeserializeOwned,
+    {
+        let pat = self.pat_value()?;
+        let resp: Resp = self
+            .client
+            .post(url.as_ref())
+            .header("PRIVATE-TOKEN", &pat)
+            .json(body)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        Ok(resp)
+    }
+
+    async fn api_get_json<Resp>(&self, url: impl AsRef<str>) -> Result<Resp>
+    where
+        Resp: serde::de::DeserializeOwned,
+    {
+        let pat = self.pat_value()?;
+        let resp: Resp = self
+            .client
+            .get(url.as_ref())
+            .header("PRIVATE-TOKEN", &pat)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        Ok(resp)
+    }
+
+    async fn api_put_json<Req, Resp>(&self, url: impl AsRef<str>, body: &Req) -> Result<Resp>
+    where
+        Req: serde::Serialize,
+        Resp: serde::de::DeserializeOwned,
+    {
+        let pat = self.pat_value()?;
+        let resp: Resp = self
+            .client
+            .put(url.as_ref())
+            .header("PRIVATE-TOKEN", &pat)
+            .json(body)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        Ok(resp)
+    }
+
+    async fn api_post_void<Req>(&self, url: impl AsRef<str>, body: &Req) -> Result<()>
+    where
+        Req: serde::Serialize,
+    {
+        let pat = self.pat_value()?;
+        self.client
+            .post(url.as_ref())
+            .header("PRIVATE-TOKEN", &pat)
+            .json(body)
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
+    async fn api_delete_void(&self, url: impl AsRef<str>) -> Result<()> {
+        let pat = self.pat_value()?;
+        self.client
+            .delete(url.as_ref())
+            .header("PRIVATE-TOKEN", &pat)
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
+    /// POST with no request body, parse JSON response.
+    async fn api_post_nobody_json<Resp>(&self, url: impl AsRef<str>) -> Result<Resp>
+    where
+        Resp: serde::de::DeserializeOwned,
+    {
+        let pat = self.pat_value()?;
+        let resp: Resp = self
+            .client
+            .post(url.as_ref())
+            .header("PRIVATE-TOKEN", &pat)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        Ok(resp)
+    }
+
+    /// POST with no request body, discard response.
+    async fn api_post_nobody_void(&self, url: impl AsRef<str>) -> Result<()> {
+        let pat = self.pat_value()?;
+        self.client
+            .post(url.as_ref())
+            .header("PRIVATE-TOKEN", &pat)
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
+    /// PUT with JSON body, discard response.
+    async fn api_put_void<Req>(&self, url: impl AsRef<str>, body: &Req) -> Result<()>
+    where
+        Req: serde::Serialize,
+    {
+        let pat = self.pat_value()?;
+        self.client
+            .put(url.as_ref())
+            .header("PRIVATE-TOKEN", &pat)
+            .json(body)
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
     }
 
     // -- Health -------------------------------------------------------------
@@ -369,81 +505,53 @@ impl GitlabClient {
         run_untagged: bool,
         runner_type: &str,
     ) -> Result<RunnerCreated> {
-        let pat = self.pat_value()?;
         let resp: RunnerCreated = self
-            .client
-            .post(self.api_url("/user/runners"))
-            .header("PRIVATE-TOKEN", &pat)
-            .json(&CreateRunnerReq {
-                description,
-                tag_list,
-                run_untagged,
-                runner_type,
-            })
-            .send()
+            .api_post_json(
+                self.api_url("/user/runners"),
+                &CreateRunnerReq {
+                    description,
+                    tag_list,
+                    run_untagged,
+                    runner_type,
+                },
+            )
             .await
-            .context("create runner request")?
-            .error_for_status()
-            .context("create runner response")?
-            .json()
-            .await?;
+            .context("create runner")?;
         info!(id = resp.id, "created runner");
         Ok(resp)
     }
 
     pub async fn set_runner_paused(&self, runner_id: i64, paused: bool) -> Result<()> {
-        let pat = self.pat_value()?;
-        self.client
-            .put(self.api_url(&format!("/runners/{}", runner_id)))
-            .header("PRIVATE-TOKEN", &pat)
-            .json(&SetPausedReq { paused })
-            .send()
-            .await
-            .context("set runner paused")?
-            .error_for_status()?;
+        self.api_put_void(
+            self.api_url(&format!("/runners/{}", runner_id)),
+            &SetPausedReq { paused },
+        )
+        .await
+        .context("set runner paused")?;
         info!(runner_id, paused, "updated runner paused state");
         Ok(())
     }
 
     pub async fn list_runner_managers(&self, runner_id: i64) -> Result<Vec<RunnerManager>> {
-        let pat = self.pat_value()?;
-        let managers: Vec<RunnerManager> = self
-            .client
-            .get(self.api_url(&format!("/runners/{}/managers", runner_id)))
-            .header("PRIVATE-TOKEN", &pat)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
+        let managers = self
+            .api_get_json(self.api_url(&format!("/runners/{}/managers", runner_id)))
             .await?;
         Ok(managers)
     }
 
     pub async fn delete_runner(&self, runner_id: i64) -> Result<()> {
-        let pat = self.pat_value()?;
-        self.client
-            .delete(self.api_url(&format!("/runners/{}", runner_id)))
-            .header("PRIVATE-TOKEN", &pat)
-            .send()
-            .await?
-            .error_for_status()?;
+        self.api_delete_void(self.api_url(&format!("/runners/{}", runner_id)))
+            .await?;
         info!(runner_id, "deleted runner");
         Ok(())
     }
 
     pub async fn reset_runner_token(&self, runner_id: i64) -> Result<String> {
-        let pat = self.pat_value()?;
         let resp: ResetTokenResp = self
-            .client
-            .post(self.api_url(&format!(
+            .api_post_nobody_json(self.api_url(&format!(
                 "/runners/{}/reset_authentication_token",
                 runner_id
             )))
-            .header("PRIVATE-TOKEN", &pat)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
             .await?;
         info!(runner_id, "reset runner auth token");
         Ok(resp.token)
@@ -511,37 +619,28 @@ impl GitlabClient {
     }
 
     pub async fn play_job(&self, project_id: i64, job_id: i64) -> Result<()> {
-        let pat = self.pat_value()?;
-        self.client
-            .post(self.api_url(&format!("/projects/{}/jobs/{}/play", project_id, job_id)))
-            .header("PRIVATE-TOKEN", &pat)
-            .send()
-            .await?
-            .error_for_status()?;
+        self.api_post_nobody_void(
+            self.api_url(&format!("/projects/{}/jobs/{}/play", project_id, job_id)),
+        )
+        .await?;
         info!(project_id, job_id, "played manual job");
         Ok(())
     }
 
     pub async fn cancel_job(&self, project_id: i64, job_id: i64) -> Result<()> {
-        let pat = self.pat_value()?;
-        self.client
-            .post(self.api_url(&format!("/projects/{}/jobs/{}/cancel", project_id, job_id)))
-            .header("PRIVATE-TOKEN", &pat)
-            .send()
-            .await?
-            .error_for_status()?;
+        self.api_post_nobody_void(
+            self.api_url(&format!("/projects/{}/jobs/{}/cancel", project_id, job_id)),
+        )
+        .await?;
         info!(project_id, job_id, "cancelled job");
         Ok(())
     }
 
     pub async fn retry_job(&self, project_id: i64, job_id: i64) -> Result<()> {
-        let pat = self.pat_value()?;
-        self.client
-            .post(self.api_url(&format!("/projects/{}/jobs/{}/retry", project_id, job_id)))
-            .header("PRIVATE-TOKEN", &pat)
-            .send()
-            .await?
-            .error_for_status()?;
+        self.api_post_nobody_void(
+            self.api_url(&format!("/projects/{}/jobs/{}/retry", project_id, job_id)),
+        )
+        .await?;
         info!(project_id, job_id, "retried job");
         Ok(())
     }
@@ -554,23 +653,18 @@ impl GitlabClient {
         url: &str,
         secret_token: &str,
     ) -> Result<i64> {
-        let pat = self.pat_value()?;
         let resp: WebhookResp = self
-            .client
-            .post(self.api_url(&format!("/groups/{}/hooks", group_id)))
-            .header("PRIVATE-TOKEN", &pat)
-            .json(&CreateWebhookReq {
-                url,
-                token: secret_token,
-                job_events: true,
-                pipeline_events: true,
-                push_events: true,
-                merge_requests_events: true,
-            })
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
+            .api_post_json(
+                self.api_url(&format!("/groups/{}/hooks", group_id)),
+                &CreateWebhookReq {
+                    url,
+                    token: secret_token,
+                    job_events: true,
+                    pipeline_events: true,
+                    push_events: true,
+                    merge_requests_events: true,
+                },
+            )
             .await?;
         info!(webhook_id = resp.id, "created group webhook");
         Ok(resp.id)
@@ -587,34 +681,22 @@ impl GitlabClient {
     }
 
     pub async fn get_project(&self, id: i64) -> Result<Project> {
-        let pat = self.pat_value()?;
-        let project: Project = self
-            .client
-            .get(self.api_url(&format!("/projects/{}", id)))
-            .header("PRIVATE-TOKEN", &pat)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
+        let project = self
+            .api_get_json(self.api_url(&format!("/projects/{}", id)))
             .await?;
         Ok(project)
     }
 
     pub async fn create_project(&self, name: &str) -> Result<Project> {
-        let pat = self.pat_value()?;
         let project: Project = self
-            .client
-            .post(self.api_url("/projects"))
-            .header("PRIVATE-TOKEN", &pat)
-            .json(&CreateProjectReq {
-                name,
-                visibility: "private",
-                initialize_with_readme: true,
-            })
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
+            .api_post_json(
+                self.api_url("/projects"),
+                &CreateProjectReq {
+                    name,
+                    visibility: "private",
+                    initialize_with_readme: true,
+                },
+            )
             .await?;
         info!(project_id = project.id, "created project");
         Ok(project)
@@ -628,21 +710,16 @@ impl GitlabClient {
         expires_at: &str,
         access_level: i32,
     ) -> Result<ProjectPatResp> {
-        let pat = self.pat_value()?;
         let resp: ProjectPatResp = self
-            .client
-            .post(self.api_url(&format!("/projects/{}/access_tokens", project_id)))
-            .header("PRIVATE-TOKEN", &pat)
-            .json(&CreateProjectPatReq {
-                name,
-                scopes,
-                access_level,
-                expires_at,
-            })
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
+            .api_post_json(
+                self.api_url(&format!("/projects/{}/access_tokens", project_id)),
+                &CreateProjectPatReq {
+                    name,
+                    scopes,
+                    access_level,
+                    expires_at,
+                },
+            )
             .await?;
         info!(
             project_id,
@@ -737,8 +814,6 @@ impl GitlabClient {
         commit_message: &str,
         files: &[(&str, &str, &str)],
     ) -> Result<String> {
-        let pat = self.pat_value()?;
-
         let actions: Vec<CommitAction> = files
             .iter()
             .map(|(action, path, content)| CommitAction {
@@ -749,18 +824,14 @@ impl GitlabClient {
             .collect();
 
         let commit: CreateCommitResp = self
-            .client
-            .post(self.api_url(&format!("/projects/{}/repository/commits", project_id)))
-            .header("PRIVATE-TOKEN", &pat)
-            .json(&CreateCommitReq {
-                branch,
-                commit_message,
-                actions,
-            })
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
+            .api_post_json(
+                self.api_url(&format!("/projects/{}/repository/commits", project_id)),
+                &CreateCommitReq {
+                    branch,
+                    commit_message,
+                    actions,
+                },
+            )
             .await?;
         info!(
             project_id,
@@ -782,23 +853,17 @@ impl GitlabClient {
         labels: &[&str],
         assignee_id: Option<i64>,
     ) -> Result<Issue> {
-        let pat = self.pat_value()?;
         let assignee_ids = assignee_id.map(|id| vec![id]);
-
         let issue: Issue = self
-            .client
-            .post(self.api_url(&format!("/projects/{}/issues", project_id)))
-            .header("PRIVATE-TOKEN", &pat)
-            .json(&CreateIssueReq {
-                title,
-                description,
-                labels: labels.join(","),
-                assignee_ids,
-            })
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
+            .api_post_json(
+                self.api_url(&format!("/projects/{}/issues", project_id)),
+                &CreateIssueReq {
+                    title,
+                    description,
+                    labels: labels.join(","),
+                    assignee_ids,
+                },
+            )
             .await?;
         info!(project_id, issue_iid = issue.iid, "created issue");
         Ok(issue)
@@ -810,7 +875,6 @@ impl GitlabClient {
         labels: &[&str],
         state: Option<&str>,
     ) -> Result<Vec<Issue>> {
-        let pat = self.pat_value()?;
         let mut params = vec!["per_page=100".to_string()];
         if !labels.is_empty() {
             params.push(format!("labels={}", urlencoding::encode(&labels.join(","))));
@@ -818,18 +882,12 @@ impl GitlabClient {
         if let Some(state) = state {
             params.push(format!("state={}", urlencoding::encode(state)));
         }
-        let issues: Vec<Issue> = self
-            .client
-            .get(self.api_url(&format!(
+        let issues = self
+            .api_get_json(self.api_url(&format!(
                 "/projects/{}/issues?{}",
                 project_id,
                 params.join("&")
             )))
-            .header("PRIVATE-TOKEN", &pat)
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
             .await?;
         Ok(issues)
     }

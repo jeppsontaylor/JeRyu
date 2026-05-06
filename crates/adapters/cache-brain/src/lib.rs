@@ -101,3 +101,14 @@ impl ActionCacheStore for SqlxActionCacheStore {
         Ok(row.map(|(namespace, _)| ActionCacheEntry { namespace }))
     }
 }
+
+/// Count active rows in the `cache_taints` table.
+///
+/// Lives in this adapter so the application layer never issues raw SQL.
+/// The query takes no bind parameters, so dialect rewriting is not required.
+pub async fn count_active_cache_taints(pool: &sqlx::AnyPool) -> Result<i64> {
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cache_taints")
+        .fetch_one(pool)
+        .await?;
+    Ok(count)
+}

@@ -1,6 +1,6 @@
 # Agent Index
 
-Generated: `2026-05-06T12:43:13.498380+00:00`
+Generated: `2026-05-06T13:05:35.124643+00:00`
 
 | Module | Change Type | Proof Commands | Owner |
 |---|---|---|---|
@@ -44,6 +44,7 @@ Generated: `2026-05-06T12:43:13.498380+00:00`
 | `src/gateway/npm.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Cache Gateway subsystem — npm registry proxy |
 | `src/gateway/oci.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Cache Gateway subsystem — OCI image proxy |
 | `src/gateway/singleflight.rs` | `leaf-bugfix` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib | Cache Gateway subsystem — singleflight deduplication |
+| `src/git/bridge.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git bridge helpers |
 | `src/git/classify.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git command classification |
 | `src/git/event.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git event record model |
 | `src/git/executor.rs` | `cross-module` | cargo check -p jeryu --message-format=json<br>cargo nextest run -p jeryu --lib<br>cargo test -p jeryu --test '*' -- --test-threads=1<br>cargo nextest run -p jeryu | Git passthrough execution and event recording |

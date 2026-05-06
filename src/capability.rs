@@ -532,8 +532,7 @@ pub(crate) async fn execute_intent(
             }
 
             // Check 2: active cache taints
-            let taint_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM cache_taints")
-                .fetch_one(&db.pool())
+            let taint_count = cache_brain_adapter::count_active_cache_taints(&db.pool())
                 .await
                 .unwrap_or(0);
             if taint_count > 0 {

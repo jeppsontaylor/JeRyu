@@ -419,6 +419,29 @@ fn render_markdown(index: &AgentIndex) -> String {
     out
 }
 
+fn read_text_or_empty(path: &Path) -> String {
+    match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(_) => String::new(),
+    }
+}
+
+fn generated_index_is_current(
+    json_path: &Path,
+    expected_json: &str,
+    markdown_path: &Path,
+    expected_markdown: &str,
+) -> bool {
+    let current_json = read_text_or_empty(json_path);
+    let current_markdown = read_text_or_empty(markdown_path);
+    compare_generated_index(
+        &current_json,
+        expected_json,
+        &current_markdown,
+        expected_markdown,
+    )
+}
+
 fn compare_generated_index(
     current_json: &str,
     expected_json: &str,
@@ -439,7 +462,10 @@ fn normalize_index_json(raw: &str) -> String {
             Value::String("<normalized>".to_string()),
         );
     }
-    match serde_json::to_string(&value) { Ok(s) => s, Err(_) => raw.to_string() }
+    match serde_json::to_string(&value) {
+        Ok(text) => text,
+        Err(_) => raw.to_string(),
+    }
 }
 
 fn normalize_index_markdown(raw: &str) -> String {
@@ -477,6 +503,12 @@ mod tests {
     }
 
     #[test]
+    fn header_value_or_empty_defaults_to_empty_string() {
+        let body = "//! Owner: Agent Surface\n";
+        assert_eq!(header_value_or_empty(body, "Proof"), "");
+    }
+
+    #[test]
     fn module_change_type_honors_hints() {
         let proof = ProofLanesFile {
             lane: BTreeMap::new(),
@@ -494,5 +526,15 @@ mod tests {
             module_change_type("src/secrets.rs", &proof),
             "security-relevant"
         );
+    }
+
+    #[test]
+    fn proof_lanes_for_change_type_defaults_to_empty_vec() {
+        let proof = ProofLanesFile {
+            lane: BTreeMap::new(),
+            change_type: BTreeMap::new(),
+            module_hints: BTreeMap::new(),
+        };
+        assert!(proof_lanes_for_change_type(&proof, "leaf-bugfix").is_empty());
     }
 }

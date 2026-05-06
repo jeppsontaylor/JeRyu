@@ -1,9 +1,9 @@
 {
-  "report_fingerprint": "sha256:5c113160b6150376eded4ddf96a882017c35700db0bcb339b9530b8d046ca51d",
-  "input_fingerprint": "sha256:8be4ffa987d175640c091ccb91d1dececd934da6eaefb5157bf854e8c0cdeb7c",
+  "report_fingerprint": "sha256:0fbdddfaeb460eda530972b1e5c6243689a0ade3698e2b2e7b69557e0d79a31a",
+  "input_fingerprint": "sha256:0d77fd2832195d22bd54a0f60694b9b16baa2d804a0fd94fa1a1e21368fd31ca",
   "policy_fingerprint": "sha256:396aa94b1d9d3e43a5531652f3c52172e9b5e57cc1b5de44febdc48207e3f918",
   "manifest_fingerprints": {
-    "owner_map": "sha256:c5fde96b1057db935ec2dbbd0e3c9176b98c69dc0d9a98bad1d299607724ba72",
+    "owner_map": "sha256:67229daf79b4b21e10445db6a3f4fb23a629350036d25a932ea9649beb276a2b",
     "test_map": "sha256:03161a5e97cf67686f52a5c6c1ba6df7785985f7bf494e5bfd2bf54a3d0980d7",
     "generated_zones": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "boundaries": "sha256:b8c3767aad904c5a72f510397f22ac3de48a4d712fa3d74f8930585323057b0f",
@@ -11,7 +11,7 @@
     "standard_version": "sha256:8218ee450313a74e73eb990aaadedecba61d4c0d48ada0b6f368b4f7bf2fd9de"
   },
   "dirty_worktree": true,
-  "generated_at": "1778072583",
+  "generated_at": "1778072822",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.8.0",
@@ -24,14 +24,14 @@
   "observed_conformance_level": "HL2",
   "conformance_decision": "block",
   "conformance_blockers": [
-    "HLT-001-DEAD-MARKER on src/agent_surface.rs",
-    "HLT-006-DIRECT-DB-WRONG-LAYER on src/capability.rs",
+    "HLT-001-DEAD-MARKER on src/bootstrap.rs",
+    "HLT-006-DIRECT-DB-WRONG-LAYER on src/cli.rs",
     "HLT-000-SCORE-DIMENSION:vibe on src/gitlab_client.rs"
   ],
   "repo": ".",
-  "run_id": "1778072583",
-  "started_at": "1778072583",
-  "elapsed_ms": 389,
+  "run_id": "1778072822",
+  "started_at": "1778072822",
+  "elapsed_ms": 411,
   "scope": {
     "mode": "full",
     "paths": []
@@ -58,7 +58,7 @@
     }
   },
   "git": {
-    "head": "c07bd79",
+    "head": "135755b",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -360,7 +360,7 @@
         "database surface present",
         "migration directory present",
         "data access appears compartmentalized",
-        "strict DB boundary violation: src/capability.rs"
+        "strict DB boundary violation: src/cli.rs"
       ],
       "notes": [
         "direct DB access leaks out of the data boundary"
@@ -1084,14 +1084,14 @@
         "database surface present",
         "migration directory present",
         "data access appears compartmentalized",
-        "strict DB boundary violation: src/capability.rs"
+        "strict DB boundary violation: src/cli.rs"
       ],
       "check_id": "HLT-006-DIRECT-DB-WRONG-LAYER:data",
       "hardness": "soft",
       "confidence": 0.76,
       "evidence_kind": "sql",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:797626defaf57a01e560f1c092dc342b7dc719b9c2e7cc39a3b006c227f3a359",
+      "fingerprint": "sha256:aca47fbe71cf389d6d921b828fd3f14674cdc0091a1a51cf6b1f5d22f36f172b",
       "rule_id": "HLT-006-DIRECT-DB-WRONG-LAYER",
       "tlr": "Contracts/data",
       "lane": "db",
@@ -1101,29 +1101,29 @@
     {
       "severity": "high",
       "category": "vibe",
-      "path": "src/agent_surface.rs",
+      "path": "src/bootstrap.rs",
       "problem": "fallback soup detected in product code",
       "agent_fix": "collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance",
       "evidence": [
-        "src/agent_surface.rs:92 let json_current = fs::read_to_string(&json_path).unwrap_or_default();"
+        "src/bootstrap.rs:60 std::env::var(\"JERYU_WEBHOOK_SECRET\").unwrap_or_else(|_| generate_password(32));"
       ],
       "check_id": "HLT-001-DEAD-MARKER:vibe",
       "hardness": "hard",
       "confidence": 0.88,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:b19eaf8eee7725030353f86ef36839530896c8484fb2bc6373647369ce8b9f81",
+      "fingerprint": "sha256:6062631737a6d3083058e58a05c28cfadaaabc617fb910ed607edae9e5123f61",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
       "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
-      "owner": "tools",
-      "line": 92
+      "owner": "workspace",
+      "line": 60
     },
     {
       "severity": "high",
       "category": "data",
-      "path": "src/capability.rs",
+      "path": "src/cli.rs",
       "problem": "direct database access appears in a wrong layer",
       "agent_fix": "move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward",
       "evidence": [
@@ -1134,12 +1134,12 @@
       "confidence": 0.95,
       "evidence_kind": "sql",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:7fa9f6e59a6d5593b908e3ff83ad1b2dc6a030dbc2c93c568319e696284b40bd",
+      "fingerprint": "sha256:325f4437620bbb395bdf8421be5d88704db775cfaefd55933ef4dcbfaceb0b4f",
       "rule_id": "HLT-006-DIRECT-DB-WRONG-LAYER",
       "tlr": "Contracts/data",
       "lane": "db",
       "docs_url": "docs/audit-rubric.md#required-shape",
-      "owner": "tools",
+      "owner": "workspace",
       "line": 1
     },
     {
@@ -1159,18 +1159,18 @@
       "fingerprint": "sha256:3758f6965cbe9849712f70ffb21b8be0f3eaf663ff9d6c40bdb4cf4155fdc62a",
       "tlr": "Entropy",
       "lane": "fast",
-      "owner": "tools",
+      "owner": "workspace",
       "line": 1
     }
   ],
   "agent_fix_queue": [
     {
-      "path": "src/capability.rs",
+      "path": "src/cli.rs",
       "priority": "high",
       "rule_id": "HLT-006-DIRECT-DB-WRONG-LAYER",
       "tlr": "Contracts/data",
       "lane": "db",
-      "owner": "tools",
+      "owner": "workspace",
       "task": "move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward",
       "why": "direct database access appears in a wrong layer"
     },
@@ -1205,12 +1205,12 @@
       "why": "`Build speed signals` scored 70 below the standard floor of 85"
     },
     {
-      "path": "src/agent_surface.rs",
+      "path": "src/bootstrap.rs",
       "priority": "high",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
-      "owner": "tools",
+      "owner": "workspace",
       "task": "collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance",
       "why": "fallback soup detected in product code"
     },
@@ -1219,7 +1219,7 @@
       "priority": "high",
       "tlr": "Entropy",
       "lane": "fast",
-      "owner": "tools",
+      "owner": "workspace",
       "task": "extract the duplicated behavior behind one named boundary and add focused tests before changing behavior",
       "why": "duplicated product code block detected"
     },

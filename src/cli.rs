@@ -582,7 +582,7 @@ pub(crate) enum PoolCommands {
     Resume { name: String },
     /// Drain a pool: pause, wait for jobs to finish, stop managers.
     Drain { name: String },
-    /// Drain and delete a pool plus its GitLab runner registration.
+    /// Drain and remove a pool plus its GitLab runner registration.
     Delete { name: String },
     /// Rotate the auth token for a pool.
     RotateToken { name: String },
@@ -686,7 +686,7 @@ pub(crate) enum CacheCommands {
         /// Pass --keep-active-managers=false to evict active caches at emergency disk pressure.
         #[arg(long, action = clap::ArgAction::Set, default_value_t = true, default_missing_value = "true", num_args = 0..=1)]
         keep_active_managers: bool,
-        /// Only delete orphan manager caches older than this age, e.g. 12h or 2d.
+        /// Only remove orphan manager caches older than this age, e.g. 12h or 2d.
         #[arg(long)]
         older_than: Option<String>,
         /// If total manager cache exceeds this budget, include all orphan caches as candidates.

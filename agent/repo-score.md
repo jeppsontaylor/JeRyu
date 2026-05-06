@@ -7,9 +7,9 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1778072589`
-- Started at: `1778072589`
-- Elapsed: `390` ms
+- Run ID: `1778072822`
+- Started at: `1778072822`
+- Elapsed: `411` ms
 - Scope: `full`
 - Raw score: `73`
 - Final score: `66`
@@ -178,31 +178,31 @@ No audited runtime boundary reclassifications declared.
    Reason: `Data truth and workflow safety` scored 65 below the standard floor of 85
    Fix: move durable truth into migrations, constraints, adapters, and application-owned transactions
    Rerun: `just fast`
-   Fingerprint: `sha256:797626defaf57a01e560f1c092dc342b7dc719b9c2e7cc39a3b006c227f3a359`
-   Evidence: database surface present, migration directory present, data access appears compartmentalized, strict DB boundary violation: src/capability.rs
-6. `high` `vibe` `src/agent_surface.rs:92`
+   Fingerprint: `sha256:aca47fbe71cf389d6d921b828fd3f14674cdc0091a1a51cf6b1f5d22f36f172b`
+   Evidence: database surface present, migration directory present, data access appears compartmentalized, strict DB boundary violation: src/cli.rs
+6. `high` `vibe` `src/bootstrap.rs:60`
    Rule: `HLT-001-DEAD-MARKER`
    Check: `HLT-001-DEAD-MARKER:vibe` `hard` confidence `0.88`
-   Route: TLR `Entropy`, lane `fast`, owner `tools`
+   Route: TLR `Entropy`, lane `fast`, owner `workspace`
    Docs: `docs/audit-rubric.md#future-hostile-language-rule`
    Reason: fallback soup detected in product code
    Fix: collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Rerun: `just fast`
-   Fingerprint: `sha256:b19eaf8eee7725030353f86ef36839530896c8484fb2bc6373647369ce8b9f81`
-   Evidence: src/agent_surface.rs:92 let json_current = fs::read_to_string(&json_path).unwrap_or_default();
-7. `high` `data` `src/capability.rs:1`
+   Fingerprint: `sha256:6062631737a6d3083058e58a05c28cfadaaabc617fb910ed607edae9e5123f61`
+   Evidence: src/bootstrap.rs:60 std::env::var("JERYU_WEBHOOK_SECRET").unwrap_or_else(|_| generate_password(32));
+7. `high` `data` `src/cli.rs:1`
    Rule: `HLT-006-DIRECT-DB-WRONG-LAYER`
    Check: `HLT-006-DIRECT-DB-WRONG-LAYER:data` `hard` confidence `0.95`
-   Route: TLR `Contracts/data`, lane `db`, owner `tools`
+   Route: TLR `Contracts/data`, lane `db`, owner `workspace`
    Docs: `docs/audit-rubric.md#required-shape`
    Reason: direct database access appears in a wrong layer
    Fix: move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward
    Rerun: `just fast`
-   Fingerprint: `sha256:7fa9f6e59a6d5593b908e3ff83ad1b2dc6a030dbc2c93c568319e696284b40bd`
+   Fingerprint: `sha256:325f4437620bbb395bdf8421be5d88704db775cfaefd55933ef4dcbfaceb0b4f`
    Evidence: DB marker in non-adapter layer
 8. `high` `vibe` `src/gitlab_client.rs:1`
    Check: `HLT-000-SCORE-DIMENSION:vibe` `hard` confidence `0.88`
-   Route: TLR `Entropy`, lane `fast`, owner `tools`
+   Route: TLR `Entropy`, lane `fast`, owner `workspace`
    Reason: duplicated product code block detected
    Fix: extract the duplicated behavior behind one named boundary and add focused tests before changing behavior
    Rerun: `just fast`
@@ -217,7 +217,7 @@ No audited runtime boundary reclassifications declared.
 
 ## Agent Fix Queue
 
-1. `high` `HLT-006-DIRECT-DB-WRONG-LAYER` `src/capability.rs` - move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward
+1. `high` `HLT-006-DIRECT-DB-WRONG-LAYER` `src/cli.rs` - move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward
    Route: `Contracts/data`/`db`
 2. `medium` `HLT-007-HANDWRITTEN-CONTRACT` `agent/boundaries.toml` - add generated contracts and boundary checks for public APIs, data access, and cross-runtime seams
    Route: `Contracts/data`/`contract`
@@ -225,7 +225,7 @@ No audited runtime boundary reclassifications declared.
    Route: `Contracts/data`/`db`
 4. `medium` `HLT-018-PERF-CONCURRENCY-DRIFT` `Justfile` - add fast deterministic build/test targets, caches, and narrow proof lanes for agent iteration
    Route: `Verification`/`fast`
-5. `high` `HLT-001-DEAD-MARKER` `src/agent_surface.rs` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
+5. `high` `HLT-001-DEAD-MARKER` `src/bootstrap.rs` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Route: `Entropy`/`fast`
 6. `high` `src/gitlab_client.rs` - extract the duplicated behavior behind one named boundary and add focused tests before changing behavior
    Route: `Entropy`/`fast`

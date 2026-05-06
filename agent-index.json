@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-06T12:43:13.498380+00:00",
+  "generated_at": "2026-05-06T13:05:35.124643+00:00",
   "repo_root": "/Users/bentaylor/Code/JeRyu",
   "token_budget_path": "token-budget.toml",
   "entries": [
@@ -724,6 +724,29 @@
         "cargo nextest run -p jeryu --lib"
       ],
       "widening_rules": []
+    },
+    {
+      "id": "git::bridge",
+      "path": "src/git/bridge.rs",
+      "owner": "Git bridge helpers",
+      "proof": "`cargo test -p jeryu -- git_bridge`",
+      "invariants": "Bridges are opt-in and resolve to the configured system git path.",
+      "default_change_type": "cross-module",
+      "proof_lanes": [
+        "check",
+        "unit",
+        "integration",
+        "full"
+      ],
+      "proof_commands": [
+        "cargo check -p jeryu --message-format=json",
+        "cargo nextest run -p jeryu --lib",
+        "cargo test -p jeryu --test '*' -- --test-threads=1",
+        "cargo nextest run -p jeryu"
+      ],
+      "widening_rules": [
+        "cross-module changes widen to the full integration ring"
+      ]
     },
     {
       "id": "git::classify",
