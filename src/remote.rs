@@ -936,12 +936,7 @@ async fn upload_current_binary(cfg: &RemoteConfig) -> Result<()> {
     let script = r#"mkdir -p "$HOME/.jeryu/bin" && cat > "$HOME/.jeryu/bin/jeryu.tmp" && install -m 0755 "$HOME/.jeryu/bin/jeryu.tmp" "$HOME/.jeryu/bin/jeryu" && rm -f "$HOME/.jeryu/bin/jeryu.tmp""#;
     let started = Instant::now();
     println!("uploading {} to {}...", local.display(), cfg.target);
-    let mut cmd = Command::new("ssh");
-    cmd.args(ssh_args(cfg));
-    cmd.arg(&cfg.target);
-    cmd.arg("bash");
-    cmd.arg("-lc");
-    cmd.arg(script);
+    let mut cmd = ssh_bash_command(cfg, script);
     cmd.stdin(Stdio::piped());
     cmd.stdout(Stdio::inherit());
     cmd.stderr(Stdio::inherit());
@@ -987,14 +982,21 @@ async fn run_remote_binary(
     }
 }
 
-async fn run_remote_shell(cfg: &RemoteConfig, script: &str, allow_fail: bool) -> Result<()> {
+fn ssh_bash_command(cfg: &RemoteConfig, script: &str) -> Command {
     let mut cmd = Command::new("ssh");
     cmd.args(ssh_args(cfg));
     cmd.arg(&cfg.target);
     cmd.arg("bash");
     cmd.arg("-lc");
     cmd.arg(script);
-    let output = cmd.output().await.context("running remote shell")?;
+    cmd
+}
+
+async fn run_remote_shell(cfg: &RemoteConfig, script: &str, allow_fail: bool) -> Result<()> {
+    let output = ssh_bash_command(cfg, script)
+        .output()
+        .await
+        .context("running remote shell")?;
     if output.status.success() || allow_fail {
         Ok(())
     } else {
@@ -1004,24 +1006,18 @@ async fn run_remote_shell(cfg: &RemoteConfig, script: &str, allow_fail: bool) ->
 }
 
 async fn run_remote_shell_status(cfg: &RemoteConfig, script: &str) -> Result<bool> {
-    let mut cmd = Command::new("ssh");
-    cmd.args(ssh_args(cfg));
-    cmd.arg(&cfg.target);
-    cmd.arg("bash");
-    cmd.arg("-lc");
-    cmd.arg(script);
-    let output = cmd.output().await.context("running remote shell status")?;
+    let output = ssh_bash_command(cfg, script)
+        .output()
+        .await
+        .context("running remote shell status")?;
     Ok(output.status.success())
 }
 
 async fn run_remote_shell_capture(cfg: &RemoteConfig, script: &str) -> Result<Option<String>> {
-    let mut cmd = Command::new("ssh");
-    cmd.args(ssh_args(cfg));
-    cmd.arg(&cfg.target);
-    cmd.arg("bash");
-    cmd.arg("-lc");
-    cmd.arg(script);
-    let output = cmd.output().await.context("running remote shell capture")?;
+    let output = ssh_bash_command(cfg, script)
+        .output()
+        .await
+        .context("running remote shell capture")?;
     if output.status.success() {
         Ok(Some(String::from_utf8_lossy(&output.stdout).to_string()))
     } else {
@@ -1037,6 +1033,23 @@ fn shell_single_quote(value: &str) -> String {
 mod tests {
     use super::*;
 
+    fn sample_remote_config(alias: &str) -> RemoteConfig {
+        RemoteConfig {
+            alias: alias.into(),
+            target: alias.into(),
+            ssh_port: 22,
+            identity: None,
+            remote_prefix: "~/.jeryu".into(),
+            remote_bin: "~/.jeryu/bin/jeryu".into(),
+            local_http_port: DEFAULT_HTTP_PORT,
+            local_ssh_port: DEFAULT_SSH_PORT,
+            local_vault_port: DEFAULT_VAULT_PORT,
+            local_webhook_port: DEFAULT_WEBHOOK_PORT,
+            created_at_utc: "2026-05-04T00:00:00Z".into(),
+            service_mode: ServiceMode::Auto,
+        }
+    }
+
     #[test]
     fn default_alias_is_target_tail() {
         assert_eq!(default_alias("deploy@10.0.0.20"), "10.0.0.20");
@@ -1045,20 +1058,7 @@ mod tests {
 
     #[test]
     fn config_round_trip_contains_expected_paths() {
-        let cfg = RemoteConfig {
-            alias: "xbabe1".into(),
-            target: "xbabe1".into(),
-            ssh_port: 22,
-            identity: None,
-            remote_prefix: "~/.jeryu".into(),
-            remote_bin: "~/.jeryu/bin/jeryu".into(),
-            local_http_port: DEFAULT_HTTP_PORT,
-            local_ssh_port: DEFAULT_SSH_PORT,
-            local_vault_port: DEFAULT_VAULT_PORT,
-            local_webhook_port: DEFAULT_WEBHOOK_PORT,
-            created_at_utc: "2026-05-04T00:00:00Z".into(),
-            service_mode: ServiceMode::Auto,
-        };
+        let cfg = sample_remote_config("xbabe1");
         let text = toml::to_string_pretty(&cfg).unwrap();
         assert!(text.contains("remote_bin"));
         assert!(text.contains("~/.jeryu/bin/jeryu"));
@@ -1067,20 +1067,7 @@ mod tests {
 
     #[test]
     fn remote_install_plan_includes_service_mode_and_steps() {
-        let cfg = RemoteConfig {
-            alias: "xbabe1".into(),
-            target: "xbabe1".into(),
-            ssh_port: 22,
-            identity: None,
-            remote_prefix: "~/.jeryu".into(),
-            remote_bin: "~/.jeryu/bin/jeryu".into(),
-            local_http_port: DEFAULT_HTTP_PORT,
-            local_ssh_port: DEFAULT_SSH_PORT,
-            local_vault_port: DEFAULT_VAULT_PORT,
-            local_webhook_port: DEFAULT_WEBHOOK_PORT,
-            created_at_utc: "2026-05-04T00:00:00Z".into(),
-            service_mode: ServiceMode::Auto,
-        };
+        let cfg = sample_remote_config("xbabe1");
         let plan = build_remote_plan(
             &cfg,
             true,
@@ -1108,20 +1095,7 @@ mod tests {
 
     #[test]
     fn remote_plan_is_json_serializable_without_network() {
-        let cfg = RemoteConfig {
-            alias: "xbabe1".into(),
-            target: "xbabe1".into(),
-            ssh_port: 22,
-            identity: None,
-            remote_prefix: "~/.jeryu".into(),
-            remote_bin: "~/.jeryu/bin/jeryu".into(),
-            local_http_port: DEFAULT_HTTP_PORT,
-            local_ssh_port: DEFAULT_SSH_PORT,
-            local_vault_port: DEFAULT_VAULT_PORT,
-            local_webhook_port: DEFAULT_WEBHOOK_PORT,
-            created_at_utc: "2026-05-04T00:00:00Z".into(),
-            service_mode: ServiceMode::Auto,
-        };
+        let cfg = sample_remote_config("xbabe1");
         let plan = build_remote_plan(
             &cfg,
             false,

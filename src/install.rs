@@ -284,7 +284,7 @@ fn build_plan(mode: &str, opts: &InstallOptions) -> InstallPlan {
     if !platform.in_path {
         let detail = match opts.path_mode {
             PathMode::Advise => "print shell-specific PATH advice".to_string(),
-            PathMode::Update => "write the shell profile with a guarded PATH block".to_string(),
+            PathMode::Update=> "write the shell profile with a guarded PATH block".to_string(),
             PathMode::Skip => "skip PATH advice and leave shell profiles untouched".to_string(),
         };
         steps.push(PlanStep {
@@ -296,7 +296,7 @@ fn build_plan(mode: &str, opts: &InstallOptions) -> InstallPlan {
                     "echo {}",
                     path_snippet(&opts.prefix, platform.shell.as_deref())
                 ),
-                PathMode::Update => {
+                PathMode::Update=> {
                     if let Some(rc) = shell_profile_path(platform.shell.as_deref()) {
                         format!("append {} to {}", opts.prefix.display(), rc.display())
                     } else {
@@ -410,7 +410,7 @@ fn render_plan(plan: &InstallPlan) {
             PathMode::Skip => {
                 println!("  PATH: skipped by request");
             }
-            PathMode::Advise | PathMode::Update => {
+            PathMode::Advise | PathMode::Update=> {
                 if let Some(snippet) = &advice.snippet {
                     println!("  PATH snippet:");
                     for line in snippet.lines() {

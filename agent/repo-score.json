@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:801a2759a71e87f677f7445a74fe463150276c00cef51df424cf208288f0f938",
-  "input_fingerprint": "sha256:ef25237b72096eabd313ed70f0e6610bfa82db3c6806e692ba3cbe5b49d5a589",
+  "report_fingerprint": "sha256:8285909ac4cf657a0bed1ea1eb51d5470b3fd63a63173bd62d65eba6a9b9ff95",
+  "input_fingerprint": "sha256:d5cadaf07dd96764fc57d4a629f03ccad76a2b4e9ebe841e9dd6c586e0e4c949",
   "policy_fingerprint": "sha256:396aa94b1d9d3e43a5531652f3c52172e9b5e57cc1b5de44febdc48207e3f918",
   "manifest_fingerprints": {
     "owner_map": "sha256:8a15e0d3457b4a4476fe23ee9b16f87b6bbc4e025ec982ce8dfd6cd60cc3e69f",
@@ -11,7 +11,7 @@
     "standard_version": "sha256:8218ee450313a74e73eb990aaadedecba61d4c0d48ada0b6f368b4f7bf2fd9de"
   },
   "dirty_worktree": true,
-  "generated_at": "1778075426",
+  "generated_at": "1778075558",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.8.0",
@@ -24,14 +24,14 @@
   "observed_conformance_level": "HL2",
   "conformance_decision": "block",
   "conformance_blockers": [
-    "HLT-001-DEAD-MARKER on src/docker.rs",
-    "HLT-006-DIRECT-DB-WRONG-LAYER on src/install.rs",
+    "HLT-001-DEAD-MARKER on src/engine.rs",
+    "HLT-006-DIRECT-DB-WRONG-LAYER on src/mcp/http.rs",
     "HLT-000-SCORE-DIMENSION:vibe on src/remote.rs"
   ],
   "repo": ".",
-  "run_id": "1778075426",
-  "started_at": "1778075426",
-  "elapsed_ms": 380,
+  "run_id": "1778075558",
+  "started_at": "1778075558",
+  "elapsed_ms": 373,
   "scope": {
     "mode": "full",
     "paths": []
@@ -58,7 +58,7 @@
     }
   },
   "git": {
-    "head": "352a019",
+    "head": "83e9cc0",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -369,7 +369,7 @@
         "structured db boundary manifest present",
         "migration directory present",
         "data access appears compartmentalized",
-        "strict DB boundary violation: src/install.rs"
+        "strict DB boundary violation: src/mcp/http.rs"
       ],
       "notes": [
         "direct DB access leaks out of the data boundary"
@@ -1319,29 +1319,29 @@
     {
       "severity": "high",
       "category": "vibe",
-      "path": "src/docker.rs",
+      "path": "src/engine.rs",
       "problem": "fallback soup detected in product code",
       "agent_fix": "collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance",
       "evidence": [
-        "src/docker.rs:134 .unwrap_or_else(|_| std::path::PathBuf::from(\"/usr/local/bin/jeryu\"))"
+        "src/engine.rs:247 vti_plan.fallback_reason.as_deref(),"
       ],
       "check_id": "HLT-001-DEAD-MARKER:vibe",
       "hardness": "hard",
       "confidence": 0.88,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:830556e5906716ddbf0ac40dfa9e09d857f004b2374733eb564669e93442a989",
+      "fingerprint": "sha256:b49a68285dc5e06f4fb01a80cbddc563ed88b0b3368941f70ea1618e20b5155c",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",
       "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
       "owner": "workspace",
-      "line": 134
+      "line": 247
     },
     {
       "severity": "high",
       "category": "data",
-      "path": "src/install.rs",
+      "path": "src/mcp/http.rs",
       "problem": "direct database access appears in a wrong layer",
       "agent_fix": "move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward",
       "evidence": [
@@ -1352,7 +1352,7 @@
       "confidence": 0.95,
       "evidence_kind": "sql",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:92beb5aee10e84294a54b707f2daa2c951e74cbbed552a75a3706128515a2e67",
+      "fingerprint": "sha256:fe0466bd26d82507a9621704bd00cb58dfcb4b749775473a46d385915940d51d",
       "rule_id": "HLT-006-DIRECT-DB-WRONG-LAYER",
       "tlr": "Contracts/data",
       "lane": "db",
@@ -1383,7 +1383,7 @@
   ],
   "agent_fix_queue": [
     {
-      "path": "src/install.rs",
+      "path": "src/mcp/http.rs",
       "priority": "high",
       "rule_id": "HLT-006-DIRECT-DB-WRONG-LAYER",
       "tlr": "Contracts/data",
@@ -1413,7 +1413,7 @@
       "why": "`Data truth and workflow safety` scored 70 below the standard floor of 85"
     },
     {
-      "path": "src/docker.rs",
+      "path": "src/engine.rs",
       "priority": "high",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",

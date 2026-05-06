@@ -14,6 +14,7 @@ use bollard::container::{
 use bollard::models::{ContainerSummary, HostConfig, Mount, MountTypeEnum};
 use futures_util::TryStreamExt;
 use std::collections::{BTreeSet, HashMap};
+use std::path::PathBuf;
 use tracing::{debug, info, warn};
 
 use crate::config;
@@ -129,12 +130,7 @@ impl DockerCtl {
             },
             Mount {
                 target: Some("/usr/local/bin/jeryu".to_string()),
-                source: Some(
-                    std::env::current_exe()
-                        .unwrap_or_else(|_| std::path::PathBuf::from("/usr/local/bin/jeryu"))
-                        .to_string_lossy()
-                        .to_string(),
-                ),
+                source: Some(current_exe_mount_source(std::env::current_exe()).to_string_lossy().to_string()),
                 typ: Some(MountTypeEnum::BIND),
                 read_only: Some(true),
                 ..Default::default()
@@ -411,7 +407,10 @@ impl DockerCtl {
             .await
             .context("listing docker volumes")?;
 
-        let all_volumes = resp.volumes.unwrap_or_default();
+        let all_volumes = match resp.volumes {
+            Some(v) => v,
+            None => Default::default(),
+        };
         let mut removed: u64 = 0;
 
         for vol in &all_volumes {
@@ -533,13 +532,15 @@ impl DockerCtl {
         }
 
         // Fall back to Docker alpine for root-owned content if sudo fails
-        let parent = cache_dir
-            .parent()
-            .ok_or_else(|| anyhow::anyhow!("cache dir has no parent"))?;
-        let dir_name = cache_dir
-            .file_name()
-            .ok_or_else(|| anyhow::anyhow!("cache dir has no name"))?
-            .to_string_lossy();
+        let parent = match cache_dir.parent() {
+            Some(p) => p,
+            None => anyhow::bail!("cache dir has no parent"),
+        };
+        let dir_name = match cache_dir.file_name() {
+            Some(n) => n,
+            None => anyhow::bail!("cache dir has no name"),
+        }
+        .to_string_lossy();
 
         // Validate directory name to prevent injection
         if !dir_name
@@ -570,6 +571,13 @@ impl DockerCtl {
     }
 }
 
+fn current_exe_mount_source(result: std::io::Result<PathBuf>) -> PathBuf {
+    match result {
+        Ok(path) => path,
+        Err(_) => PathBuf::from("/usr/local/bin/jeryu"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -592,6 +600,18 @@ mod tests {
         ));
         assert!(!contains_bytes(&script, &[112, 121, 116, 104, 111, 110]));
         assert!(!contains_bytes(&script, &[112, 121, 51, 45, 112, 105, 112]));
+    }
+
+    #[test]
+    fn current_exe_mount_source_uses_existing_path() {
+        let path = current_exe_mount_source(Ok(PathBuf::from("/tmp/jeryu")));
+        assert_eq!(path, PathBuf::from("/tmp/jeryu"));
+    }
+
+    #[test]
+    fn current_exe_mount_source_falls_back_to_default() {
+        let path = current_exe_mount_source(Err(std::io::Error::other("missing exe")));
+        assert_eq!(path, PathBuf::from("/usr/local/bin/jeryu"));
     }
 
     fn contains_bytes(haystack: &str, needle: &[u8]) -> bool {
