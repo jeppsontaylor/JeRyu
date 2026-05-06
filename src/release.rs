@@ -1692,23 +1692,7 @@ pub fn render_progress_text(report: &ProgressReport) -> String {
             .unwrap_or("(none)")
     );
     let _ = writeln!(out);
-    let _ = writeln!(
-        out,
-        "  Release-Critical:  {}/{} ({:.1}%)",
-        report.release_critical.passed,
-        report.release_critical.total,
-        report.release_critical.percent
-    );
-    let _ = writeln!(
-        out,
-        "  Extended:          {}/{} ({:.1}%)",
-        report.extended.passed, report.extended.total, report.extended.percent
-    );
-    let _ = writeln!(
-        out,
-        "  Research:          {}/{} ({:.1}%)",
-        report.research.passed, report.research.total, report.research.percent
-    );
+    write_lane_progress_summary(&mut out, report, "  ", "Release-Critical");
     let _ = writeln!(
         out,
         "  Release Execution: {:.1}% freshness={} phase={}",
@@ -1799,6 +1783,64 @@ where
         .filter(|job| predicate(job))
         .map(|job| job.id.clone())
         .collect::<Vec<_>>()
+}
+
+trait LaneProgressSummaryView {
+    fn release_critical_progress(&self) -> &LaneProgress;
+    fn extended_progress(&self) -> &LaneProgress;
+    fn research_progress(&self) -> &LaneProgress;
+}
+
+macro_rules! impl_lane_progress_summary_view {
+    ($ty:ty) => {
+        impl LaneProgressSummaryView for $ty {
+            fn release_critical_progress(&self) -> &LaneProgress {
+                &self.release_critical
+            }
+
+            fn extended_progress(&self) -> &LaneProgress {
+                &self.extended
+            }
+
+            fn research_progress(&self) -> &LaneProgress {
+                &self.research
+            }
+        }
+    };
+}
+
+impl_lane_progress_summary_view!(ProgressReport);
+impl_lane_progress_summary_view!(PipelineExplainReport);
+
+fn write_lane_progress_summary<T: LaneProgressSummaryView>(
+    out: &mut String,
+    report: &T,
+    indent: &str,
+    release_critical_label: &str,
+) {
+    use std::fmt::Write as _;
+
+    let _ = writeln!(
+        out,
+        "{indent}{release_critical_label}: {}/{} ({:.1}%)",
+        report.release_critical_progress().passed,
+        report.release_critical_progress().total,
+        report.release_critical_progress().percent
+    );
+    let _ = writeln!(
+        out,
+        "{indent}Extended:         {}/{} ({:.1}%)",
+        report.extended_progress().passed,
+        report.extended_progress().total,
+        report.extended_progress().percent
+    );
+    let _ = writeln!(
+        out,
+        "{indent}Research:         {}/{} ({:.1}%)",
+        report.research_progress().passed,
+        report.research_progress().total,
+        report.research_progress().percent
+    );
 }
 
 fn effective_job_status<'a>(
@@ -2349,23 +2391,7 @@ pub fn render_pipeline_explain_text(report: &PipelineExplainReport) -> String {
     );
     let _ = writeln!(out);
     let _ = writeln!(out, "  Lane progress:");
-    let _ = writeln!(
-        out,
-        "    Release-critical: {}/{} ({:.1}%)",
-        report.release_critical.passed,
-        report.release_critical.total,
-        report.release_critical.percent
-    );
-    let _ = writeln!(
-        out,
-        "    Extended:         {}/{} ({:.1}%)",
-        report.extended.passed, report.extended.total, report.extended.percent
-    );
-    let _ = writeln!(
-        out,
-        "    Research:         {}/{} ({:.1}%)",
-        report.research.passed, report.research.total, report.research.percent
-    );
+    write_lane_progress_summary(&mut out, report, "    ", "Release-critical");
     if report.release_execution.total > 0 {
         let _ = writeln!(
             out,
@@ -3574,6 +3600,46 @@ mod tests {
         }
     }
 
+    /// Recurring `compile-workspace` schema fixture used by lane/VTI tests.
+    fn compile_workspace_schema_job() -> CiSchemaJob {
+        sample_ci_schema_job(
+            "compile-workspace",
+            "Clean Checkout",
+            "workspace check",
+            "build",
+            "compile",
+            "workspace-build",
+            vec![],
+            "medium",
+        )
+    }
+
+    fn test_rust_nextest_schema_job() -> CiSchemaJob {
+        sample_ci_schema_job(
+            "test-rust-nextest-4",
+            "Bootstrap Stability",
+            "workspace nextest partition",
+            "build",
+            "contract",
+            "workspace-nextest",
+            vec!["compile-workspace".into()],
+            "heavy",
+        )
+    }
+
+    fn lint_shell_schema_job() -> CiSchemaJob {
+        sample_ci_schema_job(
+            "lint-shell",
+            "Static Analysis",
+            "shell lint",
+            "default",
+            "lint",
+            "shell",
+            vec![],
+            "small",
+        )
+    }
+
     /// Canonical "passed canary" `ReleaseAttempt` test fixture. Tests that need a
     /// different state mutate the returned value rather than re-spelling the struct.
     fn sample_release_attempt(version: &str) -> ReleaseAttempt {
@@ -3754,26 +3820,8 @@ mod tests {
     #[test]
     fn omitted_jobs_do_not_count_as_pending_for_successful_pipeline() {
         let schema = vec![
-            sample_ci_schema_job(
-                "compile-workspace",
-                "Clean Checkout",
-                "workspace check",
-                "build",
-                "compile",
-                "workspace-build",
-                vec![],
-                "medium",
-            ),
-            sample_ci_schema_job(
-                "test-rust-nextest-4",
-                "Bootstrap Stability",
-                "workspace nextest partition",
-                "build",
-                "contract",
-                "workspace-nextest",
-                vec!["compile-workspace".into()],
-                "heavy",
-            ),
+            compile_workspace_schema_job(),
+            test_rust_nextest_schema_job(),
         ];
         let mut statuses = HashMap::new();
         statuses.insert(
@@ -3794,26 +3842,8 @@ mod tests {
     #[test]
     fn selected_vti_graph_omits_absent_schema_jobs() {
         let schema = vec![
-            sample_ci_schema_job(
-                "compile-workspace",
-                "Clean Checkout",
-                "workspace check",
-                "build",
-                "compile",
-                "workspace-build",
-                vec![],
-                "medium",
-            ),
-            sample_ci_schema_job(
-                "lint-shell",
-                "Static Analysis",
-                "shell lint",
-                "default",
-                "lint",
-                "shell",
-                vec![],
-                "small",
-            ),
+            compile_workspace_schema_job(),
+            lint_shell_schema_job(),
         ];
         let mut aggregated = HashMap::new();
         aggregated.insert(

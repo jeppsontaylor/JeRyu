@@ -7,9 +7,9 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1778075134`
-- Started at: `1778075134`
-- Elapsed: `416` ms
+- Run ID: `1778075426`
+- Started at: `1778075426`
+- Elapsed: `380` ms
 - Scope: `full`
 - Raw score: `75`
 - Final score: `66`
@@ -72,7 +72,7 @@
 | Contract and boundary integrity | 13 | 83 | 10.79 | contract surface found; generated contract artifacts found |
 | Proof lanes and test routing | 12 | 100 | 12.00 | one-command setup/validation lane found; deterministic fast lane found |
 | Security and supply-chain posture | 12 | 78 | 9.36 | lockfile present; secret or dependency scan tooling found |
-| Code shape and semantic surface | 12 | 0 | 0.00 | largest authored code file: src/state.rs (4426 LOC); code file exceeds 500 LOC |
+| Code shape and semantic surface | 12 | 0 | 0.00 | largest authored code file: src/state.rs (4447 LOC); code file exceeds 500 LOC |
 | Data truth and workflow safety | 8 | 70 | 5.60 | database surface present; structured db boundary manifest present |
 | Observability and repair evidence | 8 | 98 | 7.84 | observability libraries or patterns found; diagnostic shaping hints found |
 | Context economy and agent instructions | 7 | 100 | 7.00 | root `AGENTS.md` present; root `AGENTS.md` stays short |
@@ -155,8 +155,8 @@ No audited runtime boundary reclassifications declared.
    Reason: `Code shape and semantic surface` scored 0 below the standard floor of 85
    Fix: split large or ambiguous authored code into smaller semantic modules with focused tests
    Rerun: `just fast`
-   Fingerprint: `sha256:84da0d7d6495b1cda4cc3883a5ada0165fd5c2dd53b8072093e619750d2c6fa3`
-   Evidence: largest authored code file: src/state.rs (4426 LOC), code file exceeds 500 LOC, code file exceeds 1000 LOC, duplicate code block marker found
+   Fingerprint: `sha256:33b638886e3eb85df6b1c3d1e11b7071466bbe9417a8f472e09301a3236fe839`
+   Evidence: largest authored code file: src/state.rs (4447 LOC), code file exceeds 500 LOC, code file exceeds 1000 LOC, duplicate code block marker found
 2. `medium` `security` `.github/workflows/jankurai.yml`
    Rule: `HLT-016-SUPPLY-CHAIN-DRIFT`
    Check: `HLT-016-SUPPLY-CHAIN-DRIFT:security` `soft` confidence `0.76`
@@ -187,7 +187,7 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:f855856de7c0ff9d64ef1ee4de6f0fc8cde87f79b8dc47769b55f46bbc35d71f`
    Evidence: database surface present, structured db boundary manifest present, migration directory present, data access appears compartmentalized
-5. `high` `vibe` `src/dispatch.rs:22`
+5. `high` `vibe` `src/docker.rs:134`
    Rule: `HLT-001-DEAD-MARKER`
    Check: `HLT-001-DEAD-MARKER:vibe` `hard` confidence `0.88`
    Route: TLR `Entropy`, lane `fast`, owner `workspace`
@@ -195,9 +195,9 @@ No audited runtime boundary reclassifications declared.
    Reason: fallback soup detected in product code
    Fix: collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Rerun: `just fast`
-   Fingerprint: `sha256:353a53515eb880a965267ae98e62b69faa515559b7fa3285205219796a5b3501`
-   Evidence: src/dispatch.rs:22 let webhook_secret = std::env::var("JERYU_WEBHOOK_SECRET").unwrap_or_default();
-6. `high` `data` `src/git/store.rs:1`
+   Fingerprint: `sha256:830556e5906716ddbf0ac40dfa9e09d857f004b2374733eb564669e93442a989`
+   Evidence: src/docker.rs:134 .unwrap_or_else(|_| std::path::PathBuf::from("/usr/local/bin/jeryu"))
+6. `high` `data` `src/install.rs:1`
    Rule: `HLT-006-DIRECT-DB-WRONG-LAYER`
    Check: `HLT-006-DIRECT-DB-WRONG-LAYER:data` `hard` confidence `0.95`
    Route: TLR `Contracts/data`, lane `db`, owner `workspace`
@@ -205,7 +205,7 @@ No audited runtime boundary reclassifications declared.
    Reason: direct database access appears in a wrong layer
    Fix: move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward
    Rerun: `just fast`
-   Fingerprint: `sha256:f4e9d0670e7a4f492f3ab388ef67013a43d2b069f7bd789e2ad45ed2c3d1b796`
+   Fingerprint: `sha256:92beb5aee10e84294a54b707f2daa2c951e74cbbed552a75a3706128515a2e67`
    Evidence: DB marker in non-adapter layer
 7. `high` `vibe` `src/remote.rs:1`
    Check: `HLT-000-SCORE-DIMENSION:vibe` `hard` confidence `0.88`
@@ -224,13 +224,13 @@ No audited runtime boundary reclassifications declared.
 
 ## Agent Fix Queue
 
-1. `high` `HLT-006-DIRECT-DB-WRONG-LAYER` `src/git/store.rs` - move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward
+1. `high` `HLT-006-DIRECT-DB-WRONG-LAYER` `src/install.rs` - move SQL and DB clients to `crates/adapters` or `db/`; expose typed application/domain APIs upward
    Route: `Contracts/data`/`db`
 2. `medium` `HLT-007-HANDWRITTEN-CONTRACT` `agent/boundaries.toml` - add generated contracts and boundary checks for public APIs, data access, and cross-runtime seams
    Route: `Contracts/data`/`contract`
 3. `medium` `HLT-006-DIRECT-DB-WRONG-LAYER` `db/` - move durable truth into migrations, constraints, adapters, and application-owned transactions
    Route: `Contracts/data`/`db`
-4. `high` `HLT-001-DEAD-MARKER` `src/dispatch.rs` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
+4. `high` `HLT-001-DEAD-MARKER` `src/docker.rs` - collapse fallback chains into explicit typed states with bounded retry policy, telemetry, and documented repair guidance
    Route: `Entropy`/`fast`
 5. `high` `src/remote.rs` - extract the duplicated behavior behind one named boundary and add focused tests before changing behavior
    Route: `Entropy`/`fast`
