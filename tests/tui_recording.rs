@@ -32,7 +32,10 @@ fn tui_demo_recording() -> anyhow::Result<()> {
     // Start recording GIF
     page.start_recording()?;
 
-    // Go to Workflow tab
+    // Wait 3 seconds on the default Workflow tab
+    std::thread::sleep(Duration::from_millis(3000));
+
+    // Go to Mission tab
     page.press(Key::Tab)?;
     std::thread::sleep(Duration::from_millis(3000));
 

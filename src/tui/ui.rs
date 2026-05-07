@@ -22,7 +22,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(2), // Header + tabs
+                Constraint::Length(3), // Header + tabs
                 Constraint::Min(10),   // Full log view
                 Constraint::Length(2), // Footer
             ])
@@ -37,7 +37,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(2), // Header + tabs
+            Constraint::Length(3), // Header + tabs
             Constraint::Min(10),   // Content
             Constraint::Length(4), // Event console
             Constraint::Length(2), // Footer

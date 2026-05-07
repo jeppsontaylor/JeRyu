@@ -212,7 +212,7 @@ pub(crate) fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
         ("Secrets", ActiveTab::Secrets, 9),
     ];
 
-    let mut spans: Vec<Span> = vec![
+    let top_spans: Vec<Span> = vec![
         Span::styled(
             " jeryu ",
             Style::default()
@@ -266,12 +266,12 @@ pub(crate) fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
             Span::raw("")
         },
         outdated_span,
-        Span::raw("  "),
     ];
 
+    let mut tab_spans: Vec<Span> = vec![];
     for (name, tab, n) in tab_defs {
         if app.active_tab == *tab {
-            spans.push(Span::styled(
+            tab_spans.push(Span::styled(
                 format!("[{}:{}]", n, name),
                 Style::default()
                     .fg(Color::Black)
@@ -279,14 +279,14 @@ pub(crate) fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
                     .add_modifier(Modifier::BOLD),
             ));
         } else {
-            spans.push(Span::styled(
+            tab_spans.push(Span::styled(
                 format!(" {}:{} ", n, name),
                 Style::default().fg(Color::DarkGray),
             ));
         }
     }
 
-    let p = Paragraph::new(Line::from(spans))
+    let p = Paragraph::new(vec![Line::from(top_spans), Line::from(tab_spans)])
         .block(Block::default().borders(Borders::BOTTOM))
         .style(Style::default().fg(Color::White));
     f.render_widget(p, area);
