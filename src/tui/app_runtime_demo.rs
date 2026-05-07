@@ -193,3 +193,47 @@ pub(crate) fn apply_demo_fixture(app: &mut App) {
     app.log_target_tx.send(app.log_target).ok();
     app.remember_selected_job();
 }
+
+pub(crate) fn tick_demo_state(app: &mut App) {
+    app.tick_count += 1;
+    let tc = app.tick_count;
+
+    // Simulate logs tailing for job 9002 (the running one we start on)
+    if tc % 2 == 0 {
+        if let Some(target) = app.log_target {
+            if target.job_id == 9002 {
+                let num = tc / 2;
+                let log_line = format!("[demo] Processing signal block {} [batch-routing] ... ok\n", num);
+                app.state.live_log.text.push_str(&log_line);
+            }
+        }
+    }
+
+    // Advance progress
+    if tc % 4 == 0 {
+        if let Some(pipeline) = app.state.flow.active_pipelines.first_mut() {
+            if pipeline.progress_pct < 100 {
+                pipeline.progress_pct += 1;
+            }
+        }
+        if let Some(view) = app.state.pipeline_progress_view.as_mut() {
+            if view.overall_pct < 100 {
+                view.overall_pct += 1;
+            }
+        }
+    }
+
+    // Change status from running to success around tick 25
+    if tc == 25 {
+        if let Some(job) = app.state.recent_jobs.iter_mut().find(|j| j.job_id == 9002) {
+            job.status = "success".into();
+        }
+        for pipeline in &mut app.state.flow.active_pipelines {
+            for node in pipeline.graph.nodes.iter_mut() {
+                if node.job_id == Some(9002) {
+                    node.status = "success".into();
+                }
+            }
+        }
+    }
+}

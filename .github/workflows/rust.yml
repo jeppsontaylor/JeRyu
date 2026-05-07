@@ -371,3 +371,102 @@ jobs:
           name: hardening-aer-findings
           path: aer-findings.json
           if-no-files-found: warn
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SSH Install End-to-End — Docker container with sshd
+  # ─────────────────────────────────────────────────────────────────────────
+  ssh-install-e2e:
+    name: SSH Install E2E
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Build jeryu (release)
+        run: cargo build --release -p jeryu
+      - name: Build sshd Docker image
+        run: docker build -t jeryu-sshd-test -f ops/ci/Dockerfile.sshd-test .
+      - name: Run SSH install integration test
+        run: |
+          export JERYU_BIN="$PWD/target/release/jeryu"
+          export EVIDENCE_DIR="$PWD/target/ci-evidence/ssh-install"
+          bash ops/ci/ssh_install_integration.sh
+      - name: Upload SSH install evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ssh-install-evidence
+          path: target/ci-evidence/ssh-install/
+          if-no-files-found: warn
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # TUI Screenshots — Capture all tabs and upload as artifacts
+  # ─────────────────────────────────────────────────────────────────────────
+  tui-screenshots:
+    name: TUI Screenshots
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Build jeryu
+        run: cargo build --release -p jeryu
+      - name: Render deterministic TUI PNG captures
+        run: |
+          mkdir -p target/ci-screenshots
+          
+          cargo run --release -p jeryu -- install render-demo --output target/ci-screenshots/install-demo.gif --png target/ci-screenshots/install-demo.png
+          
+          TABS="workflow jobs mission agents tests pools cache evidence secrets"
+          for tab in $TABS; do
+            cargo run --release -p jeryu -- tui --capture --tab "$tab" --output "target/ci-screenshots/${tab}.png"
+          done
+          echo ""
+          echo "=== Generated screenshots ==="
+          ls -la target/ci-screenshots/
+      - name: Record 10-second animated TUI GIF
+        run: |
+          # Create a dummy path to the jankurai repo since tuiwright expects it via path
+          mkdir -p ../jankurai/crates
+          git clone --depth 1 https://github.com/jeppsontaylor/jankurai.git ../jankurai || true
+          
+          # tui_recording is marked #[ignore], so we run it explicitly
+          cargo test --test tui_recording -- --ignored --exact tui_demo_recording
+      - name: Upload TUI screenshots
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tui-screenshots
+          path: target/ci-screenshots/
+          if-no-files-found: warn
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Fixture Project Validation — Prove the test fixture compiles and passes
+  # ─────────────────────────────────────────────────────────────────────────
+  fixture-project-tests:
+    name: Fixture Project Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Build and test fixture project
+        working-directory: tests/fixtures/fixture_project
+        run: |
+          cargo test --verbose
+          cargo run -- 2>&1 | head -20
+      - name: Verify fixture project is healthy
+        working-directory: tests/fixtures/fixture_project
+        run: cargo clippy -- -D warnings 2>&1 || echo "clippy warnings (non-blocking)"

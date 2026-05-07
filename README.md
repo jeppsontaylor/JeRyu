@@ -17,6 +17,7 @@
 
 Mission: [`docs/MISSION.md`](docs/MISSION.md)
 
+![JeRyu TUI demo](assets/tui-demo.gif)
 ![JeRyu install demo](assets/install-demo.gif)
 
 Full install guide: [`docs/INSTALL.md`](docs/INSTALL.md)
