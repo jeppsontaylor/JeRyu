@@ -173,6 +173,7 @@ pub(crate) async fn run(cli: Cli) -> Result<i32> {
         // ---- Tui ---------------------------------------------------------
         Commands::Tui {
             once,
+            demo,
             capture,
             screenshot,
             tab,
@@ -181,13 +182,29 @@ pub(crate) async fn run(cli: Cli) -> Result<i32> {
             height,
             screenshot_hold_ms,
         } => {
-            let (client, _) = if once || capture || screenshot {
+            let (client, _) = if once || capture || screenshot || demo {
                 load_client_optional()
             } else {
                 load_client()?
             };
-            let db = state::Db::open().await?;
-            let docker_ctl = docker::DockerCtl::connect()?;
+            let db = if once || capture || screenshot || demo {
+                // Screenshot/capture/demo modes use demo fixtures; use in-memory DB if disk DB unavailable.
+                match state::Db::open().await {
+                    Ok(db) => db,
+                    Err(_) => state::Db::open_memory().await?,
+                }
+            } else {
+                state::Db::open().await?
+            };
+            let docker_ctl = if once || capture || screenshot || demo {
+                // Screenshot/capture/demo modes never interact with Docker.
+                match docker::DockerCtl::connect() {
+                    Ok(ctl) => ctl,
+                    Err(_) => docker::DockerCtl::disconnected(),
+                }
+            } else {
+                docker::DockerCtl::connect()?
+            };
 
             if capture {
                 jeryu::tui::capture_tui_png(db, docker_ctl, client, &tab, &output, width, height)
@@ -200,7 +217,7 @@ pub(crate) async fn run(cli: Cli) -> Result<i32> {
                 jeryu::tui::run_tui_once(db, docker_ctl, client).await?;
             } else {
                 // Start TUI (blocks until exit)
-                jeryu::tui::run_tui(db, docker_ctl, client).await?;
+                jeryu::tui::run_tui(db, docker_ctl, client, demo).await?;
             }
         }
 

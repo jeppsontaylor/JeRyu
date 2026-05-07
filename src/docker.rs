@@ -24,4 +24,18 @@ impl DockerCtl {
             Docker::connect_with_local_defaults().context("connecting to Docker daemon")?;
         Ok(Self { docker })
     }
+
+    /// Create a headless DockerCtl for rendering-only modes (screenshot, capture, once).
+    /// Real Docker API calls will fail at request time; only used when demo data is sufficient.
+    pub fn disconnected() -> Self {
+        // Use a non-routable HTTP endpoint. The client constructs fine; actual Docker
+        // API calls would error, which is acceptable for demo-only rendering.
+        let docker = Docker::connect_with_http(
+            "http://127.0.0.1:1",
+            120,
+            bollard::API_DEFAULT_VERSION,
+        )
+        .expect("http Docker client");
+        Self { docker }
+    }
 }

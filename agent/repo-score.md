@@ -7,9 +7,9 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1778108042`
-- Started at: `1778108042`
-- Elapsed: `3587` ms
+- Run ID: `1778110834`
+- Started at: `1778110834`
+- Elapsed: `3534` ms
 - Scope: `full`
 - Raw score: `92`
 - Final score: `92`
@@ -157,8 +157,8 @@ No audited runtime boundary reclassifications declared.
    Reason: `Code shape and semantic surface` scored 80 below the standard floor of 85
    Fix: split large or ambiguous authored code into smaller semantic modules with focused tests
    Rerun: `just fast`
-   Fingerprint: `sha256:f1269a4ba5f9c2593131a1c62b009fdfb343199cec43317a5c77b782fc563960`
-   Evidence: largest authored code file: src/exec/stage.rs (460 LOC), most code files stay under 300 LOC, rust bad-behavior advisory signals: 922, ci bad-behavior advisory signals: 2
+   Fingerprint: `sha256:ba3cb2ff1663fd9146c6fcb128069a609b2abc8dfa949c1cc8d98116d05b6cab`
+   Evidence: largest authored code file: src/exec/stage.rs (460 LOC), most code files stay under 300 LOC, rust bad-behavior advisory signals: 923, ci bad-behavior advisory signals: 2
 
 ## Policy
 

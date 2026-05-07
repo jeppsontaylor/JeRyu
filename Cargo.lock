@@ -1776,6 +1776,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "tuiwright",
  "urlencoding",
  "uuid",
  "walkdir",
@@ -4075,6 +4076,24 @@ dependencies = [
  "image",
  "portable-pty",
  "rusttype",
+ "vt100",
+]
+
+[[package]]
+name = "tuiwright"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "gif",
+ "image",
+ "portable-pty",
+ "regex",
+ "rusttype",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.18",
+ "unicode-width",
  "vt100",
 ]
 

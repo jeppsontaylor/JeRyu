@@ -195,8 +195,14 @@ fn draw_node_card(
         Style::default().fg(status_color)
     };
 
-    let vti_badge = node.vti_status.as_ref().map(|v| v.badge()).unwrap_or("");
-    let cache_badge = node.cache_verdict.as_ref().map(|c| c.badge()).unwrap_or("");
+    let vti_badge = match node.vti_status.as_ref() {
+        Some(v) => v.badge(),
+        None => "",
+    };
+    let cache_badge = match node.cache_verdict.as_ref() {
+        Some(c) => c.badge(),
+        None => "",
+    };
 
     let title = format!(
         " {} {} {}{}",

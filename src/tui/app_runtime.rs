@@ -59,6 +59,10 @@ impl App {
     pub fn apply_demo_fixture(&mut self) {
         app_runtime_demo::apply_demo_fixture(self);
     }
+
+    pub fn tick_demo_state(&mut self) {
+        app_runtime_demo::tick_demo_state(self);
+    }
 }
 
 #[path = "app_runtime_demo.rs"]

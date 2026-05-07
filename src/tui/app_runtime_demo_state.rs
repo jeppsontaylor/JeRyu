@@ -98,19 +98,19 @@ pub(crate) fn build_demo_state(
         release_status_generated_at: Some(now_str.clone()),
         test_bottlenecks_avg: vec![
             crate::state::TestBottleneck {
-                test_name: "integration::cache_layer".into(),
+                test_name: "integration::cache_warmer_info_routes_to_all_and_cache".into(),
                 avg_duration_ms: 7_200.0,
                 latest_duration_ms: 7_450,
                 count: 12,
             },
             crate::state::TestBottleneck {
-                test_name: "unit::scheduler".into(),
+                test_name: "unit::signal_processing".into(),
                 avg_duration_ms: 1_100.0,
                 latest_duration_ms: 1_020,
                 count: 24,
             },
             crate::state::TestBottleneck {
-                test_name: "e2e::release_path".into(),
+                test_name: "integration::large_batch_completes_under_10ms".into(),
                 avg_duration_ms: 18_000.0,
                 latest_duration_ms: 18_720,
                 count: 4,
@@ -118,19 +118,19 @@ pub(crate) fn build_demo_state(
         ],
         test_bottlenecks_latest: vec![
             crate::state::TestBottleneck {
-                test_name: "e2e::release_path".into(),
+                test_name: "integration::large_batch_completes_under_10ms".into(),
                 avg_duration_ms: 18_000.0,
                 latest_duration_ms: 18_720,
                 count: 4,
             },
             crate::state::TestBottleneck {
-                test_name: "integration::policy".into(),
+                test_name: "integration::auth_error_routes_to_alerts_and_security".into(),
                 avg_duration_ms: 5_300.0,
                 latest_duration_ms: 5_910,
                 count: 9,
             },
             crate::state::TestBottleneck {
-                test_name: "security::secret_scan".into(),
+                test_name: "unit::malformed_signal_drops".into(),
                 avg_duration_ms: 6_200.0,
                 latest_duration_ms: 6_000,
                 count: 6,
@@ -240,17 +240,17 @@ pub(crate) fn build_demo_state(
                 pipeline_id: 8_013,
                 status: "running".into(),
                 elapsed_secs: 134.0,
-                log_tail: "[2026-05-02 23:04:12] Compiling jeryu v3.0.1\n[2026-05-02 23:04:13] Compiling tokio v1.40\n[2026-05-02 23:04:14]   warning: missing import `std::io`\n[2026-05-02 23:04:15] Compiling serde v1.0\n[2026-05-02 23:04:16] Compiling ratatui v0.29\n[2026-05-02 23:04:17] Finished `release` profile in 2m14s".into(),
+                log_tail: "[2026-05-02 23:04:12] Compiling signal-router v0.4.2\n[2026-05-02 23:04:13] Compiling tokio v1.40\n[2026-05-02 23:04:14]   warning: missing import `std::io`\n[2026-05-02 23:04:15] Compiling serde v1.0\n[2026-05-02 23:04:16] Compiling log v0.4\n[2026-05-02 23:04:17] Finished `release` profile in 2m14s".into(),
                 updated_at: now_str.clone(),
             },
             RunnerFeed {
                 runner_name: "trusted-02".into(),
                 job_id: 9_005,
-                job_name: "e2e-canary".into(),
+                job_name: "integration-tests".into(),
                 pipeline_id: 8_013,
                 status: "running".into(),
                 elapsed_secs: 87.0,
-                log_tail: "[2026-05-02 23:04:30] Running e2e test suite...\n[2026-05-02 23:04:31] test canary::smoke_health ... ok\n[2026-05-02 23:04:32] test canary::telemetry_check ... FAILED\n[2026-05-02 23:04:33]   Error: telemetry endpoint returned 503\n[2026-05-02 23:04:34] test canary::rollback_gate ... ok".into(),
+                log_tail: "[2026-05-02 23:04:30] Running integration test suite...\n[2026-05-02 23:04:31] test integration::cache_warmer_info_routes_to_all_and_cache ... ok\n[2026-05-02 23:04:32] test integration::auth_error_routes_to_alerts_and_security ... FAILED\n[2026-05-02 23:04:33]   Error: route mismatch on severity filter\n[2026-05-02 23:04:34] test integration::batch_routing_preserves_signal_count ... ok".into(),
                 updated_at: now_str.clone(),
             },
             RunnerFeed {

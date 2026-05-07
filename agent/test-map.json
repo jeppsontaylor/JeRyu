@@ -242,15 +242,39 @@
     },
     "token-budget.toml": {
       "command": "just score",
-      "purpose": "verify token budget routing remains visible to the audit"
-    },
-    "tools/": {
-      "command": "just fast",
-      "purpose": "verify Rust behavior and audit checks"
-    },
-    "version.json": {
-      "command": "just score",
       "purpose": "verify version metadata remains visible to the audit"
+    },
+    "tarpaulin-report.json": {
+      "command": "just fast",
+      "purpose": "verify coverage reports remain routed"
+    },
+    "test_font": {
+      "command": "cargo test -p arc-bench",
+      "purpose": "verify test fixtures remain routed"
+    },
+    "test_font.rs": {
+      "command": "cargo test -p arc-bench",
+      "purpose": "verify test fixtures remain routed"
+    },
+    "test_font2": {
+      "command": "cargo test -p arc-bench",
+      "purpose": "verify test fixtures remain routed"
+    },
+    "test_font2.rs": {
+      "command": "cargo test -p arc-bench",
+      "purpose": "verify test fixtures remain routed"
+    },
+    "test_font3": {
+      "command": "cargo test -p arc-bench",
+      "purpose": "verify test fixtures remain routed"
+    },
+    "test_font3.rs": {
+      "command": "cargo test -p arc-bench",
+      "purpose": "verify test fixtures remain routed"
+    },
+    "test_rusttype.rs": {
+      "command": "cargo test -p arc-bench",
+      "purpose": "verify test fixtures remain routed"
     }
   },
   "workspace": "jankurai"

@@ -54,6 +54,9 @@ deep:
 security:
     bash tools/security-lane.sh .
 
+dependency-check:
+    ./tools/check-dependencies.sh
+
 release:
     cargo build --release -p jeryu
     cargo run -p cargo-aer -- scan --output aer-findings.json

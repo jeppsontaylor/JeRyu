@@ -22,6 +22,7 @@ pub(crate) async fn hydrate_smoke_state(app: &mut App) {
 pub(crate) async fn run_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut App,
+    demo: bool,
 ) -> Result<()> {
     use crossterm::event::{self, Event};
     use std::time::Duration;
@@ -46,5 +47,8 @@ pub(crate) async fn run_loop(
         }
 
         app.tick().await;
+        if demo {
+            app.tick_demo_state();
+        }
     }
 }

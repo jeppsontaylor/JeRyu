@@ -144,6 +144,9 @@ pub(crate) enum Commands {
         /// Render one frame and exit. Intended for CI smoke checks.
         #[arg(long, default_value_t = false)]
         once: bool,
+        /// Run the TUI in interactive demo mode with animated simulated data.
+        #[arg(long, default_value_t = false)]
+        demo: bool,
         /// Render one deterministic PNG screenshot and exit.
         #[arg(long, default_value_t = false)]
         capture: bool,

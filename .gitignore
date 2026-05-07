@@ -17,3 +17,10 @@
 # Keep Jankurai receipts local without hiding the rest of target/.
 target/jankurai/
 .jankurai/
+
+# Fixture project build artifacts (self-contained workspace).
+tests/fixtures/fixture_project/target/
+
+# CI test evidence (generated per-run).
+target/ci-evidence/
+target/ci-screenshots/

@@ -70,6 +70,14 @@
     "tests/": "tools",
     "token-budget.toml": "workspace",
     "tools/": "ops",
+    "tarpaulin-report.json": "tools",
+    "test_font": "tools",
+    "test_font.rs": "tools",
+    "test_font2": "tools",
+    "test_font2.rs": "tools",
+    "test_font3": "tools",
+    "test_font3.rs": "tools",
+    "test_rusttype.rs": "tools",
     "version.json": "workspace"
   },
   "workspace": "jankurai"

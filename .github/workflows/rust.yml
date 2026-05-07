@@ -391,7 +391,11 @@ jobs:
       - name: Build jeryu (release)
         run: cargo build --release -p jeryu
       - name: Build sshd Docker image
-        run: docker build -t jeryu-sshd-test -f ops/ci/Dockerfile.sshd-test .
+        run: |
+          # Store Docker context in build cache to avoid artifact pollution
+          mkdir -p /tmp/ssh-build
+          cp ops/ci/Dockerfile.sshd-test /tmp/ssh-build/Dockerfile
+          docker build -t jeryu-sshd-test -f /tmp/ssh-build/Dockerfile /tmp/ssh-build
       - name: Run SSH install integration test
         run: |
           export JERYU_BIN="$PWD/target/release/jeryu"

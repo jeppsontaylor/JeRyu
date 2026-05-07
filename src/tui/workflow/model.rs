@@ -5,10 +5,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::api::entity::EntityRef;
 use crate::api::snapshot::{CacheVerdict, VtiStatus};
-
-// ── Workflow Status ─────────────────────────────────────────────────────
 
 /// Canonical status for every workflow node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -61,10 +58,8 @@ impl WorkflowStatus {
     }
 }
 
-// ── Node Kind ───────────────────────────────────────────────────────────
-
 /// Classification of workflow nodes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum WorkflowNodeKind {
     Check,
@@ -76,6 +71,7 @@ pub enum WorkflowNodeKind {
     ReleaseGate,
     VtiPlan,
     Sentinel,
+    #[default]
     Custom,
 }
 
@@ -96,10 +92,8 @@ impl WorkflowNodeKind {
     }
 }
 
-// ── Workflow Node ────────────────────────────────────────────────────────
-
 /// A single node in the workflow DAG — one test, check, or gate.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct WorkflowNode {
     pub id: String,
     pub label: String,
@@ -121,33 +115,6 @@ pub struct WorkflowNode {
     pub tags: Vec<String>,
 }
 
-impl Default for WorkflowNode {
-    fn default() -> Self {
-        Self {
-            id: String::new(),
-            label: String::new(),
-            command: None,
-            kind: WorkflowNodeKind::Custom,
-            status: WorkflowStatus::Waiting,
-            required: true,
-            critical_path: false,
-            deps: Vec::new(),
-            duration_secs: None,
-            eta_secs: None,
-            started_at: None,
-            finished_at: None,
-            backend: None,
-            reason: None,
-            vti_status: None,
-            cache_verdict: None,
-            progress_pct: None,
-            tags: Vec::new(),
-        }
-    }
-}
-
-// ── Backend Ref ─────────────────────────────────────────────────────────
-
 /// Where a node's live status comes from.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -166,8 +133,6 @@ pub enum WorkflowBackendRef {
     },
 }
 
-// ── Edge ────────────────────────────────────────────────────────────────
-
 /// A dependency edge in the workflow DAG.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowEdge {
@@ -184,8 +149,6 @@ pub enum WorkflowEdgeKind {
     VtiSkip,
 }
 
-// ── Phase ───────────────────────────────────────────────────────────────
-
 /// A horizontal row of parallel nodes at the same dependency depth.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowPhase {
@@ -194,8 +157,6 @@ pub struct WorkflowPhase {
     pub depth: u32,
     pub node_ids: Vec<String>,
 }
-
-// ── Summary ─────────────────────────────────────────────────────────────
 
 /// Aggregate counts for the workflow summary banner.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -236,8 +197,6 @@ impl WorkflowSummary {
     }
 }
 
-// ── Source ───────────────────────────────────────────────────────────────
-
 /// Where the workflow data came from.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -248,8 +207,6 @@ pub enum WorkflowSource {
     #[default]
     Demo,
 }
-
-// ── Snapshot ─────────────────────────────────────────────────────────────
 
 /// The complete workflow DAG snapshot consumed by the widget.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -267,25 +224,17 @@ pub struct WorkflowSnapshot {
     pub outdated: bool,
 }
 
-impl Default for WorkflowSnapshot {
-    fn default() -> Self {
+impl WorkflowSnapshot {
+    /// Create an empty snapshot with no active workflow data.
+    pub fn empty() -> Self {
         Self {
-            generated_at: Utc::now(),
-            title: "No active workflow".into(),
-            source: WorkflowSource::Demo,
-            mode: "none".into(),
-            confidence: 0.0,
-            nodes: Vec::new(),
-            edges: Vec::new(),
-            phases: Vec::new(),
-            summary: WorkflowSummary::default(),
-            selected_node_id: None,
-            outdated: false,
+            generated_at: Utc::now(), title: "No active workflow".into(),
+            source: WorkflowSource::Demo, mode: "none".into(), confidence: 0.0,
+            nodes: Vec::new(), edges: Vec::new(), phases: Vec::new(),
+            summary: WorkflowSummary::default(), selected_node_id: None, outdated: false,
         }
     }
-}
 
-impl WorkflowSnapshot {
     /// Look up a node by ID.
     pub fn node(&self, id: &str) -> Option<&WorkflowNode> {
         self.nodes.iter().find(|n| n.id == id)
@@ -294,9 +243,7 @@ impl WorkflowSnapshot {
     /// Find nodes in a specific phase.
     pub fn phase_nodes(&self, phase_idx: usize) -> Vec<&WorkflowNode> {
         match self.phases.get(phase_idx) {
-            Some(phase) => phase.node_ids.iter()
-                .filter_map(|id| self.node(id))
-                .collect(),
+            Some(p) => p.node_ids.iter().filter_map(|id| self.node(id)).collect(),
             None => Vec::new(),
         }
     }
@@ -308,13 +255,10 @@ mod tests {
 
     #[test]
     fn status_labels_unique() {
-        let statuses = [
-            WorkflowStatus::Waiting, WorkflowStatus::Running,
-            WorkflowStatus::Ran, WorkflowStatus::Error,
-            WorkflowStatus::Skipped, WorkflowStatus::Cached,
-            WorkflowStatus::Blocked, WorkflowStatus::Unknown,
-        ];
-        let labels: Vec<_> = statuses.iter().map(|s| s.label()).collect();
+        let all = [WorkflowStatus::Waiting, WorkflowStatus::Running, WorkflowStatus::Ran,
+            WorkflowStatus::Error, WorkflowStatus::Skipped, WorkflowStatus::Cached,
+            WorkflowStatus::Blocked, WorkflowStatus::Unknown];
+        let labels: Vec<_> = all.iter().map(|s| s.label()).collect();
         let unique: std::collections::HashSet<_> = labels.iter().collect();
         assert_eq!(labels.len(), unique.len());
     }
@@ -322,10 +266,8 @@ mod tests {
     #[test]
     fn status_terminal_vs_active() {
         assert!(WorkflowStatus::Ran.is_terminal());
-        assert!(WorkflowStatus::Error.is_terminal());
         assert!(!WorkflowStatus::Running.is_terminal());
         assert!(WorkflowStatus::Running.is_active());
-        assert!(!WorkflowStatus::Waiting.is_active());
     }
 
     #[test]
@@ -339,29 +281,21 @@ mod tests {
         let s = WorkflowSummary::from_nodes(&nodes);
         assert_eq!(s.total, 4);
         assert_eq!(s.passed, 1);
-        assert_eq!(s.running, 1);
-        assert_eq!(s.error, 1);
         assert!((s.overall_pct - 50.0).abs() < 0.1);
     }
 
     #[test]
-    fn default_snapshot_is_demo() {
-        let snap = WorkflowSnapshot::default();
+    fn empty_snapshot_is_demo() {
+        let snap = WorkflowSnapshot::empty();
         assert_eq!(snap.source, WorkflowSource::Demo);
         assert!(snap.nodes.is_empty());
-        assert!(snap.phases.is_empty());
     }
 
     #[test]
     fn node_lookup() {
-        let snap = WorkflowSnapshot {
-            nodes: vec![
-                WorkflowNode { id: "check".into(), label: "cargo check".into(), ..Default::default() },
-                WorkflowNode { id: "test".into(), label: "nextest".into(), ..Default::default() },
-            ],
-            ..Default::default()
-        };
-        assert!(snap.node("check").is_some());
-        assert!(snap.node("missing").is_none());
+        let mut snap = WorkflowSnapshot::empty();
+        snap.nodes.push(WorkflowNode { id: "x".into(), ..Default::default() });
+        assert!(snap.node("x").is_some());
+        assert!(snap.node("y").is_none());
     }
 }

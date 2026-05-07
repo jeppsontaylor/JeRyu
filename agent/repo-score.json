@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:934333065d5808b6547cf46247a8d2a86f6795f5067d361b11a0155a4d19961e",
-  "input_fingerprint": "sha256:20734125b729e35291a5e00ef7c8c4ad6a8315d1f18fa2e9b7b0b9cb07a68945",
+  "report_fingerprint": "sha256:436d670c3ac4aff0c3bd8a2cb326b0121215c372498e7762f21babe2609e9fbe",
+  "input_fingerprint": "sha256:7676fbee2c74f9ced2ae62892a72f544878ebe919911dcb6f0d6b47b152e3db9",
   "policy_fingerprint": "sha256:0e277c50d1190cb289cfc6203cd8c7037a4c046999a34104afd9359cfcff225b",
   "manifest_fingerprints": {
     "owner_map": "sha256:7bb9986ea9ff1ce7f59100f25cb0a2750d4ab51dfd833d3c1432bfa66c7891df",
@@ -11,7 +11,7 @@
     "standard_version": "sha256:6d84737d2795323e28d70f14863f479329f39f7130bd5021823bddc48d32fba2"
   },
   "dirty_worktree": true,
-  "generated_at": "1778108042",
+  "generated_at": "1778110834",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.8.0",
@@ -25,9 +25,9 @@
   "conformance_decision": "pass",
   "conformance_blockers": [],
   "repo": ".",
-  "run_id": "1778108042",
-  "started_at": "1778108042",
-  "elapsed_ms": 3587,
+  "run_id": "1778110834",
+  "started_at": "1778110834",
+  "elapsed_ms": 3534,
   "scope": {
     "mode": "full",
     "paths": []
@@ -54,7 +54,7 @@
     }
   },
   "git": {
-    "head": "efaa144",
+    "head": "3fda26d",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -344,7 +344,7 @@
         "security lane present",
         "canonical security lane wrapper present",
         "agent-readiness audit gate found in CI",
-        "rust bad-behavior advisory signals: 922",
+        "rust bad-behavior advisory signals: 923",
         "ci bad-behavior advisory signals: 2",
         "gittools bad-behavior advisory signals: 1",
         "secret scanning command is operational"
@@ -359,7 +359,7 @@
       "evidence": [
         "largest authored code file: src/exec/stage.rs (460 LOC)",
         "most code files stay under 300 LOC",
-        "rust bad-behavior advisory signals: 922",
+        "rust bad-behavior advisory signals: 923",
         "ci bad-behavior advisory signals: 2",
         "gittools bad-behavior advisory signals: 1",
         "no hard bad-behavior findings across detector-backed language families"
@@ -492,7 +492,8 @@
         "apps/web/ux-qa.ts"
       ],
       "playwright_visual": [
-        "apps/web/ux-qa.ts"
+        "apps/web/ux-qa.ts",
+        "tests/tui_tuiwright.rs"
       ],
       "storybook": [
         "agent/repo-score.json",
@@ -1344,7 +1345,7 @@
       "evidence": [
         "largest authored code file: src/exec/stage.rs (460 LOC)",
         "most code files stay under 300 LOC",
-        "rust bad-behavior advisory signals: 922",
+        "rust bad-behavior advisory signals: 923",
         "ci bad-behavior advisory signals: 2"
       ],
       "check_id": "HLT-001-DEAD-MARKER:shape",
@@ -1352,7 +1353,7 @@
       "confidence": 0.76,
       "evidence_kind": "repository-scan",
       "rerun_command": "just fast",
-      "fingerprint": "sha256:f1269a4ba5f9c2593131a1c62b009fdfb343199cec43317a5c77b782fc563960",
+      "fingerprint": "sha256:ba3cb2ff1663fd9146c6fcb128069a609b2abc8dfa949c1cc8d98116d05b6cab",
       "rule_id": "HLT-001-DEAD-MARKER",
       "tlr": "Entropy",
       "lane": "fast",

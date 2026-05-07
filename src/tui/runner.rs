@@ -18,6 +18,7 @@ pub async fn run_tui(
     store: TuiSession,
     docker_ctl: crate::docker::DockerCtl,
     client: crate::gitlab_client::GitlabClient,
+    demo: bool,
 ) -> Result<()> {
     crossterm::terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -35,10 +36,14 @@ pub async fn run_tui(
     });
 
     let mut app = App::new(store, docker_ctl, client);
-    hydrate_smoke_state(&mut app).await;
-    app.start_background_sync();
+    if demo {
+        app.apply_demo_fixture();
+    } else {
+        hydrate_smoke_state(&mut app).await;
+        app.start_background_sync();
+    }
 
-    let res = run_loop(&mut terminal, &mut app).await;
+    let res = run_loop(&mut terminal, &mut app, demo).await;
 
     crossterm::terminal::disable_raw_mode()?;
     crossterm::execute!(
