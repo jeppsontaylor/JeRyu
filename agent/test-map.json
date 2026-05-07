@@ -80,7 +80,7 @@
       "command": "just score",
       "purpose": "verify mission statement remains routed"
     },
-    "python/ai-service/AGENTS.md": {
+    "python/ai-service/": {
       "command": "just score",
       "purpose": "verify python AI service routing remains visible to the audit"
     },
@@ -275,6 +275,14 @@
     "test_rusttype.rs": {
       "command": "cargo test -p arc-bench",
       "purpose": "verify test fixtures remain routed"
+    },
+    "tools/": {
+      "command": "just fast",
+      "purpose": "verify tools remain routed"
+    },
+    "version.json": {
+      "command": "just score",
+      "purpose": "verify version mapping remains routed"
     }
   },
   "workspace": "jankurai"

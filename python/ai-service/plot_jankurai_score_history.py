@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT = ROOT / "target/jankurai/jankurai-score-history.png"
 DEFAULT_INPUTS = [
     ROOT / "agent/score-history.csv",

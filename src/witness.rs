@@ -111,7 +111,10 @@ impl WitnessBuilder {
         };
         hasher.update(rustflags.as_bytes());
 
-        let wrapper = std::env::var("RUSTC_WORKSPACE_WRAPPER").unwrap_or_default();
+        let wrapper = match std::env::var("RUSTC_WORKSPACE_WRAPPER") {
+            Ok(v) => v,
+            Err(_) => String::new(),
+        };
         hasher.update(wrapper.as_bytes());
 
         if let Some(wf) = witness_fingerprint {

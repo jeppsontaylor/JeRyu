@@ -7,12 +7,12 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1778110834`
-- Started at: `1778110834`
-- Elapsed: `3534` ms
+- Run ID: `1778127550`
+- Started at: `1778127550`
+- Elapsed: `3459` ms
 - Scope: `full`
-- Raw score: `92`
-- Final score: `92`
+- Raw score: `91`
+- Final score: `91`
 - Decision: `pass`
 - Minimum score: `85`
 - Caps applied: `none`
@@ -79,7 +79,7 @@
 | Observability and repair evidence | 8 | 98 | 7.84 | observability libraries or patterns found; diagnostic shaping hints found |
 | Context economy and agent instructions | 7 | 100 | 7.00 | root `AGENTS.md` present; root `AGENTS.md` stays short |
 | Jankurai tool adoption and CI replacement | 7 | 76 | 5.32 | control-plane files present; applicable=17 |
-| Python containment and polyglot hygiene | 4 | 100 | 4.00 | no Python files in scope |
+| Python containment and polyglot hygiene | 4 | 80 | 3.20 | Python stays inside exception-only non-product roots; exception-only AI/data service path present |
 | Build speed signals | 4 | 85 | 3.40 | build acceleration markers found; targeted test/build commands found |
 
 ## Reference Profile Structure
@@ -159,6 +159,16 @@ No audited runtime boundary reclassifications declared.
    Rerun: `just fast`
    Fingerprint: `sha256:ba3cb2ff1663fd9146c6fcb128069a609b2abc8dfa949c1cc8d98116d05b6cab`
    Evidence: largest authored code file: src/exec/stage.rs (460 LOC), most code files stay under 300 LOC, rust bad-behavior advisory signals: 923, ci bad-behavior advisory signals: 2
+2. `medium` `python` `python/ai-service`
+   Rule: `HLT-005-PYTHON-PRODUCT-TRUTH`
+   Check: `HLT-005-PYTHON-PRODUCT-TRUTH:python` `soft` confidence `0.76`
+   Route: TLR `Business truth`, lane `contract`, owner `tools`
+   Docs: `docs/agent-native-standard.md`
+   Reason: `Python containment and polyglot hygiene` scored 80 below the standard floor of 85
+   Fix: remove Python unless it is a dated advanced-ML/data exception and move product truth into Rust, SQL, and generated contracts
+   Rerun: `just fast`
+   Fingerprint: `sha256:5c96e1d3ac9be46c950262f55d16b371e6386195352b43f0cb0c43881de756e8`
+   Evidence: Python stays inside exception-only non-product roots, exception-only AI/data service path present
 
 ## Policy
 
@@ -168,5 +178,7 @@ No audited runtime boundary reclassifications declared.
 
 ## Agent Fix Queue
 
-1. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
+1. `medium` `HLT-005-PYTHON-PRODUCT-TRUTH` `python/ai-service` - remove Python unless it is a dated advanced-ML/data exception and move product truth into Rust, SQL, and generated contracts
+   Route: `Business truth`/`contract`
+2. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
    Route: `Entropy`/`fast`

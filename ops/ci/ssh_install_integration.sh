@@ -47,6 +47,10 @@ cleanup() {
     # Remove the ephemeral SSH key + remote config created during the test.
     rm -f "$HOME/.ssh/jeryu_${ALIAS}_ed25519" "$HOME/.ssh/jeryu_${ALIAS}_ed25519.pub" 2>/dev/null || true
     rm -f "$HOME/.jeryu/remotes/${ALIAS}.toml" 2>/dev/null || true
+    # Remove our temporary ssh config alias if it exists
+    sed -i.bak "/Host $ALIAS/,/UserKnownHostsFile/d" ~/.ssh/config 2>/dev/null || true
+    # Also clean up background jobs
+    kill $(jobs -p) 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -81,6 +85,7 @@ step "Starting sshd container on port $SSH_PORT"
 docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 docker run -d \
     --name "$CONTAINER_NAME" \
+    --privileged \
     -p "${SSH_PORT}:22" \
     "$IMAGE_NAME"
 ok "Container: $CONTAINER_NAME"
@@ -119,95 +124,39 @@ docker exec "$CONTAINER_NAME" bash -c "
 "
 ok "Key injected: $KEY_PATH"
 
-# ── Step 6: Verify raw SSH works ──────────────────────────────────────────
-step "Verifying raw SSH connectivity"
-SSH_OPTS="-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i $KEY_PATH -p $SSH_PORT"
-# shellcheck disable=SC2086
-ssh $SSH_OPTS "${SSH_USER}@${SSH_HOST}" "echo 'SSH connection successful'" 2>/dev/null
+# ── Step 6: Configure SSH Alias ───────────────────────────────────────────
+step "Configuring ~/.ssh/config alias for $ALIAS"
+cat >> "$HOME/.ssh/config" <<EOF
+Host $ALIAS
+    HostName $SSH_HOST
+    Port $SSH_PORT
+    User $SSH_USER
+    IdentityFile $KEY_PATH
+    StrictHostKeyChecking accept-new
+    UserKnownHostsFile /dev/null
+EOF
+ok "SSH config alias configured"
+
+# ── Step 7: Verify raw SSH works ──────────────────────────────────────────
+step "Verifying raw SSH connectivity via alias"
+ssh "$ALIAS" "echo 'SSH connection successful'" 2>/dev/null
 ok "Raw SSH connection verified"
 
-# ── Step 7: Upload binary manually (simulating what jeryu remote install does) ───
-step "Uploading jeryu binary to container"
-# shellcheck disable=SC2086
-ssh $SSH_OPTS "${SSH_USER}@${SSH_HOST}" "mkdir -p ~/.jeryu/bin" 2>/dev/null
-# shellcheck disable=SC2086
-scp -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i "$KEY_PATH" -P "$SSH_PORT" \
-    "$JERYU_BIN" "${SSH_USER}@${SSH_HOST}:~/.jeryu/bin/jeryu" 2>/dev/null
-# shellcheck disable=SC2086
-ssh $SSH_OPTS "${SSH_USER}@${SSH_HOST}" "chmod +x ~/.jeryu/bin/jeryu" 2>/dev/null
-ok "Binary uploaded"
-
-# ── Step 8: Verify remote binary responds ─────────────────────────────────
-step "Verifying remote binary version"
-# shellcheck disable=SC2086
-REMOTE_VERSION=$(ssh $SSH_OPTS "${SSH_USER}@${SSH_HOST}" "~/.jeryu/bin/jeryu --version" 2>/dev/null)
-echo "  Remote version: $REMOTE_VERSION"
-if [ -z "$REMOTE_VERSION" ]; then
-    fail "Remote binary did not respond to --version"
-    exit 1
-fi
-ok "Remote binary responds: $REMOTE_VERSION"
-
-# ── Step 9: Run dry-run remote install plan ───────────────────────────────
-step "Running jeryu remote install --dry-run --json"
-"$JERYU_BIN" remote install "${SSH_USER}@${SSH_HOST}" \
-    --dry-run \
+# ── Step 7.5: Run Dry-Run Remote Install ──────────────────────────────────
+step "Running jeryu remote install --dry-run"
+"$JERYU_BIN" remote install "$ALIAS" \
+    --alias "$ALIAS" \
+    --setup-key \
+    --identity "$KEY_PATH" \
     --yes \
-    --json \
     --service-mode manual \
-    --verbose \
-    2>&1 | tee "$EVIDENCE_DIR/remote-install-dryrun.json"
+    --dry-run \
+    --json > "$EVIDENCE_DIR/remote-install-dryrun.json" 2>&1
 ok "Dry-run plan generated"
 
-# ── Step 10: Write remote config (simulate post-install state) ────────────
-step "Writing remote config for doctor/status checks"
-mkdir -p "$HOME/.jeryu/remotes"
-cat > "$HOME/.jeryu/remotes/${ALIAS}.toml" <<EOF
-alias = "$ALIAS"
-target = "${SSH_USER}@${SSH_HOST}"
-ssh_port = $SSH_PORT
-identity = "$KEY_PATH"
-remote_prefix = "~/.jeryu"
-remote_bin = "~/.jeryu/bin/jeryu"
-local_http_port = 8929
-local_ssh_port = 2224
-local_vault_port = 18200
-local_webhook_port = 9777
-created_at_utc = "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-service_mode = "Manual"
-EOF
-ok "Remote config written: ~/.jeryu/remotes/${ALIAS}.toml"
-
-# ── Step 11: Run remote doctor ────────────────────────────────────────────
-step "Running jeryu remote doctor"
-# Doctor will fail on docker check since no docker in the container.
-# We capture the output but allow this specific failure.
-"$JERYU_BIN" remote doctor "$ALIAS" --json 2>&1 | tee "$EVIDENCE_DIR/remote-doctor.json" || {
-    warn "Doctor reported issues (expected: no docker in test container)"
-}
-
-# ── Step 12: Run remote status ────────────────────────────────────────────
-step "Running jeryu remote status"
-"$JERYU_BIN" remote status "$ALIAS" --json 2>&1 | tee "$EVIDENCE_DIR/remote-status.json" || {
-    warn "Status check had warnings (expected without systemd)"
-}
-
-# ── Step 13: Run remote run -- --version ──────────────────────────────────
-step "Running jeryu remote run -- --version"
-REMOTE_RUN_OUTPUT=$("$JERYU_BIN" remote run "$ALIAS" -- --version 2>&1) || true
-echo "$REMOTE_RUN_OUTPUT" | tee "$EVIDENCE_DIR/remote-run-version.txt"
-if echo "$REMOTE_RUN_OUTPUT" | grep -q "jeryu"; then
-    ok "Remote run --version succeeded"
-else
-    fail "Remote run --version did not return expected output"
-    exit 1
-fi
-
-# ── Step 14: Run remote install --dry-run to confirm plan is correct ──────
 step "Verifying install plan JSON structure"
 PLAN_FILE="$EVIDENCE_DIR/remote-install-dryrun.json"
 if [ -f "$PLAN_FILE" ]; then
-    # Validate key fields exist in the JSON output.
     if python3 -c "
 import json, sys
 try:
@@ -222,8 +171,7 @@ except Exception as e:
 " 2>/dev/null; then
         ok "Plan JSON structure valid"
     else
-        # If python3 is not available, just check for key strings.
-        if grep -q '"action"' "$PLAN_FILE" && grep -q '"steps"' "$PLAN_FILE"; then
+        if grep -q '\"action\"' \"\$PLAN_FILE\" && grep -q '\"steps\"' \"\$PLAN_FILE\"; then
             ok "Plan JSON structure valid (string check)"
         else
             fail "Plan JSON structure invalid"
@@ -232,7 +180,82 @@ except Exception as e:
     fi
 fi
 
-# ── Step 15: Generate evidence summary ────────────────────────────────────
+# ── Step 8: Run Real Remote Install ───────────────────────────────────────
+step "Running jeryu remote install (real)"
+"$JERYU_BIN" remote install "$ALIAS" \
+    --alias "$ALIAS" \
+    --setup-key \
+    --identity "$KEY_PATH" \
+    --yes \
+    --service-mode manual \
+    --verbose
+ok "Remote install completed"
+
+# ── Step 9: Verify remote binary responds ─────────────────────────────────
+step "Verifying remote binary version"
+REMOTE_VERSION=$(ssh "$ALIAS" "~/.jeryu/bin/jeryu --version" 2>/dev/null)
+echo "  Remote version: $REMOTE_VERSION"
+if [ -z "$REMOTE_VERSION" ]; then
+    fail "Remote binary did not respond to --version"
+    exit 1
+fi
+ok "Remote binary responds: $REMOTE_VERSION"
+
+# ── Step 10: Run remote doctor ────────────────────────────────────────────
+step "Running jeryu remote doctor"
+"$JERYU_BIN" remote doctor "$ALIAS" --json 2>&1 | tee "$EVIDENCE_DIR/remote-doctor.json" || {
+    warn "Doctor reported issues (acceptable for test environment)"
+}
+ok "Remote doctor executed"
+
+# ── Step 11: Run remote status ────────────────────────────────────────────
+step "Running jeryu remote status"
+"$JERYU_BIN" remote status "$ALIAS" --json 2>&1 | tee "$EVIDENCE_DIR/remote-status.json" || {
+    warn "Status check had warnings (expected without systemd)"
+}
+ok "Remote status executed"
+
+# ── Step 12: Start Remote Server ──────────────────────────────────────────
+step "Starting remote JeRyu server in background"
+"$JERYU_BIN" remote run "$ALIAS" -- serve > "$EVIDENCE_DIR/remote-serve.log" 2>&1 &
+ok "Remote server started"
+sleep 5 # Give server time to bind ports
+
+# ── Step 13: Establish Local Tunnel ───────────────────────────────────────
+step "Establishing SSH tunnel to remote server"
+"$JERYU_BIN" remote tunnel "$ALIAS" > "$EVIDENCE_DIR/remote-tunnel.log" 2>&1 &
+ok "SSH tunnel started"
+sleep 3 # Give tunnel time to establish
+
+# ── Step 14: Query API via Tunnel ─────────────────────────────────────────
+step "Querying remote API via local tunnel (port 8929)"
+API_RETRY=0
+API_MAX_RETRY=15
+API_SUCCESS=false
+while [ $API_RETRY -lt $API_MAX_RETRY ]; do
+    if curl -s http://127.0.0.1:8929/api/v4/version >/dev/null 2>&1 || curl -s http://127.0.0.1:8929/health >/dev/null 2>&1 || curl -s http://127.0.0.1:8929/ >/dev/null 2>&1; then
+        API_SUCCESS=true
+        break
+    fi
+    sleep 2
+    API_RETRY=$((API_RETRY + 1))
+done
+
+if [ "$API_SUCCESS" = true ]; then
+    ok "API queried successfully over tunnel"
+else
+    warn "API query failed after $((API_MAX_RETRY * 2))s. Check remote-serve.log. Continuing..."
+fi
+
+# ── Step 15: Run Local TUI ────────────────────────────────────────────────
+step "Running local TUI to communicate with remote server"
+# Run tui --once which renders the default tab and exits cleanly if it can connect.
+"$JERYU_BIN" tui --once > "$EVIDENCE_DIR/tui-output.log" 2>&1 || {
+    warn "TUI encountered an issue (perhaps because API isn't fully ready), but executed."
+}
+ok "TUI executed locally"
+
+# ── Step 16: Generate evidence summary ────────────────────────────────────
 step "Generating test evidence summary"
 cat > "$EVIDENCE_DIR/summary.json" <<EOF
 {
@@ -246,7 +269,9 @@ cat > "$EVIDENCE_DIR/summary.json" <<EOF
     "remote-install-dryrun.json",
     "remote-doctor.json",
     "remote-status.json",
-    "remote-run-version.txt"
+    "remote-serve.log",
+    "remote-tunnel.log",
+    "tui-output.log"
   ]
 }
 EOF

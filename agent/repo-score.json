@@ -1,17 +1,17 @@
 {
-  "report_fingerprint": "sha256:436d670c3ac4aff0c3bd8a2cb326b0121215c372498e7762f21babe2609e9fbe",
-  "input_fingerprint": "sha256:7676fbee2c74f9ced2ae62892a72f544878ebe919911dcb6f0d6b47b152e3db9",
+  "report_fingerprint": "sha256:fdf1e79b48c8f2dc35a0376a9020674ec86f04afb439a5575d59ab9e3277345f",
+  "input_fingerprint": "sha256:bd053f888b8f1f69261ceed5f988e62e733227861219084efe4e9109afd89169",
   "policy_fingerprint": "sha256:0e277c50d1190cb289cfc6203cd8c7037a4c046999a34104afd9359cfcff225b",
   "manifest_fingerprints": {
-    "owner_map": "sha256:7bb9986ea9ff1ce7f59100f25cb0a2750d4ab51dfd833d3c1432bfa66c7891df",
-    "test_map": "sha256:284ac2761857139f00e6e2ad477d44f48dde89a908eb7975e32e9931f4c6e361",
+    "owner_map": "sha256:8292de7985d608f518ab016af5ca43b9a600451fe657b3cb96c158365b0418fd",
+    "test_map": "sha256:8e2701256b0f4e2eca369a93f9181a0f6d9695aa774a0e5f9428b2a8b07e0d03",
     "generated_zones": "sha256:5dfe809251017a95ec5a27320d48c17b4abacd36c2b66eee287f4f70fcfb7772",
     "boundaries": "sha256:b99d3c83e4f3d21beaa379241bd9a36d99f10187fd09d7a24bab733aa8c70729",
     "proof_lanes": "sha256:87630d6fe9b678ce7cfeff446c6e1bf1cdf75bc48c8669929914d2fb5d7e07e8",
     "standard_version": "sha256:6d84737d2795323e28d70f14863f479329f39f7130bd5021823bddc48d32fba2"
   },
   "dirty_worktree": true,
-  "generated_at": "1778110834",
+  "generated_at": "1778127550",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.8.0",
@@ -25,23 +25,23 @@
   "conformance_decision": "pass",
   "conformance_blockers": [],
   "repo": ".",
-  "run_id": "1778110834",
-  "started_at": "1778110834",
-  "elapsed_ms": 3534,
+  "run_id": "1778127550",
+  "started_at": "1778127550",
+  "elapsed_ms": 3459,
   "scope": {
     "mode": "full",
     "paths": []
   },
-  "score": 92,
-  "raw_score": 92,
+  "score": 91,
+  "raw_score": 91,
   "decision": {
     "status": "pass",
     "minimum_score": 85,
     "passed": true,
     "hard_findings": 0,
-    "soft_findings": 1,
+    "soft_findings": 2,
     "ratchet": {
-      "baseline_score": 92,
+      "baseline_score": 91,
       "allowed_drop": 0,
       "passed": true,
       "score_delta": 0,
@@ -54,7 +54,7 @@
     }
   },
   "git": {
-    "head": "3fda26d",
+    "head": "fe60e92",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -438,10 +438,11 @@
     {
       "name": "Python containment and polyglot hygiene",
       "weight": 4,
-      "score": 100,
-      "weighted_points": 4.0,
+      "score": 80,
+      "weighted_points": 3.2,
       "evidence": [
-        "no Python files in scope"
+        "Python stays inside exception-only non-product roots",
+        "exception-only AI/data service path present"
       ],
       "notes": []
     },
@@ -1359,9 +1360,41 @@
       "lane": "fast",
       "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
       "owner": "tools"
+    },
+    {
+      "severity": "medium",
+      "category": "python",
+      "path": "python/ai-service",
+      "problem": "`Python containment and polyglot hygiene` scored 80 below the standard floor of 85",
+      "agent_fix": "remove Python unless it is a dated advanced-ML/data exception and move product truth into Rust, SQL, and generated contracts",
+      "evidence": [
+        "Python stays inside exception-only non-product roots",
+        "exception-only AI/data service path present"
+      ],
+      "check_id": "HLT-005-PYTHON-PRODUCT-TRUTH:python",
+      "hardness": "soft",
+      "confidence": 0.76,
+      "evidence_kind": "repository-scan",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:5c96e1d3ac9be46c950262f55d16b371e6386195352b43f0cb0c43881de756e8",
+      "rule_id": "HLT-005-PYTHON-PRODUCT-TRUTH",
+      "tlr": "Business truth",
+      "lane": "contract",
+      "docs_url": "docs/agent-native-standard.md",
+      "owner": "tools"
     }
   ],
   "agent_fix_queue": [
+    {
+      "path": "python/ai-service",
+      "priority": "medium",
+      "rule_id": "HLT-005-PYTHON-PRODUCT-TRUTH",
+      "tlr": "Business truth",
+      "lane": "contract",
+      "owner": "tools",
+      "task": "remove Python unless it is a dated advanced-ML/data exception and move product truth into Rust, SQL, and generated contracts",
+      "why": "`Python containment and polyglot hygiene` scored 80 below the standard floor of 85"
+    },
     {
       "path": ".",
       "priority": "medium",
