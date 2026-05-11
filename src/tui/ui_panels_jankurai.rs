@@ -196,6 +196,19 @@ pub(crate) fn draw_jank_tab(f: &mut Frame, app: &App, area: Rect) {
             .map(|(index, point)| (index as f64, point.score as f64))
             .collect();
         let labels = chart_labels(history);
+        // Zoom Y-axis to the actual score range so the trend line is clearly visible
+        // instead of appearing as a flat line at the top of a 0-100 scale.
+        let y_min = data
+            .iter()
+            .map(|(_, y)| *y)
+            .fold(f64::INFINITY, f64::min);
+        let y_max = data
+            .iter()
+            .map(|(_, y)| *y)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let y_pad = ((y_max - y_min) * 0.3).max(5.0);
+        let y_lo = (y_min - y_pad).max(0.0);
+        let y_hi = (y_max + y_pad).min(100.0);
         let chart = Chart::new(vec![
             Dataset::default()
                 .name("score")
@@ -216,8 +229,8 @@ pub(crate) fn draw_jank_tab(f: &mut Frame, app: &App, area: Rect) {
             Axis::default()
                 .title("score")
                 .style(Style::default().fg(Color::DarkGray))
-                .bounds([0.0, 100.0])
-                .labels(labels.1),
+                .bounds([y_lo, y_hi])
+                .labels(y_axis_labels(y_lo, y_hi)),
         );
         f.render_widget(chart, chart_inner);
     }
@@ -518,12 +531,18 @@ fn chart_labels(
             Span::styled(start, Style::default().fg(Color::DarkGray)),
             Span::styled(end, Style::default().fg(Color::DarkGray)),
         ],
-        vec![
-            Span::styled("0", Style::default().fg(Color::DarkGray)),
-            Span::styled("50", Style::default().fg(Color::DarkGray)),
-            Span::styled("100", Style::default().fg(Color::DarkGray)),
-        ],
+        // Y-axis labels are now generated dynamically by y_axis_labels()
+        vec![],
     )
+}
+
+fn y_axis_labels(lo: f64, hi: f64) -> Vec<Span<'static>> {
+    let mid = ((lo + hi) / 2.0).round() as i64;
+    vec![
+        Span::styled(format!("{}", lo.round() as i64), Style::default().fg(Color::DarkGray)),
+        Span::styled(format!("{}", mid), Style::default().fg(Color::DarkGray)),
+        Span::styled(format!("{}", hi.round() as i64), Style::default().fg(Color::DarkGray)),
+    ]
 }
 
 fn format_timestamp(value: &chrono::DateTime<chrono::Utc>) -> String {
