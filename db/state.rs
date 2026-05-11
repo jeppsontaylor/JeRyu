@@ -3527,6 +3527,11 @@ impl crate::tui::app::App {
                 name: "Secrets",
                 active: self.active_tab == crate::tui::app::ActiveTab::Secrets,
             },
+            crate::tui::ui::ui_chrome::ChromeTab {
+                key: "g",
+                name: "Git",
+                active: self.active_tab == crate::tui::app::ActiveTab::Git,
+            },
         ];
         if self.jankurai_available() {
             tabs.push(crate::tui::ui::ui_chrome::ChromeTab {
