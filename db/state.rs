@@ -3453,6 +3453,169 @@ pub async fn record_admission_decision_for_hook(
     .is_ok()
 }
 
+impl crate::tui::app::App {
+    pub(crate) fn has_selected_runner_group(&self) -> bool {
+        self.state.pools.get(self.selected_pool_index).is_some()
+    }
+
+    pub(crate) fn command_palette_filter(&self) -> &str {
+        &self.command_palette_query
+    }
+
+    pub(crate) fn chrome_header_state(&self) -> crate::tui::ui::ui_chrome::ChromeHeaderState {
+        let release = self
+            .state
+            .release_status
+            .as_ref()
+            .map(|rel| crate::tui::ui::ui_chrome::ChromeRelease {
+                short_sha: rel
+                    .attempt
+                    .sha
+                    .get(..8)
+                    .unwrap_or(rel.attempt.sha.as_str())
+                    .to_string(),
+                state_label: rel.canary_state.clone(),
+            });
+        let mut tabs = vec![
+            crate::tui::ui::ui_chrome::ChromeTab {
+                key: "0",
+                name: "Workflow",
+                active: self.active_tab == crate::tui::app::ActiveTab::Workflow,
+            },
+            crate::tui::ui::ui_chrome::ChromeTab {
+                key: "1",
+                name: "Mission",
+                active: self.active_tab == crate::tui::app::ActiveTab::Mission,
+            },
+            crate::tui::ui::ui_chrome::ChromeTab {
+                key: "2",
+                name: "Release",
+                active: self.active_tab == crate::tui::app::ActiveTab::Release,
+            },
+            crate::tui::ui::ui_chrome::ChromeTab {
+                key: "3",
+                name: "Jobs",
+                active: self.active_tab == crate::tui::app::ActiveTab::Jobs,
+            },
+            crate::tui::ui::ui_chrome::ChromeTab {
+                key: "4",
+                name: "Agents",
+                active: self.active_tab == crate::tui::app::ActiveTab::Agents,
+            },
+            crate::tui::ui::ui_chrome::ChromeTab {
+                key: "5",
+                name: "Tests",
+                active: self.active_tab == crate::tui::app::ActiveTab::Tests,
+            },
+            crate::tui::ui::ui_chrome::ChromeTab {
+                key: "6",
+                name: "Pools",
+                active: self.is_runner_group_tab(),
+            },
+            crate::tui::ui::ui_chrome::ChromeTab {
+                key: "7",
+                name: "Cache",
+                active: self.active_tab == crate::tui::app::ActiveTab::Cache,
+            },
+            crate::tui::ui::ui_chrome::ChromeTab {
+                key: "8",
+                name: "Evidence",
+                active: self.active_tab == crate::tui::app::ActiveTab::Evidence,
+            },
+            crate::tui::ui::ui_chrome::ChromeTab {
+                key: "9",
+                name: "Secrets",
+                active: self.active_tab == crate::tui::app::ActiveTab::Secrets,
+            },
+        ];
+        if self.jankurai_available() {
+            tabs.push(crate::tui::ui::ui_chrome::ChromeTab {
+                key: "j",
+                name: "Jank",
+                active: self.active_tab == crate::tui::app::ActiveTab::Jank,
+            });
+        }
+
+        let (active_runner_groups, total_runner_groups) = self.runner_group_counts();
+
+        crate::tui::ui::ui_chrome::ChromeHeaderState {
+            active_containers: self.state.active_containers,
+            active_runner_groups,
+            total_runner_groups,
+            agent_count: self.state.agent_pipelines.len(),
+            cache_hit_ratio: self.state.hit_ratio,
+            active_taint_count: self.state.active_taint_count,
+            gitlab_ready: self.state.gitlab_ready,
+            release,
+            last_sync_at: self.state.last_sync_at,
+            tabs,
+        }
+    }
+
+    pub(crate) fn chrome_event_state(&self) -> crate::tui::ui::ui_chrome::ChromeEventState {
+        let entries = self
+            .state
+            .recent_jobs
+            .iter()
+            .take(20)
+            .map(|job| {
+                let (badge, color) = crate::tui::ui::ui_chrome::status_badge(&job.status);
+                crate::tui::ui::ui_chrome::ChromeEvent {
+                    ts: job
+                        .received_at
+                        .get(11..19)
+                        .unwrap_or("--:--:--")
+                        .to_string(),
+                    badge,
+                    color,
+                    name: job.job_name.as_deref().unwrap_or("job").to_string(),
+                }
+            })
+            .collect();
+
+        crate::tui::ui::ui_chrome::ChromeEventState {
+            entries,
+            ticker_offset: self.state.event_ticker_offset,
+        }
+    }
+
+    pub(crate) fn footer_help(&self) -> &'static str {
+        if self.maximize_logs {
+            return " Esc:minimize  ↑↓:scroll  PgUp/Dn:jump  Home:top  G/End:bottom  q:quit";
+        }
+
+        match self.active_tab {
+            crate::tui::app::ActiveTab::Jobs => {
+                " f:freeze  n/N:runner  g:follow  r:requeue  d:remove  Enter:logs  /:search  ?:help  ^K:palette  q:quit"
+            }
+            crate::tui::app::ActiveTab::Tests => {
+                " v:view-mode  Enter:history  ↑↓:move  /:search  ?:help  ^K:palette  q:quit"
+            }
+            crate::tui::app::ActiveTab::Workflow => {
+                " ↑↓:phase  ←→:node  Enter:inspect  i:info  /:search  ?:help  ^K:palette  q:quit"
+            }
+            crate::tui::app::ActiveTab::Mission => {
+                " .:next-action  ?:explain  Enter:inspect  /:search  ^K:palette  q:quit"
+            }
+            crate::tui::app::ActiveTab::Agents => {
+                " Enter:inspect  p:preview  x:execute  ?:explain  /:search  ^K:palette  q:quit"
+            }
+            crate::tui::app::ActiveTab::Evidence => {
+                " a:toggle-view  Enter:inspect  /:search  ?:help  ^K:palette  q:quit"
+            }
+            crate::tui::app::ActiveTab::Pools => {
+                " p:pause/resume  Enter:inspect  /:search  ?:help  ^K:palette  q:quit"
+            }
+            crate::tui::app::ActiveTab::Jank => {
+                " ↑↓:select  j:Jank  F5:refresh  ?:help  ^K:palette  q:quit"
+            }
+            _ => {
+                " Enter:inspect  Tab:cycle  1-0:tab  ↑↓:move  /:search  ?:help  ^K:palette  q:quit"
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

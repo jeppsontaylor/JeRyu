@@ -40,8 +40,9 @@ pub(crate) fn parse_capture_tab(tab: &str) -> Result<crate::tui::app::ActiveTab>
         "evidence" | "audit" => Ok(crate::tui::app::ActiveTab::Evidence),
         "secrets" => Ok(crate::tui::app::ActiveTab::Secrets),
         "git" => Ok(crate::tui::app::ActiveTab::Git),
+        "jank" | "jankurai" => Ok(crate::tui::app::ActiveTab::Jank),
         _ => anyhow::bail!(
-            "unknown TUI tab '{}'; expected workflow, mission, release, jobs, agents, tests, pools, cache, evidence, secrets, or git",
+            "unknown TUI tab '{}'; expected workflow, mission, release, jobs, agents, tests, pools, cache, evidence, secrets, git, jank, or jankurai",
             tab
         ),
     }

@@ -3,21 +3,41 @@
 //! Invariants: Rendering redacts sensitive text and does not perform control-plane mutations directly.
 //! v3: Integrated theme system, VTI badges, and contextual keybindings.
 #[path = "ui_chrome.rs"]
-mod ui_chrome;
+pub(crate) mod ui_chrome;
 #[path = "ui_panels.rs"]
 mod ui_panels;
-use super::app::{ActivePane, ActiveTab, App};
+use super::app::{ActivePane, App};
+pub(crate) use super::app::ActiveTab;
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Clear, Gauge, List, ListItem, Paragraph, Wrap},
+    symbols::Marker,
+    widgets::{Axis, Block, Borders, Chart, Clear, Dataset, Gauge, GraphType, List, ListItem, Paragraph, Wrap},
 };
 use ui_chrome::*;
 use ui_panels::*;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RenderTab {
+    Workflow,
+    Mission,
+    Release,
+    Jobs,
+    Agents,
+    Tests,
+    RunnerGroups,
+    Cache,
+    Evidence,
+    Git,
+    Secrets,
+    Jank,
+}
+
 pub fn draw(f: &mut Frame, app: &mut App) {
+    let header = app.chrome_header_state();
+    let footer = app.footer_help();
     if app.maximize_logs {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -28,9 +48,9 @@ pub fn draw(f: &mut Frame, app: &mut App) {
             ])
             .split(f.area());
 
-        draw_header_tabs(f, app, chunks[0]);
+        draw_header_tabs(f, &header, chunks[0]);
         draw_logs(f, app, chunks[1]);
-        draw_footer(f, app, chunks[2]);
+        draw_footer(f, footer, chunks[2]);
         return;
     }
 
@@ -44,29 +64,31 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         ])
         .split(f.area());
 
-    draw_header_tabs(f, app, chunks[0]);
-    draw_footer(f, app, chunks[3]);
+    draw_header_tabs(f, &header, chunks[0]);
+    draw_footer(f, footer, chunks[3]);
 
-    match app.active_tab {
-        ActiveTab::Workflow => {
+    match app.render_tab() {
+        RenderTab::Workflow => {
             let mut snap = crate::tui::workflow::builder::build_demo_snapshot();
             snap.selected_node_id = app.workflow_nav.selected_node_id(&snap).map(|s| s.to_string());
             let theme = crate::tui::theme::Theme::dark();
             crate::tui::workflow::widget::draw_workflow_tab(f, chunks[1], &snap, &theme);
         }
-        ActiveTab::Mission => draw_mission_tab(f, app, chunks[1]),
-        ActiveTab::Release => draw_release_tab(f, app, chunks[1]),
-        ActiveTab::Jobs => draw_jobs_tab(f, app, chunks[1]),
-        ActiveTab::Agents => draw_agents_tab(f, app, chunks[1]),
-        ActiveTab::Tests => draw_tests_tab(f, app, chunks[1]),
-        ActiveTab::Pools => draw_pools_tab(f, app, chunks[1]),
-        ActiveTab::Cache => draw_cache_dashboard(f, app, chunks[1]),
-        ActiveTab::Evidence => draw_evidence_tab(f, app, chunks[1]),
-        ActiveTab::Git => draw_git_tab(f, app, chunks[1]),
-        ActiveTab::Secrets => draw_secrets_tab(f, app, chunks[1]),
+        RenderTab::Mission => draw_mission_tab(f, app, chunks[1]),
+        RenderTab::Release => draw_release_tab(f, app, chunks[1]),
+        RenderTab::Jobs => draw_jobs_tab(f, app, chunks[1]),
+        RenderTab::Agents => draw_agents_tab(f, app, chunks[1]),
+        RenderTab::Tests => draw_tests_tab(f, app, chunks[1]),
+        RenderTab::RunnerGroups => draw_runner_groups_tab(f, app, chunks[1]),
+        RenderTab::Cache => draw_cache_dashboard(f, app, chunks[1]),
+        RenderTab::Evidence => draw_evidence_tab(f, app, chunks[1]),
+        RenderTab::Git => draw_git_tab(f, app, chunks[1]),
+        RenderTab::Secrets => draw_secrets_tab(f, app, chunks[1]),
+        RenderTab::Jank => draw_jank_tab(f, app, chunks[1]),
     }
 
-    draw_event_console(f, app, chunks[2]);
+    let events = app.chrome_event_state();
+    draw_event_console(f, &events, chunks[2]);
 
     if app.command_palette_open {
         draw_command_palette(f, app);

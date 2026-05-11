@@ -235,7 +235,7 @@ pub(crate) fn draw_job_inspector_panel(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .title(" [ Inspector ] ")
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(pane_border(ActivePane::Jobs, app)));
+        .border_style(Style::default().fg(pane_border(ActivePane::Jobs, app.active_pane)));
     let inner = block.inner(area);
     f.render_widget(block, area);
 

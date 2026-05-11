@@ -9,6 +9,7 @@ impl App {
         let mut snap = TuiStateSnapshot::default();
         Self::hydrate_core_snapshot(&mut snap, &self.store, &self.docker, &self.gitlab).await;
         self.state = snap;
+        self.coerce_active_tab();
     }
 
     pub async fn hydrate_release_status(&mut self) {
@@ -41,6 +42,8 @@ impl App {
         if let Ok(managed) = docker.list_managed_containers().await {
             snap.active_containers = managed.len();
         }
+
+        snap.jankurai = crate::tui::jankurai::load_snapshot();
 
         let mut jobs = Vec::new();
         let mut seen = std::collections::BTreeSet::new();
@@ -158,6 +161,12 @@ impl App {
         {
             self.selected_pipeline_index = self.state.pipelines.len() - 1;
         }
+        if self.selected_jankurai_index >= self.state.jankurai.entries.len()
+            && !self.state.jankurai.entries.is_empty()
+        {
+            self.selected_jankurai_index = self.state.jankurai.entries.len() - 1;
+        }
+        self.coerce_active_tab();
         self.sync_selected_job_index();
         self.update_log_target();
 

@@ -1,4 +1,70 @@
-use super::*;
+//! Chrome rendering only.
+//!
+//! This module may read already-loaded TUI state to render headers, tabs,
+//! events, and key hints. It must not import durable adapter modules.
+
+use crate::tui::app::ActivePane;
+use ratatui::{
+    Frame,
+    layout::Rect,
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
+};
+
+pub(crate) struct ChromeTab {
+    pub(crate) key: &'static str,
+    pub(crate) name: &'static str,
+    pub(crate) active: bool,
+}
+
+pub(crate) struct ChromeRelease {
+    pub(crate) short_sha: String,
+    pub(crate) state_label: String,
+}
+
+pub(crate) struct ChromeHeaderState {
+    pub(crate) active_containers: usize,
+    pub(crate) active_runner_groups: usize,
+    pub(crate) total_runner_groups: usize,
+    pub(crate) agent_count: usize,
+    pub(crate) cache_hit_ratio: f64,
+    pub(crate) active_taint_count: i64,
+    pub(crate) gitlab_ready: bool,
+    pub(crate) release: Option<ChromeRelease>,
+    pub(crate) last_sync_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub(crate) tabs: Vec<ChromeTab>,
+}
+
+pub(crate) struct ChromeEvent {
+    pub(crate) ts: String,
+    pub(crate) badge: &'static str,
+    pub(crate) color: Color,
+    pub(crate) name: String,
+}
+
+pub(crate) struct ChromeEventState {
+    pub(crate) entries: Vec<ChromeEvent>,
+    pub(crate) ticker_offset: usize,
+}
+
+pub(crate) struct AttentionState {
+    pub(crate) active_taint_count: i64,
+    pub(crate) release: Option<AttentionRelease>,
+    pub(crate) failed_job: Option<AttentionJob>,
+    pub(crate) has_running_job: bool,
+    pub(crate) gitlab_ready: bool,
+}
+
+pub(crate) struct AttentionRelease {
+    pub(crate) version: String,
+    pub(crate) state_label: String,
+}
+
+pub(crate) struct AttentionJob {
+    pub(crate) id: i64,
+    pub(crate) name: String,
+}
 
 // ---------------------------------------------------------------------------
 // Color helpers
@@ -26,8 +92,8 @@ pub(crate) fn release_color(state: &str) -> Color {
     }
 }
 
-pub(crate) fn pane_border(pane: ActivePane, app: &App) -> Color {
-    if app.active_pane == pane {
+pub(crate) fn pane_border(pane: ActivePane, active_pane: ActivePane) -> Color {
+    if active_pane == pane {
         Color::Cyan
     } else {
         Color::DarkGray
@@ -78,55 +144,41 @@ pub(crate) fn compact_spark(values: &[i64], width: usize) -> String {
         .collect()
 }
 
-pub(crate) fn top_attention(app: &App) -> (String, Color, String) {
-    if app.state.active_taint_count > 0 {
+pub(crate) fn top_attention(attention: &AttentionState) -> (String, Color, String) {
+    if attention.active_taint_count > 0 {
         return (
             format!(
                 "{} active cache taint(s) can block trusted proof reuse",
-                app.state.active_taint_count
+                attention.active_taint_count
             ),
             Color::Magenta,
             "Open Cache, inspect taint scope, then run clean validation".to_string(),
         );
     }
-    if let Some(rel) = &app.state.release_status
-        && !matches!(rel.canary_state.as_str(), "green" | "released")
+    if let Some(rel) = &attention.release
+        && !matches!(rel.state_label.as_str(), "green" | "released")
     {
         return (
-            format!("Release {} is {}", rel.attempt.version, rel.canary_state),
-            release_color(&rel.canary_state),
+            format!("Release {} is {}", rel.version, rel.state_label),
+            release_color(&rel.state_label),
             "Open Release, inspect missing gate evidence".to_string(),
         );
     }
-    if let Some(job) = app
-        .state
-        .recent_jobs
-        .iter()
-        .find(|job| job.status == "failed")
-    {
+    if let Some(job) = &attention.failed_job {
         return (
-            format!(
-                "Job #{} failed in {}",
-                job.job_id,
-                job.job_name.as_deref().unwrap_or("unknown job")
-            ),
+            format!("Job #{} failed in {}", job.id, job.name),
             Color::Red,
             "Open evidence capsule or revisit after blocker explanation".to_string(),
         );
     }
-    if app
-        .state
-        .recent_jobs
-        .iter()
-        .any(|job| job.status == "running")
-    {
+    if attention.has_running_job {
         return (
             "Validation is active on the critical path".to_string(),
             Color::Cyan,
             "Watch Flow Board and open the slowest running job".to_string(),
         );
     }
-    if !app.state.gitlab_ready {
+    if !attention.gitlab_ready {
         return (
             "GitLab is not ready".to_string(),
             Color::Yellow,
@@ -141,10 +193,10 @@ pub(crate) fn top_attention(app: &App) -> (String, Color, String) {
 }
 
 /// Returns (outdated_age_secs, outdated_color, outdated_label) based on last_sync_at.
-pub(crate) fn outdated_indicator(app: &App) -> (i64, Color, &'static str) {
-    let age = app
-        .state
-        .last_sync_at
+pub(crate) fn outdated_indicator(
+    last_sync_at: Option<chrono::DateTime<chrono::Utc>>,
+) -> (i64, Color, &'static str) {
+    let age = last_sync_at
         .map(|t| chrono::Utc::now().signed_duration_since(t).num_seconds())
         .unwrap_or(0);
     if age < 5 {
@@ -164,24 +216,20 @@ pub(crate) fn outdated_indicator(app: &App) -> (i64, Color, &'static str) {
 // Header + Tab bar (2 rows merged into 1 widget)
 // ---------------------------------------------------------------------------
 
-pub(crate) fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
-    let (outdated_age, outdated_color, outdated_label) = outdated_indicator(app);
+pub(crate) fn draw_header_tabs(f: &mut Frame, header: &ChromeHeaderState, area: Rect) {
+    let (outdated_age, outdated_color, outdated_label) = outdated_indicator(header.last_sync_at);
 
-    let gitlab_span = if app.state.gitlab_ready {
+    let gitlab_span = if header.gitlab_ready {
         Span::styled("GitLab:OK", Style::default().fg(Color::Green))
     } else {
         Span::styled("GitLab:BOOT", Style::default().fg(Color::Yellow))
     };
 
-    let pools_total = app.state.pools.len();
-    let pools_active = app.state.pools.iter().filter(|p| !p.paused).count();
-
-    let release_span = if let Some(ref rel) = app.state.release_status {
-        let short_sha = rel.attempt.sha.get(..8).unwrap_or(rel.attempt.sha.as_str());
+    let release_span = if let Some(ref rel) = header.release {
         Span::styled(
-            format!(" rel:{} {}", short_sha, rel.canary_state),
+            format!(" rel:{} {}", rel.short_sha, rel.state_label),
             Style::default()
-                .fg(release_color(&rel.canary_state))
+                .fg(release_color(&rel.state_label))
                 .add_modifier(Modifier::BOLD),
         )
     } else {
@@ -199,19 +247,6 @@ pub(crate) fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
         Span::raw("")
     };
 
-    let tab_defs: &[(&str, ActiveTab, u8)] = &[
-        ("Workflow", ActiveTab::Workflow, 0),
-        ("Mission", ActiveTab::Mission, 1),
-        ("Release", ActiveTab::Release, 2),
-        ("Jobs", ActiveTab::Jobs, 3),
-        ("Agents", ActiveTab::Agents, 4),
-        ("Tests", ActiveTab::Tests, 5),
-        ("Pools", ActiveTab::Pools, 6),
-        ("Cache", ActiveTab::Cache, 7),
-        ("Evidence", ActiveTab::Evidence, 8),
-        ("Secrets", ActiveTab::Secrets, 9),
-    ];
-
     let top_spans: Vec<Span> = vec![
         Span::styled(
             " jeryu ",
@@ -222,12 +257,15 @@ pub(crate) fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
         Span::raw(" "),
         gitlab_span,
         Span::styled(
-            format!(" ctrs:{}", app.state.active_containers),
+            format!(" ctrs:{}", header.active_containers),
             Style::default().fg(Color::Gray),
         ),
         Span::styled(
-            format!(" pools:{}/{}", pools_active, pools_total),
-            Style::default().fg(if pools_active == pools_total {
+            format!(
+                " runners:{}/{}",
+                header.active_runner_groups, header.total_runner_groups
+            ),
+            Style::default().fg(if header.active_runner_groups == header.total_runner_groups {
                 Color::Green
             } else {
                 Color::Yellow
@@ -236,8 +274,8 @@ pub(crate) fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
         release_span,
         // v3 — Agent count badge
         Span::styled(
-            format!(" agents:{}", app.state.agent_pipelines.len()),
-            Style::default().fg(if app.state.agent_pipelines.is_empty() {
+            format!(" agents:{}", header.agent_count),
+            Style::default().fg(if header.agent_count == 0 {
                 Color::DarkGray
             } else {
                 Color::Rgb(102, 255, 255)
@@ -245,19 +283,19 @@ pub(crate) fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
         ),
         // v3 — Cache hit ratio
         Span::styled(
-            format!(" cache:{:.0}%", app.state.hit_ratio * 100.0),
-            Style::default().fg(if app.state.hit_ratio > 0.8 {
+            format!(" cache:{:.0}%", header.cache_hit_ratio * 100.0),
+            Style::default().fg(if header.cache_hit_ratio > 0.8 {
                 Color::Green
-            } else if app.state.hit_ratio > 0.5 {
+            } else if header.cache_hit_ratio > 0.5 {
                 Color::Yellow
             } else {
                 Color::Red
             }),
         ),
         // v3 — Taint indicator
-        if app.state.active_taint_count > 0 {
+        if header.active_taint_count > 0 {
             Span::styled(
-                format!(" taint:{}", app.state.active_taint_count),
+                format!(" taint:{}", header.active_taint_count),
                 Style::default()
                     .fg(Color::Magenta)
                     .add_modifier(Modifier::BOLD),
@@ -269,10 +307,10 @@ pub(crate) fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
     ];
 
     let mut tab_spans: Vec<Span> = vec![];
-    for (name, tab, n) in tab_defs {
-        if app.active_tab == *tab {
+    for tab in &header.tabs {
+        if tab.active {
             tab_spans.push(Span::styled(
-                format!("[{}:{}]", n, name),
+                format!("[{}:{}]", tab.key, tab.name),
                 Style::default()
                     .fg(Color::Black)
                     .bg(Color::Cyan)
@@ -280,7 +318,7 @@ pub(crate) fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
             ));
         } else {
             tab_spans.push(Span::styled(
-                format!(" {}:{} ", n, name),
+                format!(" {}:{} ", tab.key, tab.name),
                 Style::default().fg(Color::DarkGray),
             ));
         }
@@ -296,7 +334,7 @@ pub(crate) fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
 // Event console (bottom strip above footer)
 // ---------------------------------------------------------------------------
 
-pub(crate) fn draw_event_console(f: &mut Frame, app: &App, area: Rect) {
+pub(crate) fn draw_event_console(f: &mut Frame, events: &ChromeEventState, area: Rect) {
     let block = Block::default()
         .title(" Events ── Ctrl-K: command palette  /: search  ?: help ")
         .borders(Borders::ALL)
@@ -309,21 +347,7 @@ pub(crate) fn draw_event_console(f: &mut Frame, app: &App, area: Rect) {
     let mut ticker_spans: Vec<Span> = Vec::new();
     let _now = chrono::Utc::now();
 
-    // Collect event entries
-    let events: Vec<(&str, &str, Color, &str)> = app
-        .state
-        .recent_jobs
-        .iter()
-        .take(20)
-        .map(|job| {
-            let ts = job.received_at.get(11..19).unwrap_or("--:--:--");
-            let (badge, color) = status_badge(&job.status);
-            let name = job.job_name.as_deref().unwrap_or("job");
-            (ts, badge, color, name)
-        })
-        .collect();
-
-    if events.is_empty() {
+    if events.entries.is_empty() {
         let p = Paragraph::new(Span::styled(
             "  No events yet. Events appear here as jobs run.",
             Style::default().fg(Color::DarkGray),
@@ -333,23 +357,23 @@ pub(crate) fn draw_event_console(f: &mut Frame, app: &App, area: Rect) {
     }
 
     // Build a single scrolling line
-    for (ts, badge, color, name) in &events {
+    for event in &events.entries {
         ticker_spans.push(Span::styled(
-            format!(" {ts} "),
+            format!(" {} ", event.ts),
             Style::default().fg(Color::DarkGray),
         ));
         ticker_spans.push(Span::styled(
-            format!("[{badge}]"),
-            Style::default().fg(*color).add_modifier(Modifier::BOLD),
+            format!("[{}]", event.badge),
+            Style::default().fg(event.color).add_modifier(Modifier::BOLD),
         ));
         ticker_spans.push(Span::styled(
-            format!(" {name}  │"),
+            format!(" {}  │", event.name),
             Style::default().fg(Color::White),
         ));
     }
 
     // Scroll offset drives the horizontal shift
-    let offset = (app.state.event_ticker_offset % (events.len() * 30 + 1)) as u16;
+    let offset = (events.ticker_offset % (events.entries.len() * 30 + 1)) as u16;
 
     let p = Paragraph::new(Line::from(ticker_spans)).scroll((0, offset));
     f.render_widget(p, inner);
@@ -359,37 +383,7 @@ pub(crate) fn draw_event_console(f: &mut Frame, app: &App, area: Rect) {
 // Footer / key hints
 // ---------------------------------------------------------------------------
 
-pub(crate) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
-    let help = if app.maximize_logs {
-        " Esc:minimize  ↑↓:scroll  PgUp/Dn:jump  Home:top  G/End:bottom  q:quit"
-    } else {
-        match app.active_tab {
-            ActiveTab::Jobs => {
-                " f:freeze  n/N:runner  g:follow  r:requeue  d:remove  Enter:logs  /:search  ?:help  ^K:palette  q:quit"
-            }
-            ActiveTab::Tests => {
-                " v:view-mode  Enter:history  ↑↓:move  /:search  ?:help  ^K:palette  q:quit"
-            }
-            ActiveTab::Workflow => {
-                " ↑↓:phase  ←→:node  Enter:inspect  i:info  /:search  ?:help  ^K:palette  q:quit"
-            }
-            ActiveTab::Mission => {
-                " .:next-action  ?:explain  Enter:inspect  /:search  ^K:palette  q:quit"
-            }
-            ActiveTab::Agents => {
-                " Enter:inspect  p:preview  x:execute  ?:explain  /:search  ^K:palette  q:quit"
-            }
-            ActiveTab::Evidence => {
-                " a:toggle-view  Enter:inspect  /:search  ?:help  ^K:palette  q:quit"
-            }
-            ActiveTab::Pools => {
-                " p:pause/resume  Enter:inspect  /:search  ?:help  ^K:palette  q:quit"
-            }
-            _ => {
-                " Enter:inspect  Tab:cycle  1-0:tab  ↑↓:move  /:search  ?:help  ^K:palette  q:quit"
-            }
-        }
-    };
+pub(crate) fn draw_footer(f: &mut Frame, help: &str, area: Rect) {
     let p = Paragraph::new(help)
         .block(Block::default().borders(Borders::TOP))
         .style(Style::default().fg(Color::DarkGray));

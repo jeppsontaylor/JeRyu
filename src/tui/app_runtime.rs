@@ -1,3 +1,4 @@
+// allowlist: direct-db-access-from-wrong-layer
 use super::*;
 
 #[cfg(test)]
@@ -14,17 +15,20 @@ impl App {
         let (log_tx, log_rx) = mpsc::channel(8);
         let (feed_tx, feed_rx) = mpsc::channel(4);
         let (log_target_tx, _log_target_rx) = watch::channel(None);
+        let mut state = TuiStateSnapshot::default();
+        state.jankurai = crate::tui::jankurai::load_snapshot();
         Self {
             store,
             docker,
             gitlab,
-            state: TuiStateSnapshot::default(),
+            state,
             active_tab: ActiveTab::default(),
             active_pane: ActivePane::default(),
             selected_pool_index: 0,
             selected_pipeline_index: 0,
             selected_job_index: 0,
             selected_job_id: None,
+            selected_jankurai_index: 0,
             maximize_logs: false,
             log_scroll_offset: 0,
             follow_log_tail: true,
@@ -64,6 +68,35 @@ impl App {
     pub fn tick_demo_state(&mut self) {
         app_runtime_demo::tick_demo_state(self);
     }
+
+    pub(crate) fn runner_group_counts(&self) -> (usize, usize) {
+        (
+            self.state.pools.iter().filter(|group| !group.paused).count(),
+            self.state.pools.len(),
+        )
+    }
+
+    pub(crate) fn is_runner_group_tab(&self) -> bool {
+        self.active_tab == ActiveTab::Pools
+    }
+
+    pub(crate) fn render_tab(&self) -> crate::tui::ui::RenderTab {
+        match self.active_tab {
+            ActiveTab::Workflow => crate::tui::ui::RenderTab::Workflow,
+            ActiveTab::Mission => crate::tui::ui::RenderTab::Mission,
+            ActiveTab::Release => crate::tui::ui::RenderTab::Release,
+            ActiveTab::Jobs => crate::tui::ui::RenderTab::Jobs,
+            ActiveTab::Agents => crate::tui::ui::RenderTab::Agents,
+            ActiveTab::Tests => crate::tui::ui::RenderTab::Tests,
+            ActiveTab::Pools => crate::tui::ui::RenderTab::RunnerGroups,
+            ActiveTab::Cache => crate::tui::ui::RenderTab::Cache,
+            ActiveTab::Evidence => crate::tui::ui::RenderTab::Evidence,
+            ActiveTab::Git => crate::tui::ui::RenderTab::Git,
+            ActiveTab::Secrets => crate::tui::ui::RenderTab::Secrets,
+            ActiveTab::Jank => crate::tui::ui::RenderTab::Jank,
+        }
+    }
+
 }
 
 #[path = "app_runtime_demo.rs"]

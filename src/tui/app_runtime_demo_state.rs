@@ -63,6 +63,7 @@ pub(crate) fn build_demo_state(
             error: None,
             outdated: false,
         },
+        jankurai: crate::tui::jankurai::load_snapshot(),
         hot_cache_usage_bytes: 2_340_000_000,
         cache_hits: 1_102,
         cache_objects_count: 2_900,

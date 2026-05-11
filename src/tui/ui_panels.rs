@@ -73,8 +73,26 @@ pub(crate) fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
         .saturating_sub(if !app.state.gitlab_ready { 22 } else { 0 })
         .saturating_sub(if app.state.proxy_healthy { 0 } else { 8 })
         .min(100);
-    let (headline, headline_color, next_action) = top_attention(app);
-    let (_, outdated_color, outdated_label) = outdated_indicator(app);
+    let attention = AttentionState {
+        active_taint_count: app.state.active_taint_count,
+        release: app.state.release_status.as_ref().map(|rel| AttentionRelease {
+            version: rel.attempt.version.clone(),
+            state_label: rel.canary_state.clone(),
+        }),
+        failed_job: app
+            .state
+            .recent_jobs
+            .iter()
+            .find(|job| job.status == "failed")
+            .map(|job| AttentionJob {
+                id: job.job_id,
+                name: job.job_name.as_deref().unwrap_or("unknown job").to_string(),
+            }),
+        has_running_job: app.state.recent_jobs.iter().any(|job| job.status == "running"),
+        gitlab_ready: app.state.gitlab_ready,
+    };
+    let (headline, headline_color, next_action) = top_attention(&attention);
+    let (_, outdated_color, outdated_label) = outdated_indicator(app.state.last_sync_at);
 
     f.render_widget(
         Paragraph::new(vec![
@@ -275,3 +293,7 @@ pub(crate) fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
 #[path = "ui_panels_mission_extra.rs"]
 mod ui_panels_mission_extra;
 pub(crate) use ui_panels_mission_extra::*;
+
+#[path = "ui_panels_jankurai.rs"]
+mod ui_panels_jankurai;
+pub(crate) use ui_panels_jankurai::*;

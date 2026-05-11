@@ -38,7 +38,7 @@ pub(crate) fn draw_release_banner(f: &mut Frame, app: &App, area: Rect) {
 
 #[allow(dead_code)]
 pub(crate) fn draw_flow_board(f: &mut Frame, app: &App, area: Rect) {
-    let (outdated_age, outdated_color, _outdated_label) = outdated_indicator(app);
+    let (outdated_age, outdated_color, _outdated_label) = outdated_indicator(app.state.last_sync_at);
     let flow_outdated = app.state.flow.outdated;
     let title = if flow_outdated {
         if let Some(last) = app.state.flow.last_non_empty_at {
@@ -197,7 +197,7 @@ pub(crate) fn draw_jobs(f: &mut Frame, app: &App, area: Rect) {
                 app.state.recent_jobs.len()
             ))
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(pane_border(ActivePane::Jobs, app))),
+            .border_style(Style::default().fg(pane_border(ActivePane::Jobs, app.active_pane))),
     );
     f.render_widget(list, area);
 }
@@ -238,7 +238,7 @@ pub(crate) fn draw_logs(f: &mut Frame, app: &mut App, area: Rect) {
         } else if log_state.outdated || log_state.error.is_some() {
             Color::Yellow
         } else {
-            pane_border(ActivePane::Jobs, app)
+            pane_border(ActivePane::Jobs, app.active_pane)
         }));
 
     let inner_area = outer_block.inner(area);

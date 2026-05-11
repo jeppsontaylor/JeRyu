@@ -54,7 +54,6 @@
     "packages/": "tools",
     "paper/": "standard",
     "proof-lanes.toml": "workspace",
-    "python/ai-service/": "ai",
     "rust-analyzer.json": "workspace",
     "rust-toolchain.toml": "workspace",
     "rustfmt.toml": "workspace",

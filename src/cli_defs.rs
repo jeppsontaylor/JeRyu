@@ -153,7 +153,7 @@ pub(crate) enum Commands {
         /// Render one deterministic screenshot from a real terminal session.
         #[arg(long, default_value_t = false)]
         screenshot: bool,
-        /// TUI tab to render when capturing: mission, release, jobs, agents, tests, pools, cache, evidence, secrets.
+        /// TUI tab to render when capturing: mission, release, jobs, agents, tests, pools, cache, evidence, secrets, git, jank, or jankurai.
         #[arg(long, default_value = "jobs")]
         tab: String,
         /// Output path for --capture.

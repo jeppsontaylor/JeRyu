@@ -83,8 +83,12 @@ pub async fn run_tui_screenshot(
     tab: &str,
     hold_ms: u64,
 ) -> Result<()> {
+    let requested_tab = parse_capture_tab(tab)?;
     let mut app = App::new(store, docker_ctl, client);
-    app.active_tab = parse_capture_tab(tab)?;
+    if requested_tab == crate::tui::app::ActiveTab::Jank && !app.jankurai_available() {
+        anyhow::bail!("requested tab '{}' requires jankurai on PATH", tab);
+    }
+    app.active_tab = requested_tab;
     app.apply_demo_fixture();
 
     crossterm::terminal::enable_raw_mode()?;
@@ -121,9 +125,13 @@ pub async fn capture_tui_png(
 ) -> Result<()> {
     use ratatui::backend::TestBackend;
 
+    let requested_tab = parse_capture_tab(tab)?;
     let mut app = App::new(store, docker_ctl, client);
-    app.active_tab = parse_capture_tab(tab)?;
     hydrate_smoke_state(&mut app).await;
+    if requested_tab == crate::tui::app::ActiveTab::Jank && !app.jankurai_available() {
+        anyhow::bail!("requested tab '{}' requires jankurai on PATH", tab);
+    }
+    app.active_tab = requested_tab;
 
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend)?;

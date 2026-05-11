@@ -2,6 +2,7 @@
 //! Proof: `TERM=xterm-256color cargo test --test tui_tuiwright -- --test-threads=1`
 //! Invariants: Each test spawns a real PTY session; tests are serial to avoid port contention.
 
+use std::path::Path;
 use std::time::Duration;
 use tuiwright::{Page, SpawnConfig};
 
@@ -32,11 +33,96 @@ fn spawn_tui(tab: &str) -> anyhow::Result<Page> {
             .size(120, 36)
             .env("TERM", "xterm-256color")
             .env("COLORTERM", "truecolor")
-            .timeout(Duration::from_secs(8))
+            .timeout(Duration::from_secs(8)),
     )?;
     // Wait for the TUI to finish its first render.
     std::thread::sleep(Duration::from_millis(800));
     Ok(page)
+}
+
+fn fake_jankurai_path() -> anyhow::Result<(tempfile::TempDir, String)> {
+    let dir = tempfile::tempdir()?;
+    let script_name = if cfg!(windows) {
+        "jankurai.cmd"
+    } else {
+        "jankurai"
+    };
+    let script_path = dir.path().join(script_name);
+    #[cfg(windows)]
+    std::fs::write(&script_path, "@echo off\r\nexit /b 0\r\n")?;
+    #[cfg(not(windows))]
+    std::fs::write(&script_path, "#!/bin/sh\nexit 0\n")?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&script_path)?.permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&script_path, perms)?;
+    }
+
+    let mut paths = vec![dir.path().to_path_buf()];
+    if let Some(existing) = std::env::var_os("PATH") {
+        paths.extend(std::env::split_paths(&existing));
+    }
+    let path = std::env::join_paths(paths)?;
+    Ok((dir, path.to_string_lossy().into_owned()))
+}
+
+fn spawn_tui_with_path(tab: &str, path: &str, cwd: &Path) -> anyhow::Result<Page> {
+    let bin = jeryu_bin();
+    let page = Page::spawn(
+        SpawnConfig::new(&bin)
+            .cwd(cwd)
+            .arg("tui")
+            .arg("--screenshot")
+            .arg("--tab")
+            .arg(tab)
+            .arg("--screenshot-hold-ms")
+            .arg("10000")
+            .size(120, 36)
+            .env("TERM", "xterm-256color")
+            .env("COLORTERM", "truecolor")
+            .env("PATH", path)
+            .timeout(Duration::from_secs(8)),
+    )?;
+    std::thread::sleep(Duration::from_millis(800));
+    Ok(page)
+}
+
+fn fixture_jankurai_repo() -> anyhow::Result<tempfile::TempDir> {
+    let repo_dir = tempfile::tempdir()?;
+    std::fs::write(
+        repo_dir.path().join("Cargo.toml"),
+        "[workspace]\nmembers=[]\n",
+    )?;
+    std::fs::create_dir_all(repo_dir.path().join("agent"))?;
+    std::fs::write(
+        repo_dir.path().join("agent/repo-score.json"),
+        r#"{
+            "generated_at":"2026-05-11T12:00:00Z",
+            "score":64,
+            "raw_score":82,
+            "finding_count":1,
+            "hard_findings":1,
+            "soft_findings":0,
+            "decision":{"status":"advisory","minimum_score":85,"hard_findings":1,"soft_findings":0},
+            "conformance_decision":"block",
+            "dimensions":[
+                {"name":"Fixture determinism","weight":7,"score":64,"weighted_points":4.48,"evidence":["fixture score file loaded"],"notes":["stable test data"]}
+            ],
+            "caps_applied":["fixture-cap"],
+            "findings":[
+                {"severity":"high","hardness":"hard","path":"agent/generated-zones.toml","problem":"generated zone fixture finding","agent_fix":"keep screenshot tests on fixture artifacts","evidence":["fixture generated zone evidence"],"rule_id":"fixture-generated-zone","lane":"audit","owner":"agent"}
+            ]
+        }"#,
+    )?;
+    std::fs::write(
+        repo_dir.path().join("agent/score-history.jsonl"),
+        r#"{"generated_at":"2026-05-10T12:00:00Z","score":61,"raw_score":80,"decision":"advisory"}
+{"generated_at":"2026-05-11T12:00:00Z","score":64,"raw_score":82,"decision":"block"}
+"#,
+    )?;
+    Ok(repo_dir)
 }
 
 // ── Test: Workflow tab renders on startup ────────────────────────────────
@@ -102,6 +188,23 @@ fn jobs_tab_renders() -> anyhow::Result<()> {
     page.wait_for_text("Pipeline", Duration::from_secs(5))?;
 
     page.screenshot("target/tuiwright/jobs.png")?;
+    Ok(())
+}
+
+// ── Test: Jank tab renders when jankurai is available on PATH ──────────
+
+#[test]
+fn jank_tab_renders_when_tool_is_available() -> anyhow::Result<()> {
+    let (_dir, path) = fake_jankurai_path()?;
+    let repo_dir = fixture_jankurai_repo()?;
+    let page = spawn_tui_with_path("jank", &path, repo_dir.path())?;
+
+    page.wait_for_text("Jank", Duration::from_secs(5))?;
+    page.wait_for_text("Score History", Duration::from_secs(5))?;
+    page.wait_for_text("generated zone", Duration::from_secs(5))?;
+
+    std::fs::create_dir_all("target/tuiwright")?;
+    page.screenshot("target/tuiwright/jank.png")?;
     Ok(())
 }
 

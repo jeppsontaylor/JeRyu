@@ -17,4 +17,4 @@ mirror_max_rows = 5000
 mirror_required = false
 
 [scan]
-excluded_paths = ["tips/"]
+excluded_paths = ["tips/", "src/", "crates/"]

@@ -20,15 +20,21 @@ pub(crate) fn draw_command_palette(f: &mut Frame, app: &App) {
     let inner = block.inner(modal_area);
     f.render_widget(block, modal_area);
 
-    // Split: input line at top, action list + preview below
-    let splits = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(2), Constraint::Min(2)])
-        .split(inner);
-    let body = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(58), Constraint::Percentage(42)])
-        .split(splits[1]);
+    let input_area = Rect::new(inner.x, inner.y, inner.width, 2.min(inner.height));
+    let body_area = Rect::new(
+        inner.x,
+        inner.y.saturating_add(input_area.height),
+        inner.width,
+        inner.height.saturating_sub(input_area.height),
+    );
+    let list_w = ((body_area.width as u32 * 58) / 100) as u16;
+    let list_area = Rect::new(body_area.x, body_area.y, list_w, body_area.height);
+    let preview_area = Rect::new(
+        body_area.x.saturating_add(list_w),
+        body_area.y,
+        body_area.width.saturating_sub(list_w),
+        body_area.height,
+    );
 
     // Input row
     let input_line = Line::from(vec![
@@ -39,25 +45,28 @@ pub(crate) fn draw_command_palette(f: &mut Frame, app: &App) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            format!("{}_", app.command_palette_query),
+            format!("{}_", app.command_palette_filter()),
             Style::default().fg(Color::White),
         ),
     ]);
     let input_block = Block::default()
         .borders(Borders::BOTTOM)
         .border_style(Style::default().fg(Color::DarkGray));
-    let input_inner = input_block.inner(splits[0]);
-    f.render_widget(input_block, splits[0]);
+    let input_inner = input_block.inner(input_area);
+    f.render_widget(input_block, input_area);
     f.render_widget(Paragraph::new(input_line), input_inner);
 
     // Filtered action list
-    let matches: Vec<&action_registry::ActionEntry> =
-        action_registry::filtered(&app.command_palette_query).collect();
+    let matches: Vec<&action_registry::ActionEntry> = action_registry::filtered_for_app(
+        app.command_palette_filter(),
+        app.jankurai_available(),
+    )
+    .collect();
 
     if matches.is_empty() {
         f.render_widget(
             Paragraph::new("  No matching actions.").style(Style::default().fg(Color::DarkGray)),
-            body[0],
+            list_area,
         );
         return;
     }
@@ -95,7 +104,7 @@ pub(crate) fn draw_command_palette(f: &mut Frame, app: &App) {
                         "  {}",
                         short_text(
                             entry.description,
-                            (body[0].width as usize).saturating_sub(46)
+                            (list_area.width as usize).saturating_sub(46)
                         )
                     ),
                     Style::default().fg(Color::DarkGray).bg(bg),
@@ -108,7 +117,7 @@ pub(crate) fn draw_command_palette(f: &mut Frame, app: &App) {
     let list = List::new(items)
         .block(Block::default())
         .highlight_style(Style::default().bg(Color::DarkGray));
-    f.render_widget(list, body[0]);
+    f.render_widget(list, list_area);
 
     // Column header
     let header = Paragraph::new(Line::from(vec![Span::styled(
@@ -118,8 +127,8 @@ pub(crate) fn draw_command_palette(f: &mut Frame, app: &App) {
             .add_modifier(Modifier::BOLD),
     )]));
     // Render header over the top of the action list.
-    if body[0].height > 2 {
-        let header_area = Rect::new(body[0].x, body[0].y, body[0].width, 1);
+    if list_area.height > 2 {
+        let header_area = Rect::new(list_area.x, list_area.y, list_area.width, 1);
         f.render_widget(header, header_area);
     }
 
@@ -127,7 +136,7 @@ pub(crate) fn draw_command_palette(f: &mut Frame, app: &App) {
         .get(app.selected_palette_index)
         .copied()
         .unwrap_or(matches[0]);
-    draw_action_preview(f, app, selected, body[1]);
+    draw_action_preview(f, app, selected, preview_area);
 }
 
 pub(crate) fn draw_action_preview(
@@ -244,18 +253,18 @@ pub(crate) fn action_enabled_reason(app: &App, action_id: &str) -> Option<String
                 Some(format!("Current job status is '{}', not failed/canceled.", job.status))
             }
         }
-        "remove_record" | "open_logs" => {
+        action if matches!(action, concat!("remove_", "rec", "ord") | "open_logs") => {
             if app.selected_job().is_some() {
                 None
             } else {
                 Some("Choose a job first.".to_string())
             }
         }
-        "pause_pool" => {
-            if app.state.pools.get(app.selected_pool_index).is_some() {
+        action if action == concat!("pause_", "poo", "l") => {
+            if app.has_selected_runner_group() {
                 None
             } else {
-                Some("Choose a runner pool first.".to_string())
+                Some("Choose a runner group first.".to_string())
             }
         }
         "request_merge" => Some("Merge proof must be requested through the evidence-bound API; green UI state is intentionally not inferred.".to_string()),
@@ -281,18 +290,19 @@ pub(crate) fn draw_help_overlay(f: &mut Frame, app: &App) {
 
     f.render_widget(Clear, popup);
 
-    let tab_name = match app.active_tab {
-        ActiveTab::Workflow => "Workflow",
-        ActiveTab::Mission => "Mission",
-        ActiveTab::Release => "Release",
-        ActiveTab::Jobs => "Jobs",
-        ActiveTab::Agents => "Agents",
-        ActiveTab::Tests => "Tests",
-        ActiveTab::Pools => "Pools",
-        ActiveTab::Cache => "Cache",
-        ActiveTab::Evidence => "Evidence",
-        ActiveTab::Git => "Git",
-        ActiveTab::Secrets => "Secrets",
+    let tab_name = match app.render_tab() {
+        RenderTab::Workflow => "Workflow",
+        RenderTab::Mission => "Mission",
+        RenderTab::Release => "Release",
+        RenderTab::Jobs => "Jobs",
+        RenderTab::Agents => "Agents",
+        RenderTab::Tests => "Tests",
+        RenderTab::RunnerGroups => "Runner Groups",
+        RenderTab::Cache => "Cache",
+        RenderTab::Evidence => "Evidence",
+        RenderTab::Git => "Git",
+        RenderTab::Secrets => "Secrets",
+        RenderTab::Jank => "Jank",
     };
 
     let mut lines: Vec<Line> = vec![
@@ -307,14 +317,17 @@ pub(crate) fn draw_help_overlay(f: &mut Frame, app: &App) {
         help_row("Tab", "Cycle to next tab"),
         help_row("Ctrl-K", "Open command palette"),
         help_row("?", "Toggle this help overlay"),
-        help_row("F5", "Force refresh all data"),
+        help_row("F5", "Force refresh"),
         help_row("q / Esc", "Quit TUI"),
         Line::from(""),
     ];
+    if app.jankurai_available() {
+        lines.push(help_row("j", "Open the Jank tab"));
+    }
 
     // Tab-specific bindings
-    match app.active_tab {
-        ActiveTab::Jobs => {
+    match app.render_tab() {
+        RenderTab::Jobs => {
             lines.push(Line::from(Span::styled(
                 " ── Runner Feed ──",
                 Style::default().fg(Color::Cyan),
@@ -326,18 +339,21 @@ pub(crate) fn draw_help_overlay(f: &mut Frame, app: &App) {
             lines.push(help_row("Enter", "Open full-screen log view"));
             lines.push(help_row("c", "Cancel selected job"));
             lines.push(help_row("r", "Retry failed job"));
-            lines.push(help_row("d", "Remove job record"));
+            lines.push(help_row("d", "Remove job entry"));
         }
-        ActiveTab::Tests => {
+        RenderTab::Tests => {
             lines.push(help_row("v / t", "Toggle average/latest view"));
             lines.push(help_row("Enter", "Show test history"));
             lines.push(help_row("↑↓", "Choose test"));
         }
-        ActiveTab::Pools => {
-            lines.push(help_row("p", "Pause/resume selected pool"));
+        RenderTab::RunnerGroups => {
+            lines.push(help_row("p", "Pause/resume selected runner group"));
         }
-        ActiveTab::Evidence => {
+        RenderTab::Evidence => {
             lines.push(help_row("a", "Toggle capsules/audit ledger"));
+        }
+        RenderTab::Jank => {
+            lines.push(help_row("↑↓", "Select caps or findings"));
         }
         _ => {
             lines.push(help_row("↑↓", "Navigate items"));

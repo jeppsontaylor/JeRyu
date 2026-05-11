@@ -133,6 +133,7 @@ pub enum ActiveTab {
     Evidence,
     Git,
     Secrets,
+    Jank,
 }
 
 impl ActiveTab {
@@ -257,6 +258,7 @@ pub struct TuiStateSnapshot {
     pub pipelines: Vec<PipelineMetrics>,
     pub flow: crate::tui::flow::FlowSnapshot,
     pub live_log: LiveLogState,
+    pub jankurai: crate::tui::jankurai::JankuraiSnapshot,
     pub hot_cache_usage_bytes: i64,
     pub cache_hits: i64,
     pub cache_objects_count: i64,
@@ -312,6 +314,7 @@ pub struct App {
     pub selected_pipeline_index: usize,
     pub selected_job_index: usize,
     pub selected_job_id: Option<i64>,
+    pub selected_jankurai_index: usize,
 
     pub maximize_logs: bool,
     pub log_scroll_offset: u16,

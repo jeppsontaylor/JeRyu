@@ -367,7 +367,7 @@ pub(crate) fn draw_pools_tab(f: &mut Frame, app: &App, area: Rect) {
         Block::default()
             .title(format!(" [ Runner Pools ({}) ] ", app.state.pools.len()))
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(pane_border(ActivePane::Pools, app))),
+            .border_style(Style::default().fg(pane_border(ActivePane::Pools, app.active_pane))),
     );
     f.render_widget(list, cols[0]);
 
@@ -395,6 +395,10 @@ pub(crate) fn draw_pools_tab(f: &mut Frame, app: &App, area: Rect) {
             .wrap(Wrap { trim: false }),
         cols[1],
     );
+}
+
+pub(crate) fn draw_runner_groups_tab(f: &mut Frame, app: &App, area: Rect) {
+    draw_pools_tab(f, app, area);
 }
 
 // ---------------------------------------------------------------------------

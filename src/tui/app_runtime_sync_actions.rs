@@ -1,20 +1,45 @@
 use super::*;
 
 impl App {
+    pub fn jankurai_available(&self) -> bool {
+        self.state.jankurai.installed
+    }
+
+    fn visible_tabs(&self) -> Vec<ActiveTab> {
+        let mut tabs = vec![
+            ActiveTab::Workflow,
+            ActiveTab::Mission,
+            ActiveTab::Release,
+            ActiveTab::Jobs,
+            ActiveTab::Agents,
+            ActiveTab::Tests,
+            ActiveTab::Pools,
+            ActiveTab::Cache,
+            ActiveTab::Evidence,
+            ActiveTab::Secrets,
+            ActiveTab::Git,
+        ];
+        if self.jankurai_available() {
+            tabs.push(ActiveTab::Jank);
+        }
+        tabs
+    }
+
+    pub(crate) fn coerce_active_tab(&mut self) {
+        if !self.jankurai_available() && self.active_tab == ActiveTab::Jank {
+            self.active_tab = ActiveTab::Workflow;
+        }
+    }
+
     pub fn cycle_tab_next(&mut self) {
-        self.active_tab = match self.active_tab {
-            ActiveTab::Workflow => ActiveTab::Mission,
-            ActiveTab::Mission => ActiveTab::Release,
-            ActiveTab::Release => ActiveTab::Jobs,
-            ActiveTab::Jobs => ActiveTab::Agents,
-            ActiveTab::Agents => ActiveTab::Tests,
-            ActiveTab::Tests => ActiveTab::Pools,
-            ActiveTab::Pools => ActiveTab::Cache,
-            ActiveTab::Cache => ActiveTab::Evidence,
-            ActiveTab::Evidence => ActiveTab::Secrets,
-            ActiveTab::Secrets => ActiveTab::Git,
-            ActiveTab::Git => ActiveTab::Workflow,
-        };
+        self.coerce_active_tab();
+        let tabs = self.visible_tabs();
+        let index = tabs.iter().position(|tab| *tab == self.active_tab).unwrap_or(0);
+        self.active_tab = tabs[(index + 1) % tabs.len()];
+    }
+
+    pub fn selected_jankurai_entry(&self) -> Option<&crate::tui::jankurai::JankuraiEntry> {
+        self.state.jankurai.entries.get(self.selected_jankurai_index)
     }
 
     pub fn cycle_pane_next(&mut self) {
@@ -57,6 +82,17 @@ impl App {
                     self.selected_test_index = limit - 1;
                 }
                 self.selected_test_history = None; // clear history when moving
+            }
+            return;
+        }
+        if self.active_tab == ActiveTab::Jank {
+            let limit = self.state.jankurai.entries.len();
+            if limit > 0 {
+                if self.selected_jankurai_index > 0 {
+                    self.selected_jankurai_index -= 1;
+                } else {
+                    self.selected_jankurai_index = limit - 1;
+                }
             }
             return;
         }
@@ -108,6 +144,14 @@ impl App {
             if limit > 0 {
                 self.selected_test_index = (self.selected_test_index + 1) % limit;
                 self.selected_test_history = None; // clear history when moving
+            }
+            return;
+        }
+        if self.active_tab == ActiveTab::Jank {
+            let limit = self.state.jankurai.entries.len();
+            if limit > 0 {
+                self.selected_jankurai_index =
+                    (self.selected_jankurai_index + 1) % self.state.jankurai.entries.len();
             }
             return;
         }

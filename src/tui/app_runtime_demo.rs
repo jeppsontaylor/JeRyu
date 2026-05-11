@@ -177,6 +177,7 @@ pub(crate) fn apply_demo_fixture(app: &mut App) {
     app.selected_test_index = 0;
     app.selected_test_history = None;
     app.selected_evidence_index = 0;
+    app.selected_jankurai_index = 0;
     app.test_view_mode = TestViewMode::Average;
     app.evidence_view_mode = EvidenceViewMode::Capsules;
     app.maximize_logs = false;

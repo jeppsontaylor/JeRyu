@@ -5,7 +5,7 @@
 <div align="left">
   <p>
     <a href="agent/repo-score.md">
-      <img alt="jankurai score 92" src="https://img.shields.io/badge/jankurai-92-brightgreen" />
+      <img alt="jankurai score 95" src="https://img.shields.io/badge/jankurai-95-brightgreen" />
     </a>
     <a href="https://github.com/jeppsontaylor/JeRyu/actions/workflows/rust.yml">
       <img alt="CI" src="https://github.com/jeppsontaylor/JeRyu/actions/workflows/rust.yml/badge.svg" />
@@ -34,7 +34,9 @@ JeRyu isn't just a headless orchestrator. It comes with a blazing-fast, proof-ri
 
 Visualize live pipeline execution, monitor remote runner pools, inspect test bottlenecks, and review agent capabilities—all in one place without digging through raw, disconnected logs.
 
-**9 operational tabs**: Mission · Release · Jobs · Agents · Tests · Pools · Cache · Evidence · Secrets
+If `jankurai` is on `PATH`, JeRyu also shows an optional `Jank` tab that reads the generated repo-score artifacts and score history. Install or inspect it at https://github.com/neverhuman/jankurai.
+
+**9 operational tabs** plus optional `Jank`: Mission · Release · Jobs · Agents · Tests · Pools · Cache · Evidence · Secrets
 
 ```bash
 # Launch the interactive TUI

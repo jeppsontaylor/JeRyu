@@ -1,17 +1,17 @@
 {
-  "report_fingerprint": "sha256:3c4a4d77a23f2412200f06e2a2046346e1e6846b97a28d77f68d583ec213f977",
-  "input_fingerprint": "sha256:ed7b5fc4a1d450993d4611f3610080415cedb5342ef47ecf012ecff8453b6dc3",
-  "policy_fingerprint": "sha256:0e277c50d1190cb289cfc6203cd8c7037a4c046999a34104afd9359cfcff225b",
+  "report_fingerprint": "sha256:ac40af3d99d9032c8751d3c8df1b1272bbf54536f90d06fd59241aaba93b1013",
+  "input_fingerprint": "sha256:25a888708edd73f78c8b322adcaa8c2102eb21d3bcc91940292cdf480096f9f4",
+  "policy_fingerprint": "sha256:4288a09ea1a256b73db79a0953ca6e88b9b823694013e1e0974ae859e7d6c167",
   "manifest_fingerprints": {
-    "owner_map": "sha256:8292de7985d608f518ab016af5ca43b9a600451fe657b3cb96c158365b0418fd",
-    "test_map": "sha256:8e2701256b0f4e2eca369a93f9181a0f6d9695aa774a0e5f9428b2a8b07e0d03",
+    "owner_map": "sha256:b0b5a6ec1dcf49aa1c4d5a4b3b090c300a89fdb7f38fd50691578d130aa2dd85",
+    "test_map": "sha256:a1b8aea5607aa2423ac106e008f5cfbcbf01c02efe05af69cf2fc4d12a4287f0",
     "generated_zones": "sha256:5b10e7ba083dd6b825ad78aa54b9e94144c8544e85b62faf6587a86283356f44",
-    "boundaries": "sha256:b99d3c83e4f3d21beaa379241bd9a36d99f10187fd09d7a24bab733aa8c70729",
+    "boundaries": "sha256:3576da495134b252ca6cdfa69ff4c777cc70c4497991a3b9f0131cd85f9428f9",
     "proof_lanes": "sha256:87630d6fe9b678ce7cfeff446c6e1bf1cdf75bc48c8669929914d2fb5d7e07e8",
     "standard_version": "sha256:6d84737d2795323e28d70f14863f479329f39f7130bd5021823bddc48d32fba2"
   },
   "dirty_worktree": true,
-  "generated_at": "1778513021",
+  "generated_at": "1778532433",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.8.0",
@@ -28,23 +28,23 @@
     "HLT-002-GENERATED-MUTATION on agent/generated-zones.toml"
   ],
   "repo": ".",
-  "run_id": "1778513021",
-  "started_at": "1778513021",
-  "elapsed_ms": 4328,
+  "run_id": "1778532433",
+  "started_at": "1778532433",
+  "elapsed_ms": 1292,
   "scope": {
     "mode": "full",
     "paths": []
   },
-  "score": 92,
-  "raw_score": 92,
+  "score": 95,
+  "raw_score": 95,
   "decision": {
     "status": "advisory",
     "minimum_score": 85,
     "passed": true,
     "hard_findings": 2,
-    "soft_findings": 2,
+    "soft_findings": 0,
     "ratchet": {
-      "baseline_score": 92,
+      "baseline_score": 95,
       "allowed_drop": 0,
       "passed": false,
       "score_delta": 0,
@@ -57,7 +57,7 @@
     }
   },
   "git": {
-    "head": "5f2a37b",
+    "head": "d7f9d66",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -76,7 +76,7 @@
     ],
     "mode": "advisory",
     "standard_version": "0.8.0",
-    "auditor_version": "0.8.16",
+    "auditor_version": "1.0.0",
     "schema_version": "1.7.0",
     "paper_edition": "2026.05-ed8",
     "target_stack": "rust-ts-vite-react-postgres-bounded-python"
@@ -258,6 +258,10 @@
     {
       "id": "repo-rot-bad-behavior",
       "max_score": 88
+    },
+    {
+      "id": "comment-hygiene-dangerous-residue",
+      "max_score": 72
     }
   ],
   "dimensions": [
@@ -276,20 +280,10 @@
         "reference-profile cell `web` has local AGENTS.md guidance",
         "reference-profile cell `api` is canonical",
         "reference-profile cell `api` has local AGENTS.md guidance",
-        "reference-profile cell `domain` is canonical",
-        "reference-profile cell `domain` has local AGENTS.md guidance",
-        "reference-profile cell `application` is canonical",
-        "reference-profile cell `application` has local AGENTS.md guidance",
-        "reference-profile cell `adapters` is canonical",
-        "reference-profile cell `adapters` has local AGENTS.md guidance",
-        "reference-profile cell `workers` is canonical",
-        "reference-profile cell `workers` has local AGENTS.md guidance",
         "reference-profile cell `contracts` is canonical",
         "reference-profile cell `contracts` has local AGENTS.md guidance",
         "reference-profile cell `db` is canonical",
         "reference-profile cell `db` has local AGENTS.md guidance",
-        "reference-profile cell `python-ai` is canonical",
-        "reference-profile cell `python-ai` has local AGENTS.md guidance",
         "reference-profile cell `ops` is canonical",
         "reference-profile cell `ops` has local AGENTS.md guidance",
         "root `README.md` routes to workspace layout",
@@ -301,8 +295,8 @@
     {
       "name": "Contract and boundary integrity",
       "weight": 13,
-      "score": 93,
-      "weighted_points": 12.09,
+      "score": 100,
+      "weighted_points": 13.0,
       "evidence": [
         "contract surface found",
         "generated contract artifacts found",
@@ -310,7 +304,6 @@
         "public API drift checks found",
         "boundary manifest present",
         "Rust typed boundary helpers found",
-        "handwritten web DTO/API marker found",
         "all contract sources have generated zone entries"
       ],
       "notes": []
@@ -347,7 +340,7 @@
         "security lane present",
         "canonical security lane wrapper present",
         "agent-readiness audit gate found in CI",
-        "rust bad-behavior advisory signals: 924",
+        "rust bad-behavior advisory signals: 2",
         "ci bad-behavior advisory signals: 3",
         "git bad-behavior advisory signals: 1",
         "gittools bad-behavior advisory signals: 1",
@@ -358,12 +351,13 @@
     {
       "name": "Code shape and semantic surface",
       "weight": 12,
-      "score": 80,
-      "weighted_points": 9.6,
+      "score": 100,
+      "weighted_points": 12.0,
       "evidence": [
-        "largest authored code file: src/exec/stage.rs (464 LOC)",
+        "largest authored code file: test_font3.rs (16 LOC)",
         "most code files stay under 300 LOC",
-        "rust bad-behavior advisory signals: 924",
+        "authored code stays below hard LOC limits with no shape markers",
+        "rust bad-behavior advisory signals: 2",
         "ci bad-behavior advisory signals: 3",
         "git bad-behavior advisory signals: 1",
         "gittools bad-behavior advisory signals: 1",
@@ -374,14 +368,13 @@
     {
       "name": "Data truth and workflow safety",
       "weight": 8,
-      "score": 95,
-      "weighted_points": 7.6,
+      "score": 85,
+      "weighted_points": 6.8,
       "evidence": [
         "database surface present",
         "structured db boundary manifest present",
         "db boundary routes roots, migrations, and constraints",
-        "migration directory present",
-        "data access appears compartmentalized"
+        "migration directory present"
       ],
       "notes": []
     },
@@ -426,9 +419,9 @@
       "weighted_points": 5.32,
       "evidence": [
         "control-plane files present",
-        "applicable=17",
+        "applicable=16",
         "configured=11",
-        "ci_evidence=14",
+        "ci_evidence=13",
         "artifact_verified=6"
       ],
       "notes": [
@@ -443,11 +436,10 @@
     {
       "name": "Python containment and polyglot hygiene",
       "weight": 4,
-      "score": 80,
-      "weighted_points": 3.2,
+      "score": 100,
+      "weighted_points": 4.0,
       "evidence": [
-        "Python stays inside exception-only non-product roots",
-        "exception-only AI/data service path present"
+        "no Python files in scope"
       ],
       "notes": []
     },
@@ -499,8 +491,6 @@
       ],
       "playwright_visual": [
         "apps/web/ux-qa.ts",
-        "crates/tuiwright/src/lib.rs",
-        "crates/tuiwright/tests/smoke.rs",
         "tests/tui_tuiwright.rs"
       ],
       "storybook": [
@@ -514,11 +504,11 @@
   },
   "tool_adoption": {
     "control_plane_present": true,
-    "applicable_count": 17,
+    "applicable_count": 16,
     "configured_count": 11,
-    "ci_evidence_count": 14,
+    "ci_evidence_count": 13,
     "artifact_verified_count": 6,
-    "replaced_count": 14,
+    "replaced_count": 13,
     "items": [
       {
         "id": "audit-ci",
@@ -831,6 +821,27 @@
         ]
       },
       {
+        "id": "coverage-evidence",
+        "category": "proof",
+        "mode": "auto",
+        "applicable": false,
+        "status": "not_applicable",
+        "replaced_tools": [
+          "manual coverage report review",
+          "ad hoc mutation survivor review"
+        ],
+        "evidence": [
+          "mode=auto"
+        ],
+        "missing": [],
+        "local_command": "jankurai coverage audit . --config agent/coverage-sources.toml --json target/jankurai/coverage/coverage-audit.json --md target/jankurai/coverage/coverage-audit.md",
+        "ci_command": "jankurai coverage audit . --config agent/coverage-sources.toml --json target/jankurai/coverage/coverage-audit.json --md target/jankurai/coverage/coverage-audit.md",
+        "artifact_paths": [
+          "target/jankurai/coverage/coverage-audit.json",
+          "target/jankurai/coverage/coverage-audit.md"
+        ]
+      },
+      {
         "id": "authz-matrix",
         "category": "security",
         "mode": "auto",
@@ -858,19 +869,15 @@
         "id": "input-boundary",
         "category": "security",
         "mode": "auto",
-        "applicable": true,
-        "status": "ci_evidence",
+        "applicable": false,
+        "status": "not_applicable",
         "replaced_tools": [
           "manual unsafe sink review"
         ],
         "evidence": [
-          "mode=auto",
-          "CI command found in workflow"
+          "mode=auto"
         ],
-        "missing": [
-          "agent/tool-adoption.toml entry",
-          "artifact upload reference"
-        ],
+        "missing": [],
         "local_command": "jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md",
         "ci_command": "jankurai audit . --mode ratchet --baseline target/jankurai/accepted-baseline.json --json target/jankurai/repo-score.json --md target/jankurai/repo-score.md",
         "artifact_paths": [
@@ -952,7 +959,7 @@
       }
     ],
     "evidence": {
-      "applicable_count": 17,
+      "applicable_count": 16,
       "applicable_tools": [
         "audit-ci",
         "proof-routing",
@@ -967,7 +974,6 @@
         "contract-drift",
         "rust-witness",
         "authz-matrix",
-        "input-boundary",
         "agent-tool-supply",
         "release-readiness",
         "cost-budget"
@@ -981,7 +987,7 @@
         "db-migration-analyze",
         "rust-witness"
       ],
-      "ci_evidence_count": 14,
+      "ci_evidence_count": 13,
       "ci_evidence_tools": [
         "audit-ci",
         "proof-routing",
@@ -993,7 +999,6 @@
         "contract-drift",
         "rust-witness",
         "authz-matrix",
-        "input-boundary",
         "agent-tool-supply",
         "release-readiness",
         "cost-budget"
@@ -1023,7 +1028,6 @@
       "release-bad-behavior",
       "contract-drift",
       "authz-matrix",
-      "input-boundary",
       "agent-tool-supply",
       "release-readiness",
       "cost-budget"
@@ -1033,8 +1037,8 @@
   "boundaries": {
     "artifact": {
       "path": "agent/boundaries.toml",
-      "content_fingerprint": "sha256:b99d3c83e4f3d21beaa379241bd9a36d99f10187fd09d7a24bab733aa8c70729",
-      "stack_id": "rust-ts-vite-react-postgres-bounded-python",
+      "content_fingerprint": "sha256:3576da495134b252ca6cdfa69ff4c777cc70c4497991a3b9f0131cd85f9428f9",
+      "stack_id": "rust-ts-vite-react-postgres",
       "stack_version": "0.4.0",
       "adapter_path_count": 2,
       "event_contract_path_count": 1,
@@ -1045,8 +1049,8 @@
     "reclassifications": []
   },
   "profile_structure": {
-    "applicable_count": 10,
-    "canonical_count": 10,
+    "applicable_count": 5,
+    "canonical_count": 5,
     "noncanonical_count": 0,
     "guidance_missing_count": 0,
     "cells": [
@@ -1089,75 +1093,67 @@
       },
       {
         "id": "domain",
-        "applicable": true,
-        "status": "canonical",
+        "applicable": false,
+        "status": "not_applicable",
         "canonical_path": "crates/domain/",
-        "detected_paths": [
-          "crates/domain"
-        ],
+        "detected_paths": [],
         "aliases": [
           "domain/",
           "core/"
         ],
-        "guidance_status": "present",
+        "guidance_status": "not_required",
         "owner": "crates/domain",
         "proof_lane": "unit / property tests",
-        "agent_fix": "keep `crates/domain/AGENTS.md` aligned with owns / forbidden / proof lane guidance"
+        "agent_fix": "no action"
       },
       {
         "id": "application",
-        "applicable": true,
-        "status": "canonical",
+        "applicable": false,
+        "status": "not_applicable",
         "canonical_path": "crates/application/",
-        "detected_paths": [
-          "crates/application"
-        ],
+        "detected_paths": [],
         "aliases": [
           "application/",
           "usecases/",
           "use-cases/"
         ],
-        "guidance_status": "present",
+        "guidance_status": "not_required",
         "owner": "crates/application",
         "proof_lane": "use-case / authz tests",
-        "agent_fix": "keep `crates/application/AGENTS.md` aligned with owns / forbidden / proof lane guidance"
+        "agent_fix": "no action"
       },
       {
         "id": "adapters",
-        "applicable": true,
-        "status": "canonical",
+        "applicable": false,
+        "status": "not_applicable",
         "canonical_path": "crates/adapters/",
-        "detected_paths": [
-          "crates/adapters"
-        ],
+        "detected_paths": [],
         "aliases": [
           "adapters/",
           "infra/",
           "integrations/"
         ],
-        "guidance_status": "present",
+        "guidance_status": "not_required",
         "owner": "crates/adapters",
         "proof_lane": "adapter integration tests",
-        "agent_fix": "keep `crates/adapters/AGENTS.md` aligned with owns / forbidden / proof lane guidance"
+        "agent_fix": "no action"
       },
       {
         "id": "workers",
-        "applicable": true,
-        "status": "canonical",
+        "applicable": false,
+        "status": "not_applicable",
         "canonical_path": "crates/workers/",
-        "detected_paths": [
-          "crates/workers"
-        ],
+        "detected_paths": [],
         "aliases": [
           "workers/",
           "jobs/",
           "scheduler/",
           "queue/"
         ],
-        "guidance_status": "present",
+        "guidance_status": "not_required",
         "owner": "crates/workers",
         "proof_lane": "workflow / replay tests",
-        "agent_fix": "keep `crates/workers/AGENTS.md` aligned with owns / forbidden / proof lane guidance"
+        "agent_fix": "no action"
       },
       {
         "id": "contracts",
@@ -1198,13 +1194,10 @@
       },
       {
         "id": "python-ai",
-        "applicable": true,
-        "status": "canonical",
+        "applicable": false,
+        "status": "not_applicable",
         "canonical_path": "python/ai-service/",
-        "detected_paths": [
-          "python",
-          "python/ai-service"
-        ],
+        "detected_paths": [],
         "aliases": [
           "python/",
           "ai-service/",
@@ -1212,10 +1205,10 @@
           "embeddings/",
           "model/"
         ],
-        "guidance_status": "present",
+        "guidance_status": "not_required",
         "owner": "python/ai-service",
         "proof_lane": "eval / contract tests",
-        "agent_fix": "keep `python/ai-service/AGENTS.md` aligned with owns / forbidden / proof lane guidance"
+        "agent_fix": "no action"
       },
       {
         "id": "ops",
@@ -1242,8 +1235,8 @@
       }
     ],
     "evidence": {
-      "applicable_count": 10,
-      "canonical_count": 10,
+      "applicable_count": 5,
+      "canonical_count": 5,
       "detected_cells": [
         {
           "canonical_path": "apps/web/",
@@ -1261,42 +1254,6 @@
           ],
           "guidance_status": "present",
           "id": "api",
-          "status": "canonical"
-        },
-        {
-          "canonical_path": "crates/domain/",
-          "detected_paths": [
-            "crates/domain"
-          ],
-          "guidance_status": "present",
-          "id": "domain",
-          "status": "canonical"
-        },
-        {
-          "canonical_path": "crates/application/",
-          "detected_paths": [
-            "crates/application"
-          ],
-          "guidance_status": "present",
-          "id": "application",
-          "status": "canonical"
-        },
-        {
-          "canonical_path": "crates/adapters/",
-          "detected_paths": [
-            "crates/adapters"
-          ],
-          "guidance_status": "present",
-          "id": "adapters",
-          "status": "canonical"
-        },
-        {
-          "canonical_path": "crates/workers/",
-          "detected_paths": [
-            "crates/workers"
-          ],
-          "guidance_status": "present",
-          "id": "workers",
           "status": "canonical"
         },
         {
@@ -1318,16 +1275,6 @@
           "status": "canonical"
         },
         {
-          "canonical_path": "python/ai-service/",
-          "detected_paths": [
-            "python",
-            "python/ai-service"
-          ],
-          "guidance_status": "present",
-          "id": "python-ai",
-          "status": "canonical"
-        },
-        {
           "canonical_path": "ops/",
           "detected_paths": [
             ".github",
@@ -1344,30 +1291,6 @@
     }
   },
   "findings": [
-    {
-      "severity": "medium",
-      "category": "shape",
-      "path": ".",
-      "problem": "`Code shape and semantic surface` scored 80 below the standard floor of 85",
-      "agent_fix": "split large or ambiguous authored code into smaller semantic modules with focused tests",
-      "evidence": [
-        "largest authored code file: src/exec/stage.rs (464 LOC)",
-        "most code files stay under 300 LOC",
-        "rust bad-behavior advisory signals: 924",
-        "ci bad-behavior advisory signals: 3"
-      ],
-      "check_id": "HLT-001-DEAD-MARKER:shape",
-      "hardness": "soft",
-      "confidence": 0.76,
-      "evidence_kind": "repository-scan",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:ac193e8801e442a89c99261a467d7fdf8e17a5d65da55bfc22290187b3245f9b",
-      "rule_id": "HLT-001-DEAD-MARKER",
-      "tlr": "Entropy",
-      "lane": "fast",
-      "docs_url": "docs/audit-rubric.md#future-hostile-language-rule",
-      "owner": "tools"
-    },
     {
       "severity": "high",
       "category": "generated",
@@ -1411,41 +1334,9 @@
       "docs_url": "agent/JANKURAI_STANDARD.md#generated-zones",
       "owner": "agent",
       "line": 1
-    },
-    {
-      "severity": "medium",
-      "category": "python",
-      "path": "python/ai-service",
-      "problem": "`Python containment and polyglot hygiene` scored 80 below the standard floor of 85",
-      "agent_fix": "remove Python unless it is a dated advanced-ML/data exception and move product truth into Rust, SQL, and generated contracts",
-      "evidence": [
-        "Python stays inside exception-only non-product roots",
-        "exception-only AI/data service path present"
-      ],
-      "check_id": "HLT-005-PYTHON-PRODUCT-TRUTH:python",
-      "hardness": "soft",
-      "confidence": 0.76,
-      "evidence_kind": "repository-scan",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:5c96e1d3ac9be46c950262f55d16b371e6386195352b43f0cb0c43881de756e8",
-      "rule_id": "HLT-005-PYTHON-PRODUCT-TRUTH",
-      "tlr": "Business truth",
-      "lane": "contract",
-      "docs_url": "docs/agent-native-standard.md",
-      "owner": "tools"
     }
   ],
   "agent_fix_queue": [
-    {
-      "path": "python/ai-service",
-      "priority": "medium",
-      "rule_id": "HLT-005-PYTHON-PRODUCT-TRUTH",
-      "tlr": "Business truth",
-      "lane": "contract",
-      "owner": "tools",
-      "task": "remove Python unless it is a dated advanced-ML/data exception and move product truth into Rust, SQL, and generated contracts",
-      "why": "`Python containment and polyglot hygiene` scored 80 below the standard floor of 85"
-    },
     {
       "path": "agent/generated-zones.toml",
       "priority": "high",
@@ -1465,16 +1356,6 @@
       "owner": "agent",
       "task": "regenerate `agent/repo-score.md` using the declared command, or remove the zone entry if the file was deleted intentionally",
       "why": "generated zone file `agent/repo-score.md` is missing"
-    },
-    {
-      "path": ".",
-      "priority": "medium",
-      "rule_id": "HLT-001-DEAD-MARKER",
-      "tlr": "Entropy",
-      "lane": "fast",
-      "owner": "tools",
-      "task": "split large or ambiguous authored code into smaller semantic modules with focused tests",
-      "why": "`Code shape and semantic surface` scored 80 below the standard floor of 85"
     }
   ]
 }

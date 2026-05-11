@@ -99,6 +99,21 @@ async fn core_snapshot_preserves_flow_and_live_log_state() -> Result<()> {
 }
 
 #[tokio::test]
+async fn refresh_coerces_jank_tab_when_availability_disappears() -> Result<()> {
+    let mut app = super::test_app().await?;
+    app.state.jankurai.installed = true;
+    app.active_tab = super::ActiveTab::Jank;
+
+    let mut snap = TuiStateSnapshot::default();
+    snap.jankurai.installed = false;
+    app.sync_tx.send(snap).await.unwrap();
+    app.tick().await;
+
+    assert_eq!(app.active_tab, super::ActiveTab::Workflow);
+    Ok(())
+}
+
+#[tokio::test]
 async fn empty_flow_snapshot_does_not_blank_existing_board() -> Result<()> {
     let mut app = super::test_app().await?;
     let generated_at = chrono::Utc::now();

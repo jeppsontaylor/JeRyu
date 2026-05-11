@@ -77,6 +77,14 @@ fn tui_demo_recording() -> anyhow::Result<()> {
     page.press(Key::Tab)?;
     std::thread::sleep(Duration::from_millis(3000));
 
+    // Go to Git tab (10)
+    page.press(Key::Tab)?;
+    std::thread::sleep(Duration::from_millis(3000));
+
+    // Go to Jank tab (11)
+    page.press(Key::Tab)?;
+    std::thread::sleep(Duration::from_millis(4000));
+
     // Save the GIF
     let gif_options = GifOptions {
         loop_forever: true,
