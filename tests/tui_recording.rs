@@ -29,10 +29,18 @@ fn tui_demo_recording() -> anyhow::Result<()> {
     // Wait for initial render
     std::thread::sleep(Duration::from_millis(1500));
 
+    // Jump to Jank before recording so the GIF preview opens on the score/history tab.
+    page.press(Key::Char('j'))?;
+    std::thread::sleep(Duration::from_millis(3000));
+
     // Start recording GIF
     page.start_recording()?;
 
-    // Wait 3 seconds on the default Workflow tab
+    // Hold on Jank so the first recorded frame is stable.
+    std::thread::sleep(Duration::from_millis(3000));
+
+    // Wrap back to Workflow, then continue the tab tour.
+    page.press(Key::Tab)?;
     std::thread::sleep(Duration::from_millis(3000));
 
     // Go to Mission tab (1)
