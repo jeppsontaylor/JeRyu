@@ -1,0 +1,170 @@
+\section{Architecture Diagram}
+
+\begin{figure*}[t]
+\centering
+\begin{adjustbox}{max width=\textwidth}
+\begin{tikzpicture}[
+    x=1cm,
+    y=1cm,
+    font=\sffamily\scriptsize,
+    panel/.style={draw=black!35, fill=black!2, rounded corners=4pt, line width=0.45pt},
+    title/.style={font=\sffamily\bfseries\footnotesize, text=black!78},
+    lane/.style={draw=#1!70!black, fill=#1!7, rounded corners=3pt, line width=0.55pt},
+    box/.style={draw=#1!72!black, fill=#1!11, rounded corners=2pt, line width=0.45pt,
+        minimum height=0.48cm, align=center, text width=1.58cm, inner sep=2pt},
+    widebox/.style={draw=#1!72!black, fill=#1!10, rounded corners=2pt, line width=0.45pt,
+        minimum height=0.55cm, align=center, text width=2.85cm, inner sep=2pt},
+    extbox/.style={draw=#1!75!black, fill=#1!10, rounded corners=2pt, line width=0.45pt,
+        minimum height=0.56cm, align=center, text width=2.45cm, inner sep=2pt},
+    datastore/.style={draw=#1!75!black, fill=#1!10, cylinder, shape border rotate=90,
+        aspect=0.25, minimum height=0.62cm, minimum width=1.88cm, align=center,
+        text width=1.55cm, inner sep=1.5pt},
+    statebox/.style={draw=#1!75!black, fill=#1!10, rounded corners=2pt, line width=0.45pt,
+        minimum height=0.48cm, align=center, text width=1.58cm, inner sep=2pt},
+    plabel/.style={font=\sffamily\bfseries\tiny, align=left, text width=1.55cm},
+    flowstep/.style={draw=#1!75!black, fill=#1!9, rounded corners=2pt, line width=0.48pt,
+        minimum width=2.22cm, minimum height=0.86cm, align=center, text width=2.02cm, inner sep=2pt},
+    control/.style={-{Latex[length=2.1mm,width=1.35mm]}, line width=0.55pt, draw=black!68},
+    proof/.style={-{Latex[length=2.1mm,width=1.35mm]}, line width=0.65pt, draw=teal!70!black},
+    guard/.style={-{Latex[length=2.1mm,width=1.35mm]}, line width=0.58pt, draw=red!70!black, dashed},
+    rail/.style={line width=0.4pt, draw=black!28},
+    badge/.style={circle, draw=black!55, fill=white, inner sep=0.8pt,
+        font=\sffamily\bfseries\tiny, minimum size=0.32cm}
+]
+
+% ------------------------------------------------------------------
+% Panel A: static system topology.  All arrows use rails so they do not
+% cross boxes; this is intentionally closer to a C4 container diagram
+% than a module dependency graph.
+% ------------------------------------------------------------------
+\node[panel, minimum width=17.4cm, minimum height=8.25cm, anchor=north west] (top) at (0,8.25) {};
+\node[title, anchor=west] at (0.25,7.95) {A. System topology: GitLab-compatible forge substrate with Rust-owned agent control};
+
+\node[lane=blue, minimum width=3.10cm, minimum height=6.95cm, anchor=north west] (surfaces) at (0.25,7.45) {};
+\node[title, text=blue!55!black, anchor=west] at (0.45,7.18) {Interfaces};
+\node[widebox=blue, anchor=north west] (human) at (0.43,6.78) {Human\\operator};
+\node[widebox=blue, anchor=north west] (aiagent) at (0.43,6.10) {AI agent\\worker};
+\node[widebox=blue, anchor=north west] (tui) at (0.43,5.25) {TUI\\mission control};
+\node[widebox=blue, anchor=north west] (cli) at (0.43,4.57) {CLI and\\dispatch};
+\node[widebox=blue, anchor=north west] (capability) at (0.43,3.89) {Capability\\socket};
+\node[widebox=blue, anchor=north west] (actions) at (0.43,3.21) {Action registry\\and hooks};
+
+\node[lane=teal, minimum width=8.88cm, minimum height=6.95cm, anchor=north west] (jeryu) at (3.75,7.45) {};
+\node[title, text=teal!55!black, anchor=west] at (3.95,7.18) {jeryu Rust control plane};
+
+\node[lane=cyan, minimum width=8.44cm, minimum height=0.83cm, anchor=north west] (interfaceplane) at (3.97,6.78) {};
+\node[plabel, text=cyan!45!black, anchor=west] at (4.15,6.48) {Interface\\plane};
+\node[box=cyan, anchor=north west] at (6.24,6.65) {CLI / TUI};
+\node[box=cyan, anchor=north west] at (8.18,6.65) {Capability API};
+\node[box=cyan, anchor=north west] at (10.12,6.65) {Admission};
+
+\node[lane=purple, minimum width=8.44cm, minimum height=0.83cm, anchor=north west] (intelplane) at (3.97,5.83) {};
+\node[plabel, text=purple!55!black, anchor=west] at (4.15,5.53) {Intelligence\\plane};
+\node[box=purple, anchor=north west] at (6.24,5.70) {Agent};
+\node[box=purple, anchor=north west] at (8.18,5.70) {Decision\\impact};
+\node[box=purple, anchor=north west] at (10.12,5.70) {VTI\\explain};
+
+\node[lane=orange, minimum width=8.44cm, minimum height=0.83cm, anchor=north west] (controlplane) at (3.97,4.88) {};
+\node[plabel, text=orange!70!black, anchor=west] at (4.15,4.58) {Control\\plane};
+\node[box=orange, anchor=north west] at (6.24,4.75) {Engine};
+\node[box=orange, anchor=north west] at (8.18,4.75) {Pools};
+\node[box=orange, anchor=north west] at (10.12,4.75) {Release\\gates};
+
+\node[lane=gray, minimum width=8.44cm, minimum height=0.83cm, anchor=north west] (stateplane) at (3.97,3.93) {};
+\node[plabel, text=black!60, anchor=west] at (4.15,3.63) {State\\plane};
+\node[statebox=gray, anchor=north west] (postgres) at (6.24,3.80) {Postgres\\primary};
+\node[statebox=gray, anchor=north west] (sqlite) at (8.18,3.80) {SQLite\\fallback};
+\node[statebox=gray, anchor=north west] at (10.12,3.80) {Audit\\ledgers};
+
+\node[lane=red, minimum width=8.44cm, minimum height=0.83cm, anchor=north west] (execplane) at (3.97,2.98) {};
+\node[plabel, text=red!60!black, anchor=west] at (4.15,2.68) {Execution\\plane};
+\node[box=red, anchor=north west] at (6.24,2.85) {Executor\\sandbox};
+\node[box=red, anchor=north west] at (8.18,2.85) {Honeypot\\taint};
+\node[box=red, anchor=north west] at (10.12,2.85) {SmartCache};
+
+\node[lane=green, minimum width=8.44cm, minimum height=0.86cm, anchor=north west] (proofcrates) at (3.97,1.82) {};
+\node[plabel, text=green!45!black, anchor=west] at (4.15,1.52) {Proof-scoped\\workspace};
+\node[box=green, anchor=north west] at (6.24,1.68) {cargo-witness};
+\node[box=green, anchor=north west] at (8.18,1.68) {cargo-vrc};
+\node[box=green, anchor=north west] at (10.12,1.68) {cargo-aer\\witness-rt};
+
+\node[lane=orange, minimum width=4.18cm, minimum height=6.95cm, anchor=north west] (substrate) at (13.00,7.45) {};
+\node[title, text=orange!65!black, anchor=west] at (13.20,7.18) {Forge and runtime substrate};
+\node[extbox=orange, anchor=north west] (gitlab) at (13.32,6.78) {GitLab CE\\MRs, CI, webhooks};
+\node[extbox=orange, anchor=north west] (runner) at (13.32,5.86) {GitLab Runner\\managers};
+\node[extbox=orange, anchor=north west] (docker) at (13.32,4.94) {Docker Engine\\containers};
+\node[extbox=orange, anchor=north west] (vault) at (13.32,4.02) {Vault\\release secrets};
+\node[extbox=orange, anchor=north west] (artifacts) at (13.32,3.10) {Artifacts\\logs, traces, capsules};
+\node[extbox=orange, anchor=north west] (repos) at (13.32,2.18) {Jeryu repos\\branches, refs};
+
+% Topology rails.
+\draw[rail] (3.47,6.30) -- (3.72,6.30);
+\draw[rail] (12.64,4.93) -- (12.92,4.93);
+\draw[control] (human.east) -| (3.47,6.30) -- (interfaceplane.west);
+\draw[control] (aiagent.east) -| (3.47,6.30);
+\draw[control] (tui.east) -- ++(0.45,0) |- (interfaceplane.west);
+\draw[control] (cli.east) -- ++(0.45,0) |- (interfaceplane.west);
+\draw[control] (capability.east) -- ++(0.45,0) |- (interfaceplane.west);
+\draw[guard] (actions.east) -- ++(0.45,0) |- (interfaceplane.west);
+
+\draw[proof] (interfaceplane.east) -- ++(0.28,0) |- (gitlab.west);
+\draw[control] (controlplane.east) -- ++(0.28,0) |- (runner.west);
+\draw[control] (controlplane.east) -- ++(0.28,0) |- (docker.west);
+\draw[guard] (execplane.east) -- ++(0.28,0) |- (runner.west);
+\draw[guard] (execplane.east) -- ++(0.28,0) |- (docker.west);
+\draw[proof] (stateplane.east) -- ++(0.28,0) |- (artifacts.west);
+\draw[proof] (proofcrates.east) -- ++(0.28,0) |- (stateplane.east);
+
+\node[badge] at (3.58,6.30) {1};
+\node[badge] at (12.78,6.30) {2};
+\node[badge] at (12.78,5.05) {3};
+\node[badge] at (12.78,3.35) {4};
+
+% ------------------------------------------------------------------
+% Panel B: dynamic proof flow.  The row is intentionally linear; the
+% feedback paths return on a lower rail instead of crossing the steps.
+% ------------------------------------------------------------------
+\node[panel, minimum width=17.4cm, minimum height=4.34cm, anchor=north west] (bottom) at (0, -0.05) {};
+\node[title, anchor=west] at (0.25,-0.35) {B. Agent proof flow: authority moves through evidence, not around it};
+
+\node[flowstep=blue] (f1) at (1.35,-1.45) {\textbf{1 Intent}\\actor, task, branch};
+\node[flowstep=red] (f2) at (3.90,-1.45) {\textbf{2 Policy}\\grant, scope, risk};
+\node[flowstep=purple] (f3) at (6.45,-1.45) {\textbf{3 Plan}\\impact and VTI};
+\node[flowstep=orange] (f4) at (9.00,-1.45) {\textbf{4 Execute}\\pool, sandbox, cache};
+\node[flowstep=teal] (f5) at (11.55,-1.45) {\textbf{5 Evidence}\\tests, logs, capsules};
+\node[flowstep=green] (f6) at (14.10,-1.45) {\textbf{6 Decide}\\merge or release gate};
+
+\draw[control] (f1.east) -- (f2.west);
+\draw[guard] (f2.east) -- (f3.west);
+\draw[proof] (f3.east) -- (f4.west);
+\draw[proof] (f4.east) -- (f5.west);
+\draw[proof] (f5.east) -- (f6.west);
+
+\node[datastore=gray, minimum width=2.40cm, text width=2.05cm] (ledger) at (4.95,-3.05) {State and\\audit ledgers};
+\node[widebox=cyan, minimum width=2.55cm, text width=2.25cm] (feedback) at (9.30,-3.05) {TUI / CLI / API\\explain blockers};
+\node[widebox=green, minimum width=2.65cm, text width=2.35cm] (receipts) at (12.55,-3.05) {Proof receipts\\and route maps};
+
+\draw[proof] (f5.south) |- (ledger.east);
+\draw[proof] (f3.south) |- (receipts.west);
+\draw[control] (f6.south) |- (feedback.east);
+\draw[control] (feedback.west) -- (ledger.east);
+\draw[control] (ledger.west) -| (f1.south);
+
+\node[draw=black!35, fill=white, rounded corners=2pt, align=left, text width=5.72cm,
+    anchor=north west, inner sep=3pt] at (0.36,-3.56) {
+    \textbf{Legend:}
+    \textcolor{black!68}{control} routes commands and status;
+    \textcolor{teal!70!black}{proof} routes evidence and receipts;
+    \textcolor{red!70!black}{dashed} routes trust boundaries.
+};
+
+\node[draw=black!35, fill=white, rounded corners=2pt, align=left, text width=5.60cm,
+    anchor=north west, inner sep=3pt] at (11.20,-3.56) {
+    Agents never jump directly from patch to merge. JeRyu binds each privileged step to policy, validation, evidence, and durable state.
+};
+
+\end{tikzpicture}
+\end{adjustbox}
+\caption{JeRyu architecture as described in \texttt{docs/ARCHITECTURE.md}. GitLab remains the forge and CI substrate, while the Rust \texttt{jeryu} control plane owns agent authority, runner policy, validation planning, cache trust, evidence capture, merge gates, and release gates.}
+\label{fig:architecture-appendix}
+\end{figure*}

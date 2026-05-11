@@ -1,0 +1,466 @@
+name: Rust
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    - cron: "0 3 * * 1"  # weekly Monday 03:00 UTC
+
+concurrency:
+  group: rust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          components: clippy
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Build workspace
+        run: cargo build --verbose
+
+  install-smoke:
+    name: Install Smoke
+    runs-on: ${{ matrix.os }}
+    needs: [build]
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Run install commands
+        run: |
+          cargo run -p jeryu -- install --dry-run --json --color never --prefix /tmp/jeryu-install-test
+          PREFIX="$(mktemp -d)"
+          cargo run -p jeryu -- install --yes --prefix "$PREFIX" --path-mode skip
+          cargo run -p jeryu -- install doctor --prefix "$PREFIX"
+          cargo run -p jeryu -- install smoke --dry-run
+          cargo run -p jeryu -- install render-demo --output target/jeryu-install-demo.gif --png target/jeryu-install-demo.png
+          cargo run -p jeryu -- remote install xbabe1 --dry-run --yes --setup-key --json
+
+  test-select:
+    name: VTI Test Selection
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 20
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      unit_filter_expr: ${{ steps.plan.outputs.unit_filter_expr }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Compute test plan
+        id: plan
+        run: |
+          mkdir -p target/jeryu
+          cargo build --bin jeryu
+          ./target/debug/jeryu test select \
+            --base origin/main \
+            --head HEAD \
+            --explain \
+            --emit-plan target/jeryu/test-plan.json
+          MODE=$(jq -r '.mode' target/jeryu/test-plan.json)
+          # Extract the combined nextest -E filter expression from all unit_filter entries.
+          # The plan stores full commands like: cargo nextest run -E 'test(/pool|docker/)'
+          # We extract just the expression part and OR them together.
+          UNIT_FILTER_EXPR=""
+          while IFS= read -r expr; do
+            [[ -n "$expr" ]] || continue
+            if [[ -z "$UNIT_FILTER_EXPR" ]]; then
+              UNIT_FILTER_EXPR="$expr"
+            else
+              UNIT_FILTER_EXPR="$UNIT_FILTER_EXPR | $expr"
+            fi
+          done < <(
+            jq -r '
+              .selected_tests[]
+              | select(.kind == "unit_filter")
+              | .command
+            ' target/jeryu/test-plan.json | sed -e "s/^cargo nextest run -E '//" -e "s/'$//"
+          )
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "unit_filter_expr=$UNIT_FILTER_EXPR" >> "$GITHUB_OUTPUT"
+          echo "VTI mode: $MODE"
+          echo "VTI unit filter: ${UNIT_FILTER_EXPR:-(full run)}"
+      - name: Upload test plan
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vti-test-plan
+          path: target/jeryu/test-plan.json
+
+  test-lib:
+    name: Library Tests
+    runs-on: ubuntu-latest
+    needs: [build, test-select]
+    timeout-minutes: 30
+    # Skip unit tests entirely when VTI says docs_only (no logic changed)
+    if: needs.test-select.outputs.mode != 'docs_only'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Install nextest
+        uses: taiki-e/install-action@65f36558ea9682525f70919321ba6b20e4a8d7a6 # nextest
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Download VTI plan
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: vti-test-plan
+          path: target/jeryu/
+        continue-on-error: true
+      - name: Run library tests
+        run: |
+          MODE="${{ needs.test-select.outputs.mode }}"
+          FILTER="${{ needs.test-select.outputs.unit_filter_expr }}"
+          if [ "$MODE" = "selected" ] && [ -n "$FILTER" ]; then
+            echo "VTI selected: running filter: $FILTER"
+            cargo nextest run -p jeryu --lib --profile ci -E "$FILTER"
+          else
+            echo "VTI mode=${MODE:-unknown}: running full lib suite"
+            cargo nextest run -p jeryu --lib --profile ci
+          fi
+
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [test-select]
+    timeout-minutes: 45
+    # Only run integration tests when VTI says Full or Selected (not DocsOnly)
+    if: needs.test-select.outputs.mode != 'docs_only'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Run integration tests
+        run: cargo test --tests --verbose
+
+  tui-smoke:
+    name: TUI Smoke
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Render one TUI frame
+        run: cargo run -- tui --once
+
+  supply-chain:
+    name: Supply Chain Audit
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@4276f5c5467209401f06d04b0026ae72e3bf4b97 # cargo-deny
+      - name: Install actionlint
+        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.8
+      - name: Security lane proof
+        run: bash tools/security-lane.sh .
+      - name: Dependency review
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
+      - name: Upload security evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: security-evidence
+          path: target/jankurai/security/*
+          if-no-files-found: warn
+
+  witness:
+    name: Witness Graph
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Build witness graph
+        run: cargo run -p cargo-witness -- build
+      - name: Upload witness graph
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: witness-graph
+          path: .witness/witness-graph.json
+          if-no-files-found: warn
+
+  vrc-map:
+    name: VRC Map
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Generate agent + test maps
+        run: cargo run -p cargo-vrc -- map --output-dir .
+      - name: Upload maps
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vrc-maps
+          path: |
+            agent-map.json
+            test-map.json
+          if-no-files-found: warn
+
+  vrc-plan:
+    name: VRC Plan
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Compute changed files
+        run: git diff --name-only origin/main...HEAD > changed-files.txt; cat changed-files.txt
+      - name: Run VRC plan
+        run: |
+          mapfile -t CHANGED < changed-files.txt
+          if [ "${#CHANGED[@]}" -gt 0 ]; then
+            cargo run -p cargo-vrc -- plan "${CHANGED[@]}" --output vrc-plan.json
+          else
+            echo '{"mode":"full","reason":"no changed files detected"}' > vrc-plan.json
+          fi
+      - name: Upload VRC plan
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vrc-plan
+          path: vrc-plan.json
+          if-no-files-found: warn
+
+  aer-scan:
+    name: AER Structural Audit
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Scan for structural exceptions
+        run: cargo run -p cargo-aer -- scan --output aer-findings.json
+      - name: Upload AER findings
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: aer-findings
+          path: aer-findings.json
+          if-no-files-found: warn
+
+  scheduled-hardening:
+    name: Scheduled Hardening
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Only run on the weekly schedule trigger, not on push/PR
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Install cargo-semver-checks
+        uses: taiki-e/install-action@2917690e52aa4d7197c24238e2a04e6775cc8170 # cargo-semver-checks
+      - name: Semver check
+        run: |
+          if cargo semver-checks check-release -p jeryu 2>/dev/null; then
+            exit 0
+          fi
+          cargo semver-checks check-release
+      - name: AER structural audit
+        run: cargo run -p cargo-aer -- scan --output aer-findings.json
+      - name: Upload hardening findings
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hardening-aer-findings
+          path: aer-findings.json
+          if-no-files-found: warn
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # SSH Install End-to-End — Docker container with sshd
+  # ─────────────────────────────────────────────────────────────────────────
+  ssh-install-e2e:
+    name: SSH Install E2E
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Build jeryu (release)
+        run: cargo build --release -p jeryu
+      - name: Run SSH install integration test
+        run: |
+          export JERYU_BIN="$PWD/target/release/jeryu"
+          export EVIDENCE_DIR="$PWD/target/ci-evidence/ssh-install"
+          bash ops/ci/ssh_install_integration.sh
+      - name: Upload SSH install evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ssh-install-evidence
+          path: target/ci-evidence/ssh-install/
+          if-no-files-found: warn
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # TUI Screenshots — Capture all tabs and upload as artifacts
+  # ─────────────────────────────────────────────────────────────────────────
+  tui-screenshots:
+    name: TUI Screenshots
+    runs-on: ubuntu-latest
+    needs: [build]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Rust cache
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+      - name: Install mold
+        run: sudo apt-get install -y mold
+      - name: Build jeryu
+        run: cargo build --release -p jeryu
+      - name: Render deterministic TUI PNG captures
+        run: |
+          mkdir -p target/ci-screenshots
+          
+          cargo run --release -p jeryu -- install render-demo --output target/ci-screenshots/install-demo.gif --png target/ci-screenshots/install-demo.png
+          
+          TABS="workflow jobs mission agents tests pools cache evidence secrets"
+          for tab in $TABS; do
+            cargo run --release -p jeryu -- tui --capture --tab "$tab" --output "target/ci-screenshots/${tab}.png"
+          done
+          echo ""
+          echo "=== Generated screenshots ==="
+          ls -la target/ci-screenshots/
+      - name: Record 10-second animated TUI GIF
+        run: |
+          # tui_recording is marked #[ignore], so we run it explicitly
+          cargo test --test tui_recording -- --ignored --exact tui_demo_recording
+      - name: Upload TUI screenshots
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tui-screenshots
+          path: target/ci-screenshots/
+          if-no-files-found: warn
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Fixture Project Validation — Prove the test fixture compiles and passes
+  # ─────────────────────────────────────────────────────────────────────────
+  fixture-project-tests:
+    name: Fixture Project Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - name: Build and test fixture project
+        working-directory: tests/fixtures/fixture_project
+        run: |
+          cargo test --verbose
+          cargo run -- 2>&1 | head -20
+      - name: Verify fixture project is healthy
+        working-directory: tests/fixtures/fixture_project
+        run: cargo clippy -- -D warnings 2>&1 || echo "clippy warnings (non-blocking)"

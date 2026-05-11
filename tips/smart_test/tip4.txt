@@ -1,0 +1,1175 @@
+Yes. The right system for jeryu is a **self-learning Test Impact Brain**: deterministic enough to trust, adaptive enough to learn, and integrated deeply enough that agents, GitLab, the local DB, SmartCache, admission hooks, and nightly E2E all reinforce one another.
+
+The key principle: **AI should help maintain and explain the test-impact graph, but the actual skip/run decision should be deterministic, auditable, and policy-gated.**
+
+## Core conclusion
+
+Do **not** solve this only with `.gitlab-ci.yml rules:changes`. That is useful as a first coarse filter, but it is not smart enough for what you want. GitLab’s `rules:changes` can skip jobs based on changed files and can conditionally include CI files, but it has known edge cases: new branches can make `changes` evaluate unexpectedly, scheduled pipelines treat all files as changed, and merged-results pipelines can compare against a temporary merged commit that includes target-branch changes too. ([GitLab Docs][1])
+
+The best pattern from modern build systems is:
+
+> **Git diff → dependency graph → affected dependents → test graph → risk policy → dynamic pipeline.**
+
+Nx, Pants, and Bazel all converge on this model. Nx uses Git changes plus a project graph to run only affected projects and their dependents; Pants supports `--changed-since` plus direct or transitive changed dependents; Bazel exposes query/action graphs for dependency-aware target reasoning; and Bazel-style target determinators exist specifically to compute affected targets between two Git commits. ([Nx][2])
+
+For jeryu, I would build this as a native Rust subsystem:
+
+```text
+src/test_impact.rs      # planner, graph, risk, selection
+src/test_map.rs         # declarative mappings
+src/test_observer.rs    # learns from coverage, JUnit, failures
+src/test_pipeline.rs    # emits GitLab dynamic child pipeline YAML
+src/test_receipt.rs     # signed/auditable selection receipts
+```
+
+Existing modules to extend:
+
+```text
+impact.rs       -> becomes coarse semantic classifier feeding test_impact.rs
+test_runner.rs  -> executes selected test plans instead of ad hoc commands
+decision.rs     -> adds TestSelectionRisk / SelectionConfidence
+policy.rs       -> enforces skip budgets and full-run cadence
+state.rs        -> stores test graph, observations, receipts, misses
+engine.rs       -> records webhook/pipeline/test evidence
+admission.rs    -> blocks unsafe selector changes or unvalidated skips
+witness.rs      -> signs selection receipts and cached test verdicts
+cache.rs        -> reuses build/test artifacts safely
+```
+
+## The system to build: jeryu Test Impact Brain
+
+Think of this as a **fifth intelligence layer inside jeryu**, sitting between the current Change Impact Analysis and the CI Test Runner.
+
+```mermaid
+flowchart TD
+    A["Git diff: base..head"] --> B["Change classifier"]
+    B --> C["Static dependency graph"]
+    B --> D["Declarative test map"]
+    B --> E["Observed coverage map"]
+    B --> F["Historical failure/flakiness map"]
+
+    C --> G["Candidate tests"]
+    D --> G
+    E --> G
+    F --> G
+
+    G --> H["Risk policy + confidence scoring"]
+    H --> I{"Enough confidence?"}
+
+    I -->|"yes"| J["Selected tests only"]
+    I -->|"medium"| K["Selected tests + smoke/audit probes"]
+    I -->|"low"| L["Broader lane or full suite"]
+
+    J --> M["Generate child pipeline"]
+    K --> M
+    L --> M
+
+    M --> N["Run via nextest / cargo / e2e"]
+    N --> O["JUnit + coverage + failure capsules"]
+    O --> P["Update test graph"]
+    P --> Q["Nightly validation + miss detection"]
+```
+
+This should become the canonical flow for every PR, push, agent branch, and local `jeryu test` invocation.
+
+## What jeryu should learn from best-practice systems
+
+### 1. Use affected-graph selection, not manually curated CI sprawl
+
+Nx’s affected mode determines changed files, maps them to projects, then runs tasks for those projects and dependents; it also recommends using the latest successful main commit as the base SHA in CI. ([Nx][2]) Pants does the same conceptually with `--changed-since` and `--changed-dependents=direct|transitive`. ([Pants][3])
+
+jeryu already has the foundation: Git is the ledger, `impact.rs` already classifies changes, `git2` is already in the stack, and `state.rs` already stores persistent execution data. The missing piece is a **test dependency graph**.
+
+### 2. Use dynamic child pipelines instead of static huge pipelines
+
+GitLab supports generating a YAML file in one job and triggering a child pipeline from that generated artifact. GitLab explicitly calls this useful for generating pipelines based on changed content or building target/architecture matrices. ([GitLab Docs][4])
+
+That is exactly what jeryu should do:
+
+```yaml
+plan-ci:
+  stage: plan
+  script:
+    - jeryu test impact-plan \
+        --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA" \
+        --head "$CI_COMMIT_SHA" \
+        --out generated-ci.yml \
+        --receipt test-selection.json
+  artifacts:
+    paths:
+      - generated-ci.yml
+      - test-selection.json
+
+run-selected:
+  stage: test
+  needs: ["plan-ci"]
+  trigger:
+    include:
+      - artifact: generated-ci.yml
+        job: plan-ci
+    strategy: mirror
+```
+
+Use `strategy: mirror` so the parent reflects downstream pipeline status; GitLab now recommends `mirror` over older `depend` semantics in many downstream cases. ([GitLab Docs][4])
+
+### 3. Use cargo-nextest as the Rust execution backend
+
+Rust’s default `cargo test` can run all tests, name-filtered tests, or a specific integration test binary. ([Rust Documentation][5]) For serious selection, though, `cargo-nextest` is a better backend: it advertises faster execution, powerful filtersets, JUnit support, partitioning/sharding, and retries/flaky marking. ([Nexte.st][6])
+
+Use `cargo-nextest` for most Rust tests and keep raw `cargo test` only for doctests or unusual harness cases. Nextest also integrates with `cargo-llvm-cov`, so the same execution stack can produce coverage data for the learning system. ([Nexte.st][7])
+
+### 4. Use observed coverage like Test Impact Analysis systems do
+
+Microsoft’s Test Impact Analysis stores a mapping between test cases and source code, runs only impacted tests, and recommends periodic full-test refreshes because the mapping must be regenerated regularly. ([Microsoft Learn][8]) Microsoft also recommends validating TIA by running impacted tests and all tests in sequence to confirm the selected subset catches the same failures. ([Microsoft Learn][9])
+
+That exact idea should be built into jeryu:
+
+```text
+PR path:        selected tests only, if confidence is high
+Main path:      selected + sampled audit probes
+Nightly path:   full tests + coverage rebuild + selector miss detection
+Release path:   full release-critical + targeted E2E + canary gates
+```
+
+For Rust coverage, use LLVM source-based coverage. Rust supports `-C instrument-coverage`, and `cargo-llvm-cov` wraps that workflow and can export JSON/LCOV/Cobertura. ([Rust Documentation][10])
+
+### 5. Treat skipping as a signed decision, not an absence of work
+
+Every skipped test should have a reason:
+
+```json
+{
+  "test": "tests::pool_scale_up_down",
+  "decision": "skipped",
+  "reason": "no dependency edge from changed files",
+  "confidence": 0.97,
+  "graph_version": "testgraph-2026-04-22T12:00:00Z",
+  "coverage_snapshot": "cov-main-abc123",
+  "policy": "trusted-pr-fast-path"
+}
+```
+
+That receipt should be stored in SQLite, appended to the event ledger, emitted as a CI artifact, and optionally attested by `witness.rs`.
+
+## Proposed data model
+
+Add these tables to `state.rs`.
+
+```sql
+CREATE TABLE test_targets (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                TEXT NOT NULL UNIQUE,
+    kind                TEXT NOT NULL, -- unit, integration, e2e, lint, fmt, doctest, security, release
+    package_name        TEXT,
+    binary_id           TEXT,
+    command             TEXT NOT NULL,
+    nextest_filter      TEXT,
+    lane                TEXT NOT NULL, -- micro, unit, integration, e2e, full
+    risk_tier           TEXT NOT NULL, -- low, medium, high, critical
+    timeout_seconds     INTEGER NOT NULL DEFAULT 600,
+    owner               TEXT,
+    enabled             BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at          TEXT NOT NULL,
+    updated_at          TEXT NOT NULL
+);
+
+CREATE TABLE test_dependencies (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    test_target_id      INTEGER NOT NULL REFERENCES test_targets(id) ON DELETE CASCADE,
+    dependency_kind     TEXT NOT NULL, -- file, glob, crate, symbol, config, service, secret, docker
+    dependency_value    TEXT NOT NULL,
+    source              TEXT NOT NULL, -- manual, static, coverage, history, ai_proposed
+    confidence          REAL NOT NULL DEFAULT 1.0,
+    first_seen_at       TEXT NOT NULL,
+    last_seen_at        TEXT NOT NULL,
+    last_verified_at    TEXT,
+    UNIQUE(test_target_id, dependency_kind, dependency_value, source)
+);
+
+CREATE TABLE test_selection_plans (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id          INTEGER,
+    pipeline_id         INTEGER,
+    base_sha            TEXT NOT NULL,
+    head_sha            TEXT NOT NULL,
+    changed_files_json  TEXT NOT NULL,
+    selected_json       TEXT NOT NULL,
+    skipped_json        TEXT NOT NULL,
+    mode                TEXT NOT NULL, -- selected, selected_plus_audit, lane, full
+    confidence          REAL NOT NULL,
+    reason              TEXT NOT NULL,
+    plan_digest         TEXT NOT NULL,
+    created_at          TEXT NOT NULL
+);
+
+CREATE TABLE test_observations (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    test_target_id      INTEGER NOT NULL REFERENCES test_targets(id),
+    pipeline_id         INTEGER,
+    job_id              INTEGER,
+    sha                 TEXT NOT NULL,
+    status              TEXT NOT NULL,
+    duration_ms         INTEGER,
+    flaky               BOOLEAN NOT NULL DEFAULT FALSE,
+    junit_path          TEXT,
+    coverage_path       TEXT,
+    created_at          TEXT NOT NULL
+);
+
+CREATE TABLE test_selection_misses (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    skipped_test_id     INTEGER NOT NULL REFERENCES test_targets(id),
+    plan_id             INTEGER NOT NULL REFERENCES test_selection_plans(id),
+    detected_by         TEXT NOT NULL, -- nightly, audit_probe, release_full, manual
+    failure_job_id      INTEGER,
+    suspected_file      TEXT,
+    remediation_status  TEXT NOT NULL DEFAULT 'open',
+    created_at          TEXT NOT NULL
+);
+```
+
+This makes the selector self-correcting: when a nightly full run finds a skipped test that fails, jeryu records a **selection miss**, strengthens the missing dependency edge, and can open an agent task to fix the test map.
+
+## The declarative test map
+
+Add a checked-in file:
+
+```toml
+# .jeryu/testmap.toml
+
+[policy]
+default_mode = "selected"
+nightly_mode = "full"
+release_mode = "release_full"
+min_confidence_for_skip = 0.92
+max_coverage_age_days = 7
+force_full_after_n_selected_runs = 50
+random_audit_rate = 0.05
+
+[hazards]
+force_full = [
+  "Cargo.toml",
+  "Cargo.lock",
+  "rust-toolchain.toml",
+  ".gitlab-ci.yml",
+  ".github/workflows/**",
+  "src/config.rs",
+  "src/bootstrap.rs",
+  "src/exec.rs",
+  "src/sandbox.rs",
+  "tests/common/**"
+]
+
+force_e2e = [
+  "src/pool.rs",
+  "src/docker.rs",
+  "src/gitlab_client.rs",
+  "src/release.rs",
+  "src/secrets.rs",
+  "src/admission.rs"
+]
+
+docs_only = [
+  "**/*.md",
+  "docs/**"
+]
+
+[[target]]
+name = "fmt"
+kind = "lint"
+command = "cargo fmt --all -- --check"
+depends_on = ["**/*.rs", "Cargo.toml"]
+
+[[target]]
+name = "clippy-jeryu"
+kind = "lint"
+command = "cargo clippy --all-targets --all-features -- -D warnings"
+depends_on = ["src/**/*.rs", "tests/**/*.rs", "Cargo.toml", "Cargo.lock"]
+risk_tier = "high"
+
+[[target]]
+name = "unit-decision"
+kind = "unit"
+command = "cargo nextest run -E 'binary(jeryu) & test(/decision/)'"
+depends_on = ["src/decision.rs", "src/policy.rs"]
+risk_tier = "medium"
+
+[[target]]
+name = "unit-impact"
+kind = "unit"
+command = "cargo nextest run -E 'test(/impact/)'"
+depends_on = ["src/impact.rs", "src/test_runner.rs"]
+risk_tier = "medium"
+
+[[target]]
+name = "state-store"
+kind = "unit"
+command = "cargo nextest run -E 'test(/state|db|sqlite|migration/)'"
+depends_on = ["src/state.rs", "src/cache.rs", "src/release.rs"]
+risk_tier = "high"
+
+[[target]]
+name = "pool-integration"
+kind = "integration"
+command = "cargo nextest run --test pool_tests"
+depends_on = ["src/pool.rs", "src/docker.rs", "src/config.rs", "tests/pool_tests.rs", "tests/common/**"]
+risk_tier = "critical"
+
+[[target]]
+name = "job-integration"
+kind = "integration"
+command = "cargo nextest run --test job_tests"
+depends_on = ["src/engine.rs", "src/gitlab_client.rs", "src/state.rs", "tests/job_tests.rs", "tests/common/**"]
+risk_tier = "critical"
+
+[[target]]
+name = "agent-integration"
+kind = "integration"
+command = "cargo nextest run --test agent_tests"
+depends_on = ["src/agent.rs", "src/capability.rs", "src/gitlab_client.rs", "src/decision.rs", "tests/agent_tests.rs"]
+risk_tier = "critical"
+
+[[target]]
+name = "cache-integration"
+kind = "integration"
+command = "cargo nextest run --test cache_integration_test"
+depends_on = [
+  "src/cache.rs",
+  "src/cache_proxy.rs",
+  "src/cache_brain.rs",
+  "src/gateway/**",
+  "src/epoch.rs",
+  "src/taint.rs",
+  "src/witness.rs",
+  "tests/cache_integration_test.rs"
+]
+risk_tier = "high"
+
+[[target]]
+name = "tui-smoke"
+kind = "smoke"
+command = "cargo run -- tui --once"
+depends_on = ["src/tui/**", "src/state.rs"]
+risk_tier = "medium"
+
+[[target]]
+name = "full-e2e"
+kind = "e2e"
+command = "cargo nextest run --test e2e"
+depends_on = [
+  "src/bootstrap.rs",
+  "src/engine.rs",
+  "src/pool.rs",
+  "src/docker.rs",
+  "src/gitlab_client.rs",
+  "src/config.rs",
+  "tests/e2e.rs",
+  "tests/common/**"
+]
+risk_tier = "critical"
+run_on = ["nightly", "release", "forced", "critical_change"]
+```
+
+This gives humans and agents a simple declarative layer, while jeryu can enrich it with static and observed edges.
+
+## The selector algorithm
+
+Use a conservative, explainable algorithm first. Do not start with a black-box model.
+
+```rust
+fn plan_tests(base: Sha, head: Sha, mode: PipelineMode) -> TestPlan {
+    let changed_files = git_diff(base, head);
+
+    if mode.is_nightly() || mode.is_release_full() || user_forced_full() {
+        return TestPlan::full("scheduled/forced/release");
+    }
+
+    if changed_files.is_empty() {
+        return TestPlan::empty_or_smoke("no changes");
+    }
+
+    let hazards = classify_hazards(&changed_files);
+    if hazards.force_full {
+        return TestPlan::full(hazards.reason);
+    }
+
+    let static_entities = cargo_and_ast_graph.resolve(&changed_files);
+    let manual_targets = testmap.match_targets(&changed_files);
+    let coverage_targets = coverage_db.tests_covering(&changed_files, &static_entities);
+    let history_targets = history.tests_that_failed_near(&changed_files);
+
+    let mut candidates = union(manual_targets, coverage_targets, history_targets);
+    candidates.extend(static_graph.dependent_tests(&static_entities));
+
+    let confidence = score_confidence(&changed_files, &candidates, &coverage_db, &testmap);
+
+    if confidence >= policy.min_confidence_for_skip {
+        candidates.add_audit_probes(policy.random_audit_rate);
+        return TestPlan::selected(candidates, confidence);
+    }
+
+    if confidence >= 0.75 {
+        return TestPlan::selected_plus_lane(candidates, hazards.lane, confidence);
+    }
+
+    TestPlan::lane_or_full(hazards.fallback_lane, confidence)
+}
+```
+
+The rule should be:
+
+```text
+Unknown dependency = run more tests.
+Known dependency = run exact tests.
+Stale dependency = run more tests.
+Dangerous config change = full.
+Agent-authored selector change = full + admission review.
+```
+
+## Confidence scoring
+
+Each candidate plan should get a confidence score. Example:
+
+```text
+confidence =
+  +0.35 if every changed file has a testmap edge
+  +0.25 if every changed Rust item maps to a Cargo package/test binary
+  +0.20 if coverage data is fresh
+  +0.10 if no selector misses in the last N runs
+  +0.05 if no flaky tests in affected area
+  +0.05 if changed files are low-risk/docs/test-only
+
+penalties:
+  -0.30 for Cargo.lock / Cargo.toml / CI / runner config changes
+  -0.25 for new source file with no test edge
+  -0.25 for stale coverage
+  -0.20 for changes under tests/common
+  -0.20 for prior selection miss touching same area
+  -0.15 for untrusted agent-authored code
+```
+
+Then policy maps score to behavior:
+
+|          Confidence | Behavior                                |
+| ------------------: | --------------------------------------- |
+|           `>= 0.92` | Selected tests only + tiny random audit |
+|         `0.75–0.92` | Selected tests + lane smoke             |
+|         `0.50–0.75` | Full lane, not full repo                |
+|            `< 0.50` | Full tests                              |
+| Any critical hazard | Full or E2E                             |
+
+This is how you get speed without silently accepting risk.
+
+## Static Rust graph
+
+Use three levels.
+
+First, **Cargo package graph**. Cargo can output workspace members and resolved dependencies as JSON, and the `cargo_metadata` crate gives a Rust API for that. ([Rust Documentation][11]) The `guppy` crate is specifically designed to parse `cargo metadata` and query Cargo dependency graphs. ([Docs.rs][12]) This gets you:
+
+```text
+changed file -> package -> dependent packages -> tests for those packages
+```
+
+Second, **target/test binary graph**. Cargo workspaces support package selection with `-p/--package` and `--workspace`. ([Rust Documentation][13]) jeryu should discover:
+
+```text
+src/main.rs
+src/lib.rs
+tests/e2e.rs
+tests/pool_tests.rs
+examples/*
+benches/*
+doctests
+```
+
+Third, **symbol/module graph**. Use `ra_ap_syntax` or `tree-sitter-rust` to parse Rust source. `ra_ap_syntax` is the syntax-tree library used by rust-analyzer and supports full-fidelity syntax representation; this is a good fit for semantic diffs and incremental parsing. ([Docs.rs][14])
+
+Do not overdo symbol precision at first. Start with:
+
+```text
+file -> module -> package -> test binary
+```
+
+Then evolve to:
+
+```text
+function/impl/type -> unit tests and integration tests that cover it
+```
+
+## Dynamic coverage graph
+
+Nightly and periodic full runs should rebuild the observed map:
+
+```text
+test target -> files/regions/symbols executed
+```
+
+For Rust:
+
+```bash
+cargo llvm-cov nextest --json --output-path target/jeryu/coverage.json
+```
+
+`cargo-llvm-cov` supports JSON export, and nextest documents the `cargo llvm-cov nextest` integration. ([Docs.rs][15])
+
+This dynamic graph is the closest equivalent to `pytest-testmon`, which selects affected tests by collecting dependencies between tests and executed code using coverage data, then comparing those dependencies against changes. ([Testmon][16])
+
+The jeryu version should be stronger because it also has:
+
+```text
+Git ledger
+SQLite state
+failure capsules
+release attempts
+cache verdicts
+witness attestations
+agent identities
+policy engine
+admission hooks
+```
+
+## CI pipeline shape
+
+Your current GitHub Actions/GitLab-style CI is too static:
+
+```text
+fmt
+clippy
+build
+test-lib
+test-integration
+tui-smoke
+```
+
+Replace it with:
+
+```text
+plan
+selected-lint
+selected-unit
+selected-integration
+selected-e2e-if-needed
+selector-audit-if-sampled
+```
+
+In GitLab, jeryu generates the actual child YAML.
+
+Example generated pipeline for a `src/decision.rs` change:
+
+```yaml
+stages: [lint, test]
+
+fmt:
+  stage: lint
+  script: cargo fmt --all -- --check
+
+clippy-decision:
+  stage: lint
+  script: cargo clippy --package jeryu --all-targets -- -D warnings
+
+unit-decision:
+  stage: test
+  script: cargo nextest run -E 'test(/decision/)'
+  artifacts:
+    when: always
+    reports:
+      junit: target/nextest/ci/junit.xml
+```
+
+Example generated pipeline for `src/pool.rs`:
+
+```yaml
+stages: [lint, test, e2e]
+
+fmt:
+  stage: lint
+  script: cargo fmt --all -- --check
+
+clippy-pool:
+  stage: lint
+  script: cargo clippy --package jeryu --all-targets -- -D warnings
+
+unit-pool:
+  stage: test
+  script: cargo nextest run -E 'test(/pool/)'
+
+pool-integration:
+  stage: test
+  script: cargo nextest run --test pool_tests
+
+e2e-pool-smoke:
+  stage: e2e
+  script: cargo nextest run --test e2e -E 'test(/runner|pool|smoke/)'
+```
+
+Example generated pipeline for docs-only:
+
+```yaml
+stages: [docs]
+
+docs-check:
+  stage: docs
+  script:
+    - jeryu docs check
+```
+
+No Rust tests.
+
+## How to handle E2E
+
+E2E is the expensive part. It should become **rare, targeted, and evidence-driven**.
+
+Run full E2E only when:
+
+```text
+1. Nightly schedule
+2. Release promotion
+3. Bootstrap / Docker / GitLab API / pool manager / custom executor changed
+4. tests/common changed
+5. test selector confidence below threshold
+6. selector miss was recently detected in the same subsystem
+7. human or policy forces it
+```
+
+Run E2E smoke when:
+
+```text
+1. Engine webhook logic changed
+2. pool.rs changed
+3. gitlab_client.rs changed
+4. release/secrets changed
+5. agent system changed
+```
+
+Skip E2E when:
+
+```text
+1. docs-only
+2. pure decision-engine unit changes
+3. cache metadata-only changes with unit coverage
+4. TUI-only changes except tui smoke
+5. isolated test file changes
+```
+
+Your existing jeryu has a huge advantage: full E2E can stay alive in the background through nightly scheduled pipelines, release gates, and random audit probes. That lets PRs be fast without deleting the safety net.
+
+## Nightly full testing
+
+Nightly should do four things:
+
+```text
+1. Run every test.
+2. Rebuild coverage/test dependency graph.
+3. Compare the selected plan that would have run against the full result.
+4. Repair the graph if a skipped test failed.
+```
+
+This is critical. Microsoft’s TIA docs explicitly recommend periodically running all tests because the test/source mapping needs regeneration. ([Microsoft Learn][8])
+
+In GitLab, scheduled pipelines can be detected with `CI_PIPELINE_SOURCE == "schedule"`; GitLab’s docs show schedule-specific rules. ([GitLab Docs][1]) In GitHub Actions, keep a scheduled workflow too if GitHub remains the outer public CI mirror; GitHub supports path filters for PR/push workflows, but jeryu should be the real selector, not GitHub path filters. ([GitHub Docs][17])
+
+## Local developer workflow
+
+Add these commands:
+
+```bash
+jeryu test impact --base main --head HEAD
+```
+
+Shows what would run and why.
+
+```bash
+jeryu test selected --base main --head HEAD
+```
+
+Runs selected tests locally.
+
+```bash
+jeryu test explain --file src/pool.rs
+```
+
+Shows all tests connected to a file.
+
+```bash
+jeryu test why tests/pool_tests.rs
+```
+
+Shows why a test was selected.
+
+```bash
+jeryu test learn --from target/nextest/ci/junit.xml --coverage target/jeryu/coverage.json
+```
+
+Imports observations.
+
+```bash
+jeryu test doctor
+```
+
+Finds unmapped source files, stale coverage, flaky tests, overly broad mappings, and dead tests.
+
+```bash
+jeryu test nightly-plan
+```
+
+Prints the full validation plan and graph refresh work.
+
+## Agent behavior
+
+Agents should be required to update the test map when they add or move meaningful code.
+
+Admission policy:
+
+```text
+If an agent adds src/foo.rs and no test dependency covers src/foo.rs:
+  deny merge or force broader lane.
+
+If an agent edits .jeryu/testmap.toml:
+  require full selector audit.
+
+If an agent deletes tests:
+  require full lane and human/privileged approval.
+
+If an agent changes CI/policy/test selector code:
+  require full CI + nightly-equivalent suite.
+```
+
+AI should help with:
+
+```text
+1. Proposing testmap updates.
+2. Explaining why a change selected certain tests.
+3. Detecting missing coverage.
+4. Opening repair MRs after selection misses.
+5. Clustering flaky tests by root cause.
+6. Suggesting narrower dependencies when mappings are too broad.
+```
+
+AI should **not** be allowed to silently skip tests. It proposes edges; jeryu verifies them.
+
+## SmartCache integration
+
+This can get you another major speedup.
+
+Bazel remote caching works because build actions have declared inputs, commands, environment, and outputs; cache hits reuse outputs from matching action hashes. ([Bazel][18]) jeryu already has cache objects, cache verdicts, cache promotions, witness attestations, and action cache tables. Use that to cache test builds and possibly test verdicts.
+
+For test results, be careful:
+
+```text
+Safe to cache:
+  cargo build artifacts
+  nextest archives
+  Docker layers
+  downloaded dependencies
+  generated fixtures
+  test binary build outputs
+
+Conditionally safe:
+  deterministic unit test verdicts with complete input hash
+
+Unsafe by default:
+  E2E verdicts
+  tests touching Docker daemon
+  tests touching GitLab live state
+  tests using time/network/randomness
+```
+
+A test verdict can only be reused if jeryu can prove:
+
+```text
+same test command
+same test binary digest
+same source input digest
+same config/env digest
+same fixture digest
+same toolchain fingerprint
+same cache epoch
+not tainted
+not flaky
+not high-risk/e2e
+```
+
+Then `witness.rs` should sign the verdict.
+
+## Flaky tests
+
+Do not let flaky tests destroy the selector. Track them separately.
+
+Nextest can retry failed tests and mark tests flaky when they pass on retry. ([Nexte.st][19]) GitLab’s own testing docs define flaky tests as tests that sometimes fail but pass if retried, and describe quarantine practices for tests blocking development. ([GitLab Docs][20])
+
+jeryu should add:
+
+```sql
+CREATE TABLE flaky_tests (
+    test_target_id INTEGER NOT NULL,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    failure_rate REAL NOT NULL,
+    quarantine_status TEXT NOT NULL,
+    owner TEXT,
+    issue_url TEXT,
+    PRIMARY KEY (test_target_id)
+);
+```
+
+Policy:
+
+```text
+Flaky test in selected set:
+  run with retry, mark flaky, do not silently pass if policy says fail-on-flaky.
+
+Flaky test outside selected set:
+  do not select solely because it is flaky, unless it overlaps changed area.
+
+Critical flaky test:
+  quarantine from merge-blocking lane only with explicit owner and issue.
+```
+
+## GitLab reports
+
+Always emit JUnit. GitLab unit test reports display failures in MRs and pipeline details, compare branches, track failure patterns, and require JUnit XML artifacts. ([GitLab Docs][21]) Nextest can produce JUnit XML, with one test binary as a testsuite and one test as a testcase. ([Nexte.st][22])
+
+Generated jobs should always include:
+
+```yaml
+artifacts:
+  when: always
+  paths:
+    - target/nextest/ci/junit.xml
+    - target/jeryu/test-selection.json
+  reports:
+    junit: target/nextest/ci/junit.xml
+```
+
+This gives jeryu structured data to learn from and gives humans visible MR feedback.
+
+## Concrete jeryu module mapping
+
+Initial default mappings for your repo should look like this:
+
+| Change area                                                                         | Required tests                                                                                |
+| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `src/decision.rs`, `src/policy.rs`                                                  | decision/policy unit tests, clippy                                                            |
+| `src/impact.rs`                                                                     | impact unit tests, test impact planner tests                                                  |
+| `src/state.rs`                                                                      | state unit tests, DB/cache/release tests touching schema                                      |
+| `src/pool.rs`                                                                       | pool unit tests, `pool_tests`, targeted E2E smoke                                             |
+| `src/docker.rs`                                                                     | Docker controller tests, pool integration, E2E smoke                                          |
+| `src/bootstrap.rs`, `src/config.rs`                                                 | config tests, bootstrap smoke, E2E smoke/full depending on template change                    |
+| `src/gitlab_client.rs`                                                              | API client tests, job/agent/release integration; full E2E if endpoint behavior changed        |
+| `src/agent.rs`, `src/capability.rs`                                                 | `agent_tests`, capability socket tests, risk-gate unit                                        |
+| `src/exec.rs`, `src/sandbox.rs`, `src/honeypot.rs`, `src/capsule.rs`                | executor/sandbox tests, honeypot tests, failure capsule tests; E2E custom executor if enabled |
+| `src/cache*.rs`, `src/gateway/**`, `src/epoch.rs`, `src/taint.rs`, `src/witness.rs` | cache integration test, cache unit tests                                                      |
+| `src/release.rs`, `src/secrets.rs`                                                  | release/secrets unit, Vault integration if secret lifecycle changed                           |
+| `src/tui/**`                                                                        | `jeryu tui --once`, state snapshot tests                                                       |
+| `tests/common/**`                                                                   | broaden to all integration tests                                                              |
+| `Cargo.toml`, `Cargo.lock`, `rust-toolchain*`                                       | at least all unit/integration; full if dependency touches Docker/GitLab/Tokio/sqlx            |
+| `.gitlab-ci.yml`, `.github/workflows/**`                                            | planner dry-run, CI smoke, selected code tests; full if core CI semantics changed             |
+| docs only                                                                           | docs check only                                                                               |
+
+## Safety fallbacks
+
+The selector must be allowed to say “I don’t know.”
+
+Force full when:
+
+```text
+1. base SHA missing
+2. huge diff
+3. lockfile changed and affected packages cannot be isolated
+4. test map changed
+5. selector code changed
+6. coverage older than policy
+7. new source file has no dependency edge
+8. prior selection miss is unresolved
+9. untrusted agent modifies high-risk code
+10. release-critical path changed
+```
+
+Force E2E when:
+
+```text
+1. Docker orchestration changed
+2. GitLab API behavior changed
+3. runner lifecycle changed
+4. bootstrap changed
+5. custom executor changed
+6. admission hooks changed
+7. release/secrets production path changed
+```
+
+Run audit probes when:
+
+```text
+1. selected plan is very small
+2. area has recent flaky failures
+3. selection confidence is just over threshold
+4. same subsystem has not had full validation recently
+```
+
+## The “self-managing” loop
+
+This is the part that makes jeryu special.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Plan
+    Plan --> ExecuteSelected
+    ExecuteSelected --> RecordEvidence
+    RecordEvidence --> MergeIfAllowed
+
+    MergeIfAllowed --> NightlyFull
+    NightlyFull --> CompareWouldHaveRun
+
+    CompareWouldHaveRun --> Healthy: selected plan would catch failures
+    CompareWouldHaveRun --> MissDetected: skipped test failed
+
+    MissDetected --> AddEdge
+    AddEdge --> LowerConfidence
+    LowerConfidence --> OpenAgentTask
+    OpenAgentTask --> RepairMap
+    RepairMap --> [*]
+
+    Healthy --> PromoteConfidence
+    PromoteConfidence --> [*]
+```
+
+The nightly system should ask:
+
+```text
+For every change merged today:
+  What would selected CI have run?
+  Did full CI find anything selected CI would have missed?
+  If yes, create selection_miss and repair the graph.
+  If no, increase confidence for those edges.
+```
+
+That gives you a ratcheting system: it gets faster where it proves itself and more conservative where it fails.
+
+## Roadmap
+
+### Phase 1 — Deterministic test map and planner
+
+Build:
+
+```text
+.jeryu/testmap.toml
+jeryu test impact-plan
+jeryu test explain
+jeryu test selected
+test_selection_plans table
+```
+
+Replace static `cargo test --tests` in fast PR CI with:
+
+```bash
+jeryu test selected --base "$BASE" --head "$HEAD"
+```
+
+Keep nightly full CI unchanged.
+
+### Phase 2 — Dynamic GitLab child pipeline generation
+
+Build:
+
+```text
+jeryu test generate-pipeline --out generated-ci.yml
+src/test_pipeline.rs
+```
+
+Use GitLab dynamic child pipelines from generated YAML artifacts. ([GitLab Docs][4])
+
+### Phase 3 — nextest everywhere
+
+Adopt:
+
+```text
+cargo nextest run
+nextest filtersets
+JUnit output
+partitioning for large suites
+retries/flaky marking
+```
+
+This alone can improve Rust test execution before selective skipping. Nextest advertises up to 3x faster execution than `cargo test`; the 100x comes from not running unnecessary suites, not from the runner alone. ([Nexte.st][6])
+
+### Phase 4 — Coverage learning
+
+Nightly:
+
+```bash
+cargo llvm-cov nextest --json --output-path target/jeryu/coverage.json
+jeryu test learn --coverage target/jeryu/coverage.json --junit target/nextest/ci/junit.xml
+```
+
+Store coverage-derived dependencies with lower initial confidence than manual edges.
+
+### Phase 5 — Selector admission control
+
+Admission rules:
+
+```text
+new source file with no test edge -> deny or force full
+testmap change -> full selector audit
+selector code change -> full CI
+agent changed tests without code -> risk gate escalation
+```
+
+### Phase 6 — Cache/witness verdicts
+
+Only after the selection engine is stable:
+
+```text
+test action key
+toolchain fingerprint
+input digest
+test binary digest
+cache epoch
+witness attestation
+```
+
+Then jeryu can skip not only by “unaffected,” but also by “already proven under same inputs.”
+
+## Updated CI strategy
+
+### PR / agent branch
+
+```text
+1. format only if Rust files changed
+2. clippy scoped to affected packages
+3. selected unit tests
+4. selected integration tests
+5. E2E smoke only if high-risk
+6. random audit probes
+7. emit selection receipt
+```
+
+### Push to main
+
+```text
+1. selected plan
+2. slightly higher audit rate
+3. update baseline test observations
+4. trigger release canary only if release-critical evidence satisfied
+```
+
+### Nightly
+
+```text
+1. full fmt/clippy/build/test-lib/test-integration/e2e
+2. coverage rebuild
+3. selector miss analysis
+4. flaky test report
+5. graph repair suggestions
+6. cache GC
+```
+
+### Release
+
+```text
+1. release-critical full lane
+2. targeted E2E
+3. canary
+4. telemetry/e2e gates
+5. production promotion
+```
+
+## Best possible policy defaults
+
+Use these as the first production-safe defaults:
+
+```toml
+[policy]
+min_confidence_for_skip = 0.92
+max_coverage_age_days = 7
+force_full_after_n_selected_runs = 50
+random_audit_rate = 0.05
+random_audit_rate_high_risk = 0.15
+new_file_requires_test_edge = true
+testmap_change_forces_full = true
+selector_code_change_forces_full = true
+lockfile_change_default = "affected_packages_or_full"
+untrusted_agent_default = "selected_plus_lane"
+release_default = "release_full"
+```
+
+## What success should look like
+
+A normal docs-only change:
+
+```text
+Before: fmt + clippy + build + unit + integration + TUI
+After: docs check only
+Speedup: huge
+```
+
+A change to `src/decision.rs`:
+
+```text
+Before: full lib + all integration
+After: fmt + clippy + decision unit tests
+Speedup: very large
+```
+
+A change to `src/pool.rs`:
+
+```text
+Before: all tests + full E2E
+After: fmt + clippy + pool tests + targeted E2E smoke
+Speedup: large, still safe
+```
+
+A change to `Cargo.lock`:
+
+```text
+Before: all tests
+After initially: broad/full
+After learning: affected package dependents + dependency-risk probes
+Speedup: medium, improving over time
+```
+
+A change to `tests/common`:
+
+```text
+Before: all integration
+After: still broad/full integration
+Speedup: low, intentionally
+```
+
+## The important cultural rule
+
+The goal is not “skip tests.”
+
+The goal is:
+
+```text
+Run every test whose result could plausibly change.
+Prove why every other test was skipped.
+Continuously audit that proof.
+Automatically repair the graph when the proof is wrong.
+```
+
+That is how jeryu can get to 10x–100x feedback improvements without turning CI into guesswork.
+
+[1]: https://docs.gitlab.com/ci/jobs/job_rules/ "Specify when jobs run with rules | GitLab Docs"
+[2]: https://nx.dev/docs/features/ci-features/affected "Run Only Tasks Affected by a PR | Nx"
+[3]: https://www.pantsbuild.org/dev/docs/using-pants/advanced-target-selection "Advanced target selection | Pantsbuild"
+[4]: https://docs.gitlab.com/ci/pipelines/downstream_pipelines/ "Downstream pipelines | GitLab Docs"
+[5]: https://doc.rust-lang.org/cargo/commands/cargo-test.html "cargo test - The Cargo Book"
+[6]: https://nexte.st/ "Home - cargo-nextest"
+[7]: https://nexte.st/docs/integrations/test-coverage/ "Test coverage - cargo-nextest"
+[8]: https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/vstest-v2?view=azure-pipelines "VSTest@2 - Visual Studio Test v2 task | Microsoft Learn"
+[9]: https://learn.microsoft.com/en-us/azure/devops/pipelines/test/test-impact-analysis?view=azure-devops "Use Test Impact Analysis - Azure Pipelines | Microsoft Learn"
+[10]: https://doc.rust-lang.org/rustc/instrument-coverage.html "Instrumentation-based Code Coverage - The rustc book"
+[11]: https://doc.rust-lang.org/cargo/commands/cargo-metadata.html?highlight=links+manifest+key "cargo metadata - The Cargo Book"
+[12]: https://docs.rs/guppy "guppy - Rust"
+[13]: https://doc.rust-lang.org/cargo/reference/workspaces.html "Workspaces - The Cargo Book"
+[14]: https://docs.rs/ra_ap_syntax "ra_ap_syntax - Rust"
+[15]: https://docs.rs/crate/cargo-llvm-cov/latest/source/docs/cargo-llvm-cov.txt "cargo-llvm-cov 0.8.5 - Docs.rs"
+[16]: https://www.testmon.org/ "About testmon | Testmon"
+[17]: https://docs.github.com/en/enterprise-server%403.15/actions/reference/workflows-and-actions/events-that-trigger-workflows "Events that trigger workflows - GitHub Enterprise Server 3.15 Docs"
+[18]: https://bazel.build/remote/caching "Remote Caching  |  Bazel"
+[19]: https://nexte.st/docs/features/retries/ "Retries and flaky tests - cargo-nextest"
+[20]: https://docs.gitlab.com/development/testing_guide/unhealthy_tests/ "Unhealthy tests | GitLab Docs"
+[21]: https://docs.gitlab.com/ci/testing/unit_test_reports/ "Unit test reports | GitLab Docs"
+[22]: https://nexte.st/docs/machine-readable/junit/ "JUnit support - cargo-nextest"
+

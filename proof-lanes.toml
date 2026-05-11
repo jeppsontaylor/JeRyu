@@ -1,0 +1,100 @@
+# proof-lanes.toml — Machine-readable proof path for jeryu
+#
+# Agents use this to determine which validation commands to run for a given
+# change type. This replaces the need to reconstruct proof paths from
+# scattered docs.
+
+# ─── Lanes ──────────────────────────────────────────────────────────────
+
+[lane.check]
+command = "cargo check -p jeryu --message-format=json"
+description = "Type-check only — fast feedback"
+required_for = ["any"]
+
+[lane.unit]
+command = "cargo nextest run -p jeryu --lib"
+description = "Unit tests from inline #[cfg(test)] modules (nextest structured output)"
+required_for = ["any"]
+
+[lane.integration]
+command = "cargo test -p jeryu --test '*' -- --test-threads=1"
+description = "Integration tests (state-dependent, serial)"
+required_for = ["state-change", "api-change", "release-change"]
+
+[lane.full]
+command = "cargo nextest run -p jeryu"
+description = "All tests via nextest"
+required_for = ["release-blocking", "cross-module"]
+
+[lane.security]
+command = "cargo test -p jeryu -- secrets exec honeypot admission"
+description = "Security-relevant module tests"
+required_for = ["security-relevant"]
+trigger_paths = [
+    "src/secrets.rs",
+    "src/exec.rs",
+    "src/honeypot.rs",
+    "src/admission.rs",
+    "src/sandbox.rs",
+    "src/taint.rs",
+]
+
+# ─── Change Types → Lanes ───────────────────────────────────────────────
+
+[change_type.leaf-bugfix]
+description = "Fix within a single module, no API or state change"
+lanes = ["check", "unit"]
+
+[change_type.state-change]
+description = "Modify DB schema, queries, or state types"
+lanes = ["check", "unit", "integration"]
+
+[change_type.api-change]
+description = "Modify CLI surface, webhook handling, or GitLab client"
+lanes = ["check", "unit", "integration"]
+
+[change_type.release-change]
+description = "Modify release pipeline, canary, or evidence handling"
+lanes = ["check", "unit", "integration"]
+
+[change_type.cross-module]
+description = "Change spans multiple modules or touches shared types"
+lanes = ["check", "unit", "integration", "full"]
+
+[change_type.release-blocking]
+description = "Must pass before any release attempt"
+lanes = ["check", "unit", "integration", "full"]
+
+[change_type.security-relevant]
+description = "Touches secrets, sandbox isolation, supply-chain detection, or admission control"
+lanes = ["check", "unit", "integration", "security"]
+
+# ─── Module → Change Type Hints ─────────────────────────────────────────
+
+[module_hints]
+"cli.rs" = "api-change"
+"dispatch.rs" = "api-change"
+"state.rs" = "state-change"
+"release.rs" = "release-change"
+"engine.rs" = "api-change"
+"pool.rs" = "api-change"
+"commands/git.rs" = "api-change"
+"commands/settings.rs" = "api-change"
+"settings.rs" = "api-change"
+"install.rs" = "api-change"
+"remote.rs" = "api-change"
+"git/" = "cross-module"
+"redact.rs" = "leaf-bugfix"
+"exec.rs" = "security-relevant"
+"cache.rs" = "leaf-bugfix"
+"impact.rs" = "leaf-bugfix"
+"test_intel/" = "api-change"
+"secrets.rs" = "security-relevant"
+"honeypot.rs" = "security-relevant"
+"admission.rs" = "security-relevant"
+"sandbox.rs" = "security-relevant"
+"taint.rs" = "security-relevant"
+"tui/" = "leaf-bugfix"
+"main.rs" = "api-change"
+"config.rs" = "cross-module"
+"gitlab_client.rs" = "api-change"

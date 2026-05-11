@@ -1,0 +1,13 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Ignore generated audit receipts, build artifacts, and the docs-only false positive"
+paths = [
+  '''(^|/)target/''',
+  '''(^|/)agent/repo-score\.json$''',
+  '''(^|/)agent/repo-score\.md$''',
+  '''(^|/)agent/score-history\.csv$''',
+  '''(^|/)agent/score-history\.jsonl$''',
+  '''(^|/)tips/upgrade/v3/tip13\.txt$''',
+]

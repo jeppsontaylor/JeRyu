@@ -1,0 +1,517 @@
+I couldn’t complete a local `git clone` or run the build/tests from this environment because outbound DNS to GitHub failed, so this is a **static source/docs review**, not a runtime validation. I reviewed the repo through GitHub/raw source, including the README, Cargo workspace, `AGENTS.md`, architecture/API/TUI/VTI docs, and the core modules around agents, capability grants, admission, execution, sandboxing, cache, release, state, test intelligence, and TUI.
+
+## Bottom line
+
+JeRyu is **not really a GitLab fork** in the conventional sense. It is a Rust control plane around a local GitLab CE + GitLab Runner + Docker + Vault + Postgres/SQLite stack. The repo describes `jeryu` as a single-binary Rust control plane for local GitLab that bypasses the web UI for agent workflows, with runner lifecycle control, CoW sandboxing, ephemeral bot users, custom executor support, semantic CI/CD, and security/isolation features. ([GitHub][1])
+
+The **strongest idea** is excellent: make the forge itself agent-operable. Instead of asking an agent to drive GitLab/GitHub like a slow human through web/API fragments, JeRyu creates a typed command surface for agents: task spawning, branch/MR workflows, capability intents, risk gates, smart test selection, failure capsules, runner pools, release gates, and a supervisory TUI. That is exactly the right direction.
+
+The biggest issue: a lot of the “world-class agent-first forge” vision is present as **architecture, docs, and partial implementations**, but several safety-critical and autonomy-critical pieces are not complete enough yet to justify “God Mode” claims. The main gaps are real sandboxing, fully implemented autonomous agent lifecycle, evidence-bound merge gating, cache correctness, secret/log redaction, and TUI completeness.
+
+## What it already does well
+
+**1. It has the right architecture shape for an agent-native forge.**
+The architecture splits the system into interface, control, state, execution, and intelligence planes, with agents expected to operate through typed commands, GitLab MRs/pipelines, capability intents, or hooks. That is much better than a random collection of scripts because it creates a real control surface for autonomous work. ([GitHub][2])
+
+**2. The API surface is unusually agent-friendly.**
+The CLI exposes lifecycle, pool, job, pipeline, cache, logs, agent, jeryu sync, test/VTI, release, secrets, progress, next-action, blocker explanation, action-list, repo-agent-surface, host, custom-executor, server-hook, and capability commands. The API docs explicitly cover CLI, TUI, webhook server, Unix-socket capability API, Git server hook, custom executor, action registry, state API, settings API, GitLab REST wrapper, release API, and secrets API. ([GitHub][3])
+
+**3. The capability API is the right primitive.**
+`AgentIntent` includes `ProposePatch`, `RacePatches`, `RunTests`, `FetchCapsule`, `RequestMerge`, `ExplainBlockers`, `GetSystemSnapshot`, `ListAllowedActions`, and `PlanValidation`. That is exactly the kind of small, typed, auditable interface agents need instead of “here is a PAT, good luck.” ([GitHub][4])
+
+**4. It already thinks in terms of grants, risk tiers, and side effects.**
+The action registry declares action IDs, labels, risk tiers, surfaces, side-effect classes, grant requirements, dry-run flags, and descriptions. This is a very good foundation for human-in-the-loop approvals, policy enforcement, TUI command palettes, and machine-readable agent contracts. ([GitHub][5])
+
+**5. Failure capsules are a great feature.**
+The `capsule` module captures structured failure evidence: environment, log snippet, repro script, pipeline/ref/commit/workdir, failure kind, and classification helpers. This is exactly what autonomous coding systems need: not just “job failed,” but a machine-readable reproducibility packet. ([GitHub][6])
+
+**6. VTI smart test selection is one of the best ideas in the repo.**
+The VTI docs describe a subsystem-aware planner that maps changed files to selected tests, supports external `.jeryu/testmap.toml`, emits GitLab child pipeline YAML and plan JSON, and has a nightly oracle for selector misses. It also defaults to full execution on failure modes, which is the right safety posture. ([GitHub][7])
+
+**7. The state/audit model is ambitious and mostly right.**
+The state layer supports Postgres-primary with SQLite fallback and stores runner state, jobs/pipelines, audit events, release attempts, failure capsules, jeryu sync, secrets, cache state, test plans, and selector misses. For agent fleets, durable state plus append-friendly ledgers is mandatory. ([GitHub][8])
+
+**8. SmartCache / gateway / singleflight is a strong performance direction.**
+The repo has cache modules for registry proxying, CAS, cache brain decisions, taint, epoch invalidation, gateway adapters for Cargo/Git/npm/OCI, and singleflight request coalescing. This is exactly the sort of infra that makes agent-led CI feel instant instead of “wait 20 minutes every patch.” ([GitHub][9])
+
+**9. The TUI concept is excellent.**
+The TUI has capture mode, multiple top-level tabs, a Flow Board, Release Watch, live job list, log preview, tests, cache, storage, evidence, secrets, and anti-blanking behavior so transient GitLab/API gaps do not erase the board. That “stable under partial data” property is exactly what an operator dashboard needs. ([GitHub][10])
+
+**10. The repo has unusually good agent-facing documentation.**
+`AGENTS.md`, `agent-index.md`, architecture docs, API docs, VTI docs, and TUI docs are a meaningful advantage. The module ownership/proof-routing style is very agent-friendly: it tells an agent where to work, what invariants matter, and what proof commands to run. ([GitHub][11])
+
+## Biggest gaps and overclaims
+
+### 1. The repo is more of a GitLab control plane than a GitLab replacement
+
+The current architecture depends on GitLab CE, GitLab Runner, GitLab REST APIs, Docker, Vault, and webhooks. That is fine, but the messaging should be precise: this is not yet a Rust-native GitLab fork or full forge replacement. It is a Rust **agent hypervisor/control plane** for a local GitLab installation. ([GitHub][1])
+
+**Improvement:** brand it as “agent-native forge control plane” unless/until it owns repo hosting, issues, MRs, auth, permissions, search, CI, packages, artifacts, and release management natively.
+
+### 2. The autonomous agent lifecycle is not complete enough
+
+`spawn_agent` provisions a project bot, creates an issue, creates a branch, and records task state; `spawn_race` creates hypothesis branches; merge uses a risk gate. But the source shows clear unfinished areas: `list_agents` is a TODO returning empty, race winner merge is TODO, and the actual autonomous edit/test/fix loop is not visible as a complete worker lifecycle. ([GitHub][12])
+
+**Improvement:** add a real `AgentSession` runtime:
+
+* `plan → patch → test → inspect failure capsule → patch again → MR → review → merge/release`
+* persisted session log with steps, tool calls, diffs, test results, and approvals
+* resumable sessions after crash/restart
+* per-agent leases, budgets, cancellation, priority, and ownership
+* bot token revocation and branch cleanup at task end
+* `agent list`, `agent inspect`, `agent stop`, `agent retry`, `agent adopt`, `agent archive`
+
+### 3. “Strict sandbox” is currently not strict
+
+The sandbox module says strict network isolation would use `unshare`/`bwrap`, but the implementation currently just sets `JERYU_SANDBOXED=1` and runs `bash`; the code comment says true namespace isolation is not implemented yet. This is the biggest security gap in the repo. ([GitHub][13])
+
+**Improvement:** make real isolation a P0 requirement:
+
+* run untrusted jobs in rootless containers, gVisor, Kata, Firecracker, or `bwrap`/user namespaces
+* default-deny network egress with explicit allowlists
+* mount source read-only plus separate writable scratch
+* no host Docker socket for untrusted work
+* cgroup process-tree kill on breach
+* seccomp/AppArmor profiles
+* per-job network namespace and DNS policy
+* deterministic teardown plus quarantined forensic snapshots
+
+### 4. Merge gating needs one canonical evidence-bound implementation
+
+The decision module has a typed risk gate and merge gate, which is good. But the capability `RequestMerge` path appears to construct a simplified proof with hardcoded successful/pending/failed job values and a relaxed evidence policy, while docs say the current merge proof is conservative/advisory and future work moves it into a shared gate. ([GitHub][14])
+
+**Improvement:** all merge paths should call one shared `MergeGate::evaluate(project, mr_iid, source_sha, target_sha)` that verifies:
+
+* MR head SHA equals the SHA being approved
+* latest pipeline for that SHA is green
+* required jobs materialized, not merely skipped
+* VTI selector misses under threshold
+* cache taints absent for touched subsystems
+* security scans pass
+* approvals/codeowners satisfied
+* release-impacting changes have release preflight
+* proof is signed/stored and admission checks it
+
+### 5. Admission control defaults are too soft
+
+The admission hook records decisions and can deny agent ref updates if `JERYU_ADMISSION_ENFORCE=1`, but without that variable agent refs are audit-only by default. For an agent-first forge, ungranted agent writes should be denied by default, with audit-only reserved for setup/debug. ([GitHub][15])
+
+**Improvement:** make “deny unless active grant” the default for all `refs/heads/agent/*`, `refs/heads/agents/*`, `refs/heads/jeryu/*`, and any bot-owned namespace. Add an explicit `--admission-audit-only` dev mode.
+
+### 6. Cache correctness has risky holes
+
+The cache system is ambitious, but several pieces look unsafe or incomplete:
+
+* `CacheBrain` appears to compare the current epoch to the current epoch rather than validating a candidate object’s stored epoch, which means epoch mismatch may never invalidate a cache hit. ([GitHub][9])
+* `test cache-status` computes VTI cache keys but checks against an empty persisted verdict list in the dispatch path, so it is not really proving reusable verdicts yet. ([GitHub][16])
+* The custom executor archives the entire sandbox into CAS on success, which risks huge, nondeterministic, secret-containing, or irrelevant payloads unless strongly filtered by a manifest. ([GitHub][17])
+* The Cargo proxy/cache path needs checksum/integrity enforcement against the official registry metadata before trusting cached tarballs. ([GitHub][18])
+
+**Improvement:** move from “cache artifact tarball” to “Merkle materialization manifest”:
+
+```text
+cache object =
+  toolchain fingerprint
+  dependency lock fingerprint
+  source input digest set
+  environment digest
+  trust namespace
+  epoch
+  output manifest
+  proof metadata
+  redaction/secret scan result
+```
+
+No cache hit should be usable without verifying its manifest, epoch, trust tier, taint status, and producer proof.
+
+### 7. Failure capsules and honeypots need stronger secret protection
+
+The capsule builder filters token-like environment keys from the repro script, but the capsule still includes environment/log-related data paths that can leak secrets unless everything is redacted consistently. Honeypots seed decoy tokens and watch for access, which is clever, but file access notifications are not a complete exfiltration defense. ([GitHub][6])
+
+**Improvement:** add a central redaction engine used by logs, capsules, TUI, DB, artifacts, and agent prompts. Use entropy scanning, key-pattern scanning, Vault-derived deny patterns, CI variable inventories, and structured “secret provenance” labels. On breach, kill the full process group/cgroup, revoke tokens, taint caches, quarantine artifacts, and block merge.
+
+### 8. Secrets/release code has too many hard-coded environment assumptions
+
+The release and secrets paths show defaults like `/home/ubuntu/dougx`, default release project ID `2`, and `--repo dougx` support. The API docs also document these defaults. That is acceptable for a personal/local prototype, but not for a general “world’s best” forge. ([GitHub][19])
+
+**Improvement:** make everything project-scoped and config-driven:
+
+* no baked-in repo names
+* no baked-in project ID
+* no baked-in local home path
+* multiple projects/repos/remotes
+* per-project release policies
+* per-project Vault mounts and secret scopes
+* portable install profiles: local laptop, homelab, cloud VM, Kubernetes
+
+### 9. TUI is promising but incomplete
+
+The TUI docs explicitly note current limitations: live logs are polled, old pool/pipeline renderers are not in the active Flow layout, the Flow Board renders only the first active pipeline, graph edges are empty, ETA is heuristic, Docker storage numbers are approximate, the Audit tab is a placeholder, and the job inspector is not wired into the active layout. ([GitHub][10])
+
+**Improvement:** make the TUI the “agent mission control” surface, not just observability. It should show active agents, capability grants, pending approvals, merge blockers, test-confidence gaps, cache taints, replay capsules, release gates, and suggested next actions.
+
+## How to make it the world’s #1 agent-first Git option
+
+The current GitHub/GitLab landscape already has agentic features: GitHub Copilot can delegate tasks to agents, track progress, use hooks, and connect to MCP; GitLab Duo includes autonomous agentic capabilities, foundational/custom/external agents, and security guidance around composite identity, sandboxing, tool restrictions, approvals, and prompt-injection risks. ([GitHub Docs][20])
+
+So JeRyu should not try to win by merely having “an AI agent.” It should win by being the **fastest, safest, most observable autonomous delivery forge**.
+
+### North-star product thesis
+
+> JeRyu should be the forge where an agent can safely own the entire delivery loop: understand code, propose patches, run the minimal proof, inspect failures, retry intelligently, request scoped capabilities, merge with evidence, release through gates, and leave a replayable audit trail.
+
+That means every operation should answer five questions:
+
+1. **Who/what agent did this?**
+2. **What exact capability allowed it?**
+3. **What exact code/object/SHA was affected?**
+4. **What proof made it safe?**
+5. **How can a human or another agent replay/undo/continue it?**
+
+## High-impact feature roadmap
+
+### P0: Make it safe enough to trust
+
+**Real sandboxing.** Replace the placeholder strict sandbox with actual isolation. Untrusted jobs should have no ambient host powers, no unrestricted network, no host Docker socket, no broad filesystem access, and no long-lived secrets. ([GitHub][13])
+
+**Canonical merge gate.** One merge gate for CLI, TUI, capability API, webhook reconciliation, and agent workflows. No advisory-only merge proofs and no hardcoded fake CI counts. ([GitHub][4])
+
+**Admission enforce-by-default.** Agent refs require signed/scoped active grants. Audit-only should be a development mode, not default production posture. ([GitHub][15])
+
+**Secret redaction everywhere.** Logs, capsules, DB events, TUI panels, repro scripts, prompts, and artifacts all need the same redaction layer.
+
+**Fix cache correctness before scaling cache usage.** Correct epoch validation, persist verdict lookups, verify package checksums, trust-partition cache namespaces, and stop archiving whole sandboxes without manifests. ([GitHub][9])
+
+### P1: Make autonomy actually autonomous
+
+**Agent session runtime.** Add durable `AgentSession` state: objective, constraints, branch, MR, current step, last proof, budget, next action, status, owner, grants, and transcript/evidence references.
+
+**Agent work queue.** Agents need a scheduler: priority, concurrency, cancellation, backoff, dependencies, ownership transfer, and “blocked waiting for human” state.
+
+**Patch hypothesis racing.** The repo already has `RacePatches`; make it real:
+
+* launch N isolated branches
+* run same proof plan
+* compare success/time/risk/diff size
+* auto-kill losers
+* preserve losing evidence for learning
+* merge the best candidate only through the canonical gate
+
+**Self-healing loop.** On failure, the agent should automatically fetch capsule → classify failure → select fix strategy → patch → rerun minimal proof → escalate only after budget/confidence threshold.
+
+**Agent memory, but scoped.** Store durable lessons by repo/subsystem/test, not raw unbounded chat memory. Example:
+
+```text
+subsystem: cache_proxy
+known flaky tests: [...]
+common failure signatures: [...]
+preferred proof commands: [...]
+dangerous files: [...]
+recent selector misses: [...]
+release risk: high
+```
+
+### P2: Make it dramatically faster than GitHub/GitLab
+
+**Zero-waste test execution.** VTI should evolve from path mapping to a hybrid of dependency graph, historical failures, coverage, mutation risk, API surface changes, and nightly oracle learning.
+
+**Flake intelligence.** Add a flake service:
+
+* detect flaky tests
+* quarantine with policy
+* rerun only when useful
+* distinguish product regression vs test instability
+* expose flake confidence to merge gate
+
+**Failure localization.** For each failing job, produce:
+
+* likely files/functions
+* first bad commit candidate
+* shortest repro command
+* related previous failures
+* whether failure is infra, compile, test, network, timeout, or security
+
+**Merkle workspaces.** Use content-addressed materialization instead of full sandbox tars. Agents should be able to checkpoint and switch branches almost instantly.
+
+**Predictive runner scaling.** Use pending jobs, historical runtime, pipeline DAG, and agent queue to scale warm managers before bottlenecks happen.
+
+**Streaming events.** Replace polling where possible. TUI, agents, and external tools should subscribe to event streams: job update, log chunk, grant created, merge blocked, cache tainted, release gate changed.
+
+### P3: Make it a complete agent forge
+
+**Native MCP server.** Expose JeRyu as an MCP server with carefully scoped tools:
+
+* `get_system_snapshot`
+* `list_actions`
+* `propose_patch`
+* `run_tests`
+* `fetch_capsule`
+* `explain_blocker`
+* `request_capability`
+* `request_merge`
+* `get_release_status`
+* `get_cache_taints`
+* `get_vti_plan`
+
+**Policy-as-code.** Add a repo-local policy file:
+
+```toml
+[merge]
+require_green_pipeline = true
+require_no_selector_misses = true
+require_no_cache_taints = true
+require_codeowner_approval_for = ["src/secrets.rs", "src/sandbox.rs"]
+
+[agents.untrusted]
+network = "deny"
+max_runtime_minutes = 20
+allowed_actions = ["run_tests", "propose_patch"]
+forbidden_paths = ["ops/prod/**", "secrets/**"]
+
+[release]
+canary_required = true
+production_requires_human = true
+```
+
+**In-toto/SLSA-style attestations.** Every agent patch, test run, cache hit, release gate, and production promotion should produce signed provenance.
+
+**Multi-repo orchestration.** Agents often need to coordinate across backend/frontend/infrastructure repos. Add cross-repo dependency maps, synchronized branches, multi-project VTI, and release trains.
+
+**Repository semantic index.** Maintain an agent-readable code graph:
+
+* modules
+* public APIs
+* ownership
+* tests
+* dependency graph
+* recent failures
+* security-sensitive paths
+* release-impacting paths
+* docs/spec links
+
+## Dream TUI behavior
+
+The TUI should become the place where a human can supervise 50 autonomous coding tasks without panic.
+
+### 1. Mission Control tab
+
+Show a single ranked list:
+
+```text
+NEXT BEST ACTION
+1. Agent cache-fix-17 is blocked: merge denied because cache taint affects src/cache_brain.rs
+2. Release ci-a1b2c3 ready for canary: preflight passed, e2e gate missing
+3. 3 runner pools at 92% disk pressure: apply reclaim plan
+4. VTI selector miss detected in subsystem "exec": update testmap rule
+```
+
+Each item should have:
+
+* reason
+* risk
+* suggested command
+* approval required?
+* estimated impact
+* evidence link
+
+### 2. Agent Fleet tab
+
+For each agent:
+
+```text
+agent/cache-fix-17
+objective: fix epoch invalidation bug
+branch: agent/cache-fix-17
+MR: !42
+state: testing patch v3
+last proof: selected tests passed, integration cache test failed
+next: inspect failure capsule
+risk: high, touches cache correctness
+budget: 4/8 attempts used
+```
+
+Actions:
+
+* approve next grant
+* pause/kill
+* open MR
+* inspect patch
+* view session replay
+* hand off to another model/agent
+* force full test
+* escalate to human
+
+### 3. Race Lab tab
+
+Visualize competing hypotheses:
+
+```text
+Hypothesis A: minimal epoch fix       ✅ tests green, small diff, low risk
+Hypothesis B: rewrite cache key path  ❌ compile failure
+Hypothesis C: disable cache on miss   ⚠ green but perf regression
+```
+
+The TUI should explain **why** one patch won.
+
+### 4. CI Flow Board 2.0
+
+Upgrade the current Flow Board from inferred columns to a real DAG:
+
+* graph edges from GitLab needs/child pipelines
+* critical path
+* blocking job
+* downstream release impact
+* ETA from historical data
+* queue time vs run time
+* runner assignment
+* retry history
+* failure capsule link
+* “why is this still pending?”
+
+The current TUI already has the right skeleton, but graph edges, first-pipeline-only rendering, and heuristic ETA are documented limitations. ([GitHub][10])
+
+### 5. Evidence tab
+
+This should be the audit/replay cockpit:
+
+* failure capsules
+* merge proofs
+* admission decisions
+* capability grants
+* test plans
+* selector misses
+* cache taints
+* release gates
+* secret rotations
+* provenance attestations
+
+Every entry should support:
+
+```text
+explain
+replay
+diff
+copy command
+open related MR/job/pipeline
+```
+
+### 6. Security & Trust tab
+
+Show:
+
+* active sandbox breaches
+* quarantined workspaces
+* token access attempts
+* prompt-injection detections
+* network egress denials
+* secret redaction events
+* cache trust boundaries
+* agents with write grants
+* grants expiring soon
+* untrusted branches touching sensitive paths
+
+### 7. Release War Room tab
+
+For release/canary/prod:
+
+```text
+version: ci-a1b2c3d4
+upstream: green
+release candidate: materialized
+canary: running
+telemetry: waiting
+e2e: not started
+prod: blocked
+blocker: missing c-validation.json
+next action: jeryu release doctor --version ci-a1b2c3d4
+rollback ready: yes
+```
+
+### 8. Command palette
+
+A fuzzy command palette powered by the action registry:
+
+```text
+> request merge
+risk: production
+requires: merge_approval
+will check: pipeline, selector misses, cache taints, approvals
+dry run available: yes
+```
+
+The action registry already has enough structure to support this well. ([GitHub][5])
+
+## Specific code-level improvements I would prioritize
+
+1. **Implement real sandbox isolation in `sandbox.rs`.** The current placeholder undermines the whole untrusted-agent story. ([GitHub][13])
+
+2. **Make `capability::RequestMerge` call the same merge gate as CLI/TUI.** Remove hardcoded CI success assumptions and advisory-only proof paths. ([GitHub][4])
+
+3. **Fix cache epoch validation.** Cache hits must validate the candidate object’s stored epoch, not merely compare the current epoch to itself. ([GitHub][9])
+
+4. **Wire `test cache-status` to persisted verdicts.** It should answer “can I skip this proof?” from real historical verdicts, not an empty list. ([GitHub][16])
+
+5. **Finish agent lifecycle APIs.** `agent list` cannot be TODO for an agent-first system; race winner merge also needs to be real. ([GitHub][12])
+
+6. **Unify grants, admission, and GitLab bot identities.** Every write should map to a capability intent, grant, bot/service account, branch/ref, commit SHA, and admission decision.
+
+7. **Centralize redaction.** Capsules, logs, repro scripts, TUI rendering, and event ledger writes should call the same redaction library.
+
+8. **Parameterize hard-coded project/repo assumptions.** Defaults like project `2`, `main`, `/home/ubuntu/dougx`, and `--repo dougx` are fine for a lab, not a platform. ([GitHub][19])
+
+9. **Replace whole-sandbox CAS archives with manifest-based materialization.** This is important for speed, security, and correctness. ([GitHub][17])
+
+10. **Complete the TUI’s inactive surfaces.** Audit tab, job inspector, graph edges, multi-pipeline view, pool/pipeline panes, and event drill-down should be first-class. ([GitHub][10])
+
+## My strongest product idea
+
+Make JeRyu not just “GitLab for agents,” but an **Autonomous Delivery Ledger**.
+
+Every meaningful agent action becomes a signed ledger event:
+
+```text
+Agent requested capability
+Human/policy granted capability
+Agent wrote branch
+Admission allowed ref update
+Pipeline ran
+VTI selected tests
+Cache supplied artifact
+Failure capsule captured
+Agent patched again
+Merge gate evaluated
+Release gate passed
+Production promotion triggered
+```
+
+Then the TUI, CLI, and API all become different views over the same ledger. That is how you get trust, speed, explainability, compliance, and autonomy at once.
+
+## Final verdict
+
+JeRyu has the bones of something genuinely special. The best parts are the typed agent surface, capability grants, VTI, failure capsules, SmartCache direction, release gates, action registry, and TUI vision. Those are exactly the primitives a serious autonomous coding forge needs.
+
+But to become “the world’s #1 agent-first git option,” it needs to stop overclaiming and harden the core loop: real sandboxing, real agent sessions, real evidence-bound merge gates, enforce-by-default admission, correct cache proofs, redaction everywhere, and a TUI that makes autonomous work understandable at a glance.
+
+The most important shift is this: **do not build an AI wrapper around GitLab. Build a proof-driven operating system for autonomous software delivery, with GitLab as one backend.**
+
+[1]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/README.md "raw.githubusercontent.com"
+[2]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/ARCHITECTURE.md "raw.githubusercontent.com"
+[3]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/API.md "raw.githubusercontent.com"
+[4]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/capability.rs "raw.githubusercontent.com"
+[5]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/tui/action_registry.rs "raw.githubusercontent.com"
+[6]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/capsule.rs "raw.githubusercontent.com"
+[7]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/VTI.md "raw.githubusercontent.com"
+[8]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/state.rs "raw.githubusercontent.com"
+[9]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/cache_brain.rs "raw.githubusercontent.com"
+[10]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/docs/JERYU_TUI.md "raw.githubusercontent.com"
+[11]: https://github.com/jeppsontaylor/JeRyu/raw/refs/heads/main/AGENTS.md "raw.githubusercontent.com"
+[12]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/agent.rs "raw.githubusercontent.com"
+[13]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/sandbox.rs "raw.githubusercontent.com"
+[14]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/decision.rs "raw.githubusercontent.com"
+[15]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/admission.rs "raw.githubusercontent.com"
+[16]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/dispatch.rs "raw.githubusercontent.com"
+[17]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/exec.rs "raw.githubusercontent.com"
+[18]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/refs/heads/main/src/cache_proxy.rs "raw.githubusercontent.com"
+[19]: https://raw.githubusercontent.com/jeppsontaylor/JeRyu/main/src/release.rs "raw.githubusercontent.com"
+[20]: https://docs.github.com/en/copilot/how-tos/copilot-on-github "GitHub Copilot on GitHub - GitHub Docs"
+

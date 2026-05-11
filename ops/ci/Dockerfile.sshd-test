@@ -1,0 +1,56 @@
+# ───────────────────────────────────────────────────────────────────────────
+# JeRyu SSH Install Integration Test — sshd target container
+# ───────────────────────────────────────────────────────────────────────────
+# Lightweight Ubuntu with openssh-server.  Used by CI to prove that
+# `jeryu remote install` works end-to-end over a real SSH connection.
+#
+# Build:  docker build -t jeryu-sshd-test -f ops/ci/Dockerfile.sshd-test .
+# Run:    docker run -d -p 2222:22 --name jeryu-sshd jeryu-sshd-test
+# ───────────────────────────────────────────────────────────────────────────
+FROM ubuntu:24.04
+
+LABEL org.opencontainers.image.title="jeryu-sshd-test"
+LABEL org.opencontainers.image.description="Minimal sshd target for SSH install integration tests"
+
+# Avoid interactive prompts during package install.
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        openssh-server \
+        bash \
+        coreutils \
+        ca-certificates \
+        procps \
+        curl \
+        iptables; \
+    rm -rf /var/lib/apt/lists/*; \
+    curl -fsSL https://get.docker.com | sh; \
+    # sshd needs /run/sshd to exist.
+    mkdir -p /run/sshd; \
+    # Create a non-root test user with a known password.
+    useradd -m -s /bin/bash testuser; \
+    usermod -aG docker testuser; \
+    echo 'testuser:testpass' | chpasswd; \
+    # Enable password authentication (default on Ubuntu but be explicit).
+    sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config; \
+    # Disable root login — we always test as non-root.
+    sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config; \
+    # Allow pubkey auth (default, but be explicit).
+    sed -i 's/^#\?PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config; \
+    # Generate host keys if they don't exist yet.
+    ssh-keygen -A
+
+RUN echo '#!/bin/bash\n\
+set -e\n\
+# Start dockerd in the background\n\
+dockerd --host=unix:///var/run/docker.sock > /var/log/dockerd.log 2>&1 &\n\
+# Wait for docker to start\n\
+timeout 15 sh -c "until docker info >/dev/null 2>&1; do sleep 1; done"\n\
+exec "$@"\n' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+EXPOSE 22
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/usr/sbin/sshd", "-D", "-e"]

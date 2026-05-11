@@ -1,0 +1,99 @@
+\documentclass[10pt]{article}
+\usepackage[letterpaper,margin=0.55in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{helvet}
+\usepackage{courier}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage[most]{tcolorbox}
+\pagestyle{empty}
+\renewcommand{\familydefault}{\sfdefault}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3pt}
+\setlist[itemize]{leftmargin=1.1em,itemsep=1.5pt,topsep=2pt,parsep=0pt}
+\definecolor{ink}{RGB}{15,23,42}
+\definecolor{muted}{RGB}{71,85,105}
+\definecolor{line}{RGB}{203,213,225}
+\definecolor{navy}{RGB}{15,76,117}
+\definecolor{blue}{RGB}{14,116,144}
+\definecolor{green}{RGB}{22,101,52}
+\definecolor{gold}{RGB}{146,96,0}
+\definecolor{softblue}{RGB}{236,248,252}
+\definecolor{softgreen}{RGB}{239,253,244}
+\definecolor{softgold}{RGB}{255,251,235}
+\definecolor{softgray}{RGB}{248,250,252}
+\color{ink}
+
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcommand{\metricbox}[3]{%
+\begin{tcolorbox}[enhanced,sharp corners,boxrule=0.45pt,colframe=#1!70!black,colback=#1!8,left=5pt,right=5pt,top=4pt,bottom=4pt,height=1.05in]
+{\footnotesize\bfseries #2}\par
+{\scriptsize #3}
+\end{tcolorbox}}
+\newcommand{\sectionlabel}[1]{\vspace{2pt}{\small\bfseries\color{navy}#1}\vspace{2pt}\par}
+
+\begin{document}
+{\LARGE\bfseries JeRyu Executive Brief}\hfill{\small V3.01}
+
+{\large\color{navy}Proof-carrying, agent-first Git control for high-velocity engineering organizations}
+
+\vspace{3pt}
+\begin{tcolorbox}[enhanced,sharp corners,boxrule=0pt,colback=navy!7,left=7pt,right=7pt,top=6pt,bottom=6pt]
+{\bfseries What executives need to know.}
+JeRyu is a local-first Rust control plane for agent-driven software delivery. It lets AI agents move fast, but routes their work through explicit intent, policy, validation, runner trust, evidence, merge gates, and release gates. The business result is faster engineering throughput without converting autonomy into unmanaged production risk.
+\end{tcolorbox}
+
+\sectionlabel{Business Value}
+\begin{tabularx}{\linewidth}{@{}Y Y Y@{}}
+\metricbox{blue}{Time}{VTI selects the smallest defensible validation set and falls back when proof is missing, reducing CI latency without hiding risk.} &
+\metricbox{green}{Money}{Smarter runner use, cache trust boundaries, and fewer speculative dead ends reduce wasted compute and human review cycles.} &
+\metricbox{gold}{Security}{Agents receive bounded capability grants, isolated runners, taint-aware cache decisions, and auditable merge/release evidence.}
+\end{tabularx}
+
+\sectionlabel{Why It Is Different}
+\begin{tcolorbox}[enhanced,sharp corners,boxrule=0.45pt,colframe=line,colback=softgray,left=6pt,right=6pt,top=5pt,bottom=5pt]
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}p{0.23\linewidth}Y Y@{}}
+ & Conventional market surface & JeRyu position\\
+\hline
+Coding agents & Generate patches, open PRs, and assist developers. & Assumes agents can write code; controls what their code is allowed to do next.\\
+CI systems & Run jobs after commits and report pass/fail. & Treats validation choice, skipped tests, cache trust, and failure evidence as proof objects.\\
+Hosted platforms & Optimize broad multi-tenant workflows and vendor-defined roadmaps. & Runs locally, exposes the source, and can be adapted immediately to enterprise policy.\\
+\end{tabularx}
+\end{tcolorbox}
+
+\sectionlabel{Strategic Capabilities}
+\begin{tabularx}{\linewidth}{@{}Y Y@{}}
+\begin{tcolorbox}[enhanced,sharp corners,boxrule=0.45pt,colframe=line,colback=white,left=6pt,right=6pt,top=5pt,bottom=5pt]
+\small\bfseries Agent-first control plane
+\begin{itemize}
+\item Capability API and native MCP server expose governed actions to agents.
+\item Merge and release are evidence decisions, not agent assertions.
+\item The TUI gives operators the same proof stack agents consume.
+\end{itemize}
+\end{tcolorbox}
+&
+\begin{tcolorbox}[enhanced,sharp corners,boxrule=0.45pt,colframe=line,colback=white,left=6pt,right=6pt,top=5pt,bottom=5pt]
+\small\bfseries Rust operational profile
+\begin{itemize}
+\item Single-binary control surface close to Git, CI, containers, sockets, and local policy.
+\item Low memory overhead and predictable performance for high-churn agent loops.
+\item Source-available internals enable rapid feature upgrades and policy-specific extensions.
+\end{itemize}
+\end{tcolorbox}
+\end{tabularx}
+
+\sectionlabel{Executive Decision Frame}
+\begin{tcolorbox}[enhanced,sharp corners,boxrule=0.45pt,colframe=navy!65!black,colback=softblue,left=7pt,right=7pt,top=5pt,bottom=5pt]
+\small
+\textbf{Adopt JeRyu when the organization wants AI-assisted engineering throughput without surrendering validation, security, or release authority to opaque workflow conventions.}
+The core advantage is not another code-generation assistant; it is ownership of the delivery control plane around those assistants. For CTOs and CIOs, that means shorter feedback loops, clearer audit posture, lower CI waste, stronger isolation, and faster platform evolution because the full source code can be inspected and changed as the business changes.
+\end{tcolorbox}
+
+\vfill
+{\scriptsize\color{muted}
+Read the full technical paper for architecture, VTI, MCP/capability APIs, merge gates, runner/cache trust, and implementation status: \texttt{paper/main.pdf}. Markdown companion: \texttt{paper/paper.md}.}
+\end{document}

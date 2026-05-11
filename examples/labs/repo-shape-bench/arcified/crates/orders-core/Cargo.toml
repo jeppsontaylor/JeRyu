@@ -1,0 +1,18 @@
+[package]
+name = "orders-core"
+version = "0.1.0"
+edition = "2024"
+
+[package.metadata.agent]
+purpose = "Pure order-domain core"
+owned_paths = ["src/**"]
+entrypoints = ["price_order"]
+local_validate = [
+    "cargo check -p orders-core",
+    "cargo test -p orders-core",
+    "cargo test -p orders-core --doc",
+]
+public_api = false
+
+[lib]
+path = "src/lib.rs"

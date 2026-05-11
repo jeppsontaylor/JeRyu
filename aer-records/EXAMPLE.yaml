@@ -1,0 +1,10 @@
+id: aer.example.mega-file-parser
+class_id: mega-file
+rule: "Files should stay below the house budget unless locality would be harmed."
+exception: "Parser table remains in one file to preserve traceability."
+reason: "Splitting the grammar table would make cross-rule debugging harder during a protocol migration."
+risk: medium
+owner: parser-team
+doc_links:
+  - https://doc.rust-lang.org/book/ch13-04-performance.html
+sunset_condition: "Remove when the grammar format is stabilized and table generation lands."

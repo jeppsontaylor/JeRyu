@@ -1,0 +1,26 @@
+/target
+
+# Proof-scoped control plane generated outputs
+/.witness/
+/agent-map.json
+/test-map.json
+/aer-findings.json
+/vrc-plan.json
+/.jeryu/git-mirror-events.jsonl
+
+# LaTeX build byproducts; paper sources, screenshots, and final PDFs are tracked.
+/paper/*.aux
+/paper/*.bbl
+/paper/*.blg
+/paper/*.log
+# jankurai scaffold .gitignore
+# Keep Jankurai receipts local without hiding the rest of target/.
+target/jankurai/
+.jankurai/
+
+# Fixture project build artifacts (self-contained workspace).
+tests/fixtures/fixture_project/target/
+
+# CI test evidence (generated per-run).
+target/ci-evidence/
+target/ci-screenshots/

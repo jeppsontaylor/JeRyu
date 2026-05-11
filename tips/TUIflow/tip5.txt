@@ -1,0 +1,437 @@
+I studied the repo/API and I would **not** build this as an extension of the current `Tests` tab. The right solution is a new first-class **`0:Workflow` tab** that becomes the default landing view and renders the required validation/test DAG as a live, navigable execution map.
+
+I also created a mock screenshot estimate here: [workflow TUI mockup PNG](sandbox:/mnt/data/jeryu_workflow_tui_mock.png)
+
+## What the repo already gives us
+
+The existing TUI is a strong base. It already has:
+
+* A Ratatui/crossterm app split across `src/tui/mod.rs`, `src/tui/app.rs`, and `src/tui/ui.rs`.
+* A tab model in `ActiveTab`, currently defaulting to `Mission`.
+* A capture path via `jeryu tui --capture`, using `TestBackend` and PNG generation.
+* Existing live job status, logs, retry/cancel actions, and GitLab job APIs.
+* A flow-board model under `src/tui/flow/*`, including graph nodes, columns, statuses, critical path fields, and ETA structures.
+* VTI/test-selection APIs in `jeryu test select`, `test run`, `test batch`, `test results`, `test retry`, `test cache-status`.
+* Persistent state for test plans and test executions in `test_plans`, `test_plan_items`, `selector_misses`, and `test_executions`.
+* `proof-lanes.toml`, which is already a machine-readable source of “what validation lanes are required for this kind of change.”
+
+The gap is that the current `Tests` tab is a bottleneck/history dashboard. It does **not** answer: “What are all the tests that must run, what can run now, what is blocked behind prior work, and what is the live state of each node?”
+
+## Best architecture
+
+Add a new TUI subsystem:
+
+```text
+src/tui/workflow/
+  mod.rs
+  model.rs
+  collector.rs
+  layout.rs
+  widget.rs
+  inspector.rs
+```
+
+The important design point is this: **rendering should not discover the workflow.** Rendering should consume a prebuilt `WorkflowSnapshot`.
+
+### Core model
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkflowStatus {
+    Waiting,
+    Running,
+    Ran,
+    Error,
+    Skipped,
+    Cached,
+    Blocked,
+    Unknown,
+}
+
+#[derive(Debug, Clone)]
+pub struct WorkflowNode {
+    pub id: String,
+    pub label: String,
+    pub command: Option<String>,
+    pub stage: String,
+    pub status: WorkflowStatus,
+    pub required: bool,
+    pub deps: Vec<String>,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
+    pub duration_secs: Option<f64>,
+    pub eta_secs: Option<u64>,
+    pub backend: Option<WorkflowBackendRef>,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum WorkflowBackendRef {
+    GitlabJob {
+        project_id: i64,
+        pipeline_id: i64,
+        job_id: i64,
+    },
+    VtiPlanItem {
+        plan_id: i64,
+        test_id: String,
+    },
+    LocalProofLane {
+        lane: String,
+    },
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct WorkflowSnapshot {
+    pub generated_at: chrono::DateTime<chrono::Utc>,
+    pub title: String,
+    pub source: WorkflowSource,
+    pub nodes: Vec<WorkflowNode>,
+    pub edges: Vec<WorkflowEdge>,
+    pub levels: Vec<Vec<String>>,
+    pub selected_node_id: Option<String>,
+    pub summary: WorkflowSummary,
+    pub stale: bool,
+}
+```
+
+`levels` is the key field. It is computed by topological sorting:
+
+* Level 0: no dependencies; can run immediately.
+* Level 1: depends only on level 0.
+* Level 2: depends on prior levels.
+* Nodes in the same level render **side by side**.
+* Later levels render **below**.
+
+That directly matches your desired layout.
+
+## Data source priority
+
+The Workflow tab should merge several sources, in this order:
+
+### 1. Active pipeline jobs
+
+If there is an active tracked pipeline, use GitLab jobs as the live execution source.
+
+The existing GitLab API already exposes enough to start:
+
+* `list_pipeline_jobs`
+* `list_pipeline_jobs_with_downstream`
+* `get_pipeline`
+* `job_trace`
+* `retry_job`
+* `cancel_job`
+
+The current `Job` struct includes `name`, `status`, `stage`, `duration`, `started_at`, `finished_at`, and runner info. That is enough for status, stage grouping, and log actions.
+
+One limitation: the current GitLab client does not expose explicit `needs:` DAG edges. So the first implementation should use:
+
+1. Explicit dependency metadata where JeRyu already has it.
+2. CI stage ordering when explicit edges are not available.
+3. Same-stage jobs as parallel siblings.
+
+That still gives an excellent “parallel side-by-side, dependency-below” view.
+
+### 2. Latest VTI plan
+
+When no live pipeline exists, use the latest VTI plan from `test_plans`.
+
+For built-in VTI:
+
+* `selected_tests` become required workflow nodes.
+* `sentinel_tests` become required guard nodes.
+* `skipped_subsystems` render as dim skipped/omitted context, not as active required nodes.
+* `fallback_reason` explains why the plan escalated to full.
+
+For external VTI/testmap:
+
+* `selected_jobs` become nodes.
+* Job dependencies from the testmap logic should be reused or exposed from `test_intel::testmap`.
+* Generated child-pipeline stages become layout stages.
+
+### 3. Proof lanes fallback
+
+If there is no live pipeline and no persisted VTI plan, use `proof-lanes.toml` and workspace/package metadata as the fallback workflow.
+
+For example, a TUI-only change currently maps to a leaf-style proof path, while cross-module/security/release changes escalate to integration/full/security lanes. This gives the tab useful content even before a test plan is generated.
+
+## Default tab change
+
+Change:
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActiveTab {
+    #[default]
+    Mission,
+    ...
+}
+```
+
+to:
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActiveTab {
+    #[default]
+    Workflow,
+    Mission,
+    Release,
+    Jobs,
+    Agents,
+    Tests,
+    Pools,
+    Cache,
+    Evidence,
+    Git,
+    Secrets,
+}
+```
+
+Then update numeric tab routing:
+
+```rust
+impl ActiveTab {
+    pub fn from_number(n: u8) -> Option<Self> {
+        match n {
+            0 => Some(Self::Workflow),
+            1 => Some(Self::Mission),
+            2 => Some(Self::Release),
+            3 => Some(Self::Jobs),
+            4 => Some(Self::Agents),
+            5 => Some(Self::Tests),
+            6 => Some(Self::Pools),
+            7 => Some(Self::Cache),
+            8 => Some(Self::Evidence),
+            9 => Some(Self::Secrets),
+            _ => None,
+        }
+    }
+}
+```
+
+`Git` can stay reachable through the command palette and tab cycling, but `0` should belong to Workflow.
+
+Also update:
+
+* `parse_capture_tab("workflow" | "0")`
+* command palette action registry: add `tab_workflow`
+* help overlay
+* docs/API action list
+* `renders_all_primary_tabs_with_empty_state`
+* `navigation_cycles_tabs_and_panes`
+* CLI help text for `--tab`
+
+## Rendering layout
+
+The tab should use four major zones:
+
+```text
+┌ Header / tabs ──────────────────────────────────────────────────────────────┐
+│ [0:Workflow] 1:Mission 2:Release 3:Jobs ... GitLab:OK pools:2/2 rel:...     │
+├ Summary ────────────────────────────────────────────────────────────────────┤
+│ Workflow: PR validation DAG | OK 8 RUN 4 WAIT 3 ERR 1 | progress ███░ 66%  │
+├ Main DAG canvas ───────────────────────────────────────────┬ Inspector ─────┤
+│ L0   [fmt ✓] [clippy ✓] [build ◉]                         │ selected node   │
+│             │                                               │ command         │
+│ L1 [install ✓] [vti ✓] [tui ◉] [deny ◉] [witness ○] [aer ✕] │ why required    │
+│       │                                                     │ logs/actions    │
+│ L2          [lib tests ◉] [integration ○]                   │                │
+│                  │                                          │                │
+│ L3             [required proof gate ○]                      │                │
+├ Event ticker ────────────────────────────────────────────────────────────────┤
+│ 12:03 [RUN] lib tests │ 12:02 [ERR] aer scan │ ...                          │
+└ Footer ──────────────────────────────────────────────────────────────────────┘
+```
+
+Each test/job block should include:
+
+* Status badge and icon.
+* Test/job name.
+* Command or short stage.
+* Duration/ETA when available.
+* Required/skipped/cached indicator.
+* Border color matching status.
+* Reversed/highlight style when selected.
+* Animated running indicator based on `app.tick_count`.
+
+## Status colors
+
+Use a strict color map:
+
+| Status    | Visual                                          |
+| --------- | ----------------------------------------------- |
+| `Running` | cyan/blue, animated spinner `◉`, pulsing border |
+| `Ran`     | green, `✓`, completed progress                  |
+| `Error`   | red, `✕`, bold border                           |
+| `Waiting` | yellow, `○`, dim progress                       |
+| `Blocked` | magenta, `◆`, shows upstream blocker            |
+| `Skipped` | dark gray, `⊘`                                  |
+| `Cached`  | green/dim, `↺` or `✓ cache`                     |
+
+Map GitLab statuses like this:
+
+```rust
+fn workflow_status(status: &str) -> WorkflowStatus {
+    match status {
+        "success" | "passed" => WorkflowStatus::Ran,
+        "running" | "preparing" => WorkflowStatus::Running,
+        "failed" | "timeout" => WorkflowStatus::Error,
+        "created" | "pending" | "waiting_for_resource" => WorkflowStatus::Waiting,
+        "skipped" | "canceled" => WorkflowStatus::Skipped,
+        _ => WorkflowStatus::Unknown,
+    }
+}
+```
+
+## Navigation controls
+
+For this tab, arrow keys should navigate the DAG, not panes.
+
+Recommended controls:
+
+```text
+↑        move to nearest predecessor / level above
+↓        move to nearest successor / level below
+←        previous sibling in same level
+→        next sibling in same level
+Home     first node in current level
+End      last node in current level
+Enter    inspect selected node; open logs if it has a GitLab job
+r        retry selected failed job, if it has a GitLab job
+c        cancel selected running job, if it has a GitLab job
+/        search tests/jobs
+f        filter: all / active / failed / required
+m        switch source: live pipeline / VTI plan / proof lanes
+g        follow newest running node
+Tab      cycle top-level tabs
+0        jump back to Workflow
+?        help overlay
+```
+
+The selection model should be stable by node id, not by row/column index, so refreshes do not throw the user across the screen.
+
+## Layout algorithm
+
+The layout should be deterministic.
+
+1. Build a map of `node_id -> WorkflowNode`.
+2. Build in-degree counts from edges.
+3. Kahn topological sort.
+4. Assign each node a level:
+
+```rust
+level[node] = 0 if no deps
+level[node] = 1 + max(level[dep]) otherwise
+```
+
+5. Group nodes by level.
+
+6. Within each level, sort by:
+
+   * stage order,
+   * required before optional,
+   * running/error before waiting/ran,
+   * original CI order.
+
+7. Render each level as a horizontal row of blocks.
+
+8. If a row has more nodes than fit:
+
+   * keep selected node visible,
+   * horizontally scroll that level,
+   * show `◀ more` / `more ▶` hints.
+
+For runner concurrency, a later enhancement can split a single dependency level into “waves” when only N jobs can actually execute at once. But the first view should show “parallelizable by dependency” because that is the clearest model.
+
+## Implementation steps
+
+1. **Add Workflow model**
+
+   * `src/tui/workflow/model.rs`
+   * `WorkflowSnapshot`, `WorkflowNode`, `WorkflowStatus`, `WorkflowEdge`, `WorkflowSummary`.
+
+2. **Add Workflow collector**
+
+   * Reads active pipelines/jobs.
+   * Reads latest VTI test plan.
+   * Falls back to proof lanes.
+   * Merges planned nodes with live GitLab job statuses.
+
+3. **Add Workflow layout**
+
+   * Topological levels.
+   * Stable selected-node navigation.
+   * Scroll offsets.
+
+4. **Add Workflow widget**
+
+   * Pure Ratatui rendering over `WorkflowSnapshot`.
+   * Draws blocks, connectors, legend, progress, inspector.
+   * No DB/GitLab calls in renderer.
+
+5. **Wire App state**
+
+   * Add `pub workflow: WorkflowSnapshot`.
+   * Add selected workflow node state.
+   * Update `refresh_now()` and background sync.
+   * Add `workflow_up/down/left/right`.
+
+6. **Wire tab system**
+
+   * `ActiveTab::Workflow` default.
+   * `0 => Workflow`.
+   * Header shows `[0:Workflow]`.
+   * `draw()` dispatches to `draw_workflow_tab`.
+
+7. **Wire actions**
+
+   * Add `tab_workflow` to action registry.
+   * Add `retry_selected_workflow_node()`.
+   * Add `cancel_selected_workflow_node()`.
+   * Enter opens logs through existing log target if node has a GitLab job.
+
+8. **Update capture**
+
+   * `jeryu tui --capture --tab workflow --output paper/assets/jeryu-tui-workflow.png`
+   * Add demo workflow fixture for pretty screenshots.
+
+9. **Tests**
+
+   * Empty workflow renders.
+   * Default tab is Workflow.
+   * `0` selects Workflow.
+   * Topological layering puts independent jobs side by side.
+   * Failed/running/waiting/ran statuses map to correct colors.
+   * Selection survives refresh reorder.
+   * Enter on GitLab-backed node opens logs.
+   * Retry only works for failed GitLab-backed node.
+
+## What I would reuse vs replace
+
+Reuse:
+
+* `src/tui/flow/model.rs` concepts: nodes, edges, ETA, backend refs.
+* `status_color` / `status_badge` style approach in `ui.rs`.
+* Existing log, retry, cancel actions.
+* Existing PNG capture infrastructure.
+* Existing `test_plans` and `test_executions` DB data.
+* Existing `proof-lanes.toml`.
+
+Do not reuse directly:
+
+* The current `Tests` tab layout. It is a list/history view, not a workflow DAG.
+* The existing flow widget as-is. It is column/stage oriented; the Workflow view needs dependency-level rows with many sibling cards and better navigation.
+
+## The ideal final feel
+
+The user opens `jeryu tui` and immediately lands on:
+
+```text
+[0:Workflow]
+```
+
+They see every required validation node, not just what is currently running. Completed tests are green, active tests pulse cyan, failed tests are red, and blocked/waiting work is yellow. Parallel work is visually side by side. Dependency chains descend downward. Arrow keys feel natural: left/right across peers, up/down through dependency layers. Enter opens details/logs. The tab becomes the single best answer to: **“What still has to pass before this change is safe?”**
+
+I could not run `cargo check` in this sandbox because `cargo` is not installed here, so this is based on static repo/API inspection rather than a compiled patch.
+

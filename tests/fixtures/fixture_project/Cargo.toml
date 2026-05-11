@@ -1,0 +1,13 @@
+[package]
+name = "signal-router"
+version = "0.4.2"
+edition = "2021"
+description = "High-throughput signal routing engine for distributed telemetry pipelines"
+license = "MIT"
+
+# This project is intentionally self-contained; not part of the parent workspace.
+[workspace]
+
+[dependencies]
+
+[dev-dependencies]

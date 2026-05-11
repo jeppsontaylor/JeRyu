@@ -1,0 +1,458 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{graphicx}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{adjustbox}
+\usetikzlibrary{arrows.meta,positioning,fit,calc,shapes.geometric}
+\def\UrlBreaks{\do\/\do-\do\_\do\.\do\?\do\&\do\=}
+
+\definecolor{codebg}{RGB}{248,250,252}
+\definecolor{codeframe}{RGB}{203,213,225}
+\definecolor{codestring}{RGB}{3,105,161}
+\definecolor{codekey}{RGB}{126,34,206}
+\definecolor{codecomment}{RGB}{71,85,105}
+\definecolor{codekw}{RGB}{185,28,28}
+
+\lstdefinelanguage{json}{
+  basicstyle=\ttfamily\scriptsize,
+  showstringspaces=false,
+  breaklines=true,
+  morestring=[b]",
+  stringstyle=\color{codestring},
+  literate=
+   *{0}{{{\color{codekey}0}}}{1}
+    {1}{{{\color{codekey}1}}}{1}
+    {2}{{{\color{codekey}2}}}{1}
+    {3}{{{\color{codekey}3}}}{1}
+    {4}{{{\color{codekey}4}}}{1}
+    {5}{{{\color{codekey}5}}}{1}
+    {6}{{{\color{codekey}6}}}{1}
+    {7}{{{\color{codekey}7}}}{1}
+    {8}{{{\color{codekey}8}}}{1}
+    {9}{{{\color{codekey}9}}}{1}
+    {:}{{{\color{black}:}}}{1}
+    {,}{{{\color{black},}}}{1}
+    {\{}{{{\color{black}\{}}}{1}
+    {\}}{{{\color{black}\}}}}{1}
+    {[}{{{\color{black}[}}}{1}
+    {]}{{{\color{black}]}}}{1},
+}
+
+\lstdefinelanguage{rust}{
+  morekeywords={struct,enum,pub,Option,String,bool,i64,u64,u32,JsonValue},
+  sensitive=true,
+  morecomment=[l]{//},
+  morestring=[b]",
+}
+
+\lstdefinestyle{api}{
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{codekw}\bfseries,
+  commentstyle=\color{codecomment},
+  stringstyle=\color{codestring},
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  breaklines=true,
+  breakatwhitespace=false,
+  tabsize=2,
+  xleftmargin=0.6em,
+  xrightmargin=0.6em,
+  captionpos=t,
+  abovecaptionskip=0.8em,
+  belowcaptionskip=1.25em,
+  aboveskip=1.1em,
+  belowskip=2.2em
+}
+\lstset{
+  captionpos=t,
+  abovecaptionskip=0.8em,
+  belowcaptionskip=1.25em,
+  aboveskip=1.1em,
+  belowskip=2.2em
+}
+\makeatletter
+\newlength{\jeryulistingcaptiongap}
+\setlength{\jeryulistingcaptiongap}{0.9\baselineskip}
+\let\jeryu@orig@lst@makecaption\lst@makecaption
+\def\lst@makecaption#1#2{%
+  \jeryu@orig@lst@makecaption{#1}{#2}%
+  \par\nobreak\vskip\jeryulistingcaptiongap\nobreak
+}
+\makeatother
+
+\title{JeRyu: A Proof-Carrying, Agent-First Git Control Plane}
+
+\author{\IEEEauthorblockN{JeRyu Project}
+\IEEEauthorblockA{Draft for V3.01\\
+Agent-first GitLab control plane, VTI, evidence, and merge-gate architecture}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Modern software agents can edit code faster than conventional review, CI, and release systems can safely absorb. GitHub Copilot cloud agent can research, plan, edit branches, run tests, and create pull requests, but public documentation describes important constraints: one branch at a time, one pull request per task, and GitHub-hosted repositories only \cite{github-copilot-cloud-agent}. GitLab Duo Agent Platform brings agentic automation into GitLab contexts, including issues, merge requests, pipelines, planning, and security signals \cite{gitlab-duo-ga,gitlab-duo-platform,gitlab-duo-workflow}. Open-source agents such as OpenHands, SWE-agent, and Aider improve code authoring and task execution, but generally remain outside the Git/CI authority boundary \cite{openhands-paper,sweagent-paper,aider-repo}. JeRyu proposes a different layer: an agent-first delivery control plane that treats agent intent, validation plans, CI execution, runner trust, cache use, failure evidence, merge gates, and release gates as one proof loop. Its VTI subsystem maps changes to validation with conservative fallback, while the V3.01 plan upgrades this into proof receipts, selector-miss learning, typed capabilities, admission enforcement, and a TUI operations console.
+\end{abstract}
+
+\begin{IEEEkeywords}
+software engineering agents, CI/CD, GitLab, smart test selection, validation, evidence, merge gates, agent safety
+\end{IEEEkeywords}
+
+\section{Introduction}
+Agent-first development changes the bottleneck. Code generation is no longer the only scarce resource; trustworthy validation becomes scarce. Public coding-agent workflows now let developers delegate issue implementation, branch creation, test execution, and pull request creation \cite{github-copilot-cloud-agent,github-copilot-howto}. GitLab has similarly moved toward lifecycle-wide agentic automation across project context, CI/CD, security findings, and planning surfaces \cite{gitlab-duo-ga,gitlab-duo-platform,gitlab-duo-docs}. Open-source agents have also raised expectations for terminal use, repository exploration, and autonomous repair \cite{openhands-paper,sweagent-paper,aider-repo}. These systems are important, but they leave a gap for teams that need local-first, policy-controlled, proof-scoped autonomy over runners, sandboxes, cache, merge gates, release gates, and evidence retention.
+
+JeRyu is designed around that gap. Instead of making an agent imitate a human in a browser, it gives agents typed control surfaces: capability intents, validation planning, job traces, failure capsules, merge readiness, release status, cache verdicts, runner pools, and a TUI that exposes the same state to human supervisors. The long-term claim is not that agents should receive unrestricted control. It is that agents should receive bounded authority and produce durable evidence for every action that matters.
+
+This paper describes the V3.01 direction for JeRyu. It uses the repository itself as the artifact under study: a Rust workspace with a \texttt{jeryu} binary, proof-scoped support crates, GitLab-oriented orchestration, VTI smart test selection, a capability API, a Ratatui console, and deterministic paper screenshots. The contribution is a control-plane pattern for agent-first development:
+
+\begin{enumerate}
+\item a proof loop that connects intent, policy, validation, evidence, and merge or release decisions;
+\item a VTI model that saves test time only when it can explain what was skipped and why;
+\item a capability model that makes action availability canonical across API, CLI, and TUI surfaces;
+\item a screenshot-capable operations console that makes agent behavior reviewable; and
+\item a V3.01 roadmap for hardening admission, state, merge gates, dynamic CI, and selector-miss learning.
+\end{enumerate}
+
+\section{Public Capability Baseline}
+GitHub Copilot cloud agent can work in the background, research a repository, create implementation plans, fix bugs, improve tests, update documentation, resolve merge conflicts, and operate in a GitHub Actions-powered environment \cite{github-copilot-cloud-agent}. Public limitations matter for control-plane design: the documented cloud agent operates on one branch at a time, opens one pull request per task, and is scoped to GitHub-hosted repositories \cite{github-copilot-cloud-agent}. GitHub exposes integrations through issues, pull requests, agents panels, IDEs, GitHub CLI, Slack, Teams, Linear, Jira, Azure Boards, and MCP-compatible tools \cite{github-copilot-howto,mcp-spec}. These are strong product surfaces, but they are not a local GitLab runner authority layer.
+
+GitLab Duo Agent Platform, generally available in GitLab 18.8, positions agents across the software lifecycle with organization context and guardrails \cite{gitlab-duo-ga,gitlab-18-8}. GitLab describes Agentic Chat and Duo Workflow use cases for code analysis, CI/CD troubleshooting, planning, security analysis, issues, merge requests, and pipelines \cite{gitlab-duo-platform,gitlab-duo-workflow,gitlab-agent-platform-intro,gitlab-duo-workflow-blog}. GitLab's public material also emphasizes human governance, enterprise context, and platform integration \cite{gitlab-duo-handbook}. JeRyu is complementary but narrower: it is not a general assistant; it is a GitLab-compatible control plane built to decide what an agent may do, what proof it must provide, and which local resources it may touch.
+
+OpenHands is an open platform for software development agents that can write code, use terminals, and browse the web \cite{openhands-paper,openhands-site,openhands-repo}. SWE-agent introduced an agent-computer interface for automated software engineering \cite{sweagent-paper}. Aider provides terminal-centered pair programming \cite{aider-repo}. Codex-style local and cloud agents emphasize task execution across terminal, IDE, web, and pull request workflows \cite{openai-codex,github-openai-codex,openai-codex-system-card}. These tools are valuable authoring engines, yet authoring is not the same as production authority. The control-plane question is: what validates the agent, records its authority, constrains its side effects, and prevents unsafe merge or release?
+
+\section{Empirical Pressure}
+The need for proof-carrying delivery follows from observed agent failure modes. Studies and datasets around software engineering agents show both promise and fragility: benchmark tasks can be solved, but real pull requests still require human modification, review, and rejection handling \cite{swebench,swebench-verified,aidev-dataset,agent-pr-modifications}. Work on agentic pull requests reports failed and unmerged agent contributions as a recurring operational pattern \cite{failed-agentic-prs,agent-prs-unmerged}. Traceability research argues that software agents need stronger links among task, change, evidence, and outcome \cite{software-agents-traceability}. This is consistent with decades of automated repair work: a generated patch is not a proof of correctness \cite{repair-survey}.
+
+Continuous integration already encodes a social contract: code is acceptable only after running the appropriate validation under a known configuration \cite{continuous-integration}. Regression test selection and prioritization literature adds nuance: selective testing can reduce cost, but unsafe selection can miss failures \cite{regression-test-selection-survey,safe-regression-test-selection,test-prioritization}. Agent-first systems stress this contract because they can produce more branches, more experiments, and more merge requests than humans can manually supervise. JeRyu therefore treats validation choice itself as an auditable artifact.
+
+\section{Why Git Must Change}
+Agent-first and ``vibe coding'' workflows shift the economic center of software delivery. When code generation becomes cheap, validation, review, provenance, and release authority become the scarce resources. The correct response is not to run fewer tests; it is to run the right tests, preserve proof for skipped tests, and make validation scale with the number of agent hypotheses. Coverage pressure will rise because agents can generate more code paths, more branches, and more plausible-but-wrong fixes than conventional human review can absorb.
+
+Legacy Git forges were built around human-paced pull requests, human-scoped credentials, and CI as a background reaction to commits. That model can be extended with assistants, but extension is not the same as redesign. Agent-first development needs Git to understand task identity, capability grants, validation receipts, cache trust, runner isolation, proof-carrying merge decisions, and cleanup of speculative work. A Rust control plane is a pragmatic fit for this layer: it can sit close to Git, CI, filesystems, sockets, runners, and local policy while remaining fast enough for high-churn agent loops.
+
+The paper's central claim is therefore structural. Future developers will not keep pace with AI by waiting for hosted  platforms to retrofit every proof boundary. They need an open-source, agent-first substrate where validation and authority are first-class product concepts rather than conventions around a pull request. JeRyu keeps GitLab compatibility where useful, but places the agent proof loop under local, inspectable control.
+
+\section{Architecture}
+JeRyu is a Rust workspace with a \texttt{jeryu} binary and proof-scoped support crates. The control plane includes CLI and TUI surfaces, a Unix-socket capability API, GitLab webhook ingestion, Postgres-primary state with SQLite fallback, runner pools, custom executor hooks, VTI, release gates, and proof-routing utilities. It consumes GitLab concepts such as pipelines, runners, custom executors, protected branches, and CI artifacts \cite{gitlab-ci-docs,gitlab-runners-docs,gitlab-custom-executor,gitlab-protected-branches}. It also interoperates conceptually with GitHub-style workflow constraints and branch protection semantics \cite{github-actions-docs,github-branch-protection}.
+
+\begin{figure}[t]
+\centering
+\fbox{\begin{minipage}{0.94\linewidth}
+\small
+\begin{tabular}{@{}p{0.22\linewidth}p{0.68\linewidth}@{}}
+\textbf{Intent} & agent action, actor, task, grant, idempotency key\\
+\textbf{Policy} & path scope, branch scope, risk tier, trust tier, budget\\
+\textbf{Plan} & VTI lanes, selected tests, skipped tests, fallback reason\\
+\textbf{Execute} & runner pool, sandbox, cache namespace, CI pipeline\\
+\textbf{Evidence} & logs, failure capsule, test receipt, cache verdict\\
+\textbf{Decide} & merge gate, release gate, cleanup, durable memory
+\end{tabular}
+\end{minipage}}
+\caption{JeRyu proof loop. Agents do not jump directly from patch to merge; they move through intent, policy, validation, evidence, and decision records.}
+\label{fig:proof-loop}
+\end{figure}
+
+The architecture differs from a bot wrapper. A bot wrapper receives an issue and emits a branch. JeRyu owns the delivery loop around that branch. It can select a runner pool, inspect job state, retrieve failure capsules, reason about cache taint, schedule validation, and expose blockers. Postgres gives concurrent local agents a durable coordination layer, while SQLite remains the low-friction embedded fallback for single-node development and tests \cite{postgresql,sqlite}. Tokio and Axum support asynchronous API and webhook execution \cite{tokio,axum}. Bollard gives Docker control for runner and container state \cite{bollard}. Cargo-nextest, cargo-deny, RustSec, SLSA, in-toto, and Sigstore represent the surrounding proof and supply-chain ecosystem that JeRyu is designed to coordinate with rather than replace \cite{rust-cargo-nextest,cargo-deny,rustsec,slsa,in-toto,sigstore}.
+
+\section{Proof-Scoped Workspace}
+V3.01 treats repository structure as a proof-routing surface. The workspace contains support crates for witness graphs, validation routing, architectural exception review, runtime witness macros, and ARC/VRC benchmarking. These tools are intentionally local: they reduce the time an agent spends rediscovering ownership and validation rules. \texttt{cargo-witness} indexes public API signatures. \texttt{cargo-vrc} maps changed files to validation rings. \texttt{cargo-aer} audits structural exceptions. \texttt{witness-rt} emits structured repair packets when runtime expectations fail. \texttt{arc-bench} evaluates design tradeoffs.
+
+This matters because an agent often needs two kinds of knowledge. The first is semantic knowledge about code. The second is procedural knowledge about how to prove a change. Public assistants focus heavily on the former. JeRyu makes the latter explicit. A change under \texttt{src/secrets.rs} is not merely a Rust edit; it is a security-relevant proof lane. A change under \texttt{src/test\_intel/} is not merely a module edit; it can affect selector correctness and should widen validation. This repository-level proof routing complements CI systems rather than duplicating them \cite{gitlab-ci-docs,github-actions-docs}.
+
+\section{VTI: Validation Test Intelligence}
+VTI is the core latency reducer. The current internal planner maps changed paths to subsystems, applies global invalidators, identifies docs-only changes, selects unit and integration tests, and falls back to full validation when paths are unmapped or confidence is low. External repositories can provide \texttt{.jeryu/testmap.toml}. V3.01 makes the conservative boundary sharper: unknown files force full validation; recursive subsystem patterns cover nested modules; selector misses become scoped evidence; and each skipped test must have a reason that a merge gate can inspect.
+
+Selective validation is valuable only when the skipped work is explained. Classical regression test selection and prioritization show that reduction must be balanced against fault-detection risk \cite{regression-test-selection-survey,safe-regression-test-selection,test-prioritization}. JeRyu therefore represents VTI as a proof generator, not an optimization flag. A VTI plan should say: these files changed; these subsystems are affected; these tests were selected; these tests were skipped; this skip is justified by path ownership, dependency information, and historical evidence; this unknown path caused full fallback.
+
+\begin{table}[t]
+\caption{VTI 3.0.1 Validation Outcomes}
+\centering
+\begin{tabular}{lll}
+\toprule
+Outcome & Meaning & Merge Semantics\\
+\midrule
+passed & executed and passed & evidence-positive\\
+failed & executed and failed & blocker\\
+skipped\_by\_vti & skipped with receipt & evidence-qualified\\
+docs\_only & docs allowlist only & low-risk receipt\\
+full\_fallback & widened to full & conservative\\
+unsafe\_to\_skip & no skip proof & must execute\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The V3.01 code change moves this direction: unknown file types no longer collapse to docs-only behavior, nested TUI, gateway, and test-intelligence paths now match recursive subsystem patterns, internal plans can emit stable VTI receipts, and the default merge gate treats a missing receipt as a blocker. Remaining work is to persist receipts as first-class state, connect selector-miss records to oracle runs, and bind receipts to live GitLab job evidence. This distinction is essential. A skipped test with a receipt is a qualified claim. A missing test without a receipt is a hole.
+
+\section{Capability and Admission Model}
+The current capability API exposes useful intents: \texttt{RunTests}, \texttt{FetchCapsule}, \texttt{ProposePatch}, \texttt{RacePatches}, \texttt{RequestMerge}, \texttt{ExplainBlockers}, \texttt{GetSystemSnapshot}, \texttt{ListAllowedActions}, and \texttt{PlanValidation}. V3.01 adds an agent action envelope with request id, actor, nonce, expiry, optional budget, optional grant proof, and framed JSON transport while preserving  \texttt{AgentIntent} clients. The action registry remains canonical so API, CLI, and TUI do not drift. That is a small implementation change with a large governance consequence: an agent asking what it can do receives the same truth the human console uses.
+
+The target authority model is an intent ledger. An agent requests an action with actor, task, grant, request, and idempotency identifiers. Policy evaluates scope, path rules, branch rules, TTL, risk tier, and budget. The ledger records allow, deny, or escalate before side effects occur. Evidence and cleanup records are attached afterward. This model aligns with the traceability requirement for agent contributions \cite{software-agents-traceability} and with supply-chain systems that separate declaration, execution, and attestation \cite{slsa,in-toto,sigstore}.
+
+Admission control is the server-side counterpart. A pre-receive hook should not merely log suspicious input; it should reject policy violations with structured reasons. Examples include unscoped agent branches, forbidden paths, missing task IDs, unsigned privileged operations, stale base SHAs, or validation receipts that do not match the pushed commit. GitLab protected branch controls provide one perimeter \cite{gitlab-protected-branches}; JeRyu adds agent-aware intent checks inside that perimeter.
+
+\section{Proof-Carrying Merge Gates}
+Autonomous merge requires stronger evidence than ``some tests passed.'' V3.01 introduces a shared merge gate used by CLI, TUI, capability API, and webhooks. The gate checks MR identity, exact head SHA, latest pipeline, required jobs, pending jobs, VTI plan confidence, selector misses, cache taints, security/release lanes, branch protection, approvals, conflicts, and stale branch state. Its output is a durable merge proof. A merge is allowed because evidence verifies, not because the agent is trusted.
+
+\begin{table}[t]
+\caption{Merge Gate Inputs}
+\centering
+\begin{tabular}{ll}
+\toprule
+Input & Required Property\\
+\midrule
+MR identity & project, IID, source, target, head SHA\\
+Pipeline & latest for head SHA, terminal, required jobs passed\\
+VTI & selected lanes, fallback status, skip receipts\\
+Risk & security/release lanes, trust tier, approvals\\
+Cache & no tainted artifacts in proof path\\
+Branch & protected target, no conflict, no stale base\\
+Evidence & capsules, logs, validation receipts retained\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The important design choice is that merge decisions are not embedded in one endpoint. A CLI command, TUI action, webhook reconciler, and capability request should call the same gate. Otherwise the system accumulates hidden bypasses. This is especially relevant for agents that can race patches or propose multiple branches. A patch-race feature is useful only if losing branches are cleaned up, winning branches still pass the same gate, and the race result does not become a shortcut around required validation.
+
+\section{Runner, Cache, and Sandbox Boundaries}
+Agent-first development increases load on runners and caches. JeRyu therefore treats execution context as part of proof. A trusted branch, an untrusted MR, a release job, and a supply-chain detonation lane should not share the same assumptions. GitLab Runner and custom executor documentation define the execution substrate \cite{gitlab-runners-docs,gitlab-custom-executor}; JeRyu adds trust tiers, BuildKit namespace separation, taint tracking, honeypot detection, and cache promotion rules.
+
+The cache problem is subtle. Smart caching makes CI faster, but unsafe cache reuse can smuggle state across trust boundaries. JeRyu models cache decisions using trust tier, taint, and epoch. A cache hit is not merely a performance event; it is a statement that the artifact is acceptable for this build unit, namespace, and epoch. This aligns with broader supply-chain verification systems that treat artifacts, provenance, and signatures as first-class data \cite{slsa,in-toto,sigstore,rustsec}. Sandbox mechanisms such as gVisor, Firecracker, and Bubblewrap illustrate the isolation vocabulary available for untrusted work \cite{gvisor,firecracker,bubblewrap}.
+
+\section{Agent Workflows}
+The intended V3.01 workflow starts with an explicit task. An agent receives a task description and requests capability grants. The control plane creates or verifies a branch, associates it with actor and task identity, and records an intent. The agent may then propose a patch, ask for validation, fetch failure capsules, race alternative hypotheses, or request a merge decision. Each operation is scoped by the same registry and policy layer, so the system can answer what was allowed, what was denied, and why.
+
+A repair loop illustrates the difference from a generic coding assistant. The agent asks for a failing job trace. JeRyu returns a capsule that includes project, job, pipeline, stage, log tail, suspected owner area, and suggested validation lanes. The agent patches the owner area and asks VTI for a plan. VTI selects tests or widens to full validation. The runner executes with the appropriate trust and cache namespace. The merge gate then checks the exact head SHA against the evidence. At no point does the system rely on the agent's verbal claim that it ran tests.
+
+Patch racing is the aggressive version of the same model. Multiple hypothesis branches can be launched in parallel, but every branch needs identity, cleanup policy, and evidence boundaries. The winner is not the fastest branch; it is the branch whose evidence satisfies the gate. Losers should be closed, caches should remain scoped, and the audit ledger should retain enough context to explain the decision. This is where an agent-first GitLab fork can exceed ordinary assistant integration: speed comes from orchestration, not from bypassing proof.
+
+\begin{table}[t]
+\caption{Agent Workflow State Machine}
+\centering
+\begin{tabular}{lll}
+\toprule
+State & Agent Action & Control-Plane Proof\\
+\midrule
+planned & request grant & task, actor, scope\\
+patched & propose diff & branch, base SHA, paths\\
+validated & run VTI plan & jobs, receipts, capsules\\
+blocked & explain blockers & failing proof nodes\\
+mergeable & request merge & gate decision\\
+closed & cleanup & branch/cache records\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Threat Model}
+JeRyu assumes agents are useful but not intrinsically trusted. A capable agent may hallucinate validation, choose an unsafe shortcut, overfit a patch to a narrow test, leak a secret through logs, or unknowingly reuse tainted artifacts. A malicious or compromised agent may try to push to protected paths, create a branch that looks human-owned, replay old validation evidence, or exploit cache state. The defense is not one gate; it is layered evidence.
+
+The first layer is identity and intent. Every privileged action needs actor, task, and idempotency context. The second layer is policy. Path scope, branch rules, risk tier, and grant TTL determine whether an action can proceed. The third layer is execution isolation. Runner pools, sandbox mechanisms, and cache namespaces reduce cross-contamination. The fourth layer is validation. VTI can reduce work only when it emits receipts; otherwise it must fall back. The fifth layer is final decision. Merge and release gates verify current head state, required jobs, approvals, taints, and blockers.
+
+This model deliberately separates productivity from authority. An agent may be excellent at producing patches and still be untrusted for merge. A cache may be effective and still be unusable across trust tiers. A test plan may be fast and still be insufficient for a security-relevant path. V3.01's central hardening target is to make those distinctions concrete in code rather than relying on convention.
+
+\section{TUI and Screenshots}
+The TUI is a Ratatui operations surface, not a decorative dashboard \cite{ratatui}. It contains Mission, Release, Jobs, Agents, Tests, Pools, Cache, Evidence, and Secrets tabs. The V3.01 TUI upgrade applies the strongest review theme from the upgrade notes: the console should continuously answer what happened, why it matters, what proof exists, and what the safest next action is. The default Mission view now opens as an action cockpit with a Top Signal, Attention Queue, Proof Stack, next actions, metric tiles, and compact activity graphics. The Agents view now acts as an Agent Cockpit with phase, progress, branch/SHA, grants, timeline, and action guidance. The command palette previews risk, grant requirements, side effects, dry-run availability, and disabled reasons from the canonical action registry.
+
+To support publication and review, V3.01 uses two capture modes:
+\begin{itemize}
+\item \textbf{PTY render}: runs the TUI inside a real pseudo-terminal, parses the screen state, and renders the grid with a pinned font and palette.
+\item \textbf{Deterministic render}: renders Ratatui \texttt{TestBackend} buffers for stable fixture diffs.
+\end{itemize}
+
+\begin{lstlisting}[basicstyle=\ttfamily\footnotesize]
+./scripts/capture-tui-screenshots.sh
+just tui-screenshot-smoke
+jeryu tui --capture --tab jobs \
+  --output paper/assets/jeryu-tui-jobs-flow.png
+\end{lstlisting}
+
+The publication pipeline uses \texttt{jeryu tui --screenshot} inside a real PTY and captures the terminal screen before alternate-screen cleanup. A dedicated \texttt{tui-capture} utility parses the terminal byte stream with a VT parser, validates that the selected font supports box drawing and block glyphs, and renders PNGs with fixed geometry, DejaVu Sans Mono, a lifted dark background, and brightened colors. This avoids browser, SVG, ANSI-to-image, and window-manager font fallback artifacts. The deterministic path remains useful for CI reproducibility. In both modes, screenshots are evidence artifacts backed by demo state snapshots.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{assets/jeryu-tui-jobs-flow.png}
+\caption{TUI Jobs/Flow capture showing pipeline flow, live jobs, logs, and events.}
+\label{fig:tui-flow}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{assets/jeryu-tui-tests-vti.png}
+\caption{TUI Tests/VTI capture showing selected validation, recent test intelligence, and history context.}
+\label{fig:tui-vti}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{assets/jeryu-tui-evidence.png}
+\caption{TUI Evidence capture showing the audit/capsule surface that should become the human-readable proof ledger.}
+\label{fig:tui-evidence}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{assets/jeryu-tui-release.png}
+\caption{TUI Release capture showing the release gate matrix and rollout status surfaces.}
+\label{fig:tui-release}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{assets/jeryu-tui-mission.png}
+\caption{TUI Mission capture showing action-first Mission Control with top signal, readiness, proof stack, attention queue, and next actions.}
+\label{fig:tui-mission}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{assets/jeryu-tui-agents.png}
+\caption{TUI Agents capture showing the Agent Cockpit with session phase, progress, branch/SHA, grants, timeline, and action guidance.}
+\label{fig:tui-agents}
+\end{figure}
+
+\section{Paper and Artifact Strategy}
+The V3.01 paper is both a publication artifact and an agent-readable specification. The LaTeX version targets IEEE format. The Markdown version mirrors the same argument for agents that need fast retrieval, patch planning, or review. The bibliography intentionally spans product documentation, open-source agents, empirical studies, regression test selection, CI, runner systems, supply-chain security, and sandboxing \cite{github-copilot-cloud-agent,gitlab-duo-ga,openhands-paper,sweagent-paper,swebench,regression-test-selection-survey,continuous-integration,slsa,gvisor}. This range matters because JeRyu is not one feature; it is an integration layer over several research and engineering traditions.
+
+Generated screenshots are also artifacts. They prove that the paper is connected to the codebase. In V3.01 the screenshot command should become stable enough for CI to regenerate figures and fail if rendering changes unexpectedly. That turns visual drift into a reviewable change. For an agent-first project, this is useful: an agent can cite a screenshot, update it deterministically, and make the UI consequence of a patch explicit.
+
+\section{Comparison to Existing Surfaces}
+The clearest contrast is the boundary of authority. Public GitHub and GitLab agent surfaces expose high-level collaboration and repository assistance \cite{github-copilot-cloud-agent,github-copilot-howto,gitlab-duo-platform,gitlab-duo-workflow}. OpenHands, SWE-agent, Aider, and Codex-style systems expose strong authoring and task execution capabilities \cite{openhands-repo,sweagent-paper,aider-repo,openai-codex}. JeRyu instead focuses on proof-scoped delivery authority. Its value is not that it can edit code; it assumes agents can already edit code. Its value is that it can constrain and verify the consequences of those edits inside a GitLab-compatible runtime.
+
+\section{Public Pain Points}
+The public record already shows pressure around the exact boundaries JeRyu targets. GitHub documents cloud-agent work as a GitHub-centered pull-request task flow, including constraints around assigned tasks and pull-request creation \cite{github-copilot-cloud-agent,github-copilot-howto}. Community reports around GitHub Actions describe queued workflows and runner availability frustration \cite{github-actions-queued-community}. GitLab support material documents excessive queuing for pending CI/CD jobs with Docker Autoscaler runners, runner long-polling delays that can leave workers idle, and external status checks that remain pending and block merge requests \cite{gitlab-autoscaler-queue,gitlab-runner-long-polling,gitlab-status-checks-pending}. GitLab's own Duo Workflow design notes that ordinary CI pipelines are not a complete runtime substrate for agentic workflows \cite{gitlab-duo-handbook}.
+
+These examples are not isolated product complaints; they are symptoms of a deeper mismatch. Agents need low-latency execution, branch/task identity, proof-aware validation, and authoritative merge/release decisions. A hosted forge can add agent features, but it still has to protect broad multi-tenant defaults. JeRyu takes the opposite route: local control first, then agent velocity. The result is a sharper boundary for teams that want agents to move quickly without treating queued CI, stale checks, missing evidence, or untrusted cache reuse as ordinary inconvenience.
+
+\begin{table}[t]
+\caption{Capability Contrast}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{2pt}
+\begin{tabular}{p{0.24\linewidth}p{0.30\linewidth}p{0.33\linewidth}}
+\toprule
+Surface & Public Focus & JeRyu Focus\\
+\midrule
+GitHub agent & PR task execution & local proof gates\\
+GitLab Duo & platform assistance & runner authority\\
+Open agents & coding autonomy & validation control\\
+Aider/Codex & terminal/edit loop & merge/release proof\\
+CI systems & job execution & evidence semantics\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This distinction should not be read as a product criticism. Public systems optimize for broad adoption, hosted experience, and developer accessibility. JeRyu optimizes for a narrower but harder case: agents that need to move fast inside a self-controlled GitLab environment without losing auditability. The implementation should therefore favor explicit local contracts over implicit cloud workflow assumptions.
+
+\section{Implementation Status}
+The current V3.01 tranche implements version tracking, conservative VTI fallback, recursive subsystem matching, canonical capability action listing, a V3 capability request envelope, nonce and expiry checks, action side-effect metadata, typed dynamic CI YAML generation, deterministic TUI PNG capture, high-fidelity screenshot capture, an action-first Mission Control view, an Agent Cockpit view, command-palette blast-radius previews, durable branch-write capability grants with commit-SHA binding for GitLab commit API writes, persisted admission decisions, ledger-aware admission enforcement for agent refs, VTI receipt generation, default merge-gate receipt enforcement, strict-sandbox fail-closed behavior, secure-by-default GitLab TLS, webhook push-event alignment, real active-agent issue listing, a Postgres-primary state backend with SQLite fallback, documentation updates, and paper assets. It also preserves the larger plan rather than pretending the system is complete. Known gaps are generated capability schemas, signed grant verification, peer-credential actor binding, path-scoped grant enforcement, SHA binding for non-commit Git write paths, complete GitLab MR/pipeline/approval merge evidence, selector-miss learning, richer event streaming, dedicated agent-run lifecycle state, and stronger tests around merge and release proof state.
+
+\begin{table}[t]
+\caption{V3.01 Work Breakdown}
+\centering
+\footnotesize
+\begin{tabular}{p{0.22\linewidth}p{0.31\linewidth}p{0.31\linewidth}}
+\toprule
+Area & Current State & Next Proof\\
+\midrule
+Versioning & 3.0.1 tracked & release tags\\
+VTI & receipts emitted & state persistence\\
+Actions & registry-backed contract & schema tests\\
+TUI & Mission/Agent cockpit + PNG capture & event stream\\
+Merge & receipt-gated proof & GitLab evidence\\
+Admission & ledger-aware hook & signed grants\\
+CI YAML & typed emitter & template schemas\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Reproducibility}
+The repository should let a reviewer reproduce both code and paper artifacts. The minimum proof bundle for this draft is: workspace version \texttt{3.0.1}; generated screenshots under \texttt{paper/assets}; \texttt{paper/main.tex}; \texttt{paper/paper.md}; \texttt{paper/references.bib}; vendored IEEE class and bibliography style; \texttt{cargo check --workspace}; targeted VTI, impact, and TUI tests; \texttt{cargo-witness build}; and \texttt{cargo-vrc plan}. A future release candidate should add signed release tags, stored VTI proof receipts, merge-gate fixtures, admission-hook fixtures, and CI regeneration of figures.
+
+Reproducibility also applies to negative results. If VTI widens to full validation because a file is unknown, that fact should be recorded. If a merge gate blocks because a pipeline is stale, that blocker should be durable. If a screenshot changes because the TUI changed, the diff should be reviewed. Agent-first development needs more than green checks; it needs a memory of why the checks were considered sufficient.
+
+\section{Implementation Contracts}
+The most important V3.01 engineering work is to turn implicit behavior into contracts. A contract is stronger than a helper function. It has inputs, outputs, persisted evidence, fixtures, and a caller-independent interpretation. The first contract is the capability contract. Every action should expose a stable identifier, risk tier, surface list, dry-run availability, required grant, side-effect class, and schema for request and response. The existing registry-backed action list is the start of this contract. The next step is generated schema and contract tests that fail when API documentation, TUI action palette, and capability output disagree.
+
+The second contract is the validation contract. A VTI plan should have a stable identifier, changed paths, repository identity, base SHA, head SHA, selected subsystems, selected tests, skipped tests, fallback reasons, and confidence. A validation receipt should bind that plan to actual job execution. If an agent changes code after validation, the receipt must no longer satisfy the merge gate. If a test is skipped, the receipt must say why. If the reason is unknown, the contract requires full validation. This contract is what lets smart test skipping remain compatible with conservative delivery.
+
+The third contract is the merge contract. A merge decision should not be a boolean returned by a single command. It should be a record with inputs, blockers, decision, policy version, evidence references, and a timestamp. That record should be reproducible from stored state. If a pipeline is not the latest for the MR head SHA, the blocker should name both SHAs. If required approvals are missing, the blocker should name the rule. If cache taint is present, the blocker should name the artifact or namespace. An agent can then repair the real blocker instead of guessing.
+
+The fourth contract is the release contract. Release decisions are more sensitive than merge decisions because they connect code to production. A release proof should include version, commit, canary status, production status, secret handoff state, preflight checks, artifact availability, and rollback path. This is where JeRyu's GitLab focus matters. A hosted coding assistant can prepare a pull request, but a local release control plane can reason about runner state, Vault state, registry state, disk pressure, and release artifacts in the same decision.
+
+The fifth contract is the audit contract. Every proof object should be inspectable from both machine and human surfaces. Machines need JSON schemas and stable IDs. Humans need TUI panes, screenshots, and concise blocker summaries. Agents need both. The audit contract is therefore not a passive log; it is the substrate for future repair. A blocked merge, failed release, selector miss, or denied capability should become a structured input for the next agent step.
+
+\begin{table}[t]
+\caption{Contract Artifacts}
+\centering
+\begin{tabular}{lll}
+\toprule
+Contract & Artifact & Primary Test\\
+\midrule
+Capability & action schema & registry/API parity\\
+Validation & VTI receipt & selector fixtures\\
+Merge & gate decision & false-allow tests\\
+Release & rollout proof & preflight fixtures\\
+Audit & evidence record & replay tests\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{V3.01 Roadmap}
+The V3.01 roadmap is intentionally staged. The first stage establishes truthfulness: version numbers, changelog entries, registry-backed action lists, conservative VTI fallback, recursive subsystem patterns, and deterministic screenshots. This stage is already useful because it removes misleading behavior. Unknown file changes no longer look like documentation changes. The capability API no longer advertises a hand-maintained list. The paper can now be compiled from repository artifacts.
+
+The second stage is authority. Capability requests now carry actor, request, nonce, expiry, budget, and optional grant context, while branch-write grants remain durable. Admission hooks need to reject more violations by default rather than only observe them. Dynamic CI generation now uses a typed serializer for the initial scope allowlist; the next step is reusable template schemas for all generated pipelines. These are boring interfaces by design; agents should find them predictable.
+
+The third stage is proof. VTI receipts, merge-gate decisions, and release-gate decisions need schemas and fixtures. A selector miss should become training data for the next plan. A merge denial should be reproducible from stored inputs. A release block should point to exact missing artifacts or failed preflights. When the system says ``safe to merge,'' it should mean that the stored proof can be rechecked.
+
+The fourth stage is operational maturity. The TUI should gain panes for agent runs, merge gates, VTI plan details, patch races, and event-stream health. The capability API should expose the same state in machine-readable form. CI should regenerate screenshots and paper outputs. Security lanes should exercise taint, sandbox, secret, honeypot, and BuildKit namespace invariants. At that point V3.01 becomes more than a version label; it becomes a reproducible proof-control release.
+
+\begin{table}[t]
+\caption{Roadmap Gates}
+\centering
+\begin{tabular}{lll}
+\toprule
+Stage & Exit Criterion & Blocking Proof\\
+\midrule
+Truth & contracts match code & check, unit\\
+Authority & grants enforced & hook fixtures\\
+Proof & gates persist receipts & integration\\
+Operations & TUI/API parity & snapshots\\
+Release & tag candidate & security lanes\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Evaluation Plan}
+The evaluation should report VTI selection latency, test-count reduction, selector-miss rate under oracle runs, unknown-file fallback coverage, merge-gate false-allow rate in fixture scenarios, capability contract conformance, admission hook rejection coverage, TUI render determinism, screenshot determinism, and patch-race cleanup success. A credible evaluation should include three modes:
+
+\begin{enumerate}
+\item \emph{inner loop}: targeted code changes where VTI should reduce tests without missing failures;
+\item \emph{oracle loop}: scheduled full runs that detect selector misses and train or adjust path rules; and
+\item \emph{adversarial loop}: untrusted branches, tainted cache inputs, stale SHAs, missing approvals, and manipulated validation receipts.
+\end{enumerate}
+
+The key metric is not only speedup. Speedup without a false-allow bound is unsafe. The paper should therefore report both saved validation time and the number of cases where the system widened to full validation. Conservative fallback is a feature when evidence is missing.
+
+\section{Related Work}
+JeRyu is adjacent to coding agents, CI systems, regression test selection, and supply-chain security. Coding-agent systems focus on task execution and patch generation \cite{openai-codex,github-openai-codex,openhands-paper,sweagent-paper,aider-repo}. SWE-bench and related datasets measure repair capability \cite{swebench,swebench-verified,aidev-dataset}. Studies of agentic pull requests emphasize the human review and modification burden that remains \cite{failed-agentic-prs,agent-prs-unmerged,agent-pr-modifications}. CI and regression test selection research explain why validation scope must be explicit and measurable \cite{continuous-integration,regression-test-selection-survey,safe-regression-test-selection,test-prioritization}. Supply-chain systems provide the vocabulary for provenance, attestation, signing, and policy \cite{slsa,in-toto,sigstore,rustsec}. Sandboxing projects define execution isolation tradeoffs \cite{gvisor,firecracker,bubblewrap}. JeRyu's contribution is to connect these ideas at the GitLab-compatible control-plane boundary.
+
+\section{Limitations}
+The current repository is not yet the completed V3.01 system. Known gaps include signed capability grant verification, peer-credential actor binding, path-scope enforcement, GitLab-backed merge-gate completeness, generic repo configuration, event streaming, and deeper VTI evidence graphs. Some public capability comparisons are necessarily based on documented surfaces rather than private product internals. The screenshot workflow now includes both deterministic and interactive-terminal render modes, with regenerated figures in CI planned for both reproducibility and visual fidelity checks. These limitations are the work program, not footnotes.
+
+\section{Conclusion}
+JeRyu's thesis is that the next agent platform is not just a better coding model. It is a proof-carrying control plane around Git, CI, runners, cache, evidence, merge, and release. V3.01 makes that thesis concrete: truthful versioning, conservative validation, canonical capabilities, deterministic screenshots, and a paper that turns the vision into a testable engineering agenda. The goal is faster agent behavior without reducing accountability. The system should let agents drive, but only on roads whose rules are explicit, inspected, and enforced.
+
+\appendices
+\input{architecture-appendix}
+\input{api-appendix}
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+\end{document}

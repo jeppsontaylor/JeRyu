@@ -1,0 +1,36 @@
+# JeRyu CODEOWNERS
+# Mirrors agent/owner-map.json so review routing matches audit ownership.
+# See agent/owner-map.json for the canonical mapping consumed by jankurai.
+
+* @veox-ai/jeryu-maintainers
+
+# Workspace + build surface
+/Cargo.toml @veox-ai/jeryu-maintainers
+/Cargo.lock @veox-ai/jeryu-maintainers
+/justfile @veox-ai/jeryu-maintainers
+/deny.toml @veox-ai/jeryu-maintainers
+/rust-toolchain.toml @veox-ai/jeryu-maintainers
+
+# Source
+/src/ @veox-ai/jeryu-maintainers
+/crates/ @veox-ai/jeryu-maintainers
+/tests/ @veox-ai/jeryu-maintainers
+/tools/ @veox-ai/jeryu-maintainers
+
+# Operations + CI
+/.github/ @veox-ai/jeryu-ops
+/ops/ @veox-ai/jeryu-ops
+
+# Agent + standards surface
+/AGENTS.md @veox-ai/jeryu-agents
+/CLAUDE.md @veox-ai/jeryu-agents
+/GEMINI.md @veox-ai/jeryu-agents
+/agent/ @veox-ai/jeryu-agents
+/.agents/ @veox-ai/jeryu-agents
+/.claude/ @veox-ai/jeryu-agents
+/.cursor/ @veox-ai/jeryu-agents
+
+# Documentation + standard
+/docs/ @veox-ai/jeryu-standard
+/paper/ @veox-ai/jeryu-standard
+/MISSION.md @veox-ai/jeryu-standard
