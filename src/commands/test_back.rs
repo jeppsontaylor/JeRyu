@@ -113,10 +113,7 @@ pub(crate) fn build_audit_report(
     )
 }
 
-pub(crate) async fn run(
-    subcmd: TestCommands,
-    db: &state::Db,
-) -> Result<()> {
+pub(crate) async fn run(subcmd: TestCommands, db: &state::Db) -> Result<()> {
     match subcmd {
         TestCommands::SelectExternal {
             base,

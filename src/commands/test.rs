@@ -6,13 +6,9 @@ use std::path::PathBuf;
 
 #[path = "test_back.rs"]
 mod test_back;
-use test_back::{
-    build_audit_report, current_commit_sha, git_diff_changed_paths, parse_tag_list,
-    write_json_artifact,
-};
+use test_back::{current_commit_sha, git_diff_changed_paths, parse_tag_list, write_json_artifact};
 
 pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
-    let (client, _) = load_client()?;
     let db = state::Db::open().await?;
 
     match subcmd {
@@ -24,6 +20,7 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             timeout,
             force,
         } => {
+            let (client, _) = load_client()?;
             let opts = test_runner::TestRunOpts {
                 project_id,
                 test_command: command,
@@ -99,6 +96,7 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             max_parallel,
             force,
         } => {
+            let (client, _) = load_client()?;
             let opts = test_runner::TestBatchOpts {
                 project_id,
                 test_commands: commands.clone(),
@@ -136,6 +134,7 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             pipeline_id,
             project_id,
         } => {
+            let (client, _) = load_client()?;
             let results = test_runner::pipeline_results(&client, project_id, pipeline_id).await?;
 
             let passed = results.iter().filter(|r| r.passed).count();
@@ -171,6 +170,7 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             job_name,
             project_id,
         } => {
+            let (client, _) = load_client()?;
             println!(
                 "🔄 Requeuing job '{}' in pipeline {}...",
                 job_name, pipeline_id
@@ -189,6 +189,7 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             pipeline_id,
             project_id,
         } => {
+            let (client, _) = load_client()?;
             let results = test_runner::pipeline_results(&client, project_id, pipeline_id).await?;
 
             let failed: Vec<_> = results

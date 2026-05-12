@@ -21,6 +21,10 @@ cargo_deny_log="$out_dir/cargo-deny.log"
 sbom_report="$out_dir/sbom.spdx.json"
 syft_log="$out_dir/syft.log"
 workflow_lint_log="$out_dir/actionlint.log"
+actionlint_bin="$(command -v actionlint || true)"
+if [ -z "$actionlint_bin" ] && [ -x "$HOME/go/bin/actionlint" ]; then
+  actionlint_bin="$HOME/go/bin/actionlint"
+fi
 
 gitleaks_status=0
 cargo_deny_status=0
@@ -75,8 +79,8 @@ else
   sbom_status=127
 fi
 
-if command -v actionlint >/dev/null 2>&1; then
-  if actionlint "$repo_root/.github/workflows"/*.yml >"$workflow_lint_log" 2>&1; then
+if [ -n "$actionlint_bin" ]; then
+  if "$actionlint_bin" "$repo_root/.github/workflows"/*.yml >"$workflow_lint_log" 2>&1; then
     workflow_lint_status=0
   else
     workflow_lint_status=$?
