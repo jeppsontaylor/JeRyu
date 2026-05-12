@@ -80,4 +80,7 @@ rust-witness:
 rust-diagnose:
 	jankurai rust diagnose .
 check: fast score security rust-map rust-witness rust-diagnose
+
+ci-local:
+    bash ops/ci/local_ci.sh
 # jankurai scaffold Justfile

@@ -4,10 +4,12 @@ pub(super) fn ssh_bash_command(cfg: &RemoteConfig, script: &str) -> Command {
     let mut cmd = Command::new("ssh");
     cmd.args(ssh_args(cfg));
     cmd.arg(&cfg.target);
-    cmd.arg("bash");
-    cmd.arg("-lc");
-    cmd.arg(script);
+    cmd.arg(ssh_bash_remote_command(script));
     cmd
+}
+
+fn ssh_bash_remote_command(script: &str) -> String {
+    format!("bash -lc {}", shell_single_quote(script))
 }
 
 pub(super) async fn capture_ssh_bash_output(
@@ -317,6 +319,14 @@ mod tests {
         assert!(text.contains("remote_bin"));
         assert!(text.contains("~/.jeryu/bin/jeryu"));
         assert!(text.contains("service_mode"));
+    }
+
+    #[test]
+    fn ssh_bash_command_quotes_script_as_one_remote_arg() {
+        let script = r#"mkdir -p "$HOME/.jeryu/bin" && cat > "$HOME/.jeryu/bin/jeryu.tmp""#;
+
+        let expected = format!("bash -lc {}", shell_single_quote(script));
+        assert_eq!(ssh_bash_remote_command(script), expected);
     }
 
     #[test]

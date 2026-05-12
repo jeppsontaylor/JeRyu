@@ -199,9 +199,14 @@ fn jank_tab_renders_when_tool_is_available() -> anyhow::Result<()> {
     let repo_dir = fixture_jankurai_repo()?;
     let page = spawn_tui_with_path("jank", &path, repo_dir.path())?;
 
+    page.wait_for_text("Jankurai Summary", Duration::from_secs(5))?;
     page.wait_for_text("Jank", Duration::from_secs(5))?;
     page.wait_for_text("Score History", Duration::from_secs(5))?;
-    page.wait_for_text("generated zone", Duration::from_secs(5))?;
+    page.wait_for_text("PATH: installed", Duration::from_secs(5))?;
+    page.wait_for_text(
+        "findings: 1 total / 0 hard / 1 soft",
+        Duration::from_secs(5),
+    )?;
 
     std::fs::create_dir_all("target/tuiwright")?;
     page.screenshot("target/tuiwright/jank.png")?;
