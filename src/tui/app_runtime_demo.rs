@@ -169,7 +169,14 @@ pub(crate) fn apply_demo_fixture(app: &mut App) {
         },
     };
 
-    app.state = build_demo_state(now, now_str.clone(), flow_jobs, flow, release_status, progress_pct);
+    app.state = build_demo_state(
+        now,
+        now_str.clone(),
+        flow_jobs,
+        flow,
+        release_status,
+        progress_pct,
+    );
 
     app.selected_job_index = 0;
     app.selected_pipeline_index = 0;
@@ -204,7 +211,10 @@ pub(crate) fn tick_demo_state(app: &mut App) {
         if let Some(target) = app.log_target {
             if target.job_id == 9002 {
                 let num = tc / 2;
-                let log_line = format!("[demo] Processing signal block {} [batch-routing] ... ok\n", num);
+                let log_line = format!(
+                    "[demo] Processing signal block {} [batch-routing] ... ok\n",
+                    num
+                );
                 app.state.live_log.text.push_str(&log_line);
             }
         }

@@ -198,10 +198,7 @@ pub(crate) fn draw_jank_tab(f: &mut Frame, app: &App, area: Rect) {
         let labels = chart_labels(history);
         // Zoom Y-axis to the actual score range so the trend line is clearly visible
         // instead of appearing as a flat line at the top of a 0-100 scale.
-        let y_min = data
-            .iter()
-            .map(|(_, y)| *y)
-            .fold(f64::INFINITY, f64::min);
+        let y_min = data.iter().map(|(_, y)| *y).fold(f64::INFINITY, f64::min);
         let y_max = data
             .iter()
             .map(|(_, y)| *y)
@@ -539,9 +536,15 @@ fn chart_labels(
 fn y_axis_labels(lo: f64, hi: f64) -> Vec<Span<'static>> {
     let mid = ((lo + hi) / 2.0).round() as i64;
     vec![
-        Span::styled(format!("{}", lo.round() as i64), Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("{}", lo.round() as i64),
+            Style::default().fg(Color::DarkGray),
+        ),
         Span::styled(format!("{}", mid), Style::default().fg(Color::DarkGray)),
-        Span::styled(format!("{}", hi.round() as i64), Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("{}", hi.round() as i64),
+            Style::default().fg(Color::DarkGray),
+        ),
     ]
 }
 

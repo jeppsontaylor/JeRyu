@@ -3,8 +3,7 @@ use std::env;
 use tracing::info;
 
 use super::support::{
-    ensure_custom_executor_tools, env_bool_or_default, env_i64_or_default,
-    env_string_or_default,
+    ensure_custom_executor_tools, env_bool_or_default, env_i64_or_default, env_string_or_default,
 };
 
 /// Handles `jeryu exec prepare`
@@ -193,7 +192,9 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
                     );
                 }
             } else {
-                tracing::info!("Cache Brain produced Miss/Deny verdict, falling to cold execution.");
+                tracing::info!(
+                    "Cache Brain produced Miss/Deny verdict, falling to cold execution."
+                );
             }
         }
     }
@@ -206,7 +207,10 @@ pub async fn run_stage(script_path: &str, stage: &str) -> Result<()> {
 
     extra_envs.push(("PIP_BREAK_SYSTEM_PACKAGES".to_string(), "1".to_string()));
     extra_envs.push(("PIP_ROOT_USER_ACTION".to_string(), "ignore".to_string()));
-    extra_envs.push(("PIP_CACHE_DIR".to_string(), pip_cache_dir.display().to_string()));
+    extra_envs.push((
+        "PIP_CACHE_DIR".to_string(),
+        pip_cache_dir.display().to_string(),
+    ));
 
     let cargo_available = std::process::Command::new("cargo")
         .arg("--version")

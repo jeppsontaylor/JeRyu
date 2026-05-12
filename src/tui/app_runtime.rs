@@ -71,7 +71,11 @@ impl App {
 
     pub(crate) fn runner_group_counts(&self) -> (usize, usize) {
         (
-            self.state.pools.iter().filter(|group| !group.paused).count(),
+            self.state
+                .pools
+                .iter()
+                .filter(|group| !group.paused)
+                .count(),
             self.state.pools.len(),
         )
     }
@@ -96,7 +100,6 @@ impl App {
             ActiveTab::Jank => crate::tui::ui::RenderTab::Jank,
         }
     }
-
 }
 
 #[path = "app_runtime_demo.rs"]

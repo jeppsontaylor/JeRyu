@@ -3,9 +3,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use chrono::Utc;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use sha2::{Digest, Sha256};
-use chrono::Utc;
 use walkdir::WalkDir;
 
 use crate::model::VerificationReport;
@@ -67,7 +67,10 @@ pub(crate) fn verify_workspace_fields(snapshot: &WorkspaceSnapshot) -> Verificat
     report
 }
 
-pub(crate) fn normalize_changed_paths(workspace_root: &Path, changed_paths: &[PathBuf]) -> Vec<String> {
+pub(crate) fn normalize_changed_paths(
+    workspace_root: &Path,
+    changed_paths: &[PathBuf],
+) -> Vec<String> {
     let mut normalized = changed_paths
         .iter()
         .map(|path| {
@@ -158,7 +161,10 @@ pub(crate) fn risk_tags(package: &PackageSnapshot) -> Vec<String> {
     tags
 }
 
-pub(crate) fn instruction_locations(workspace_root: &Path, package: &PackageSnapshot) -> Vec<String> {
+pub(crate) fn instruction_locations(
+    workspace_root: &Path,
+    package: &PackageSnapshot,
+) -> Vec<String> {
     let mut locations = Vec::new();
     for path in [
         workspace_root.join("AGENTS.md"),

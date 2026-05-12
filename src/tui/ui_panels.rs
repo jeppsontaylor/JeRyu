@@ -75,10 +75,14 @@ pub(crate) fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
         .min(100);
     let attention = AttentionState {
         active_taint_count: app.state.active_taint_count,
-        release: app.state.release_status.as_ref().map(|rel| AttentionRelease {
-            version: rel.attempt.version.clone(),
-            state_label: rel.canary_state.clone(),
-        }),
+        release: app
+            .state
+            .release_status
+            .as_ref()
+            .map(|rel| AttentionRelease {
+                version: rel.attempt.version.clone(),
+                state_label: rel.canary_state.clone(),
+            }),
         failed_job: app
             .state
             .recent_jobs
@@ -88,7 +92,11 @@ pub(crate) fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
                 id: job.job_id,
                 name: job.job_name.as_deref().unwrap_or("unknown job").to_string(),
             }),
-        has_running_job: app.state.recent_jobs.iter().any(|job| job.status == "running"),
+        has_running_job: app
+            .state
+            .recent_jobs
+            .iter()
+            .any(|job| job.status == "running"),
         gitlab_ready: app.state.gitlab_ready,
     };
     let (headline, headline_color, next_action) = top_attention(&attention);

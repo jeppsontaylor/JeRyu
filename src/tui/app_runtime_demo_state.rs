@@ -314,12 +314,14 @@ pub(crate) fn build_demo_state(
     }
 }
 
-fn demo_jankurai_snapshot(now: chrono::DateTime<chrono::Utc>) -> crate::tui::jankurai::JankuraiSnapshot {
+fn demo_jankurai_snapshot(
+    now: chrono::DateTime<chrono::Utc>,
+) -> crate::tui::jankurai::JankuraiSnapshot {
     use crate::tui::jankurai::{
         JankuraiDimension, JankuraiEntry, JankuraiEntryKind, JankuraiHistoryPoint, JankuraiScan,
         JankuraiSnapshot,
     };
-    
+
     let h0 = now - chrono::Duration::days(14);
     let h1 = now - chrono::Duration::days(12);
     let h2 = now - chrono::Duration::days(10);
@@ -332,14 +334,54 @@ fn demo_jankurai_snapshot(now: chrono::DateTime<chrono::Utc>) -> crate::tui::jan
     JankuraiSnapshot {
         installed: true,
         history: vec![
-            JankuraiHistoryPoint { generated_at: h0, score: 62, raw_score: Some(62), decision: Some("fail".into()) },
-            JankuraiHistoryPoint { generated_at: h1, score: 68, raw_score: Some(68), decision: Some("fail".into()) },
-            JankuraiHistoryPoint { generated_at: h2, score: 74, raw_score: Some(74), decision: Some("advisory".into()) },
-            JankuraiHistoryPoint { generated_at: h3, score: 79, raw_score: Some(79), decision: Some("advisory".into()) },
-            JankuraiHistoryPoint { generated_at: h4, score: 85, raw_score: Some(85), decision: Some("advisory".into()) },
-            JankuraiHistoryPoint { generated_at: h5, score: 88, raw_score: Some(88), decision: Some("pass".into()) },
-            JankuraiHistoryPoint { generated_at: h6, score: 92, raw_score: Some(92), decision: Some("pass".into()) },
-            JankuraiHistoryPoint { generated_at: h7, score: 95, raw_score: Some(95), decision: Some("pass".into()) },
+            JankuraiHistoryPoint {
+                generated_at: h0,
+                score: 62,
+                raw_score: Some(62),
+                decision: Some("fail".into()),
+            },
+            JankuraiHistoryPoint {
+                generated_at: h1,
+                score: 68,
+                raw_score: Some(68),
+                decision: Some("fail".into()),
+            },
+            JankuraiHistoryPoint {
+                generated_at: h2,
+                score: 74,
+                raw_score: Some(74),
+                decision: Some("advisory".into()),
+            },
+            JankuraiHistoryPoint {
+                generated_at: h3,
+                score: 79,
+                raw_score: Some(79),
+                decision: Some("advisory".into()),
+            },
+            JankuraiHistoryPoint {
+                generated_at: h4,
+                score: 85,
+                raw_score: Some(85),
+                decision: Some("advisory".into()),
+            },
+            JankuraiHistoryPoint {
+                generated_at: h5,
+                score: 88,
+                raw_score: Some(88),
+                decision: Some("pass".into()),
+            },
+            JankuraiHistoryPoint {
+                generated_at: h6,
+                score: 92,
+                raw_score: Some(92),
+                decision: Some("pass".into()),
+            },
+            JankuraiHistoryPoint {
+                generated_at: h7,
+                score: 95,
+                raw_score: Some(95),
+                decision: Some("pass".into()),
+            },
         ],
         dimensions: vec![
             JankuraiDimension {
@@ -410,4 +452,3 @@ fn demo_jankurai_snapshot(now: chrono::DateTime<chrono::Utc>) -> crate::tui::jan
         error: None,
     }
 }
-

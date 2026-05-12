@@ -138,7 +138,11 @@ fn build_from_vti_plan(plan: &VtiPlanData) -> WorkflowSnapshot {
         nodes.push(node);
     }
 
-    let title = format!("VTI plan: {} ({} selected)", plan.ref_name, plan.selected_tests.len());
+    let title = format!(
+        "VTI plan: {} ({} selected)",
+        plan.ref_name,
+        plan.selected_tests.len()
+    );
     builder::build_snapshot(
         nodes,
         edges,

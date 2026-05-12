@@ -14,8 +14,8 @@
 //! Agent tasks are tracked as GitLab Issues with labels:
 //!   agent:pending, agent:running, agent:done, agent:failed
 
-use anyhow::{Context, Result};
 use crate::gitlab_client::{GitlabClient, Issue, ProjectPatResp};
+use anyhow::{Context, Result};
 
 // ---------------------------------------------------------------------------
 // Agent definition

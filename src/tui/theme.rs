@@ -49,31 +49,31 @@ impl Theme {
     /// The default dark theme — optimized for terminal readability.
     pub fn dark() -> Self {
         Self {
-            ok: Color::Rgb(102, 204, 153),         // soft green
-            running: Color::Rgb(102, 178, 255),     // sky blue
-            waiting: Color::Rgb(255, 204, 102),     // warm amber
-            warning: Color::Rgb(255, 178, 102),     // orange
-            fail: Color::Rgb(255, 102, 102),        // coral red
-            blocked: Color::Rgb(204, 102, 255),     // soft purple
-            skipped: Color::Rgb(128, 128, 128),     // gray
+            ok: Color::Rgb(102, 204, 153),      // soft green
+            running: Color::Rgb(102, 178, 255), // sky blue
+            waiting: Color::Rgb(255, 204, 102), // warm amber
+            warning: Color::Rgb(255, 178, 102), // orange
+            fail: Color::Rgb(255, 102, 102),    // coral red
+            blocked: Color::Rgb(204, 102, 255), // soft purple
+            skipped: Color::Rgb(128, 128, 128), // gray
 
-            security: Color::Rgb(255, 102, 178),    // pink-red
-            production: Color::Rgb(255, 80, 80),    // strong red
-            agent: Color::Rgb(102, 255, 255),       // electric cyan
-            vti_fire: Color::Rgb(255, 165, 0),      // orange fire 🔥
+            security: Color::Rgb(255, 102, 178), // pink-red
+            production: Color::Rgb(255, 80, 80), // strong red
+            agent: Color::Rgb(102, 255, 255),    // electric cyan
+            vti_fire: Color::Rgb(255, 165, 0),   // orange fire 🔥
 
-            selection: Color::Rgb(0, 150, 200),     // deep cyan
-            border_subtle: Color::Rgb(60, 60, 70),  // charcoal
+            selection: Color::Rgb(0, 150, 200),    // deep cyan
+            border_subtle: Color::Rgb(60, 60, 70), // charcoal
             border_active: Color::Rgb(102, 178, 255),
             border_accent: Color::Rgb(102, 255, 255),
-            inactive: Color::Rgb(100, 100, 80),     // brownish
+            inactive: Color::Rgb(100, 100, 80), // brownish
 
             text_primary: Color::Rgb(230, 230, 230),
             text_secondary: Color::Rgb(170, 170, 180),
             text_muted: Color::Rgb(100, 100, 110),
             text_inverse: Color::Rgb(20, 20, 25),
 
-            bg_primary: Color::Reset,               // terminal default
+            bg_primary: Color::Reset, // terminal default
             bg_surface: Color::Rgb(30, 30, 38),
             bg_highlight: Color::Rgb(45, 45, 55),
         }

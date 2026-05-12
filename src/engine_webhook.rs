@@ -45,7 +45,9 @@ pub(crate) async fn handle_webhook(
             }
         }
         "Pipeline Hook" => {
-            if let Err(e) = pipeline_impl::handle_pipeline_event_from_body(state.clone(), &body).await {
+            if let Err(e) =
+                pipeline_impl::handle_pipeline_event_from_body(state.clone(), &body).await
+            {
                 warn!(error = %e, "failed to handle Pipeline Hook payload");
             }
         }

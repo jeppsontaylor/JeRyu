@@ -143,9 +143,7 @@ pub(crate) async fn scan_nextest_extract_dirs(
     Ok(statuses)
 }
 
-pub(crate) async fn scan_pip_cache_dirs(
-    root: &Path,
-) -> Result<Vec<PipCacheStatus>> {
+pub(crate) async fn scan_pip_cache_dirs(root: &Path) -> Result<Vec<PipCacheStatus>> {
     let mut statuses = Vec::new();
     let pip_cache_dir = root.join("pip-cache");
     if !pip_cache_dir.is_dir() {

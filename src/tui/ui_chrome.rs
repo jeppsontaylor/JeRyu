@@ -265,11 +265,13 @@ pub(crate) fn draw_header_tabs(f: &mut Frame, header: &ChromeHeaderState, area: 
                 " runners:{}/{}",
                 header.active_runner_groups, header.total_runner_groups
             ),
-            Style::default().fg(if header.active_runner_groups == header.total_runner_groups {
-                Color::Green
-            } else {
-                Color::Yellow
-            }),
+            Style::default().fg(
+                if header.active_runner_groups == header.total_runner_groups {
+                    Color::Green
+                } else {
+                    Color::Yellow
+                },
+            ),
         ),
         release_span,
         // v3 — Agent count badge
@@ -364,7 +366,9 @@ pub(crate) fn draw_event_console(f: &mut Frame, events: &ChromeEventState, area:
         ));
         ticker_spans.push(Span::styled(
             format!("[{}]", event.badge),
-            Style::default().fg(event.color).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(event.color)
+                .add_modifier(Modifier::BOLD),
         ));
         ticker_spans.push(Span::styled(
             format!(" {}  │", event.name),

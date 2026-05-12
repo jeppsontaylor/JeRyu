@@ -57,11 +57,9 @@ pub(crate) fn draw_command_palette(f: &mut Frame, app: &App) {
     f.render_widget(Paragraph::new(input_line), input_inner);
 
     // Filtered action list
-    let matches: Vec<&action_registry::ActionEntry> = action_registry::filtered_for_app(
-        app.command_palette_filter(),
-        app.jankurai_available(),
-    )
-    .collect();
+    let matches: Vec<&action_registry::ActionEntry> =
+        action_registry::filtered_for_app(app.command_palette_filter(), app.jankurai_available())
+            .collect();
 
     if matches.is_empty() {
         f.render_widget(

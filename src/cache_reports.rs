@@ -2,10 +2,10 @@ use super::*;
 
 const POOL_TARGET_LEASE_RECOVERY_TTL_SECS: u64 = 2 * 60 * 60;
 
-#[path = "cache_reports_scan.rs"]
-mod scan;
 #[path = "cache_reports_manager.rs"]
 mod manager;
+#[path = "cache_reports_scan.rs"]
+mod scan;
 
 pub use manager::*;
 pub use scan::*;

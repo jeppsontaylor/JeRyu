@@ -34,12 +34,18 @@ impl App {
     pub fn cycle_tab_next(&mut self) {
         self.coerce_active_tab();
         let tabs = self.visible_tabs();
-        let index = tabs.iter().position(|tab| *tab == self.active_tab).unwrap_or(0);
+        let index = tabs
+            .iter()
+            .position(|tab| *tab == self.active_tab)
+            .unwrap_or(0);
         self.active_tab = tabs[(index + 1) % tabs.len()];
     }
 
     pub fn selected_jankurai_entry(&self) -> Option<&crate::tui::jankurai::JankuraiEntry> {
-        self.state.jankurai.entries.get(self.selected_jankurai_index)
+        self.state
+            .jankurai
+            .entries
+            .get(self.selected_jankurai_index)
     }
 
     pub fn cycle_pane_next(&mut self) {

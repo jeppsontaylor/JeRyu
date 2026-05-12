@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::OnceLock;
 
-use ab_glyph::{Font, FontArc, PxScale, ScaleFont, point};
+use ab_glyph::{point, Font, FontArc, PxScale, ScaleFont};
 use anyhow::{Context, Result};
 use image::{Rgba, RgbaImage};
 

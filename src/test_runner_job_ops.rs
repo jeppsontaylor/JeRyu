@@ -8,7 +8,9 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
 use crate::gitlab_client::GitlabClient;
-use crate::test_runner::{run_test, wait_for_test_result, TestBatchOpts, TestRunResult, TestRunOpts};
+use crate::test_runner::{
+    TestBatchOpts, TestRunOpts, TestRunResult, run_test, wait_for_test_result,
+};
 
 /// Run several test commands in parallel through CI pipelines.
 pub async fn run_test_batch(

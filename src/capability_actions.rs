@@ -26,25 +26,34 @@ pub(crate) async fn execute_intent(
             commit_message,
             modifications,
             mr_title,
-        } => execute::propose_patch(
-            project_id,
-            branch_name,
-            base_ref,
-            commit_message,
-            modifications,
-            mr_title,
-            ctx,
-            client,
-        )
-        .await,
+        } => {
+            execute::propose_patch(
+                project_id,
+                branch_name,
+                base_ref,
+                commit_message,
+                modifications,
+                mr_title,
+                ctx,
+                client,
+            )
+            .await
+        }
         AgentIntent::RacePatches {
             project_id,
             base_branch,
             commit_message,
             hypotheses,
         } => {
-            execute::race_patches(project_id, base_branch, commit_message, hypotheses, ctx, client)
-                .await
+            execute::race_patches(
+                project_id,
+                base_branch,
+                commit_message,
+                hypotheses,
+                ctx,
+                client,
+            )
+            .await
         }
         AgentIntent::RequestMerge {
             project_id,

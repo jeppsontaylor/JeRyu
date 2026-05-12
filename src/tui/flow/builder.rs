@@ -217,7 +217,11 @@ pub fn build_graph(pipeline_id: i64, jobs: Vec<JobEvent>) -> FlowGraph {
             .collect();
         for &from in &from_ids {
             for &to in &to_ids {
-                edges.push(FlowEdge { from, to, kind: crate::api::snapshot::EdgeKind::StageOrder });
+                edges.push(FlowEdge {
+                    from,
+                    to,
+                    kind: crate::api::snapshot::EdgeKind::StageOrder,
+                });
             }
         }
     }

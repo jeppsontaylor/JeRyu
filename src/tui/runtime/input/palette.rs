@@ -40,11 +40,9 @@ pub(crate) fn handle_palette_key(app: &mut App, key: KeyEvent) {
 }
 
 fn execute_palette_action(app: &mut App) {
-    let matches: Vec<&action_registry::ActionEntry> = action_registry::filtered_for_app(
-        &app.command_palette_query,
-        app.jankurai_available(),
-    )
-    .collect();
+    let matches: Vec<&action_registry::ActionEntry> =
+        action_registry::filtered_for_app(&app.command_palette_query, app.jankurai_available())
+            .collect();
     let Some(entry) = matches.get(app.selected_palette_index) else {
         return;
     };

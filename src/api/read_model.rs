@@ -5,9 +5,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use super::entity::{
-    ActionRef, BlockerSummary, DataFreshness, EntityRef, HealthLevel, Severity,
-};
+use super::entity::{ActionRef, BlockerSummary, DataFreshness, EntityRef, HealthLevel, Severity};
 
 /// Schema version for forward-compatibility checks.
 pub const SCHEMA_VERSION: &str = "tui.v1.0";
@@ -165,7 +163,13 @@ pub struct SystemHealth {
 impl SystemHealth {
     /// Flat list of all component health checks.
     pub fn components(&self) -> Vec<&ComponentHealth> {
-        vec![&self.gitlab, &self.database, &self.docker, &self.cache, &self.vault]
+        vec![
+            &self.gitlab,
+            &self.database,
+            &self.docker,
+            &self.cache,
+            &self.vault,
+        ]
     }
 }
 

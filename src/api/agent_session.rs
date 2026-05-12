@@ -36,15 +36,25 @@ impl Default for AgentSession {
     fn default() -> Self {
         let now = Utc::now();
         Self {
-            id: String::new(), objective: String::new(),
-            state: AgentState::Spawning, branch: None, mr_iid: None,
-            head_sha: None, trust_tier: TrustTier::Untrusted,
-            current_intent: None, current_step: None,
-            budget: AgentBudget::default(), grants: Vec::new(),
-            confidence: None, risk: RiskTier::Low,
-            blockers: Vec::new(), next_action: None,
-            timeline: Vec::new(), patch_attempts: Vec::new(),
-            created_at: now, updated_at: now,
+            id: String::new(),
+            objective: String::new(),
+            state: AgentState::Spawning,
+            branch: None,
+            mr_iid: None,
+            head_sha: None,
+            trust_tier: TrustTier::Untrusted,
+            current_intent: None,
+            current_step: None,
+            budget: AgentBudget::default(),
+            grants: Vec::new(),
+            confidence: None,
+            risk: RiskTier::Low,
+            blockers: Vec::new(),
+            next_action: None,
+            timeline: Vec::new(),
+            patch_attempts: Vec::new(),
+            created_at: now,
+            updated_at: now,
         }
     }
 }
@@ -52,58 +62,92 @@ impl Default for AgentSession {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentState {
-    Spawning, Diagnosing, Patching, Validating, Racing,
-    Blocked, WaitingApproval, Completed, Failed, Paused,
+    Spawning,
+    Diagnosing,
+    Patching,
+    Validating,
+    Racing,
+    Blocked,
+    WaitingApproval,
+    Completed,
+    Failed,
+    Paused,
 }
 
 impl AgentState {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Spawning => "SPAWN", Self::Diagnosing => "DIAG",
-            Self::Patching => "PATCH", Self::Validating => "VALID",
-            Self::Racing => "RACE", Self::Blocked => "BLOCK",
-            Self::WaitingApproval => "AWAIT", Self::Completed => "DONE",
-            Self::Failed => "FAIL", Self::Paused => "PAUSE",
+            Self::Spawning => "SPAWN",
+            Self::Diagnosing => "DIAG",
+            Self::Patching => "PATCH",
+            Self::Validating => "VALID",
+            Self::Racing => "RACE",
+            Self::Blocked => "BLOCK",
+            Self::WaitingApproval => "AWAIT",
+            Self::Completed => "DONE",
+            Self::Failed => "FAIL",
+            Self::Paused => "PAUSE",
         }
     }
     pub fn glyph(self) -> &'static str {
         match self {
-            Self::Spawning => "○", Self::Diagnosing => "◎",
-            Self::Patching => "◉", Self::Validating => "●",
-            Self::Racing => "⚡", Self::Blocked | Self::Failed => "✗",
-            Self::WaitingApproval => "◇", Self::Completed => "✓",
+            Self::Spawning => "○",
+            Self::Diagnosing => "◎",
+            Self::Patching => "◉",
+            Self::Validating => "●",
+            Self::Racing => "⚡",
+            Self::Blocked | Self::Failed => "✗",
+            Self::WaitingApproval => "◇",
+            Self::Completed => "✓",
             Self::Paused => "⏸",
         }
     }
-    pub fn is_terminal(self) -> bool { matches!(self, Self::Completed | Self::Failed) }
-    pub fn is_active(self) -> bool { !self.is_terminal() && !matches!(self, Self::Paused) }
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Completed | Self::Failed)
+    }
+    pub fn is_active(self) -> bool {
+        !self.is_terminal() && !matches!(self, Self::Paused)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum TrustTier { Untrusted, Standard, Trusted, Elevated }
+pub enum TrustTier {
+    Untrusted,
+    Standard,
+    Trusted,
+    Elevated,
+}
 
 impl TrustTier {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Untrusted => "untrusted", Self::Standard => "standard",
-            Self::Trusted => "trusted", Self::Elevated => "elevated",
+            Self::Untrusted => "untrusted",
+            Self::Standard => "standard",
+            Self::Trusted => "trusted",
+            Self::Elevated => "elevated",
         }
     }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AgentBudget {
-    pub time_used_secs: u64, pub time_limit_secs: u64,
-    pub ci_minutes_used: u32, pub ci_minutes_limit: u32,
-    pub max_retries: u32, pub retries_used: u32,
+    pub time_used_secs: u64,
+    pub time_limit_secs: u64,
+    pub ci_minutes_used: u32,
+    pub ci_minutes_limit: u32,
+    pub max_retries: u32,
+    pub retries_used: u32,
     pub allowed_paths: Vec<String>,
 }
 
 impl AgentBudget {
     pub fn time_pct(&self) -> f64 {
-        if self.time_limit_secs == 0 { 0.0 }
-        else { (self.time_used_secs as f64 / self.time_limit_secs as f64) * 100.0 }
+        if self.time_limit_secs == 0 {
+            0.0
+        } else {
+            (self.time_used_secs as f64 / self.time_limit_secs as f64) * 100.0
+        }
     }
     pub fn is_exhausted(&self) -> bool {
         (self.time_limit_secs > 0 && self.time_used_secs >= self.time_limit_secs)
@@ -113,34 +157,52 @@ impl AgentBudget {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveGrant {
-    pub grant_id: String, pub action_id: String,
-    pub scope_description: String, pub expires_at: DateTime<Utc>,
+    pub grant_id: String,
+    pub action_id: String,
+    pub scope_description: String,
+    pub expires_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentTimelineEvent {
-    pub timestamp: DateTime<Utc>, pub kind: String,
-    pub summary: String, pub severity: Severity,
+    pub timestamp: DateTime<Utc>,
+    pub kind: String,
+    pub summary: String,
+    pub severity: Severity,
     pub entity: Option<EntityRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PatchAttempt {
-    pub label: String, pub branch: String,
-    pub status: PatchStatus, pub diff_stat: String,
-    pub risk: RiskTier, pub score: Option<u32>,
+    pub label: String,
+    pub branch: String,
+    pub status: PatchStatus,
+    pub diff_stat: String,
+    pub risk: RiskTier,
+    pub score: Option<u32>,
     pub pipeline_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum PatchStatus { Proposed, Testing, Green, Failed, Winner, Archived }
+pub enum PatchStatus {
+    Proposed,
+    Testing,
+    Green,
+    Failed,
+    Winner,
+    Archived,
+}
 
 impl PatchStatus {
     pub fn glyph(self) -> &'static str {
         match self {
-            Self::Proposed => "○", Self::Testing => "●", Self::Green => "✓",
-            Self::Failed => "✗", Self::Winner => "★", Self::Archived => "⊘",
+            Self::Proposed => "○",
+            Self::Testing => "●",
+            Self::Green => "✓",
+            Self::Failed => "✗",
+            Self::Winner => "★",
+            Self::Archived => "⊘",
         }
     }
 }
@@ -157,7 +219,11 @@ mod tests {
     }
     #[test]
     fn budget_pct_calculations() {
-        let b = AgentBudget { time_used_secs: 900, time_limit_secs: 2700, ..Default::default() };
+        let b = AgentBudget {
+            time_used_secs: 900,
+            time_limit_secs: 2700,
+            ..Default::default()
+        };
         assert!((b.time_pct() - 33.33).abs() < 0.1);
         assert!(!b.is_exhausted());
     }

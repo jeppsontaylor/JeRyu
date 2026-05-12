@@ -21,11 +21,7 @@ fn remove_env_var<K: AsRef<std::ffi::OsStr>>(key: K) {
     }
 }
 
-fn make_test_bin_dir(
-    include_cargo: bool,
-    include_rustc: bool,
-    include_sccache: bool,
-) -> TempDir {
+fn make_test_bin_dir(include_cargo: bool, include_rustc: bool, include_sccache: bool) -> TempDir {
     let dir = TempDir::new().unwrap();
     let resolve = |name: &str| -> String {
         let output = std::process::Command::new("which")
@@ -183,7 +179,8 @@ fn concurrent_leases_do_not_remove_each_other() {
     let original_path = std::env::var_os("PATH");
     set_env_var("PATH", path_dir.path());
     let dir = TempDir::new().unwrap();
-    let layout = build_cargo_cache_layout(dir.path(), "targets", "repo-key", true, None, None).unwrap();
+    let layout =
+        build_cargo_cache_layout(dir.path(), "targets", "repo-key", true, None, None).unwrap();
 
     let first = write_lease(&layout).unwrap().unwrap();
     let second = write_lease(&layout).unwrap().unwrap();
@@ -259,10 +256,7 @@ fn runner_pre_build_script_sets_target_dir_without_sccache() {
     let pool_cache = TempDir::new().unwrap();
     let script = format!(
         "{}\nprintf '%s\\n' \"$CARGO_TARGET_DIR|${{RUSTC_WRAPPER-}}\"\n",
-        render_runner_cargo_pre_build_script(
-            &pool_cache.path().display().to_string(),
-            "docker",
-        )
+        render_runner_cargo_pre_build_script(&pool_cache.path().display().to_string(), "docker",)
     );
     let output = std::process::Command::new("/bin/sh")
         .arg("-lc")
@@ -292,10 +286,7 @@ fn runner_pre_build_script_missing_rust_tools_does_not_short_circuit_job() {
     let pool_cache = TempDir::new().unwrap();
     let script = format!(
         "{}\nprintf '%s\\n' user-script-ran\nexit 17\n",
-        render_runner_cargo_pre_build_script(
-            &pool_cache.path().display().to_string(),
-            "docker",
-        )
+        render_runner_cargo_pre_build_script(&pool_cache.path().display().to_string(), "docker",)
     );
     let output = std::process::Command::new("/bin/sh")
         .arg("-c")

@@ -3463,11 +3463,8 @@ impl crate::tui::app::App {
     }
 
     pub(crate) fn chrome_header_state(&self) -> crate::tui::ui::ui_chrome::ChromeHeaderState {
-        let release = self
-            .state
-            .release_status
-            .as_ref()
-            .map(|rel| crate::tui::ui::ui_chrome::ChromeRelease {
+        let release = self.state.release_status.as_ref().map(|rel| {
+            crate::tui::ui::ui_chrome::ChromeRelease {
                 short_sha: rel
                     .attempt
                     .sha
@@ -3475,7 +3472,8 @@ impl crate::tui::app::App {
                     .unwrap_or(rel.attempt.sha.as_str())
                     .to_string(),
                 state_label: rel.canary_state.clone(),
-            });
+            }
+        });
         let mut tabs = vec![
             crate::tui::ui::ui_chrome::ChromeTab {
                 key: "0",

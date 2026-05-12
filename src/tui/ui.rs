@@ -6,15 +6,18 @@
 pub(crate) mod ui_chrome;
 #[path = "ui_panels.rs"]
 mod ui_panels;
-use super::app::{ActivePane, App};
 pub(crate) use super::app::ActiveTab;
+use super::app::{ActivePane, App};
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    text::{Line, Span, Text},
     symbols::Marker,
-    widgets::{Axis, Block, Borders, Chart, Clear, Dataset, Gauge, GraphType, List, ListItem, Paragraph, Wrap},
+    text::{Line, Span, Text},
+    widgets::{
+        Axis, Block, Borders, Chart, Clear, Dataset, Gauge, GraphType, List, ListItem, Paragraph,
+        Wrap,
+    },
 };
 use ui_chrome::*;
 use ui_panels::*;
@@ -70,7 +73,10 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     match app.render_tab() {
         RenderTab::Workflow => {
             let mut snap = crate::tui::workflow::builder::build_demo_snapshot();
-            snap.selected_node_id = app.workflow_nav.selected_node_id(&snap).map(|s| s.to_string());
+            snap.selected_node_id = app
+                .workflow_nav
+                .selected_node_id(&snap)
+                .map(|s| s.to_string());
             let theme = crate::tui::theme::Theme::dark();
             crate::tui::workflow::widget::draw_workflow_tab(f, chunks[1], &snap, &theme);
         }

@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use tracing::{debug, error, info};
 
-use super::normalize_ref;
 use super::SharedState;
+use super::normalize_ref;
 use crate::release;
 use crate::state::TrackedPipeline;
 

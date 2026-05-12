@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::cargo_cache::{
-    process_is_alive, CargoCacheLayout, CargoLeaseRecord, CargoLeaseScan, LEASES_DIR_NAME,
+    CargoCacheLayout, CargoLeaseRecord, CargoLeaseScan, LEASES_DIR_NAME, process_is_alive,
 };
 
 pub struct CargoLeaseGuard {

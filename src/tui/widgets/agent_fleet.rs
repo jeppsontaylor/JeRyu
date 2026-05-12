@@ -10,7 +10,9 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
 };
 
-use crate::api::agent_session::{AgentBudget, AgentSession, AgentState, PatchAttempt, PatchStatus, TrustTier};
+use crate::api::agent_session::{
+    AgentBudget, AgentSession, AgentState, PatchAttempt, PatchStatus, TrustTier,
+};
 use crate::tui::theme::Theme;
 
 /// Render the full agent fleet view — replaces pipeline-centric agent rendering.
@@ -24,9 +26,9 @@ pub fn render_agent_fleet(
     let cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(34),  // Agent list
-            Constraint::Percentage(40),  // Agent detail cockpit
-            Constraint::Percentage(26),  // Grants + actions
+            Constraint::Percentage(34), // Agent list
+            Constraint::Percentage(40), // Agent detail cockpit
+            Constraint::Percentage(26), // Grants + actions
         ])
         .split(area);
 
@@ -52,7 +54,11 @@ pub fn render_agent_fleet(
                 ),
                 Span::styled(
                     super::truncate_label(&s.objective, cols[0].width.saturating_sub(16) as usize),
-                    if is_selected { theme.primary() } else { theme.secondary() },
+                    if is_selected {
+                        theme.primary()
+                    } else {
+                        theme.secondary()
+                    },
                 ),
             ]);
 
@@ -69,7 +75,11 @@ pub fn render_agent_fleet(
     f.render_widget(
         List::new(items).block(
             Block::default()
-                .title(format!(" [ Agent Fleet ({}/{}) ] ", count_active, sessions.len()))
+                .title(format!(
+                    " [ Agent Fleet ({}/{}) ] ",
+                    count_active,
+                    sessions.len()
+                ))
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(theme.agent)),
         ),
@@ -81,7 +91,7 @@ pub fn render_agent_fleet(
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(11), // Detail card
-            Constraint::Min(6),    // Patch race board
+            Constraint::Min(6),     // Patch race board
         ])
         .split(cols[1]);
 
@@ -90,13 +100,15 @@ pub fn render_agent_fleet(
         render_patch_board(f, detail_rows[1], session, theme);
     } else {
         f.render_widget(
-            Paragraph::new("  No agent sessions yet.\n  Branches starting with agent/ appear here.")
-                .block(
-                    Block::default()
-                        .title(" [ Agent Cockpit ] ")
-                        .borders(Borders::ALL),
-                )
-                .style(theme.muted()),
+            Paragraph::new(
+                "  No agent sessions yet.\n  Branches starting with agent/ appear here.",
+            )
+            .block(
+                Block::default()
+                    .title(" [ Agent Cockpit ] ")
+                    .borders(Borders::ALL),
+            )
+            .style(theme.muted()),
             detail_rows[0],
         );
     }
@@ -106,13 +118,12 @@ pub fn render_agent_fleet(
         render_agent_grants(f, cols[2], session, theme);
     } else {
         f.render_widget(
-            Paragraph::new("  —")
-                .block(
-                    Block::default()
-                        .title(" [ Grants ] ")
-                        .borders(Borders::ALL)
-                        .border_style(Style::default().fg(theme.border_subtle)),
-                ),
+            Paragraph::new("  —").block(
+                Block::default()
+                    .title(" [ Grants ] ")
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme.border_subtle)),
+            ),
             cols[2],
         );
     }
@@ -122,14 +133,27 @@ fn render_session_detail(f: &mut Frame, area: Rect, s: &AgentSession, theme: &Th
     let state_color = state_theme_color(s.state, theme);
 
     let budget_bar = |used: f64, limit: f64| -> String {
-        if limit <= 0.0 { return "n/a".to_string(); }
+        if limit <= 0.0 {
+            return "n/a".to_string();
+        }
         let pct = ((used / limit) * 100.0).min(100.0);
         let filled = (pct as usize * 10 / 100).min(10);
-        format!("{}{}  {:.0}%", "█".repeat(filled), "░".repeat(10 - filled), pct)
+        format!(
+            "{}{}  {:.0}%",
+            "█".repeat(filled),
+            "░".repeat(10 - filled),
+            pct
+        )
     };
 
-    let time_bar = budget_bar(s.budget.time_used_secs as f64, s.budget.time_limit_secs as f64);
-    let ci_bar = budget_bar(s.budget.ci_minutes_used as f64, s.budget.ci_minutes_limit as f64);
+    let time_bar = budget_bar(
+        s.budget.time_used_secs as f64,
+        s.budget.time_limit_secs as f64,
+    );
+    let ci_bar = budget_bar(
+        s.budget.ci_minutes_used as f64,
+        s.budget.ci_minutes_limit as f64,
+    );
 
     let mut lines = vec![
         Line::from(vec![
@@ -171,14 +195,22 @@ fn render_session_detail(f: &mut Frame, area: Rect, s: &AgentSession, theme: &Th
         Span::styled("  Time:   ", theme.muted()),
         Span::styled(
             time_bar,
-            Style::default().fg(if s.budget.time_pct() > 80.0 { theme.fail } else { theme.ok }),
+            Style::default().fg(if s.budget.time_pct() > 80.0 {
+                theme.fail
+            } else {
+                theme.ok
+            }),
         ),
     ]));
     lines.push(Line::from(vec![
         Span::styled("  CI:     ", theme.muted()),
         Span::styled(
             ci_bar,
-            Style::default().fg(if s.budget.is_exhausted() { theme.fail } else { theme.ok }),
+            Style::default().fg(if s.budget.is_exhausted() {
+                theme.fail
+            } else {
+                theme.ok
+            }),
         ),
     ]));
 
@@ -227,7 +259,8 @@ fn render_patch_board(f: &mut Frame, area: Rect, s: &AgentSession, theme: &Theme
     }
 
     let max = inner.height as usize;
-    let lines: Vec<Line> = s.patch_attempts
+    let lines: Vec<Line> = s
+        .patch_attempts
         .iter()
         .take(max)
         .map(|p| {
@@ -237,10 +270,7 @@ fn render_patch_board(f: &mut Frame, area: Rect, s: &AgentSession, theme: &Theme
                 None => String::new(),
             };
             Line::from(vec![
-                Span::styled(
-                    format!(" {} ", p.status.glyph()),
-                    theme.bold(status_color),
-                ),
+                Span::styled(format!(" {} ", p.status.glyph()), theme.bold(status_color)),
                 Span::styled(
                     super::truncate_label(&p.label, inner.width.saturating_sub(30) as usize),
                     theme.primary(),
@@ -280,16 +310,17 @@ fn render_agent_grants(f: &mut Frame, area: Rect, s: &AgentSession, theme: &Them
         lines.push(Line::from(Span::styled("  none", theme.muted())));
     } else {
         for g in s.grants.iter().take(4) {
-            let remaining = g.expires_at.signed_duration_since(chrono::Utc::now()).num_seconds().max(0);
+            let remaining = g
+                .expires_at
+                .signed_duration_since(chrono::Utc::now())
+                .num_seconds()
+                .max(0);
             lines.push(Line::from(vec![
                 Span::styled(
                     format!("  {} ", g.action_id),
                     Style::default().fg(theme.waiting),
                 ),
-                Span::styled(
-                    format!("{}s left", remaining),
-                    theme.muted(),
-                ),
+                Span::styled(format!("{}s left", remaining), theme.muted()),
             ]));
         }
     }
@@ -301,7 +332,10 @@ fn render_agent_grants(f: &mut Frame, area: Rect, s: &AgentSession, theme: &Them
     )));
 
     if s.blockers.is_empty() {
-        lines.push(Line::from(Span::styled("  clear", Style::default().fg(theme.ok))));
+        lines.push(Line::from(Span::styled(
+            "  clear",
+            Style::default().fg(theme.ok),
+        )));
     } else {
         for b in s.blockers.iter().take(3) {
             lines.push(Line::from(vec![
@@ -326,8 +360,14 @@ fn render_agent_grants(f: &mut Frame, area: Rect, s: &AgentSession, theme: &Them
         "  Actions",
         theme.bold(theme.text_secondary),
     )));
-    lines.push(Line::from(Span::styled("  ^K explain blockers", theme.primary())));
-    lines.push(Line::from(Span::styled("  ^K fetch capsule", theme.primary())));
+    lines.push(Line::from(Span::styled(
+        "  ^K explain blockers",
+        theme.primary(),
+    )));
+    lines.push(Line::from(Span::styled(
+        "  ^K fetch capsule",
+        theme.primary(),
+    )));
 
     if let Some(ref next) = s.next_action {
         lines.push(Line::from(vec![
@@ -382,8 +422,6 @@ fn patch_color(status: PatchStatus, theme: &Theme) -> Color {
         PatchStatus::Archived => theme.skipped,
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {

@@ -55,15 +55,9 @@ pub fn labeled_spark(
     spark_color: Color,
 ) -> Line<'static> {
     Line::from(vec![
-        Span::styled(
-            format!("  {label:<12}"),
-            Style::default().fg(label_color),
-        ),
+        Span::styled(format!("  {label:<12}"), Style::default().fg(label_color)),
         spark(values, width, spark_color),
-        Span::styled(
-            format!(" {current}"),
-            Style::default().fg(spark_color),
-        ),
+        Span::styled(format!(" {current}"), Style::default().fg(spark_color)),
     ])
 }
 

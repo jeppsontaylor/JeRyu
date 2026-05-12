@@ -1,18 +1,18 @@
 use super::*;
 
-#[path = "lifecycle_support.rs"]
-mod support;
 #[path = "lifecycle_checks.rs"]
 mod checks;
+#[path = "lifecycle_support.rs"]
+mod support;
 
-pub use checks::{release_doctor, release_preflight};
 pub(crate) use checks::{
-    release_lock_path, write_release_lock, DoctorBlocker, DoctorReport, PreflightBlocker,
-    PreflightReport, ReleaseLock,
+    DoctorBlocker, DoctorReport, PreflightBlocker, PreflightReport, ReleaseLock, release_lock_path,
+    write_release_lock,
 };
+pub use checks::{release_doctor, release_preflight};
 pub(crate) use support::{
-    parse_image_env, pipeline_has_release_execution_jobs, release_impacting_change,
-    upstream_image_handoff, UpstreamImageHandoff,
+    UpstreamImageHandoff, parse_image_env, pipeline_has_release_execution_jobs,
+    release_impacting_change, upstream_image_handoff,
 };
 
 pub async fn reconcile_release_for_ref(

@@ -19,8 +19,8 @@ const NEXTEST_EXTRACT_RECENT_TTL_SECS: u64 = 2 * 60 * 60;
 #[allow(dead_code)]
 const NEXTEST_EXTRACT_FALLBACK_TTL_SECS: u64 = NEXTEST_EXTRACT_RECENT_TTL_SECS;
 
-mod types;
 mod runtime;
+mod types;
 
 #[path = "../cache_reports.rs"]
 mod cache_reports;

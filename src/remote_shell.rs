@@ -275,8 +275,7 @@ pub(crate) async fn run_remote_shell(
 }
 
 pub(crate) async fn run_remote_shell_status(cfg: &RemoteConfig, script: &str) -> Result<bool> {
-    let output =
-        capture_ssh_bash_output(cfg, script, "running remote shell status").await?;
+    let output = capture_ssh_bash_output(cfg, script, "running remote shell status").await?;
     Ok(output.status.success())
 }
 
@@ -284,8 +283,7 @@ pub(crate) async fn run_remote_shell_capture(
     cfg: &RemoteConfig,
     script: &str,
 ) -> Result<Option<String>> {
-    let output =
-        capture_ssh_bash_output(cfg, script, "running remote shell capture").await?;
+    let output = capture_ssh_bash_output(cfg, script, "running remote shell capture").await?;
     if output.status.success() {
         Ok(Some(String::from_utf8_lossy(&output.stdout).to_string()))
     } else {

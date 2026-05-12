@@ -32,10 +32,7 @@ pub fn render_timeline(
 
     if events.is_empty() {
         f.render_widget(
-            Paragraph::new(Span::styled(
-                "  Waiting for events...",
-                theme.muted(),
-            )),
+            Paragraph::new(Span::styled("  Waiting for events...", theme.muted())),
             inner,
         );
         return;
@@ -47,28 +44,17 @@ pub fn render_timeline(
         .filter(|e| e.severity <= min_severity)
         .take(max_lines)
         .map(|event| {
-            let ts = event
-                .timestamp
-                .format("%H:%M:%S")
-                .to_string();
+            let ts = event.timestamp.format("%H:%M:%S").to_string();
             let sev_color = severity_theme_color(event.severity, theme);
             let kind_label = event.kind.label();
 
             Line::from(vec![
-                Span::styled(
-                    format!(" {} ", ts),
-                    theme.muted(),
-                ),
+                Span::styled(format!(" {} ", ts), theme.muted()),
                 Span::styled(
                     format!("{} ", event.severity.label()),
-                    Style::default()
-                        .fg(sev_color)
-                        .add_modifier(Modifier::BOLD),
+                    Style::default().fg(sev_color).add_modifier(Modifier::BOLD),
                 ),
-                Span::styled(
-                    format!("{:<28} ", kind_label),
-                    theme.secondary(),
-                ),
+                Span::styled(format!("{:<28} ", kind_label), theme.secondary()),
                 Span::styled(
                     truncate_summary(&event.summary, inner.width.saturating_sub(48) as usize),
                     theme.primary(),
@@ -90,10 +76,16 @@ fn severity_theme_color(severity: Severity, theme: &Theme) -> ratatui::style::Co
 }
 
 fn truncate_summary(s: &str, max: usize) -> String {
-    if max == 0 { return String::new(); }
-    if s.len() <= max { s.to_string() }
-    else if max > 3 { format!("{}...", &s[..max - 3]) }
-    else { s[..max].to_string() }
+    if max == 0 {
+        return String::new();
+    }
+    if s.len() <= max {
+        s.to_string()
+    } else if max > 3 {
+        format!("{}...", &s[..max - 3])
+    } else {
+        s[..max].to_string()
+    }
 }
 
 #[cfg(test)]

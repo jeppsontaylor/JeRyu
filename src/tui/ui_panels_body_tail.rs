@@ -38,7 +38,8 @@ pub(crate) fn draw_release_banner(f: &mut Frame, app: &App, area: Rect) {
 
 #[allow(dead_code)]
 pub(crate) fn draw_flow_board(f: &mut Frame, app: &App, area: Rect) {
-    let (outdated_age, outdated_color, _outdated_label) = outdated_indicator(app.state.last_sync_at);
+    let (outdated_age, outdated_color, _outdated_label) =
+        outdated_indicator(app.state.last_sync_at);
     let flow_outdated = app.state.flow.outdated;
     let title = if flow_outdated {
         if let Some(last) = app.state.flow.last_non_empty_at {

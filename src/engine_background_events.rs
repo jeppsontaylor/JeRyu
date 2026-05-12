@@ -1,7 +1,7 @@
 use tracing::{debug, error, warn};
 
-use super::reconcile::reconcile_once;
 use super::SharedState;
+use super::reconcile::reconcile_once;
 
 pub(crate) async fn docker_event_loop(state: SharedState) {
     use futures_util::StreamExt;

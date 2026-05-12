@@ -15,7 +15,10 @@ pub enum VtiStatus {
     /// Test was skipped by the VTI engine.
     Skipped { reason: String, confidence: f64 },
     /// Test was accelerated (cache hit or reuse). 🔥
-    Accelerated { reason: String, time_saved_secs: i64 },
+    Accelerated {
+        reason: String,
+        time_saved_secs: i64,
+    },
     /// Full suite run (no VTI filtering applied).
     FullSuite,
 }
@@ -29,8 +32,12 @@ impl VtiStatus {
             Self::FullSuite => "[FULL]",
         }
     }
-    pub fn is_accelerated(&self) -> bool { matches!(self, Self::Accelerated { .. }) }
-    pub fn is_skipped(&self) -> bool { matches!(self, Self::Skipped { .. }) }
+    pub fn is_accelerated(&self) -> bool {
+        matches!(self, Self::Accelerated { .. })
+    }
+    pub fn is_skipped(&self) -> bool {
+        matches!(self, Self::Skipped { .. })
+    }
 }
 
 /// Cache verdict for a job.
@@ -55,7 +62,11 @@ impl CacheVerdict {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum CacheTrust { Trusted, Untrusted, Verified }
+pub enum CacheTrust {
+    Trusted,
+    Untrusted,
+    Verified,
+}
 
 /// Edge classification for the flow graph.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -131,8 +142,10 @@ pub enum ValidationDecision {
 impl ValidationDecision {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Unknown => "UNKNOWN", Self::Valid => "VALID",
-            Self::Invalid => "INVALID", Self::Escalate => "ESCALATE",
+            Self::Unknown => "UNKNOWN",
+            Self::Valid => "VALID",
+            Self::Invalid => "INVALID",
+            Self::Escalate => "ESCALATE",
         }
     }
 }
@@ -143,9 +156,18 @@ mod tests {
 
     #[test]
     fn vti_badges_are_distinct() {
-        let sel = VtiStatus::Selected { reason: "dep".into(), confidence: 0.9 };
-        let skip = VtiStatus::Skipped { reason: "no path".into(), confidence: 0.95 };
-        let acc = VtiStatus::Accelerated { reason: "cache".into(), time_saved_secs: 42 };
+        let sel = VtiStatus::Selected {
+            reason: "dep".into(),
+            confidence: 0.9,
+        };
+        let skip = VtiStatus::Skipped {
+            reason: "no path".into(),
+            confidence: 0.95,
+        };
+        let acc = VtiStatus::Accelerated {
+            reason: "cache".into(),
+            time_saved_secs: 42,
+        };
         assert_ne!(sel.badge(), skip.badge());
         assert_ne!(skip.badge(), acc.badge());
         assert!(acc.is_accelerated());
