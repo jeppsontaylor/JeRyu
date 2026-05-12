@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:ac40af3d99d9032c8751d3c8df1b1272bbf54536f90d06fd59241aaba93b1013",
-  "input_fingerprint": "sha256:25a888708edd73f78c8b322adcaa8c2102eb21d3bcc91940292cdf480096f9f4",
+  "report_fingerprint": "sha256:e7b0bbe93b17abbf752e63b7af76a2c8c629e115e5f0c5535d21808983a30b74",
+  "input_fingerprint": "sha256:5d35b872b5bfd43adf38a3f04e082ede64132e64a0fdbecbaee56fd457d0d44a",
   "policy_fingerprint": "sha256:4288a09ea1a256b73db79a0953ca6e88b9b823694013e1e0974ae859e7d6c167",
   "manifest_fingerprints": {
     "owner_map": "sha256:b0b5a6ec1dcf49aa1c4d5a4b3b090c300a89fdb7f38fd50691578d130aa2dd85",
@@ -11,7 +11,7 @@
     "standard_version": "sha256:6d84737d2795323e28d70f14863f479329f39f7130bd5021823bddc48d32fba2"
   },
   "dirty_worktree": true,
-  "generated_at": "1778532433",
+  "generated_at": "1778583548",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.8.0",
@@ -21,16 +21,13 @@
   "target_stack_id": "rust-ts-vite-react-postgres-bounded-python",
   "target_stack": "Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service",
   "claimed_conformance_level": "HL3",
-  "observed_conformance_level": "HL2",
-  "conformance_decision": "block",
-  "conformance_blockers": [
-    "HLT-002-GENERATED-MUTATION on agent/generated-zones.toml",
-    "HLT-002-GENERATED-MUTATION on agent/generated-zones.toml"
-  ],
+  "observed_conformance_level": "HL3",
+  "conformance_decision": "pass",
+  "conformance_blockers": [],
   "repo": ".",
-  "run_id": "1778532433",
-  "started_at": "1778532433",
-  "elapsed_ms": 1292,
+  "run_id": "1778583548",
+  "started_at": "1778583548",
+  "elapsed_ms": 1380,
   "scope": {
     "mode": "full",
     "paths": []
@@ -41,12 +38,12 @@
     "status": "advisory",
     "minimum_score": 85,
     "passed": true,
-    "hard_findings": 2,
+    "hard_findings": 0,
     "soft_findings": 0,
     "ratchet": {
       "baseline_score": 95,
       "allowed_drop": 0,
-      "passed": false,
+      "passed": true,
       "score_delta": 0,
       "baseline_report_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
       "baseline_input_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -57,7 +54,7 @@
     }
   },
   "git": {
-    "head": "d7f9d66",
+    "head": "aff0e23",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -415,14 +412,14 @@
     {
       "name": "Jankurai tool adoption and CI replacement",
       "weight": 7,
-      "score": 76,
-      "weighted_points": 5.32,
+      "score": 72,
+      "weighted_points": 5.04,
       "evidence": [
         "control-plane files present",
         "applicable=16",
         "configured=11",
-        "ci_evidence=13",
-        "artifact_verified=6"
+        "ci_evidence=12",
+        "artifact_verified=5"
       ],
       "notes": [
         "some applicable tools are not configured",
@@ -465,6 +462,8 @@
     "missing_categories": [],
     "evidence": {
       "accessibility": [
+        "agent/repo-score.json",
+        "agent/repo-score.md",
         "apps/web/ux-qa.ts",
         "ops/releases/v1.0.0/jankurai-score.json"
       ],
@@ -494,6 +493,7 @@
         "tests/tui_tuiwright.rs"
       ],
       "storybook": [
+        "agent/repo-score.json",
         "apps/web/ux-qa.ts",
         "ops/releases/v1.0.0/jankurai-score.json"
       ],
@@ -506,9 +506,9 @@
     "control_plane_present": true,
     "applicable_count": 16,
     "configured_count": 11,
-    "ci_evidence_count": 13,
-    "artifact_verified_count": 6,
-    "replaced_count": 13,
+    "ci_evidence_count": 12,
+    "artifact_verified_count": 5,
+    "replaced_count": 12,
     "items": [
       {
         "id": "audit-ci",
@@ -736,17 +736,17 @@
         "category": "db",
         "mode": "auto",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "configured",
         "replaced_tools": [
           "manual migration review"
         ],
         "evidence": [
           "mode=auto",
-          "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: target/jankurai/migration-report.json"
+          "tool-adoption config entry present"
         ],
-        "missing": [],
+        "missing": [
+          "CI command evidence"
+        ],
         "local_command": "jankurai migrate . --analyze --json target/jankurai/migration-report.json",
         "ci_command": "jankurai migrate . --analyze --json target/jankurai/migration-report.json",
         "artifact_paths": [
@@ -978,16 +978,15 @@
         "release-readiness",
         "cost-budget"
       ],
-      "artifact_verified_count": 6,
+      "artifact_verified_count": 5,
       "artifact_verified_tools": [
         "proofbind",
         "proofmark-rust",
         "security",
         "ux-qa",
-        "db-migration-analyze",
         "rust-witness"
       ],
-      "ci_evidence_count": 13,
+      "ci_evidence_count": 12,
       "ci_evidence_tools": [
         "audit-ci",
         "proof-routing",
@@ -995,7 +994,6 @@
         "proofmark-rust",
         "security",
         "ux-qa",
-        "db-migration-analyze",
         "contract-drift",
         "rust-witness",
         "authz-matrix",
@@ -1026,6 +1024,7 @@
       "ci-bad-behavior",
       "git-bad-behavior",
       "release-bad-behavior",
+      "db-migration-analyze",
       "contract-drift",
       "authz-matrix",
       "agent-tool-supply",
@@ -1290,72 +1289,6 @@
       "noncanonical_count": 0
     }
   },
-  "findings": [
-    {
-      "severity": "high",
-      "category": "generated",
-      "path": "agent/generated-zones.toml",
-      "problem": "generated zone file `agent/repo-score.json` is missing",
-      "agent_fix": "regenerate `agent/repo-score.json` using the declared command, or remove the zone entry if the file was deleted intentionally",
-      "evidence": [
-        "generated zone integrity violation"
-      ],
-      "check_id": "HLT-002-GENERATED-MUTATION:generated",
-      "hardness": "hard",
-      "confidence": 0.95,
-      "evidence_kind": "contract-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:da4c97d8849ada8e584127cefd2a38618b2122ac9f5d9918c4996048a2e47b21",
-      "rule_id": "HLT-002-GENERATED-MUTATION",
-      "tlr": "Contracts/data",
-      "lane": "contract",
-      "docs_url": "agent/JANKURAI_STANDARD.md#generated-zones",
-      "owner": "agent",
-      "line": 1
-    },
-    {
-      "severity": "high",
-      "category": "generated",
-      "path": "agent/generated-zones.toml",
-      "problem": "generated zone file `agent/repo-score.md` is missing",
-      "agent_fix": "regenerate `agent/repo-score.md` using the declared command, or remove the zone entry if the file was deleted intentionally",
-      "evidence": [
-        "generated zone integrity violation"
-      ],
-      "check_id": "HLT-002-GENERATED-MUTATION:generated",
-      "hardness": "hard",
-      "confidence": 0.95,
-      "evidence_kind": "contract-manifest",
-      "rerun_command": "just fast",
-      "fingerprint": "sha256:73f51c07759943db494d8bd45c79b3ea786d6bce0e391f2408f30b6a9de7af8c",
-      "rule_id": "HLT-002-GENERATED-MUTATION",
-      "tlr": "Contracts/data",
-      "lane": "contract",
-      "docs_url": "agent/JANKURAI_STANDARD.md#generated-zones",
-      "owner": "agent",
-      "line": 1
-    }
-  ],
-  "agent_fix_queue": [
-    {
-      "path": "agent/generated-zones.toml",
-      "priority": "high",
-      "rule_id": "HLT-002-GENERATED-MUTATION",
-      "tlr": "Contracts/data",
-      "lane": "contract",
-      "owner": "agent",
-      "task": "regenerate `agent/repo-score.json` using the declared command, or remove the zone entry if the file was deleted intentionally",
-      "why": "generated zone file `agent/repo-score.json` is missing"
-    },
-    {
-      "path": "agent/generated-zones.toml",
-      "priority": "high",
-      "rule_id": "HLT-002-GENERATED-MUTATION",
-      "tlr": "Contracts/data",
-      "lane": "contract",
-      "owner": "agent",
-      "task": "regenerate `agent/repo-score.md` using the declared command, or remove the zone entry if the file was deleted intentionally",
-      "why": "generated zone file `agent/repo-score.md` is missing"
-    }
-  ]
+  "findings": [],
+  "agent_fix_queue": []
 }

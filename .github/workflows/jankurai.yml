@@ -17,6 +17,7 @@ jobs:
       contents: read
       pull-requests: read
       security-events: write
+      id-token: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
@@ -88,7 +89,7 @@ jobs:
           name: release-bad-behavior
           path: target/jankurai/release-bad-behavior.log
       - name: Migration analyze
-        run: jankurai migrate . --analyze --json target/jankurai/migration-report.json
+        run: jankurai migrate . --analyze --out target/jankurai/migration-report.json
       - name: UX QA smoke
         run: jankurai ux audit --config agent/ux-qa.toml --out target/jankurai/ux-qa.json
       - name: Security lane proof

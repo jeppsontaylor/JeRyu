@@ -7,9 +7,9 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1778532433`
-- Started at: `1778532433`
-- Elapsed: `1292` ms
+- Run ID: `1778583548`
+- Started at: `1778583548`
+- Elapsed: `1380` ms
 - Scope: `full`
 - Raw score: `95`
 - Final score: `95`
@@ -79,7 +79,7 @@
 | Data truth and workflow safety | 8 | 85 | 6.80 | database surface present; structured db boundary manifest present |
 | Observability and repair evidence | 8 | 98 | 7.84 | observability libraries or patterns found; diagnostic shaping hints found |
 | Context economy and agent instructions | 7 | 100 | 7.00 | root `AGENTS.md` present; root `AGENTS.md` stays short |
-| Jankurai tool adoption and CI replacement | 7 | 76 | 5.32 | control-plane files present; applicable=16 |
+| Jankurai tool adoption and CI replacement | 7 | 72 | 5.04 | control-plane files present; applicable=16 |
 | Python containment and polyglot hygiene | 4 | 100 | 4.00 | no Python files in scope |
 | Build speed signals | 4 | 95 | 3.80 | build acceleration markers found; targeted test/build commands found |
 
@@ -111,10 +111,10 @@
 - Control plane present: `true`
 - Applicable tools: `16`
 - Configured: `11`
-- CI evidence: `13`
-- Artifact verified: `6`
-- Replaced count: `13`
-- Missing CI evidence: `audit-ci, proof-routing, ci-bad-behavior, git-bad-behavior, release-bad-behavior, contract-drift, authz-matrix, agent-tool-supply, release-readiness, cost-budget`
+- CI evidence: `12`
+- Artifact verified: `5`
+- Replaced count: `12`
+- Missing CI evidence: `audit-ci, proof-routing, ci-bad-behavior, git-bad-behavior, release-bad-behavior, db-migration-analyze, contract-drift, authz-matrix, agent-tool-supply, release-readiness, cost-budget`
 
 | Tool | Category | Mode | Status | Replaced | Artifacts |
 | --- | --- | --- | --- | --- | --- |
@@ -127,7 +127,7 @@
 | `git-bad-behavior` | `audit` | `auto` | `configured` | `destructive git automation, force-push release scripts, hidden stash-based state` | `target/jankurai/language-bad-behavior.log` |
 | `release-bad-behavior` | `release` | `auto` | `configured` | `manual release checklist, ad hoc tag and artifact review, manual provenance review` | `target/jankurai/language-bad-behavior.log` |
 | `ux-qa` | `ux` | `auto` | `artifact_verified` | `playwright, axe-core, visual baselines` | `target/jankurai/ux-qa.json` |
-| `db-migration-analyze` | `db` | `auto` | `artifact_verified` | `manual migration review` | `target/jankurai/migration-report.json` |
+| `db-migration-analyze` | `db` | `auto` | `configured` | `manual migration review` | `target/jankurai/migration-report.json` |
 | `contract-drift` | `contract` | `auto` | `ci_evidence` | `handwritten contract drift checks, openapi diff` | `agent/repo-score.json, agent/repo-score.md` |
 | `rust-witness` | `rust` | `auto` | `artifact_verified` | `manual witness graphing` | `target/jankurai/rust/witness-graph.json` |
 | `vibe-coverage` | `audit` | `auto` | `not_applicable` | `manual vibe-coding coverage spreadsheet` | `target/jankurai/vibe-coverage.json, target/jankurai/vibe-coverage.md` |
@@ -151,26 +151,7 @@ No audited runtime boundary reclassifications declared.
 
 ## Findings
 
-1. `high` `generated` `agent/generated-zones.toml:1`
-   Rule: `HLT-002-GENERATED-MUTATION`
-   Check: `HLT-002-GENERATED-MUTATION:generated` `hard` confidence `0.95`
-   Route: TLR `Contracts/data`, lane `contract`, owner `agent`
-   Docs: `agent/JANKURAI_STANDARD.md#generated-zones`
-   Reason: generated zone file `agent/repo-score.json` is missing
-   Fix: regenerate `agent/repo-score.json` using the declared command, or remove the zone entry if the file was deleted intentionally
-   Rerun: `just fast`
-   Fingerprint: `sha256:da4c97d8849ada8e584127cefd2a38618b2122ac9f5d9918c4996048a2e47b21`
-   Evidence: generated zone integrity violation
-2. `high` `generated` `agent/generated-zones.toml:1`
-   Rule: `HLT-002-GENERATED-MUTATION`
-   Check: `HLT-002-GENERATED-MUTATION:generated` `hard` confidence `0.95`
-   Route: TLR `Contracts/data`, lane `contract`, owner `agent`
-   Docs: `agent/JANKURAI_STANDARD.md#generated-zones`
-   Reason: generated zone file `agent/repo-score.md` is missing
-   Fix: regenerate `agent/repo-score.md` using the declared command, or remove the zone entry if the file was deleted intentionally
-   Rerun: `just fast`
-   Fingerprint: `sha256:73f51c07759943db494d8bd45c79b3ea786d6bce0e391f2408f30b6a9de7af8c`
-   Evidence: generated zone integrity violation
+No findings.
 
 ## Policy
 
@@ -180,7 +161,4 @@ No audited runtime boundary reclassifications declared.
 
 ## Agent Fix Queue
 
-1. `high` `HLT-002-GENERATED-MUTATION` `agent/generated-zones.toml` - regenerate `agent/repo-score.json` using the declared command, or remove the zone entry if the file was deleted intentionally
-   Route: `Contracts/data`/`contract`
-2. `high` `HLT-002-GENERATED-MUTATION` `agent/generated-zones.toml` - regenerate `agent/repo-score.md` using the declared command, or remove the zone entry if the file was deleted intentionally
-   Route: `Contracts/data`/`contract`
+No queued fixes.
