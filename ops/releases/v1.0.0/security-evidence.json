@@ -1,0 +1,27 @@
+{
+  "repo_root": "/Users/bentaylor/Code/JeRyu",
+  "commit": "5f2a37b630c295fa9064f46402040ceb83bbca0e",
+  "generated_at": "2026-05-11T15:24:01Z",
+  "secret_scan": {
+    "tool": "gitleaks",
+    "status": 0,
+    "report": "gitleaks.sarif",
+    "log": "gitleaks.log"
+  },
+  "dependency_review": {
+    "tool": "cargo deny",
+    "status": 0,
+    "report": "cargo-deny.log"
+  },
+  "sbom": {
+    "tool": "syft",
+    "status": 0,
+    "report": "sbom.spdx.json",
+    "log": "syft.log"
+  },
+  "workflow_lint": {
+    "tool": "actionlint",
+    "status": 0,
+    "report": "actionlint.log"
+  }
+}
