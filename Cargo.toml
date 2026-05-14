@@ -7,6 +7,7 @@ members = [
     "crates/cargo-aer",
     "crates/arc-bench",
     "crates/tui-capture",
+    "crates/tuiwright",
     "crates/adapters/cache-brain",
     "crates/jeryu-gcd",
 ]
@@ -129,7 +130,7 @@ cache-brain-adapter = { path = "crates/adapters/cache-brain" }
 async-trait = "0.1"
 
 [dev-dependencies]
-tuiwright = { path = "../jankurai/crates/tuiwright" }
+tuiwright = { path = "crates/tuiwright" }
 
 [package.metadata.agent]
 purpose = "Single-binary CI/CD control plane for GitLab-based pipelines"

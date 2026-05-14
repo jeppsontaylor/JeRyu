@@ -6,14 +6,7 @@ targets = []
 
 [advisories]
 version = 2
-ignore = [
-    # rusttype is unmaintained. It is pulled in only via tuiwright (dev-dep)
-    # at ~/jankurai/crates/tuiwright/. The owner-side fix is to migrate
-    # tuiwright from rusttype to ab_glyph. Tracked as a follow-up issue
-    # in this PR's section D ("HLT-016-SUPPLY-CHAIN-DRIFT-rusttype").
-    # Remove this ignore once tuiwright ships the ab_glyph migration.
-    { id = "RUSTSEC-2021-0140", reason = "dev-dep only; tuiwright migration tracked" },
-]
+ignore = []
 
 [licenses]
 version = 2

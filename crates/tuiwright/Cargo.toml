@@ -8,6 +8,24 @@ repository = "https://github.com/jeppsontaylor/Jankurai"
 keywords = ["testing", "terminal", "tui", "playwright", "automation"]
 categories = ["development-tools::testing"]
 
+[package.metadata.agent]
+purpose = "Playwright-style black-box testing framework for terminal UIs"
+owned_paths = ["src/**", "tests/**", "AGENTS.md"]
+entrypoints = ["TuiSession", "TuiwrightDemo"]
+invariants = [
+    "Captures are deterministic for a given input transcript",
+    "ab_glyph (not rusttype) is the font backend — keeps cargo-deny clean",
+]
+local_validate = [
+    "cargo check -p tuiwright",
+    "cargo test -p tuiwright",
+]
+boundary_validate = []
+public_api = false
+risk = "low"
+consumers = ["jeryu (dev-dep)"]
+exceptions = []
+
 [features]
 default = []
 web-gif = ["dep:gifski"]

@@ -83,5 +83,6 @@ pub mod taint;
 pub mod telemetry;
 pub mod test_intel;
 pub mod test_runner;
+pub(crate) mod test_sync;
 pub mod tui;
 pub mod witness;
