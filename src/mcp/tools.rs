@@ -248,20 +248,32 @@ fn tool_input_schema(action_id: &str) -> Option<Value> {
             &[
                 ("project_id", integer_schema()),
                 ("target_ref", string_schema()),
-                ("test_scope", enum_schema(&["unit", "integration", "lint", "full"])),
+                (
+                    "test_scope",
+                    enum_schema(&["unit", "integration", "lint", "full"]),
+                ),
             ],
         ),
         "propose_patch" => object_schema(
-            &["project_id", "branch_name", "base_ref", "commit_message", "modifications"],
+            &[
+                "project_id",
+                "branch_name",
+                "base_ref",
+                "commit_message",
+                "modifications",
+            ],
             &[
                 ("project_id", integer_schema()),
                 ("branch_name", string_schema()),
                 ("base_ref", string_schema()),
                 ("commit_message", string_schema()),
-                ("modifications", array_schema(object_schema(
-                    &["file_path", "content"],
-                    &[("file_path", string_schema()), ("content", string_schema())],
-                ))),
+                (
+                    "modifications",
+                    array_schema(object_schema(
+                        &["file_path", "content"],
+                        &[("file_path", string_schema()), ("content", string_schema())],
+                    )),
+                ),
                 ("mr_title", string_schema_optional()),
             ],
         ),
@@ -271,16 +283,22 @@ fn tool_input_schema(action_id: &str) -> Option<Value> {
                 ("project_id", integer_schema()),
                 ("base_branch", string_schema()),
                 ("commit_message", string_schema()),
-                ("hypotheses", array_schema(object_schema(
-                    &["branch_suffix", "modifications"],
-                    &[
-                        ("branch_suffix", string_schema()),
-                        ("modifications", array_schema(object_schema(
-                            &["file_path", "content"],
-                            &[("file_path", string_schema()), ("content", string_schema())],
-                        ))),
-                    ],
-                ))),
+                (
+                    "hypotheses",
+                    array_schema(object_schema(
+                        &["branch_suffix", "modifications"],
+                        &[
+                            ("branch_suffix", string_schema()),
+                            (
+                                "modifications",
+                                array_schema(object_schema(
+                                    &["file_path", "content"],
+                                    &[("file_path", string_schema()), ("content", string_schema())],
+                                )),
+                            ),
+                        ],
+                    )),
+                ),
             ],
         ),
         "request_merge" => object_schema(

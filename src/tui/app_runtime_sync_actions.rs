@@ -5,7 +5,8 @@ impl App {
         self.active_tab = match self.active_tab {
             ActiveTab::Workflow => ActiveTab::Mission,
             ActiveTab::Mission => ActiveTab::Release,
-            ActiveTab::Release => ActiveTab::Jobs,
+            ActiveTab::Release => ActiveTab::Approvals,
+            ActiveTab::Approvals => ActiveTab::Jobs,
             ActiveTab::Jobs => ActiveTab::Agents,
             ActiveTab::Agents => ActiveTab::Tests,
             ActiveTab::Tests => ActiveTab::Pools,

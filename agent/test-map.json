@@ -124,6 +124,10 @@
       "command": "just fast",
       "purpose": "verify app surfaces remain routed through the audit"
     },
+    "apps/api/": {
+      "command": "cargo test -p jeryu --tests -- --test-threads=1",
+      "purpose": "verify API contract tests route through the integration test lane"
+    },
     "apps/web/": {
       "command": "jankurai ux audit --config agent/ux-qa.toml --out target/jankurai/ux-qa.json",
       "purpose": "verify rendered web UX evidence remains routed"

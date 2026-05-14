@@ -6,7 +6,6 @@ use anyhow::{Context, Result, bail};
 use chrono::Utc;
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
-use std::env;
 use std::fs;
 use std::future::Future;
 use std::path::PathBuf;
@@ -34,17 +33,12 @@ const DEFAULT_VAULT_PORT: u16 = 18200;
 const DEFAULT_WEBHOOK_PORT: u16 = 9777;
 const DEFAULT_SSH_PORT_NUMBER: u16 = 22;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, ValueEnum)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, ValueEnum, Default)]
 pub enum ServiceMode {
+    #[default]
     Auto,
     User,
     Manual,
-}
-
-impl Default for ServiceMode {
-    fn default() -> Self {
-        Self::Auto
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

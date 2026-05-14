@@ -39,6 +39,16 @@ trigger_paths = [
     "src/taint.rs",
 ]
 
+[lane.release-readiness]
+command = "cargo run -p jeryu -- release ready --dry-run"
+description = "Composite proof for the jeryu/release-ready gate on a PR"
+required_for = ["release-change", "release-blocking"]
+
+[lane.canary]
+command = "cargo run -p jeryu -- release dry-run --version next"
+description = "Canary smoke: install-smoke + remote doctor + preflight against the candidate version"
+required_for = ["release-change", "release-blocking"]
+
 # ─── Change Types → Lanes ───────────────────────────────────────────────
 
 [change_type.leaf-bugfix]

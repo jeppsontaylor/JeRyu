@@ -6,10 +6,7 @@ use std::path::PathBuf;
 
 #[path = "test_back.rs"]
 mod test_back;
-use test_back::{
-    build_audit_report, current_commit_sha, git_diff_changed_paths, handle_choose, handle_impact,
-    parse_tag_list, write_json_artifact,
-};
+use test_back::{current_commit_sha, handle_choose, handle_impact, parse_tag_list};
 
 pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
     let (client, _) = load_client()?;
@@ -49,7 +46,11 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             let result = test_runner::run_test(&db, &client, &opts).await?;
             println!(
                 "\nResult: {}",
-                if result.passed { "✅ Passed" } else { "❌ Failed" }
+                if result.passed {
+                    "✅ Passed"
+                } else {
+                    "❌ Failed"
+                }
             );
             if let Some(dur) = result.duration_secs {
                 println!("Duration: {:.1}s", dur);
@@ -164,7 +165,10 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             job_name,
             project_id,
         } => {
-            println!("🔄 Requeuing job '{}' in pipeline {}...", job_name, pipeline_id);
+            println!(
+                "🔄 Requeuing job '{}' in pipeline {}...",
+                job_name, pipeline_id
+            );
             let result =
                 test_runner::requeue_job_by_name(&client, project_id, pipeline_id, &job_name)
                     .await?;
@@ -179,11 +183,18 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
             project_id,
         } => {
             let results = test_runner::pipeline_results(&client, project_id, pipeline_id).await?;
-            let failed: Vec<_> = results.into_iter().filter(|r| r.status == "failed").collect();
+            let failed: Vec<_> = results
+                .into_iter()
+                .filter(|r| r.status == "failed")
+                .collect();
             if failed.is_empty() {
                 println!("✅ No failed jobs in pipeline {}!", pipeline_id);
             } else {
-                println!("❌ {} failed job(s) in pipeline {}:\n", failed.len(), pipeline_id);
+                println!(
+                    "❌ {} failed job(s) in pipeline {}:\n",
+                    failed.len(),
+                    pipeline_id
+                );
                 for r in &failed {
                     println!("━━━ {} (id={:?}) ━━━", r.job_name, r.job_id);
                     if !r.trace_tail.is_empty() {
@@ -222,7 +233,16 @@ pub(crate) async fn execute_test_commands(subcmd: TestCommands) -> Result<()> {
                     Err(_) => PathBuf::from("."),
                 },
             };
-            handle_choose(base, head, cwd, explain, json, emit_gitlab, emit_plan, emit_receipt)?;
+            handle_choose(
+                base,
+                head,
+                cwd,
+                explain,
+                json,
+                emit_gitlab,
+                emit_plan,
+                emit_receipt,
+            )?;
         }
         TestCommands::ExplainPlan { plan_path } => {
             let contents = std::fs::read_to_string(&plan_path)?;

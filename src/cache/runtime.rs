@@ -6,5 +6,6 @@ mod cas;
 mod control;
 #[path = "runtime_gc.rs"]
 mod gc;
+pub use gc::sweep_incremental_caches;
 #[path = "runtime_reports.rs"]
 mod reports;

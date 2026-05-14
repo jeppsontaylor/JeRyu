@@ -4,7 +4,6 @@ use std::collections::BTreeSet;
 #[path = "testmap_render_yaml.rs"]
 mod yaml_gen;
 pub use yaml_gen::emit_external_gitlab_yaml;
-pub(crate) use yaml_gen::{collect_ci_blocks, emit_child_plan_context};
 
 const DOUX_MAIN_JOBS: &[&str] = &[
     "lint-cargo-fmt",

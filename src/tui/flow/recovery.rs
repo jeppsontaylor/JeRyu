@@ -8,10 +8,12 @@ use crate::{
 
 pub(crate) fn gitlab_job_to_event(project_id: i64, job: Job, now: &str) -> JobEvent {
     let pipeline_id = job.effective_pipeline_id();
-    let pool_name = Some(match job.runner.as_ref().and_then(|r| r.description.as_deref()) {
-        Some(desc) => desc.to_owned(),
-        None => job.stage.clone(),
-    });
+    let pool_name = Some(
+        match job.runner.as_ref().and_then(|r| r.description.as_deref()) {
+            Some(desc) => desc.to_owned(),
+            None => job.stage.clone(),
+        },
+    );
     let received_at = match (job.started_at.clone(), job.finished_at.clone()) {
         (Some(started_at), _) => started_at,
         (None, Some(finished_at)) => finished_at,
@@ -112,9 +114,9 @@ pub(crate) fn recover_flow_from_recent_jobs(
     }
 
     if pipeline_id == 0 {
-        let has_live = live_jobs
-            .iter()
-            .any(|job| is_live_job_status(job.status.as_str()) || !is_terminal_job_status(job.status.as_str()));
+        let has_live = live_jobs.iter().any(|job| {
+            is_live_job_status(job.status.as_str()) || !is_terminal_job_status(job.status.as_str())
+        });
         if !has_live {
             return None;
         }

@@ -195,14 +195,20 @@ fn canary_public_url(version: &str) -> Option<String> {
     None
 }
 
+mod capsule;
+mod gate;
 mod lifecycle;
 mod pipeline;
 mod progress;
+mod rollback;
 mod status;
 #[cfg(test)]
 mod tests;
 
+pub use capsule::*;
+pub use gate::*;
 pub use lifecycle::*;
 pub use pipeline::*;
 pub use progress::*;
+pub use rollback::*;
 pub use status::*;

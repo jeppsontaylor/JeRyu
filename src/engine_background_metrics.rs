@@ -15,10 +15,7 @@ pub(crate) async fn cache_summary(
         warn!("cache_summary rejected: missing or invalid X-Jeryu-Token");
         return Err(axum::http::StatusCode::UNAUTHORIZED);
     }
-    let metrics = match state.db.get_cache_metrics().await {
-        Ok(m) => m,
-        Err(_) => Default::default(),
-    };
+    let metrics = state.db.get_cache_metrics().await.unwrap_or_default();
     Ok(axum::Json(serde_json::json!({
         "bytes_served": metrics.bytes_served,
         "hits": metrics.hit_count,

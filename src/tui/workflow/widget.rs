@@ -41,7 +41,7 @@ pub fn draw_workflow_tab(f: &mut Frame, area: Rect, snapshot: &WorkflowSnapshot,
     }
 }
 
-fn draw_empty_state(f: &mut Frame, area: Rect, snapshot: &WorkflowSnapshot, theme: &Theme) {
+fn draw_empty_state(f: &mut Frame, area: Rect, _snapshot: &WorkflowSnapshot, theme: &Theme) {
     let lines = vec![
         Line::from(""),
         Line::from(Span::styled(
@@ -167,10 +167,10 @@ fn draw_phase_row(
         .split(inner);
 
     for (i, node_id) in phase.node_ids.iter().enumerate() {
-        if let Some(col) = cols.get(i) {
-            if let Some(node) = snap.node(node_id) {
-                draw_node_card(f, *col, node, snap, theme);
-            }
+        if let Some(col) = cols.get(i)
+            && let Some(node) = snap.node(node_id)
+        {
+            draw_node_card(f, *col, node, snap, theme);
         }
     }
 }

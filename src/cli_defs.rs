@@ -87,21 +87,41 @@ pub(crate) enum RemoteActionCommands {
         identity: Option<PathBuf>,
     },
     #[clap(name = concat!("up", "date"))]
-    Refresh { alias: String },
-    Doctor { alias: String },
-    Status { alias: String },
-    Logs { alias: String },
-    Restart { alias: String },
-    Stop { alias: String },
-    Start { alias: String },
-    Ssh { alias: String },
+    Refresh {
+        alias: String,
+    },
+    Doctor {
+        alias: String,
+    },
+    Status {
+        alias: String,
+    },
+    Logs {
+        alias: String,
+    },
+    Restart {
+        alias: String,
+    },
+    Stop {
+        alias: String,
+    },
+    Start {
+        alias: String,
+    },
+    Ssh {
+        alias: String,
+    },
     Run {
         alias: String,
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         command: Vec<String>,
     },
-    Tunnel { alias: String },
-    Uninstall { alias: String },
+    Tunnel {
+        alias: String,
+    },
+    Uninstall {
+        alias: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -137,7 +157,9 @@ pub(crate) enum Commands {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
-    Save { message: String },
+    Save {
+        message: String,
+    },
     Sync,
     Undo,
     System,

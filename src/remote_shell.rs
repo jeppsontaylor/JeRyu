@@ -57,10 +57,10 @@ pub(crate) fn print_remote_report(
         println!("  installed:      {}", report.installed);
         println!("  service active: {}", report.service_active);
         println!("  docker ready:   {}", report.docker_ready);
-        if label == "doctor" {
-            if let Some(version) = &report.version_output {
-                println!("  version:        {}", version.trim());
-            }
+        if label == "doctor"
+            && let Some(version) = &report.version_output
+        {
+            println!("  version:        {}", version.trim());
         }
     }
     Ok(())
@@ -85,11 +85,11 @@ pub(crate) async fn remote_uninstall(
     match resolve_service_mode(cfg).await? {
         ServiceMode::User => {
             let cmd = "systemctl --user disable --now jeryu.service >/dev/null 2>&1 || true; rm -f \"$HOME/.jeryu/bin/jeryu\" \"$HOME/.config/systemd/user/jeryu.service\"; systemctl --user daemon-reload";
-            run_remote_shell(cfg, &cmd, false).await?;
+            run_remote_shell(cfg, cmd, false).await?;
         }
         ServiceMode::Manual => {
             let cmd = "rm -f \"$HOME/.jeryu/bin/jeryu\"";
-            run_remote_shell(cfg, &cmd, false).await?;
+            run_remote_shell(cfg, cmd, false).await?;
         }
         ServiceMode::Auto => panic!("resolved service mode should never be Auto"),
     }
@@ -132,8 +132,7 @@ pub(crate) async fn manual_service_active(cfg: &RemoteConfig) -> Result<bool> {
 }
 
 pub(crate) async fn ensure_remote_service(cfg: &RemoteConfig) -> Result<()> {
-    let unit = format!(
-        r#"[Unit]
+    let unit = r#"[Unit]
 Description=JeRyu remote control plane
 After=network-online.target
 
@@ -147,7 +146,7 @@ RestartSec=5
 [Install]
 WantedBy=default.target
 "#
-    );
+    .to_string();
     let script = format!(
         "mkdir -p \"$HOME/.config/systemd/user\" \"$HOME/.jeryu/bin\" \"$HOME/.jeryu\" && cat > \"$HOME/.config/systemd/user/jeryu.service\" <<'EOF'\n{}\nEOF\nsystemctl --user daemon-reload\nsystemctl --user enable --now jeryu.service",
         unit
@@ -207,8 +206,8 @@ pub(crate) async fn ensure_remote_key(cfg: &RemoteConfig, setup_key: bool) -> Re
         .with_context(|| format!("reading {}", identity.with_extension("pub").display()))?;
     let script = format!(
         "mkdir -p ~/.ssh && chmod 700 ~/.ssh && touch ~/.ssh/authorized_keys && grep -qxF -- {} ~/.ssh/authorized_keys || printf '%s\\n' {} >> ~/.ssh/authorized_keys",
-        shell_single_quote(&pubkey.trim()),
-        shell_single_quote(&pubkey.trim())
+        shell_single_quote(pubkey.trim()),
+        shell_single_quote(pubkey.trim())
     );
     run_remote_shell(cfg, &script, false).await
 }

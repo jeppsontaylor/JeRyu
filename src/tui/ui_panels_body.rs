@@ -1,11 +1,141 @@
 use super::*;
+use crate::tui::app::ReleaseSubPane;
+
 pub(crate) fn draw_release_tab(f: &mut Frame, app: &App, area: Rect) {
+    // Top strip: sub-pane selector (1/2/3 or h/l to cycle).
+    let split = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(2), Constraint::Min(8)])
+        .split(area);
+
+    draw_release_subpane_tabs(f, app, split[0]);
+
+    match app.release_subpane {
+        ReleaseSubPane::Pipeline => draw_release_pipeline_pane(f, app, split[1]),
+        ReleaseSubPane::Evidence => draw_release_evidence_pane(f, app, split[1]),
+        ReleaseSubPane::Rollback => draw_release_rollback_pane(f, app, split[1]),
+    }
+}
+
+fn draw_release_subpane_tabs(f: &mut Frame, app: &App, area: Rect) {
+    let mut spans: Vec<Span> = vec![Span::styled(
+        " release ",
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    )];
+    for (i, pane) in [
+        ReleaseSubPane::Pipeline,
+        ReleaseSubPane::Evidence,
+        ReleaseSubPane::Rollback,
+    ]
+    .iter()
+    .enumerate()
+    {
+        let style = if *pane == app.release_subpane {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD | Modifier::REVERSED)
+        } else {
+            Style::default().fg(Color::Gray)
+        };
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled(
+            format!(" [{}] {} ", i + 1, pane.label()),
+            style,
+        ));
+    }
+    spans.push(Span::raw("   "));
+    spans.push(Span::styled(
+        "(1/2/3 or h/l to cycle)",
+        Style::default().fg(Color::DarkGray),
+    ));
+    f.render_widget(
+        Paragraph::new(Line::from(spans)).block(Block::default()),
+        area,
+    );
+}
+
+fn draw_release_pipeline_pane(f: &mut Frame, app: &App, area: Rect) {
+    let snap = &app.state.release_stages;
+    let cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
+        ])
+        .split(area);
+
+    let stages: [(&str, &Vec<crate::tui::app::ReleaseStageCard>, Color); 5] = [
+        ("Plan", &snap.plan, Color::Blue),
+        ("Build", &snap.build, Color::Cyan),
+        ("Proof", &snap.proof, Color::Yellow),
+        ("Canary", &snap.canary, Color::Magenta),
+        ("Stable", &snap.stable, Color::Green),
+    ];
+
+    for (i, (name, cards, color)) in stages.iter().enumerate() {
+        let title = format!(" {} [{}] ", name, cards.len());
+        let items: Vec<ListItem> = cards
+            .iter()
+            .map(|c| {
+                ListItem::new(Line::from(vec![
+                    Span::styled(format!(" {} ", c.label), Style::default().fg(*color)),
+                    Span::styled(format!("{} ", c.agent_id), Style::default().fg(Color::Gray)),
+                    Span::styled(
+                        format!("({}) ", c.age),
+                        Style::default().fg(Color::DarkGray),
+                    ),
+                ]))
+            })
+            .collect();
+        let list = List::new(items).block(
+            Block::default()
+                .title(title)
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(*color)),
+        );
+        f.render_widget(list, cols[i]);
+    }
+}
+
+fn draw_release_rollback_pane(f: &mut Frame, app: &App, area: Rect) {
+    let _ = app;
+    let ladder = crate::release::default_ladder();
+    let items: Vec<ListItem> = ladder
+        .iter()
+        .map(|s| {
+            ListItem::new(Line::from(vec![
+                Span::styled(
+                    format!(" [{}] ", s.n),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(format!("{:<13} ", s.kind), Style::default().fg(Color::Cyan)),
+                Span::raw(s.description.clone()),
+            ]))
+        })
+        .collect();
+    let list = List::new(items).block(
+        Block::default()
+            .title(" [ Rollback ladder ] ")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Red)),
+    );
+    f.render_widget(list, area);
+}
+
+fn draw_release_evidence_pane(f: &mut Frame, app: &App, area: Rect) {
     let cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Min(40), Constraint::Length(34)])
         .split(area);
 
-    // Center: Release Gate Matrix
+    // Center: Release Gate Matrix (original Release tab content)
     let gate_block = Block::default()
         .title(" [ Release Gate Matrix ] ")
         .borders(Borders::ALL)

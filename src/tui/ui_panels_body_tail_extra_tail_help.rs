@@ -18,6 +18,7 @@ pub(crate) fn draw_help_overlay(f: &mut Frame, app: &App) {
         ActiveTab::Workflow => "Workflow",
         ActiveTab::Mission => "Mission",
         ActiveTab::Release => "Release",
+        ActiveTab::Approvals => "Approvals",
         ActiveTab::Jobs => "Jobs",
         ActiveTab::Agents => "Agents",
         ActiveTab::Tests => "Tests",

@@ -1,12 +1,13 @@
 {
   "name": "JeRyu",
-  "version": "3.0.1",
-  "cargo_workspace_version": "3.0.1",
-  "release_line": "V3.01",
-  "status": "development",
-  "date": "2026-04-27",
+  "version": "3.1.0",
+  "cargo_workspace_version": "3.1.0",
+  "release_line": "V3.1",
+  "status": "released",
+  "date": "2026-05-14",
   "tag_policy": {
-    "release_candidate": "v3.0.1-rc.N after required proof lanes pass",
-    "stable": "v3.0.1 after release and security lanes pass"
-  }
+    "release_candidate": "v3.1.0-rc.N after required proof lanes pass",
+    "stable": "v3.1.0 after release and security lanes pass"
+  },
+  "headline": "Always-on disk daemon, workspace clippy clean, cargo deny clean, agent-first release process complete."
 }

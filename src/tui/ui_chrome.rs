@@ -40,9 +40,12 @@ pub(crate) fn status_badge(status: &str) -> (&'static str, Color) {
         "running" | "in-flight" | "canary-authorized" => ("RUN", Color::Cyan),
         "failed" => ("FAIL", Color::Red),
         "blocked" | "blocked-by-upstream" => ("BLOCK", Color::Magenta),
-        "pending" | "created" | "waiting" | "waiting_for_resource" | "preparing" | "ready-for-canary" => {
-            ("WAIT", Color::Yellow)
-        }
+        "pending"
+        | "created"
+        | "waiting"
+        | "waiting_for_resource"
+        | "preparing"
+        | "ready-for-canary" => ("WAIT", Color::Yellow),
         "canceled" | "vti-skipped" | "omitted" => ("SKIP", Color::DarkGray),
         _ => ("INFO", Color::Gray),
     }
@@ -205,13 +208,13 @@ pub(crate) fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
         ("Workflow", ActiveTab::Workflow, 0),
         ("Mission", ActiveTab::Mission, 1),
         ("Release", ActiveTab::Release, 2),
-        ("Jobs", ActiveTab::Jobs, 3),
-        ("Agents", ActiveTab::Agents, 4),
-        ("Tests", ActiveTab::Tests, 5),
-        ("Pools", ActiveTab::Pools, 6),
-        ("Cache", ActiveTab::Cache, 7),
-        ("Evidence", ActiveTab::Evidence, 8),
-        ("Secrets", ActiveTab::Secrets, 9),
+        ("Approvals", ActiveTab::Approvals, 3),
+        ("Jobs", ActiveTab::Jobs, 4),
+        ("Agents", ActiveTab::Agents, 5),
+        ("Tests", ActiveTab::Tests, 6),
+        ("Pools", ActiveTab::Pools, 7),
+        ("Cache", ActiveTab::Cache, 8),
+        ("Evidence", ActiveTab::Evidence, 9),
     ];
 
     let top_spans: Vec<Span> = vec![

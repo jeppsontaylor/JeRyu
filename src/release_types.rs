@@ -1,6 +1,5 @@
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use crate::state::ReleaseAttempt;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ReleaseAttemptView {

@@ -257,7 +257,10 @@ pub(crate) async fn sweep_stale_dirs(
         return 0;
     }
 
-    info!(count = stale_paths.len(), "batch removing outdated directories");
+    info!(
+        count = stale_paths.len(),
+        "batch removing outdated directories"
+    );
 
     let mut need_sudo: Vec<String> = Vec::new();
     for path in &stale_paths {
@@ -326,12 +329,21 @@ where
 {
     let mut stack = vec![dir.to_path_buf()];
     while let Some(current) = stack.pop() {
-        let Ok(mut entries) = tokio::fs::read_dir(&current).await else { continue; };
+        let Ok(mut entries) = tokio::fs::read_dir(&current).await else {
+            continue;
+        };
         while let Ok(Some(entry)) = entries.next_entry().await {
-            let Ok(meta) = entry.metadata().await else { continue; };
-            if meta.is_dir() { stack.push(entry.path()); continue; }
+            let Ok(meta) = entry.metadata().await else {
+                continue;
+            };
+            if meta.is_dir() {
+                stack.push(entry.path());
+                continue;
+            }
             let name = entry.file_name();
-            if !name.to_string_lossy().ends_with(suffix) { continue; }
+            if !name.to_string_lossy().ends_with(suffix) {
+                continue;
+            }
             visit(entry.path(), meta);
         }
     }

@@ -270,10 +270,10 @@ pub(crate) async fn wait_for_test_result(
         if let Some(job) = jobs.iter().find(|j| j.name == job_name) {
             match job.status.as_str() {
                 "success" => {
-                    let trace = match client.get_job_log_snippet(project_id, job.id, 2000).await {
-                        Ok(trace) => trace,
-                        Err(_) => String::new(),
-                    };
+                    let trace = client
+                        .get_job_log_snippet(project_id, job.id, 2000)
+                        .await
+                        .unwrap_or_default();
                     return Ok(TestRunResult {
                         pipeline_id,
                         job_id: Some(job.id),
@@ -285,10 +285,10 @@ pub(crate) async fn wait_for_test_result(
                     });
                 }
                 "failed" => {
-                    let trace = match client.get_job_log_snippet(project_id, job.id, 4000).await {
-                        Ok(trace) => trace,
-                        Err(_) => String::new(),
-                    };
+                    let trace = client
+                        .get_job_log_snippet(project_id, job.id, 4000)
+                        .await
+                        .unwrap_or_default();
                     return Ok(TestRunResult {
                         pipeline_id,
                         job_id: Some(job.id),
@@ -320,6 +320,5 @@ pub(crate) async fn wait_for_test_result(
     }
 }
 
-#[path = "test_runner_tests.rs"]
-#[cfg(test)]
-mod tests;
+// Tests for this module live alongside test_runner.rs to avoid loading the
+// same test file twice (clippy::duplicate_mod).

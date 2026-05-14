@@ -1,0 +1,185 @@
+name: Release
+
+# Thin CI lane. The source of truth lives at ops/ci/release-lane.sh so local
+# rehearsals and CI execute identical commands (jankurai HLT-042).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, e.g. 3.0.1-rc.1 or 3.0.1"
+        required: true
+        type: string
+      dry_run:
+        description: "Run the pipeline but do NOT publish."
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  preflight:
+    name: Preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      dry_run: ${{ steps.resolve.outputs.dry_run }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust (pinned via rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - id: resolve
+        name: Resolve version + dry_run
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            ver="${GITHUB_REF_NAME#v}"
+            dry="false"
+          else
+            ver="${{ inputs.version }}"
+            dry="${{ inputs.dry_run }}"
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "dry_run=$dry" >> "$GITHUB_OUTPUT"
+      - run: bash ops/ci/release-lane.sh preflight "${{ steps.resolve.outputs.version }}"
+
+  audit:
+    name: Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: preflight
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust (pinned via rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - run: bash ops/ci/release-lane.sh audit "${{ needs.preflight.outputs.version }}"
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: preflight
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust (pinned via rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - run: bash ops/ci/release-lane.sh security "${{ needs.preflight.outputs.version }}"
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: preflight
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Set up Rust (pinned via rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - run: bash ops/ci/release-lane.sh build "${{ needs.preflight.outputs.version }}"
+      - name: Upload binary
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: jeryu-binary
+          path: target/release/jeryu
+          if-no-files-found: error
+
+  provenance:
+    name: Provenance + SBOM
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: build
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Download binary
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: jeryu-binary
+          path: target/release
+      - name: Set up Rust (pinned via rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - run: bash ops/ci/release-lane.sh provenance "${{ needs.preflight.outputs.version }}"
+      - name: Attest release binary
+        uses: actions/attest-build-provenance@4d7c2722ed02d3f4f4e62a4b4d8e60036aceb78b # v3.0.1
+        with:
+          subject-path: |
+            target/release/jeryu
+      - name: Attest SBOM
+        uses: actions/attest-build-provenance@4d7c2722ed02d3f4f4e62a4b4d8e60036aceb78b # v3.0.1
+        with:
+          subject-path: target/jankurai/sbom/*.json
+
+  evidence:
+    name: Evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [preflight, audit, security, build, provenance]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: bash ops/ci/release-lane.sh evidence "${{ needs.preflight.outputs.version }}"
+      - name: Upload evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-evidence
+          path: ops/releases/${{ needs.preflight.outputs.version }}
+
+  rollback-check:
+    name: Rollback target
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: preflight
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: bash ops/ci/release-lane.sh rollback-check "${{ needs.preflight.outputs.version }}"
+
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [preflight, audit, security, build, provenance, evidence, rollback-check]
+    if: needs.preflight.outputs.dry_run != 'true'
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Download binary
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: jeryu-binary
+          path: target/release
+      - name: Download evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-evidence
+          path: ops/releases/${{ needs.preflight.outputs.version }}
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ver="${{ needs.preflight.outputs.version }}"
+          tag="v$ver"
+          if ! git rev-parse --verify "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Tag $tag not found — \`jeryu release submit\` should have pushed it." >&2
+            exit 1
+          fi
+          gh release create "$tag" \
+            --verify-tag \
+            --title "$tag" \
+            --notes-file "ops/releases/$ver/changelog.md" \
+            target/release/jeryu

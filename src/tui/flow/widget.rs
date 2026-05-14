@@ -129,9 +129,7 @@ impl<'a> Widget for FlowGraphWidget<'a> {
                             "success" => "✓",
                             "running" => "●",
                             "failed" => "✗",
-                            "pending" | "created" | "waiting_for_resource" | "preparing" => {
-                                "○"
-                            }
+                            "pending" | "created" | "waiting_for_resource" | "preparing" => "○",
                             "canceled" => "⊘",
                             _ => "◇",
                         };
@@ -228,10 +226,10 @@ fn build_badges(node: &super::model::FlowNode) -> String {
     }
 
     // Flake badge
-    if let Some(flake) = node.flake_probability {
-        if flake > 0.15 {
-            parts.push("[FLK?]");
-        }
+    if let Some(flake) = node.flake_probability
+        && flake > 0.15
+    {
+        parts.push("[FLK?]");
     }
 
     // Capsule badge
@@ -264,12 +262,12 @@ fn badge_style_for(node: &super::model::FlowNode) -> Style {
             _ => {}
         }
     }
-    if let Some(ref cache) = node.cache_verdict {
-        if matches!(cache, CacheVerdict::Tainted { .. }) {
-            return Style::default()
-                .fg(Color::Magenta)
-                .add_modifier(Modifier::BOLD);
-        }
+    if let Some(ref cache) = node.cache_verdict
+        && matches!(cache, CacheVerdict::Tainted { .. })
+    {
+        return Style::default()
+            .fg(Color::Magenta)
+            .add_modifier(Modifier::BOLD);
     }
     if node.is_critical_path {
         return Style::default()

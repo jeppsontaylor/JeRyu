@@ -193,10 +193,8 @@ fn witness_metrics(root: &Path, witness_loop: &ScenarioReport) -> Result<(f64, u
             .find(|result| result.variant == witnessed_variant)
             .context("missing witnessed witness-loop result")?;
 
-        let observed_classification = match extract_note_value(&witnessed.notes, "Classification") {
-            Some(value) => value,
-            None => "",
-        };
+        let observed_classification =
+            extract_note_value(&witnessed.notes, "Classification").unwrap_or_default();
         let observed_escalation = extract_note_value(&witnessed.notes, "Escalated")
             .map(|value| value == "true")
             .unwrap_or(false);

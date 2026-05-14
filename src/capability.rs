@@ -137,7 +137,7 @@ impl CapabilityContext {
 }
 
 #[derive(Debug)]
-enum ParsedCapabilityRequest {
+pub(crate) enum ParsedCapabilityRequest {
     Enveloped(Box<AgentActionRequest>),
     Bridge(AgentIntent),
 }

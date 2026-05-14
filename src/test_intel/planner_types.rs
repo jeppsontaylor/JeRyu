@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::test_intel::subsystem;
+use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
 // Types

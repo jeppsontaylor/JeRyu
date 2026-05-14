@@ -175,6 +175,24 @@ pub(crate) enum AgentCommands {
         #[arg(long, default_value = "trusted")]
         trust_tier: String,
     },
+    /// Agent-first GitHub PR submission: run proof, write evidence capsule, open draft PR.
+    Submit {
+        /// Short description of the work (used in branch slug + PR title).
+        #[arg(short, long)]
+        task: String,
+        /// Linked issue number (#N). Optional but strongly recommended.
+        #[arg(long)]
+        issue: Option<u64>,
+        /// Risk tier (0..=4). If omitted, inferred from touched paths via release.policy.toml.
+        #[arg(long)]
+        risk_tier: Option<u8>,
+        /// Skip actually opening the PR; only produce the evidence capsule. Default false.
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+        /// Emit the assembled capsule as JSON to stdout.
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -253,6 +271,60 @@ pub(crate) enum ReleaseCommands {
         #[arg(long, default_value_t = false)]
         json: bool,
     },
+    /// Compose the jeryu/release-ready gate for a PR and optionally emit a GitHub Check Run.
+    Ready {
+        /// PR number (GitHub). 0 in local rehearsals.
+        #[arg(long, default_value_t = 0)]
+        pr: u64,
+        /// Emit a GitHub Check Run via `gh api` (requires gh + GITHUB_TOKEN).
+        #[arg(long, default_value_t = false)]
+        emit_status: bool,
+        /// Do not call gh; print the assembled gate to stdout only.
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+    /// Run the full release pipeline locally except the final publish step.
+    DryRun {
+        /// Version under preparation (e.g. 3.0.1-rc.1).
+        #[arg(long)]
+        version: String,
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+    /// Tag + push + trigger release.yml. Requires a recent successful dry-run.
+    Submit {
+        #[arg(long)]
+        version: String,
+        /// Skip the freshness check on the cached dry-run result (NOT recommended).
+        #[arg(long, default_value_t = false)]
+        force: bool,
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+    },
+    /// Mark an agent PR as human-approved after CI is green. Refuses self-approval.
+    Approve {
+        #[arg(long)]
+        pr: u64,
+        /// Override the approver identity for testing. Production runs read from gh CLI.
+        #[arg(long)]
+        as_user: Option<String>,
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+    },
+    /// Walk the declared rollback path for a released version. Never re-tags.
+    Rollback {
+        #[arg(long)]
+        version: String,
+        /// Reason for rollback (free text, recorded in rollback.json).
+        #[arg(long)]
+        reason: String,
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -317,7 +389,20 @@ pub(crate) enum HostCommands {
         apply: bool,
     },
     /// Install the jeryu-gc systemd timer from ops/ci.
+    ///
+    /// Deprecated for new installs — `jeryu bootstrap` now installs the
+    /// always-on `jeryu-gcd.service` plus this timer as a deep-sweep
+    /// safety net. Use this command for manual re-install only.
     InstallGcTimer {
+        #[arg(long, default_value_t = false)]
+        allow_sudo: bool,
+    },
+    /// Install the always-on `jeryu-gcd.service` (disk-pressure daemon).
+    ///
+    /// Maintains df ≥ 80 GiB free via pressure-tier GC. Auto-invoked by
+    /// `jeryu bootstrap`; this command is for manual re-install or
+    /// recovery.
+    InstallGcdService {
         #[arg(long, default_value_t = false)]
         allow_sudo: bool,
     },

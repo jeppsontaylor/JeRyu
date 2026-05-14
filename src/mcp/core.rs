@@ -6,7 +6,6 @@
 use anyhow::{Result, bail};
 use serde::Deserialize;
 use serde_json::Value;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 
 use super::{MCP_PROTOCOL_VERSION, TOOL_PREFIX};
 
@@ -192,10 +191,7 @@ impl McpCore {
         state.initialized = true;
         state.client_actor = match req.client_info.as_ref() {
             Some(info) => {
-                let version = match info.version.as_deref() {
-                    Some(version) => version,
-                    None => "unknown",
-                };
+                let version = info.version.as_deref().unwrap_or("unknown");
                 format!("mcp:{}:{version}", info.name)
             }
             None => "mcp-client".to_string(),

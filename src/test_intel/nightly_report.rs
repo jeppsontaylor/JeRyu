@@ -1,4 +1,4 @@
-use super::nightly::{AuditReport, SelectorMiss};
+use super::nightly::AuditReport;
 
 /// Human-readable audit report.
 pub fn explain_audit(report: &AuditReport) -> String {

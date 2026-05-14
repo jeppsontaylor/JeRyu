@@ -16,5 +16,5 @@ pub use collector::*;
 pub use eta::*;
 pub use inspector::*;
 pub use model::*;
-pub use recovery::*;
+pub(crate) use recovery::*;
 pub use widget::*;

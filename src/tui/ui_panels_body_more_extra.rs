@@ -245,4 +245,3 @@ pub(crate) fn draw_evidence_tab(f: &mut Frame, app: &App, area: Rect) {
         );
     }
 }
-

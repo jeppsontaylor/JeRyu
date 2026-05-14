@@ -15,8 +15,8 @@ use serde::{Deserialize, Serialize};
 #[path = "subsystem_glob.rs"]
 mod glob;
 pub(crate) use glob::{
-    affected_subsystems, glob_match, has_global_invalidator, has_subsystem_force_full, is_docs_only,
-    matches_any,
+    affected_subsystems, glob_match, has_global_invalidator, has_subsystem_force_full,
+    is_docs_only, matches_any,
 };
 
 // ---------------------------------------------------------------------------

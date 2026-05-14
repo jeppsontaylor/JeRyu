@@ -16,7 +16,6 @@ use crate::test_intel::subsystem::{
 #[path = "planner_types.rs"]
 mod types;
 pub use types::{SelectedTest, TestPlan, TestPlanMode, VtiReceipt};
-pub(crate) use types::stable_hex;
 
 // ---------------------------------------------------------------------------
 // Core planner

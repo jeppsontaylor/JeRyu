@@ -275,3 +275,7 @@ pub(crate) fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
 #[path = "ui_panels_mission_extra.rs"]
 mod ui_panels_mission_extra;
 pub(crate) use ui_panels_mission_extra::*;
+
+#[path = "ui_panels_body_approvals.rs"]
+mod ui_panels_body_approvals;
+pub(crate) use ui_panels_body_approvals::*;

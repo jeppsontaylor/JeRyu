@@ -123,10 +123,10 @@ pub async fn pipeline_results(
     let mut results = Vec::new();
     for job in &jobs {
         let trace_tail = if job.status == "failed" {
-            match client.get_job_log_snippet(project_id, job.id, 2000).await {
-                Ok(trace) => trace,
-                Err(_) => String::new(),
-            }
+            client
+                .get_job_log_snippet(project_id, job.id, 2000)
+                .await
+                .unwrap_or_default()
         } else {
             String::new()
         };

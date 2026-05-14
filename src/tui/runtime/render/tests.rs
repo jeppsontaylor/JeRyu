@@ -1,7 +1,7 @@
 use super::*;
 use crate::tui::{app::App, ui};
-use ratatui::buffer::Buffer;
 use ratatui::backend::TestBackend;
+use ratatui::buffer::Buffer;
 
 fn draw_once(app: &mut App) -> Result<()> {
     let backend = TestBackend::new(120, 40);
@@ -38,6 +38,7 @@ async fn renders_all_primary_tabs_with_empty_state() -> Result<()> {
         crate::tui::app::ActiveTab::Workflow,
         crate::tui::app::ActiveTab::Mission,
         crate::tui::app::ActiveTab::Release,
+        crate::tui::app::ActiveTab::Approvals,
         crate::tui::app::ActiveTab::Jobs,
         crate::tui::app::ActiveTab::Agents,
         crate::tui::app::ActiveTab::Tests,
@@ -50,6 +51,41 @@ async fn renders_all_primary_tabs_with_empty_state() -> Result<()> {
         app.active_tab = tab;
         draw_once(&mut app)?;
     }
+    Ok(())
+}
+
+#[tokio::test]
+async fn renders_release_subpanes() -> Result<()> {
+    let mut app = crate::tui::app::test_app().await?;
+    app.active_tab = crate::tui::app::ActiveTab::Release;
+    for sub in [
+        crate::tui::app::ReleaseSubPane::Pipeline,
+        crate::tui::app::ReleaseSubPane::Evidence,
+        crate::tui::app::ReleaseSubPane::Rollback,
+    ] {
+        app.release_subpane = sub;
+        draw_once(&mut app)?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn renders_approvals_tab_with_pending_pr() -> Result<()> {
+    let mut app = crate::tui::app::test_app().await?;
+    app.active_tab = crate::tui::app::ActiveTab::Approvals;
+    app.state.approvals_queue = vec![crate::tui::app::PendingApproval {
+        pr_number: 42,
+        title: "fix: pipeline progress regression".into(),
+        agent_id: "claude-opus-4-7".into(),
+        risk_tier: 2,
+        ci_status: "green".into(),
+        age: "3m".into(),
+        head_sha: "abc123def456".into(),
+    }];
+    let buffer = capture_buffer(&mut app)?;
+    let rendered: String = buffer.content.iter().map(|cell| cell.symbol()).collect();
+    assert!(rendered.contains("#42"));
+    assert!(rendered.contains("claude"));
     Ok(())
 }
 
@@ -113,6 +149,8 @@ async fn navigation_cycles_tabs_and_panes() -> Result<()> {
     assert_eq!(app.active_tab, crate::tui::app::ActiveTab::Mission);
     app.cycle_tab_next();
     assert_eq!(app.active_tab, crate::tui::app::ActiveTab::Release);
+    app.cycle_tab_next();
+    assert_eq!(app.active_tab, crate::tui::app::ActiveTab::Approvals);
     app.cycle_tab_next();
     assert_eq!(app.active_tab, crate::tui::app::ActiveTab::Jobs);
     app.cycle_tab_next();

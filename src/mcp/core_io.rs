@@ -1,8 +1,6 @@
 use anyhow::Result;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 
-use super::MCP_PROTOCOL_VERSION;
-
 // McpCore and McpSessionState are declared in core.rs (our parent module).
 // Because this file is included via #[path] in core.rs, super = the mcp module,
 // and the types are available via `super::core::*` which is `crate::mcp::core::*`.

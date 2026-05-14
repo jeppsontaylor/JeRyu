@@ -121,7 +121,11 @@ impl Theme {
         match status {
             "success" | "passed" | "green" | "released" | "omitted" => self.ok,
             "running" | "in-flight" | "canary-authorized" => self.running,
-            "pending" | "created" | "waiting" | "waiting_for_resource" | "preparing"
+            "pending"
+            | "created"
+            | "waiting"
+            | "waiting_for_resource"
+            | "preparing"
             | "ready-for-canary" => self.waiting,
             "failed" => self.fail,
             "blocked" | "blocked-by-upstream" => self.blocked,

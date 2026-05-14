@@ -55,6 +55,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         }
         ActiveTab::Mission => draw_mission_tab(f, app, chunks[1]),
         ActiveTab::Release => draw_release_tab(f, app, chunks[1]),
+        ActiveTab::Approvals => draw_approvals_tab(f, app, chunks[1]),
         ActiveTab::Jobs => draw_jobs_tab(f, app, chunks[1]),
         ActiveTab::Agents => draw_agents_tab(f, app, chunks[1]),
         ActiveTab::Tests => draw_tests_tab(f, app, chunks[1]),

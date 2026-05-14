@@ -21,6 +21,8 @@ impl App {
             state: TuiStateSnapshot::default(),
             active_tab: ActiveTab::default(),
             active_pane: ActivePane::default(),
+            release_subpane: ReleaseSubPane::default(),
+            selected_approval_index: 0,
             selected_pool_index: 0,
             selected_pipeline_index: 0,
             selected_job_index: 0,

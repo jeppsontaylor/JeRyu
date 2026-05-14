@@ -1,6 +1,6 @@
-use anyhow::Result;
-use crate::gitlab_client::{GitlabClient, Job, Issue};
 use super::AgentTask;
+use crate::gitlab_client::{GitlabClient, Issue, Job};
+use anyhow::Result;
 use tracing::info;
 
 #[derive(Debug)]
@@ -163,13 +163,13 @@ pub async fn check_agent_pipeline(
 }
 
 /// Mark an agent task as completed.
-pub async fn complete_agent(
-    client: &GitlabClient,
-    task: &AgentTask,
-    success: bool,
-) -> Result<()> {
+pub async fn complete_agent(client: &GitlabClient, task: &AgentTask, success: bool) -> Result<()> {
     if let Some(issue_iid) = task.issue_iid {
-        let label = if success { "agent:done" } else { "agent:failed" };
+        let label = if success {
+            "agent:done"
+        } else {
+            "agent:failed"
+        };
         client
             .update_issue_labels(task.project_id, issue_iid, &[label])
             .await
@@ -190,10 +190,7 @@ pub async fn complete_agent(
 }
 
 /// List active agent issues for a project.
-pub async fn list_agents(
-    client: &GitlabClient,
-    project_id: i64,
-) -> Result<Vec<Issue>> {
+pub async fn list_agents(client: &GitlabClient, project_id: i64) -> Result<Vec<Issue>> {
     let mut active = client
         .list_issues_by_labels(project_id, &["agent:running"], Some("opened"))
         .await?;

@@ -254,6 +254,24 @@ pub async fn run_bootstrap() -> Result<()> {
     println!("    ℹ️  Webhook will be registered when the first project/group is created.");
     println!("    ℹ️  Webhook secret stored in jeryu.env for later use.");
 
+    // Step 8: Install always-on disk daemon (jeryu-gcd.service).
+    // Maintains df >= 80 GiB free; the rest of bootstrap depends on this.
+    // Skipped when JERYU_BOOTSTRAP_SKIP_GCD=1 (CI/containers) or when
+    // systemctl is unavailable.
+    if std::env::var("JERYU_BOOTSTRAP_SKIP_GCD").as_deref() == Ok("1") {
+        println!("  [8/9] jeryu-gcd install... ⊘ skipped (JERYU_BOOTSTRAP_SKIP_GCD=1)");
+    } else {
+        println!("  [8/9] Installing jeryu-gcd.service (always-on disk daemon)...");
+        match crate::host::install_gcd_service(true).await {
+            Ok(_) => println!("    ✅ jeryu-gcd.service installed and enabled."),
+            Err(err) => {
+                eprintln!(
+                    "    ⚠️  jeryu-gcd install failed (continuing bootstrap): {err}\n       Run `jeryu host install-gcd-service --allow-sudo` manually."
+                );
+            }
+        }
+    }
+
     // Step 9: Validation (The Smoke Test)
     println!("  [9/9] Running smoke test (validating end-to-end CI)...");
     let test_project = client.create_project("jeryu-smoke-test").await?;
@@ -295,10 +313,7 @@ smoke_test:
     println!("  Runner configs: {}", config::runners_dir().display());
     println!();
     println!("  Pools:");
-    let pools = match db.list_pools().await {
-        Ok(v) => v,
-        Err(_) => Vec::new(),
-    };
+    let pools = db.list_pools().await.unwrap_or_default();
     for p in &pools {
         let active = db.count_active_managers(&p.name).await.unwrap_or(0);
         println!(

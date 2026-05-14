@@ -219,10 +219,7 @@ pub(crate) fn start_background_sync(app: &App) {
 
             let daemon_path = std::path::Path::new("/etc/docker/daemon.json");
             snap.mirror_enabled = if daemon_path.exists() {
-                let content = match std::fs::read_to_string(daemon_path) {
-                    Ok(value) => value,
-                    Err(_) => String::new(),
-                };
+                let content = std::fs::read_to_string(daemon_path).unwrap_or_default();
                 content.contains(&registry_addr)
                     || content.contains(&crate::config::CACHE_REGISTRY_PORT.to_string())
             } else {

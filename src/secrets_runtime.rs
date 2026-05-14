@@ -1,9 +1,9 @@
 use super::*;
 use crate::docker::DockerCtl;
-use crate::state::{Db, ReleaseSecretSet, SecretAuditEvent, SecretAuthority};
+use crate::state::{Db, SecretAuthority};
 use anyhow::{Context, Result, anyhow};
 use chrono::{Duration, Utc};
-use reqwest::{Client, StatusCode};
+use reqwest::Client;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -222,7 +222,9 @@ pub(crate) fn bundle_path(repo_root: &Path, version: &str) -> PathBuf {
         .join("rendered/release-secrets.enc")
 }
 
-pub(crate) fn parse_audit_paths(path: &Path) -> Result<(Option<String>, Option<String>, Option<String>)> {
+pub(crate) fn parse_audit_paths(
+    path: &Path,
+) -> Result<(Option<String>, Option<String>, Option<String>)> {
     let raw = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let value: serde_json::Value =
         serde_json::from_str(&raw).with_context(|| format!("decode {}", path.display()))?;

@@ -5,8 +5,8 @@
 use super::model::{
     BackendRef, FlowColumn, FlowColumnKind, FlowEdge, FlowGraph, FlowNode, LaneGroup, LaneKind,
 };
-use crate::tui::live::{is_live_job_status, is_terminal_job_status};
 use crate::state::JobEvent;
+use crate::tui::live::{is_live_job_status, is_terminal_job_status};
 use std::collections::{BTreeMap, HashMap};
 
 pub fn classify_column(job_name: &str) -> FlowColumnKind {

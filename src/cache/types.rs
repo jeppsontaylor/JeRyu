@@ -1,7 +1,6 @@
 use super::*;
 
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use thiserror::Error;
 
 /// Typed errors for SmartCache lifecycle.

@@ -27,14 +27,15 @@ pub(crate) async fn install_local(opts: &InstallOptions) -> Result<i32> {
         install_runtime::refresh_shell_profile(&opts.prefix, plan.platform.shell.as_deref())?;
     }
     install_runtime::verify_binary(&install_target(&opts.prefix)).await?;
-    if !plan.platform.in_path && matches!(opts.path_mode, PathMode::Advise) {
-        if let Some(advice) = &plan.path_advice {
-            if let Some(rc) = &advice.rc_file {
-                println!("PATH advice: add {} to {}", opts.prefix.display(), rc);
-            }
-            if let Some(snippet) = &advice.snippet {
-                println!("{snippet}");
-            }
+    if !plan.platform.in_path
+        && matches!(opts.path_mode, PathMode::Advise)
+        && let Some(advice) = &plan.path_advice
+    {
+        if let Some(rc) = &advice.rc_file {
+            println!("PATH advice: add {} to {}", opts.prefix.display(), rc);
+        }
+        if let Some(snippet) = &advice.snippet {
+            println!("{snippet}");
         }
     }
     println!(

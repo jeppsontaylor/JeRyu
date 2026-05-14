@@ -117,4 +117,4 @@ mod render;
 pub use render::*;
 #[path = "release_status_summary.rs"]
 mod summary;
-pub use summary::*;
+pub(crate) use summary::*;

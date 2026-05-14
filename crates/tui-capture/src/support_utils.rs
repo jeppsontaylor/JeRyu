@@ -1,28 +1,91 @@
 use anyhow::{Result, bail};
 use rusttype::Font;
-use std::fs;
 use std::path::PathBuf;
 
-use super::{Rgb8};
+use super::Rgb8;
 
 pub(crate) fn xterm_256_color(idx: u8, default_black: Rgb8) -> Rgb8 {
     const ANSI16: [Rgb8; 16] = [
-        Rgb8 { r: 18, g: 25, b: 35 },
-        Rgb8 { r: 255, g: 86, b: 96 },
-        Rgb8 { r: 64, g: 230, b: 125 },
-        Rgb8 { r: 255, g: 238, b: 88 },
-        Rgb8 { r: 95, g: 174, b: 255 },
-        Rgb8 { r: 255, g: 108, b: 255 },
-        Rgb8 { r: 70, g: 235, b: 255 },
-        Rgb8 { r: 232, g: 238, b: 245 },
-        Rgb8 { r: 120, g: 132, b: 148 },
-        Rgb8 { r: 255, g: 112, b: 122 },
-        Rgb8 { r: 88, g: 255, b: 145 },
-        Rgb8 { r: 255, g: 255, b: 112 },
-        Rgb8 { r: 125, g: 195, b: 255 },
-        Rgb8 { r: 255, g: 140, b: 255 },
-        Rgb8 { r: 105, g: 250, b: 255 },
-        Rgb8 { r: 255, g: 255, b: 255 },
+        Rgb8 {
+            r: 18,
+            g: 25,
+            b: 35,
+        },
+        Rgb8 {
+            r: 255,
+            g: 86,
+            b: 96,
+        },
+        Rgb8 {
+            r: 64,
+            g: 230,
+            b: 125,
+        },
+        Rgb8 {
+            r: 255,
+            g: 238,
+            b: 88,
+        },
+        Rgb8 {
+            r: 95,
+            g: 174,
+            b: 255,
+        },
+        Rgb8 {
+            r: 255,
+            g: 108,
+            b: 255,
+        },
+        Rgb8 {
+            r: 70,
+            g: 235,
+            b: 255,
+        },
+        Rgb8 {
+            r: 232,
+            g: 238,
+            b: 245,
+        },
+        Rgb8 {
+            r: 120,
+            g: 132,
+            b: 148,
+        },
+        Rgb8 {
+            r: 255,
+            g: 112,
+            b: 122,
+        },
+        Rgb8 {
+            r: 88,
+            g: 255,
+            b: 145,
+        },
+        Rgb8 {
+            r: 255,
+            g: 255,
+            b: 112,
+        },
+        Rgb8 {
+            r: 125,
+            g: 195,
+            b: 255,
+        },
+        Rgb8 {
+            r: 255,
+            g: 140,
+            b: 255,
+        },
+        Rgb8 {
+            r: 105,
+            g: 250,
+            b: 255,
+        },
+        Rgb8 {
+            r: 255,
+            g: 255,
+            b: 255,
+        },
     ];
     match idx {
         0 => default_black,
@@ -120,7 +183,11 @@ mod tests {
     fn hex_color_parser_accepts_hash() {
         assert_eq!(
             parse_hex_rgb("#17212b").unwrap(),
-            Rgb8 { r: 0x17, g: 0x21, b: 0x2b }
+            Rgb8 {
+                r: 0x17,
+                g: 0x21,
+                b: 0x2b
+            }
         );
     }
 
@@ -137,7 +204,7 @@ mod tests {
         let Some(path) = find_font() else {
             return;
         };
-        let bytes = fs::read(path).unwrap();
+        let bytes = std::fs::read(path).unwrap();
         let font = Font::try_from_vec(bytes).unwrap();
         validate_required_glyphs(&font).unwrap();
     }

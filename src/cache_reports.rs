@@ -7,8 +7,8 @@ mod manager;
 #[path = "cache_reports_scan.rs"]
 mod scan;
 
-pub use manager::*;
-pub use scan::*;
+pub(crate) use manager::*;
+pub(crate) use scan::*;
 
 pub fn print_cache_status_report(report: &CacheStatusReport) {
     println!("📊 SmartCache Status");
@@ -191,7 +191,9 @@ pub(crate) async fn du_bytes(path: &Path) -> Result<u64> {
     Ok(total)
 }
 
-pub(crate) async fn df_usage(path: &str) -> Result<FsUsage> {
+/// Run `df -Pk <path>` and parse the result. Public so `jeryu-gcd` can
+/// query disk usage without duplicating parsing logic.
+pub async fn df_usage(path: &str) -> Result<FsUsage> {
     let output = tokio::process::Command::new("df")
         .args(["-Pk", path])
         .output()

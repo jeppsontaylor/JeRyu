@@ -29,6 +29,7 @@ pub enum ActiveTab {
     Workflow,
     Mission,
     Release,
+    Approvals,
     Jobs,
     Agents,
     Tests,
@@ -45,14 +46,47 @@ impl ActiveTab {
             0 => Some(Self::Workflow),
             1 => Some(Self::Mission),
             2 => Some(Self::Release),
-            3 => Some(Self::Jobs),
-            4 => Some(Self::Agents),
-            5 => Some(Self::Tests),
-            6 => Some(Self::Pools),
-            7 => Some(Self::Cache),
-            8 => Some(Self::Evidence),
-            9 => Some(Self::Secrets),
+            3 => Some(Self::Approvals),
+            4 => Some(Self::Jobs),
+            5 => Some(Self::Agents),
+            6 => Some(Self::Tests),
+            7 => Some(Self::Pools),
+            8 => Some(Self::Cache),
+            9 => Some(Self::Evidence),
             _ => None,
+        }
+    }
+}
+
+/// Sub-pane within the Release tab. See docs/release-policy.md § TUI surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ReleaseSubPane {
+    #[default]
+    Pipeline,
+    Evidence,
+    Rollback,
+}
+
+impl ReleaseSubPane {
+    pub fn next(self) -> Self {
+        match self {
+            Self::Pipeline => Self::Evidence,
+            Self::Evidence => Self::Rollback,
+            Self::Rollback => Self::Pipeline,
+        }
+    }
+    pub fn prev(self) -> Self {
+        match self {
+            Self::Pipeline => Self::Rollback,
+            Self::Evidence => Self::Pipeline,
+            Self::Rollback => Self::Evidence,
+        }
+    }
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Pipeline => "Pipeline",
+            Self::Evidence => "Evidence",
+            Self::Rollback => "Rollback",
         }
     }
 }
@@ -202,6 +236,52 @@ pub struct TuiStateSnapshot {
     pub pipeline_progress_view: Option<PipelineProgressView>,
     // TUI v2 — event ticker:
     pub event_ticker_offset: usize,
+    // Agent-first release process:
+    pub release_stages: ReleaseStageSnapshot,
+    pub approvals_queue: Vec<PendingApproval>,
+}
+
+/// Counts of in-flight items per stage of the release funnel. Sourced from
+/// the state DB + `ops/releases/draft/`. Rendered by the Release → Pipeline
+/// sub-pane in the TUI.
+#[derive(Debug, Clone, Default)]
+pub struct ReleaseStageSnapshot {
+    pub plan: Vec<ReleaseStageCard>,
+    pub build: Vec<ReleaseStageCard>,
+    pub proof: Vec<ReleaseStageCard>,
+    pub canary: Vec<ReleaseStageCard>,
+    pub stable: Vec<ReleaseStageCard>,
+}
+
+impl ReleaseStageSnapshot {
+    pub fn total(&self) -> usize {
+        self.plan.len()
+            + self.build.len()
+            + self.proof.len()
+            + self.canary.len()
+            + self.stable.len()
+    }
+}
+
+/// One in-flight unit at a stage. Typically a PR; for the Stable column it is
+/// the currently-pointed-to version.
+#[derive(Debug, Clone)]
+pub struct ReleaseStageCard {
+    pub label: String,
+    pub agent_id: String,
+    pub age: String,
+}
+
+/// One PR awaiting human approval after CI green. Rendered by the Approvals tab.
+#[derive(Debug, Clone)]
+pub struct PendingApproval {
+    pub pr_number: u64,
+    pub title: String,
+    pub agent_id: String,
+    pub risk_tier: u8,
+    pub ci_status: String,
+    pub age: String,
+    pub head_sha: String,
 }
 
 pub struct App {
@@ -212,6 +292,8 @@ pub struct App {
 
     pub active_tab: ActiveTab,
     pub active_pane: ActivePane,
+    pub release_subpane: ReleaseSubPane,
+    pub selected_approval_index: usize,
     pub selected_pool_index: usize,
     pub selected_pipeline_index: usize,
     pub selected_job_index: usize,

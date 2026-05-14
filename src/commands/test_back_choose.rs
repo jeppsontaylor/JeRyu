@@ -2,8 +2,8 @@ use anyhow::Result;
 use jeryu::test_intel;
 use std::path::PathBuf;
 
-use super::write_json_artifact;
 use super::git_diff_changed_paths;
+use super::write_json_artifact;
 
 pub(crate) async fn handle_impact(
     base: String,
@@ -13,12 +13,26 @@ pub(crate) async fn handle_impact(
 ) -> Result<()> {
     let output = tokio::process::Command::new("cargo")
         .current_dir(&repo_root)
-        .args(["run", "-q", "-p", "veox-testctl", "--", "ci-impact",
-               "--base", &base, "--head", &head, "--json"])
+        .args([
+            "run",
+            "-q",
+            "-p",
+            "veox-testctl",
+            "--",
+            "ci-impact",
+            "--base",
+            &base,
+            "--head",
+            &head,
+            "--json",
+        ])
         .output()
         .await?;
     if !output.status.success() {
-        anyhow::bail!("ci-impact failed: {}", String::from_utf8_lossy(&output.stderr));
+        anyhow::bail!(
+            "ci-impact failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
     if json {
         print!("{}", String::from_utf8_lossy(&output.stdout));
@@ -31,12 +45,20 @@ pub(crate) async fn handle_impact(
         println!("  Release impacting:  {}", release_impacting);
         println!("  Full build:         {}", full_build_required);
         let jobs = match value["jobs"].as_array() {
-            Some(items) => items.iter().filter_map(|item| item.as_str()).collect::<Vec<_>>().join(", "),
+            Some(items) => items
+                .iter()
+                .filter_map(|item| item.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
             None => String::new(),
         };
         println!("  Jobs:               {jobs}");
         let rules = match value["matched_rules"].as_array() {
-            Some(items) => items.iter().filter_map(|item| item.as_str()).collect::<Vec<_>>().join(", "),
+            Some(items) => items
+                .iter()
+                .filter_map(|item| item.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
             None => String::new(),
         };
         println!("  Matched rules:      {rules}");
@@ -44,6 +66,7 @@ pub(crate) async fn handle_impact(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)] // CLI flag passthrough; flat by design
 pub(crate) fn handle_choose(
     base: String,
     head: String,

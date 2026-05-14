@@ -1,8 +1,5 @@
-use anyhow::{Result, bail};
 use image::{Rgba, RgbaImage};
 use rusttype::{Font, PositionedGlyph, Scale, point};
-use std::fs;
-use std::path::PathBuf;
 use vt100::{Color as VtColor, Screen};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -179,7 +176,11 @@ pub(crate) fn rgba(c: Rgb8) -> Rgba<u8> {
 fn resolve_vt_color(c: VtColor, is_bg: bool, cfg: &RenderConfig) -> Rgb8 {
     let raw = match c {
         VtColor::Default => {
-            if is_bg { cfg.default_bg } else { cfg.default_fg }
+            if is_bg {
+                cfg.default_bg
+            } else {
+                cfg.default_fg
+            }
         }
         VtColor::Idx(i) => xterm_256_color(i, cfg.default_bg),
         VtColor::Rgb(r, g, b) => Rgb8 { r, g, b },
@@ -196,12 +197,20 @@ fn resolve_vt_color(c: VtColor, is_bg: bool, cfg: &RenderConfig) -> Rgb8 {
 
 pub(crate) fn boost_rgb(c: Rgb8, factor: f32, add: f32) -> Rgb8 {
     let f = |v: u8| (v as f32 * factor + add).round().clamp(0.0, 255.0) as u8;
-    Rgb8 { r: f(c.r), g: f(c.g), b: f(c.b) }
+    Rgb8 {
+        r: f(c.r),
+        g: f(c.g),
+        b: f(c.b),
+    }
 }
 
 pub(crate) fn scale_rgb(c: Rgb8, factor: f32) -> Rgb8 {
     let f = |v: u8| (v as f32 * factor).round().clamp(0.0, 255.0) as u8;
-    Rgb8 { r: f(c.r), g: f(c.g), b: f(c.b) }
+    Rgb8 {
+        r: f(c.r),
+        g: f(c.g),
+        b: f(c.b),
+    }
 }
 
 // ---------------------------------------------------------------------------

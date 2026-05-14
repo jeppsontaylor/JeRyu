@@ -87,11 +87,11 @@ pub async fn collect_once(
         }
     }
 
-    if let Some((project_id, pipeline_id, ref_name, sha, status)) = release_pipeline_hint(session).await
+    if let Some((project_id, pipeline_id, ref_name, sha, status)) =
+        release_pipeline_hint(session).await
         && included_pipeline_ids.insert(pipeline_id)
         && let Some(flow) =
-            build_gitlab_pipeline_flow(gitlab, project_id, pipeline_id, ref_name, sha, status)
-                .await
+            build_gitlab_pipeline_flow(gitlab, project_id, pipeline_id, ref_name, sha, status).await
     {
         snap.active_pipelines.insert(0, flow);
     }
@@ -193,16 +193,13 @@ async fn build_gitlab_pipeline_flow(
         ref_name,
         Some(sha),
         status,
-        jobs
-            .into_iter()
+        jobs.into_iter()
             .map(|job| gitlab_job_to_event(project_id, job, &now))
             .collect(),
     ))
 }
 
-async fn release_pipeline_hint(
-    session: &TuiSession,
-) -> Option<(i64, i64, String, String, String)> {
+async fn release_pipeline_hint(session: &TuiSession) -> Option<(i64, i64, String, String, String)> {
     let Ok(report) = release::build_release_status_report(
         session,
         release::ReleaseStatusQuery {

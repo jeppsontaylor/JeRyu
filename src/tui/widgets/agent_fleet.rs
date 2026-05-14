@@ -7,12 +7,10 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
-use crate::api::agent_session::{
-    AgentBudget, AgentSession, AgentState, PatchAttempt, PatchStatus, TrustTier,
-};
+use crate::api::agent_session::{AgentSession, AgentState, PatchStatus, TrustTier};
 use crate::tui::theme::Theme;
 
 #[path = "agent_fleet_panels.rs"]

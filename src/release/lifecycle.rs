@@ -2,21 +2,17 @@ use super::*;
 
 #[path = "lifecycle_checks.rs"]
 mod checks;
-#[path = "lifecycle_support.rs"]
-mod support;
 #[path = "lifecycle_launch.rs"]
 mod launch;
+#[path = "lifecycle_support.rs"]
+mod support;
 
-pub(crate) use checks::{
-    DoctorBlocker, DoctorReport, PreflightBlocker, PreflightReport, ReleaseLock, release_lock_path,
-    write_release_lock,
-};
+pub(crate) use checks::{ReleaseLock, release_lock_path, write_release_lock};
 pub use checks::{release_doctor, release_preflight};
-pub(crate) use support::{
-    UpstreamImageHandoff, parse_image_env, pipeline_has_release_execution_jobs,
-    release_impacting_change, upstream_image_handoff,
-};
 pub use launch::launch_canary_for_green_pipeline;
+pub(crate) use support::{
+    pipeline_has_release_execution_jobs, release_impacting_change, upstream_image_handoff,
+};
 
 pub async fn reconcile_release_for_ref(
     db: &Db,

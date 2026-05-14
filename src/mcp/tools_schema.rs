@@ -55,7 +55,9 @@ pub(super) fn parse_string_array(value: &Value) -> Option<Vec<String>> {
     Some(out)
 }
 
-pub(super) fn parse_modifications(value: &Value) -> Option<Vec<crate::capability::FileModification>> {
+pub(super) fn parse_modifications(
+    value: &Value,
+) -> Option<Vec<crate::capability::FileModification>> {
     let items = value.as_array()?;
     let mut out = Vec::with_capacity(items.len());
     for item in items {

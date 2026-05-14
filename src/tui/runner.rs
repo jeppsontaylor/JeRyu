@@ -4,9 +4,12 @@
 
 use super::app::App;
 use super::runtime::render::{cleanup_screenshot_terminal, parse_capture_tab, write_buffer_png};
-use super::runtime::{input::{hydrate_smoke_state, run_loop}, maintenance::cache_maintenance_loop};
-use crate::tui::flow::collect_once;
+use super::runtime::{
+    input::{hydrate_smoke_state, run_loop},
+    maintenance::cache_maintenance_loop,
+};
 use crate::state::TuiSession;
+use crate::tui::flow::collect_once;
 use anyhow::Result;
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::io;

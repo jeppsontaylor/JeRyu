@@ -1,5 +1,4 @@
 use anyhow::Result;
-use chrono::{Duration as ChronoDuration, Utc};
 use std::collections::BTreeSet;
 
 use super::*;
@@ -193,10 +192,7 @@ impl SmartCache {
             pool_cargo_target_bytes,
             pool_cargo_sccache_bytes,
             cargo_target_caches,
-            docker: match docker_storage_summary().await {
-                Ok(summary) => summary,
-                Err(_) => DockerStorageSummary::default(),
-            },
+            docker: docker_storage_summary().await.unwrap_or_default(),
             proxy_up,
             registry_up,
         })

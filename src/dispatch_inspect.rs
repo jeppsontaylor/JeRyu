@@ -1,5 +1,5 @@
-use anyhow::Result;
 use super::super::*;
+use anyhow::Result;
 
 pub async fn run_next(project_id: i64, ref_name: String) -> Result<()> {
     let db = state::Db::open().await?;

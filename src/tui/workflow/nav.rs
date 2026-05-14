@@ -32,10 +32,10 @@ impl WorkflowNav {
 
     /// Move to the next sibling node (right).
     pub fn right(&mut self, snap: &WorkflowSnapshot) {
-        if let Some(phase) = snap.phases.get(self.phase_idx) {
-            if self.node_idx + 1 < phase.node_ids.len() {
-                self.node_idx += 1;
-            }
+        if let Some(phase) = snap.phases.get(self.phase_idx)
+            && self.node_idx + 1 < phase.node_ids.len()
+        {
+            self.node_idx += 1;
         }
     }
 

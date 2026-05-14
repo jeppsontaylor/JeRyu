@@ -72,7 +72,7 @@ pub fn matches_any(path: &str, patterns: &[&str]) -> bool {
     patterns.iter().any(|p| glob_match(p, path))
 }
 
-use super::{Subsystem, SUBSYSTEMS, GLOBAL_INVALIDATORS, DOCS_PATTERNS};
+use super::{DOCS_PATTERNS, GLOBAL_INVALIDATORS, SUBSYSTEMS, Subsystem};
 
 /// Find all subsystems affected by a set of changed paths.
 pub fn affected_subsystems(changed_paths: &[String]) -> Vec<&'static Subsystem> {

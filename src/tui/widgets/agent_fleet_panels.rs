@@ -1,12 +1,12 @@
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
 
-use crate::api::agent_session::{AgentSession, TrustTier};
+use crate::api::agent_session::AgentSession;
 use crate::api::entity::Severity;
 use crate::tui::theme::Theme;
 
@@ -184,7 +184,10 @@ pub(super) fn render_agent_grants(f: &mut Frame, area: Rect, s: &AgentSession, t
                     }),
                 ),
                 Span::styled(
-                    super::super::truncate_label(&b.summary, area.width.saturating_sub(10) as usize),
+                    super::super::truncate_label(
+                        &b.summary,
+                        area.width.saturating_sub(10) as usize,
+                    ),
                     theme.primary(),
                 ),
             ]));

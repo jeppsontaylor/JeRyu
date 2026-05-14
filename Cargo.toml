@@ -8,11 +8,12 @@ members = [
     "crates/arc-bench",
     "crates/tui-capture",
     "crates/adapters/cache-brain",
+    "crates/jeryu-gcd",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "3.0.1"
+version = "3.1.0"
 edition = "2024"
 license = "MIT"
 authors = []

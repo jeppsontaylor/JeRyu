@@ -242,4 +242,3 @@ where
         .map(|job| job.id.clone())
         .collect::<Vec<_>>()
 }
-

@@ -310,5 +310,59 @@ pub(crate) fn build_demo_state(
             started_at: Some(now_str.clone()),
         }),
         event_ticker_offset: 0,
+        release_stages: ReleaseStageSnapshot {
+            plan: vec![ReleaseStageCard {
+                label: "PR #142".into(),
+                agent_id: "claude-opus-4-7".into(),
+                age: "2m".into(),
+            }],
+            build: vec![
+                ReleaseStageCard {
+                    label: "PR #138".into(),
+                    agent_id: "codex".into(),
+                    age: "5m".into(),
+                },
+                ReleaseStageCard {
+                    label: "PR #140".into(),
+                    agent_id: "claude-sonnet-4-6".into(),
+                    age: "3m".into(),
+                },
+            ],
+            proof: vec![ReleaseStageCard {
+                label: "PR #135".into(),
+                agent_id: "gpt-5".into(),
+                age: "11m".into(),
+            }],
+            canary: vec![ReleaseStageCard {
+                label: "v3.0.1-rc.1".into(),
+                agent_id: "release-bot".into(),
+                age: "47m".into(),
+            }],
+            stable: vec![ReleaseStageCard {
+                label: "v3.0.0".into(),
+                agent_id: "release-bot".into(),
+                age: "3d".into(),
+            }],
+        },
+        approvals_queue: vec![
+            PendingApproval {
+                pr_number: 142,
+                title: "feat: agent-first release process".into(),
+                agent_id: "claude-opus-4-7".into(),
+                risk_tier: 3,
+                ci_status: "green".into(),
+                age: "2m".into(),
+                head_sha: "abc123def456".into(),
+            },
+            PendingApproval {
+                pr_number: 140,
+                title: "fix: VTI receipt stale check".into(),
+                agent_id: "claude-sonnet-4-6".into(),
+                risk_tier: 1,
+                ci_status: "running".into(),
+                age: "3m".into(),
+                head_sha: "789xyz012abc".into(),
+            },
+        ],
     }
 }

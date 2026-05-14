@@ -139,7 +139,7 @@ impl App {
         // TUI v2 — auto-cycle runner feed every FEED_CYCLE_TICKS (5s at 250ms tick)
         if !self.state.runner_feeds.is_empty() && self.feed_pinned.is_none() {
             self.state.feed_cycle_tick = self.state.feed_cycle_tick.wrapping_add(1);
-            if self.state.feed_cycle_tick % FEED_CYCLE_TICKS == 0 {
+            if self.state.feed_cycle_tick.is_multiple_of(FEED_CYCLE_TICKS) {
                 self.state.active_feed_index =
                     (self.state.active_feed_index + 1) % self.state.runner_feeds.len();
                 self.state.feed_auto_cycle = true;
@@ -154,7 +154,7 @@ impl App {
         }
 
         // TUI v2 — advance event ticker
-        if self.tick_count % 2 == 0 {
+        if self.tick_count.is_multiple_of(2) {
             self.state.event_ticker_offset = self.state.event_ticker_offset.wrapping_add(1);
         }
 
@@ -223,12 +223,18 @@ impl App {
             } else if let Some(metrics) = selected_pipeline {
                 Some(metrics.pipeline.pipeline_id)
             } else {
-                self.state.recent_jobs.iter().find_map(|job| job.pipeline_id)
+                self.state
+                    .recent_jobs
+                    .iter()
+                    .find_map(|job| job.pipeline_id)
             }
         } else if let Some(metrics) = selected_pipeline {
             Some(metrics.pipeline.pipeline_id)
         } else {
-            self.state.recent_jobs.iter().find_map(|job| job.pipeline_id)
+            self.state
+                .recent_jobs
+                .iter()
+                .find_map(|job| job.pipeline_id)
         };
 
         let project_id = if let Some(view) = release {
@@ -242,7 +248,10 @@ impl App {
         };
 
         if pipeline_id.is_none() {
-            return crate::tui::flow::recover_flow_from_recent_jobs(project_id, &self.state.recent_jobs);
+            return crate::tui::flow::recover_flow_from_recent_jobs(
+                project_id,
+                &self.state.recent_jobs,
+            );
         }
 
         let pipeline_id = pipeline_id?;
@@ -255,13 +264,17 @@ impl App {
             .collect::<Vec<_>>();
 
         if jobs.is_empty() {
-            return crate::tui::flow::recover_flow_from_recent_jobs(project_id, &self.state.recent_jobs);
+            return crate::tui::flow::recover_flow_from_recent_jobs(
+                project_id,
+                &self.state.recent_jobs,
+            );
         }
 
         let ref_name = if let Some(view) = release {
             view.attempt.ref_name.clone()
         } else {
-            match self.state
+            match self
+                .state
                 .pipelines
                 .iter()
                 .find(|m| m.pipeline.pipeline_id == pipeline_id)
@@ -287,7 +300,8 @@ impl App {
                 None => "unknown".to_string(),
             }
         } else {
-            match self.state
+            match self
+                .state
                 .pipelines
                 .iter()
                 .find(|m| m.pipeline.pipeline_id == pipeline_id)

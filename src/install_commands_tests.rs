@@ -44,9 +44,7 @@ fn install_plan_stays_user_space() {
 #[test]
 fn path_snippets_are_shell_specific() {
     assert!(path_snippet(Path::new("/tmp/bin"), Some("/bin/bash")).contains("export PATH"));
-    assert!(
-        path_snippet(Path::new("/tmp/bin"), Some("/usr/bin/fish")).contains("set -gx PATH")
-    );
+    assert!(path_snippet(Path::new("/tmp/bin"), Some("/usr/bin/fish")).contains("set -gx PATH"));
     assert!(path_snippet(Path::new("/tmp/bin"), Some("/bin/zsh")).contains(JERYU_PATH_START));
     assert!(path_snippet(Path::new("/tmp/bin"), Some("/bin/zsh")).contains(JERYU_PATH_END));
 }

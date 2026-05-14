@@ -1,6 +1,7 @@
 use crate::release;
 use crate::state::{JobEvent, Pool, TrackedPipeline};
 
+#[allow(clippy::too_many_arguments)] // demo fixture: flat positional schema by design
 pub(crate) fn demo_pool(
     name: &str,
     gitlab_runner_id: i64,

@@ -30,7 +30,11 @@ pub fn badge_for_status(status: &str, theme: &Theme) -> Badge {
             label: "RUN",
             color: theme.running,
         },
-        "pending" | "created" | "waiting" | "waiting_for_resource" | "preparing"
+        "pending"
+        | "created"
+        | "waiting"
+        | "waiting_for_resource"
+        | "preparing"
         | "ready-for-canary" => Badge {
             glyph: "○",
             label: "WAIT",

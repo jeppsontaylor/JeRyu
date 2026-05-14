@@ -67,6 +67,22 @@ pub(crate) async fn run(command: Commands) -> Result<i32> {
 
         // ---- Agent -------------------------------------------------------
         Commands::Agent(subcmd) => {
+            // `agent submit` is GitHub-only and must not require GITLAB_PAT.
+            if let AgentCommands::Submit {
+                task,
+                issue,
+                risk_tier,
+                dry_run,
+                json,
+            } = subcmd
+            {
+                crate::commands::agent_submit::execute_agent_submit(
+                    task, issue, risk_tier, dry_run, json,
+                )
+                .await?;
+                return Ok(0);
+            }
+
             let (client, _) = load_client()?;
 
             match subcmd {
@@ -101,6 +117,7 @@ pub(crate) async fn run(command: Commands) -> Result<i32> {
                     println!("Risk gate: {:?}", evaluation.decision);
                     println!("Reason:    {}", evaluation.reason);
                 }
+                AgentCommands::Submit { .. } => unreachable!("handled above"),
             }
         }
 

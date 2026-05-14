@@ -48,6 +48,7 @@ fn sample_release_view(attempt: ReleaseAttempt, release_dir: &str) -> ReleaseAtt
 
 /// Build a `CiSchemaJob` test fixture from common defaults. Tests pass the
 /// fields that vary; everything else is filled in with neutral defaults.
+#[allow(clippy::too_many_arguments)] // test fixture: flat positional schema by design
 fn sample_ci_schema_job(
     id: &str,
     section: &str,
