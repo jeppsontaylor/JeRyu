@@ -15,8 +15,8 @@ use std::time::Instant;
 use tokio::process::Command;
 
 use crate::install::{
-    ColorMode, InteractiveMode, color_text, expand_tilde, prompt_for_confirmation_with_message,
-    render_plan_steps, should_colorize, status_label,
+    ColorMode, InteractiveMode, color_text, current_exe_string, expand_tilde,
+    prompt_for_confirmation_with_message, render_plan_steps, should_colorize, status_label,
 };
 
 #[path = "remote_support.rs"]

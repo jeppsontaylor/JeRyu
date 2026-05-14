@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -52,7 +51,7 @@ pub fn canonical_repo_key(repo_root: &Path) -> Result<String> {
     let canonical = repo_root
         .canonicalize()
         .with_context(|| format!("canonicalize repo root {}", repo_root.display()))?;
-    Ok(short_hash(canonical.to_string_lossy().as_bytes()))
+    Ok(super::short_hash(canonical.to_string_lossy().as_bytes()))
 }
 
 pub fn build_cargo_cache_layout(
@@ -220,8 +219,3 @@ fi
     )
 }
 
-fn short_hash(bytes: &[u8]) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(bytes);
-    hex::encode(hasher.finalize())[..12].to_string()
-}

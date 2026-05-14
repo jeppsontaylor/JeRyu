@@ -161,6 +161,16 @@ pub struct CapabilityResponse {
     pub data: Option<serde_json::Value>,
 }
 
+impl CapabilityResponse {
+    pub fn error(msg: &str) -> Self {
+        Self {
+            success: false,
+            message: msg.to_string(),
+            data: None,
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct CiJob<'a> {
     stage: &'a str,

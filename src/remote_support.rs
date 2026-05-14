@@ -241,13 +241,6 @@ pub(crate) fn remote_confirmation(
     )
 }
 
-pub(crate) fn current_exe_string() -> String {
-    match env::current_exe() {
-        Ok(path) => path.display().to_string(),
-        Err(_) => "(unavailable)".into(),
-    }
-}
-
 pub(crate) fn command_exists(cmd: &str) -> bool {
     std::process::Command::new("sh")
         .arg("-lc")

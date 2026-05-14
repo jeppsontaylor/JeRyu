@@ -242,9 +242,5 @@ pub(crate) async fn plan_validation(
 }
 
 fn err(msg: &str) -> CapabilityResponse {
-    CapabilityResponse {
-        success: false,
-        message: msg.to_string(),
-        data: None,
-    }
+    CapabilityResponse::error(msg)
 }

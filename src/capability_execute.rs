@@ -264,11 +264,7 @@ pub(crate) async fn request_merge(
 }
 
 fn err(msg: &str) -> CapabilityResponse {
-    CapabilityResponse {
-        success: false,
-        message: msg.to_string(),
-        data: None,
-    }
+    CapabilityResponse::error(msg)
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -144,11 +144,7 @@ fn secret_rotation_args(
 }
 
 pub async fn run_secrets_init(db: Option<&Db>) -> Result<VaultStatusReport> {
-    let env = build_operational_env().await?;
-    let client = Client::builder().build().context("build HTTP client")?;
-    let health = fetch_vault_health(&client, &env.addr).await?;
-    record_vault_authority(db, &env, &health).await?;
-    Ok(build_vault_status_report(env, health))
+    vault_status(db).await
 }
 
 pub async fn vault_status(db: Option<&Db>) -> Result<VaultStatusReport> {

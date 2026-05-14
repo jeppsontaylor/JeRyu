@@ -5,6 +5,8 @@
 
 use ratatui::style::{Color, Modifier, Style};
 
+use crate::api::entity::Severity;
+
 // ── Theme ───────────────────────────────────────────────────────────────
 
 /// Semantic color tokens for the entire TUI. Every rendering function
@@ -163,6 +165,15 @@ impl Theme {
             Style::default().fg(self.border_active)
         } else {
             Style::default().fg(self.border_subtle)
+        }
+    }
+
+    pub fn severity_color(&self, severity: Severity) -> Color {
+        match severity {
+            Severity::Critical => self.fail,
+            Severity::Error => self.warning,
+            Severity::Warning => self.waiting,
+            Severity::Info => self.text_muted,
         }
     }
 }
