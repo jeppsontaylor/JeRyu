@@ -22,10 +22,7 @@ pub enum ActionExecutionState {
         entity: Option<EntityRef>,
     },
     /// User confirmed — executing.
-    Executing {
-        action_id: String,
-        label: String,
-    },
+    Executing { action_id: String, label: String },
     /// Execution complete — showing result.
     Completed {
         action_id: String,
@@ -73,10 +70,7 @@ impl ActionExecutionState {
             evidence_expected: Vec::new(),
             required_grant,
             undo_action: compute_undo_action(action_id),
-            confirm_prompt: Some(format!(
-                "[Enter] Execute {}   [Esc] Cancel",
-                label
-            )),
+            confirm_prompt: Some(format!("[Enter] Execute {}   [Esc] Cancel", label)),
         };
 
         Self::Previewing {
@@ -89,7 +83,10 @@ impl ActionExecutionState {
 
     /// Transition from preview to executing.
     pub fn confirm(&mut self) {
-        if let Self::Previewing { action_id, label, .. } = self {
+        if let Self::Previewing {
+            action_id, label, ..
+        } = self
+        {
             *self = Self::Executing {
                 action_id: action_id.clone(),
                 label: label.clone(),
@@ -193,8 +190,14 @@ mod tests {
 
     #[test]
     fn undo_action_mapping() {
-        assert_eq!(compute_undo_action("pause_pool"), Some("resume_pool".to_string()));
-        assert_eq!(compute_undo_action("cancel_job"), Some("requeue_job".to_string()));
+        assert_eq!(
+            compute_undo_action("pause_pool"),
+            Some("resume_pool".to_string())
+        );
+        assert_eq!(
+            compute_undo_action("cancel_job"),
+            Some("requeue_job".to_string())
+        );
         assert_eq!(compute_undo_action("remove_record"), None);
     }
 }

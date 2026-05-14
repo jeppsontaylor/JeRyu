@@ -75,18 +75,18 @@ pub(crate) async fn get_system_snapshot(
     let recent_jobs = match db.recent_job_events(10).await {
         Ok(events) => events
             .into_iter()
-        .map(|event| {
-            serde_json::json!({
-                "job_id": event.job_id,
-                "project_id": event.project_id,
-                "pipeline_id": event.pipeline_id,
-                "status": event.status,
-                "job_name": event.job_name,
-                "pool_name": event.pool_name,
-                "system_id": event.system_id,
-                "queued_duration": event.queued_duration,
-                "received_at": event.received_at,
-            })
+            .map(|event| {
+                serde_json::json!({
+                    "job_id": event.job_id,
+                    "project_id": event.project_id,
+                    "pipeline_id": event.pipeline_id,
+                    "status": event.status,
+                    "job_name": event.job_name,
+                    "pool_name": event.pool_name,
+                    "system_id": event.system_id,
+                    "queued_duration": event.queued_duration,
+                    "received_at": event.received_at,
+                })
             })
             .collect::<Vec<_>>(),
         Err(e) => return err(&format!("system snapshot jobs: {}", e)),
@@ -133,7 +133,10 @@ pub(crate) async fn get_pipeline_jobs(
     pipeline_id: i64,
     client: &crate::gitlab_client::GitlabClient,
 ) -> CapabilityResponse {
-    match client.list_pipeline_jobs_with_downstream(project_id, pipeline_id).await {
+    match client
+        .list_pipeline_jobs_with_downstream(project_id, pipeline_id)
+        .await
+    {
         Ok(jobs) => CapabilityResponse {
             success: true,
             message: "pipeline jobs".into(),
@@ -172,7 +175,10 @@ pub(crate) async fn get_ci_bottlenecks(
         return err("database unavailable");
     };
     let limit = limit.unwrap_or(20).max(1);
-    match db.ci_job_bottlenecks(project_id, ref_name.as_deref(), limit).await {
+    match db
+        .ci_job_bottlenecks(project_id, ref_name.as_deref(), limit)
+        .await
+    {
         Ok(rows) => CapabilityResponse {
             success: true,
             message: "ci bottlenecks".into(),

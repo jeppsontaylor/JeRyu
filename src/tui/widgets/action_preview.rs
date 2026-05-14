@@ -39,10 +39,10 @@ pub fn render_action_preview(
     let sections = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Summary + Risk
-            Constraint::Length(4),  // Will do
-            Constraint::Length(3),  // Will NOT
-            Constraint::Length(2),  // Grant + undo
+            Constraint::Length(3), // Summary + Risk
+            Constraint::Length(4), // Will do
+            Constraint::Length(3), // Will NOT
+            Constraint::Length(2), // Grant + undo
             Constraint::Min(2),    // Confirmation
         ])
         .split(inner);
@@ -51,10 +51,7 @@ pub fn render_action_preview(
     let summary_lines = vec![
         Line::from(vec![
             Span::styled("  Risk: ", theme.muted()),
-            Span::styled(
-                preview.risk.label(),
-                theme.bold(risk_color),
-            ),
+            Span::styled(preview.risk.label(), theme.bold(risk_color)),
             Span::styled(
                 format!("   Effect: {}", preview.side_effect_class.label()),
                 theme.secondary(),
@@ -94,20 +91,15 @@ pub fn render_action_preview(
     f.render_widget(Paragraph::new(wont_lines), sections[2]);
 
     // Grant + undo
-    let grant_lines = vec![
-        Line::from(vec![
-            Span::styled("  Grant: ", theme.muted()),
-            Span::styled(
-                preview.required_grant.label(),
-                theme.secondary(),
-            ),
-            Span::styled("   Undo: ", theme.muted()),
-            Span::styled(
-                preview.undo_action.as_deref().unwrap_or("n/a"),
-                theme.secondary(),
-            ),
-        ]),
-    ];
+    let grant_lines = vec![Line::from(vec![
+        Span::styled("  Grant: ", theme.muted()),
+        Span::styled(preview.required_grant.label(), theme.secondary()),
+        Span::styled("   Undo: ", theme.muted()),
+        Span::styled(
+            preview.undo_action.as_deref().unwrap_or("n/a"),
+            theme.secondary(),
+        ),
+    ])];
     f.render_widget(Paragraph::new(grant_lines), sections[3]);
 
     // Confirmation footer
@@ -118,10 +110,7 @@ pub fn render_action_preview(
     f.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled("  ", theme.muted()),
-            Span::styled(
-                confirm.to_string(),
-                theme.bold(theme.border_accent),
-            ),
+            Span::styled(confirm.to_string(), theme.bold(theme.border_accent)),
         ]))
         .wrap(Wrap { trim: true }),
         sections[4],

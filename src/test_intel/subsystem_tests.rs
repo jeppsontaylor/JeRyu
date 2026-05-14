@@ -70,8 +70,7 @@ fn readme_plus_code_is_not_docs_only() {
 
 #[test]
 fn multiple_subsystems_affected() {
-    let affected =
-        affected_subsystems(&["src/pool.rs".to_string(), "src/decision.rs".to_string()]);
+    let affected = affected_subsystems(&["src/pool.rs".to_string(), "src/decision.rs".to_string()]);
     let ids: Vec<_> = affected.iter().map(|s| s.id).collect();
     assert!(ids.contains(&"pool"));
     assert!(ids.contains(&"decision"));

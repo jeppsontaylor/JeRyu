@@ -5,6 +5,7 @@
 pub mod action_registry;
 pub mod app;
 pub mod flow;
+pub mod live;
 pub mod runner;
 pub mod runtime;
 pub mod theme;

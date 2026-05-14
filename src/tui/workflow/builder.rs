@@ -53,7 +53,9 @@ fn assign_phases(nodes: &[WorkflowNode]) -> Vec<WorkflowPhase> {
     while changed {
         changed = false;
         for n in nodes {
-            let max_dep = match n.deps.iter()
+            let max_dep = match n
+                .deps
+                .iter()
                 .filter(|d| ids.contains(d.as_str()))
                 .filter_map(|d| depth.get(d.as_str()))
                 .max()
@@ -83,11 +85,14 @@ fn assign_phases(nodes: &[WorkflowNode]) -> Vec<WorkflowPhase> {
     };
     let mut phases = Vec::new();
     for d in 0..=max_depth {
-        let node_ids: Vec<String> = nodes.iter()
+        let node_ids: Vec<String> = nodes
+            .iter()
             .filter(|n| depth.get(n.id.as_str()) == Some(&d))
             .map(|n| n.id.clone())
             .collect();
-        if node_ids.is_empty() { continue; }
+        if node_ids.is_empty() {
+            continue;
+        }
 
         let title = match d {
             0 => "Phase 0 — can run now".to_string(),
@@ -193,19 +198,66 @@ pub fn build_demo_snapshot() -> WorkflowSnapshot {
     ];
 
     let edges = vec![
-        WorkflowEdge { from: "check".into(), to: "vti-plan".into(), kind: WorkflowEdgeKind::Dependency },
-        WorkflowEdge { from: "check".into(), to: "unit-tui".into(), kind: WorkflowEdgeKind::Dependency },
-        WorkflowEdge { from: "check".into(), to: "unit-api".into(), kind: WorkflowEdgeKind::Dependency },
-        WorkflowEdge { from: "vti-plan".into(), to: "unit-tui".into(), kind: WorkflowEdgeKind::Dependency },
-        WorkflowEdge { from: "vti-plan".into(), to: "unit-api".into(), kind: WorkflowEdgeKind::Dependency },
-        WorkflowEdge { from: "unit-tui".into(), to: "integration".into(), kind: WorkflowEdgeKind::Dependency },
-        WorkflowEdge { from: "unit-api".into(), to: "integration".into(), kind: WorkflowEdgeKind::Dependency },
-        WorkflowEdge { from: "integration".into(), to: "merge-gate".into(), kind: WorkflowEdgeKind::Dependency },
-        WorkflowEdge { from: "clippy".into(), to: "merge-gate".into(), kind: WorkflowEdgeKind::Dependency },
-        WorkflowEdge { from: "fmt".into(), to: "merge-gate".into(), kind: WorkflowEdgeKind::Dependency },
+        WorkflowEdge {
+            from: "check".into(),
+            to: "vti-plan".into(),
+            kind: WorkflowEdgeKind::Dependency,
+        },
+        WorkflowEdge {
+            from: "check".into(),
+            to: "unit-tui".into(),
+            kind: WorkflowEdgeKind::Dependency,
+        },
+        WorkflowEdge {
+            from: "check".into(),
+            to: "unit-api".into(),
+            kind: WorkflowEdgeKind::Dependency,
+        },
+        WorkflowEdge {
+            from: "vti-plan".into(),
+            to: "unit-tui".into(),
+            kind: WorkflowEdgeKind::Dependency,
+        },
+        WorkflowEdge {
+            from: "vti-plan".into(),
+            to: "unit-api".into(),
+            kind: WorkflowEdgeKind::Dependency,
+        },
+        WorkflowEdge {
+            from: "unit-tui".into(),
+            to: "integration".into(),
+            kind: WorkflowEdgeKind::Dependency,
+        },
+        WorkflowEdge {
+            from: "unit-api".into(),
+            to: "integration".into(),
+            kind: WorkflowEdgeKind::Dependency,
+        },
+        WorkflowEdge {
+            from: "integration".into(),
+            to: "merge-gate".into(),
+            kind: WorkflowEdgeKind::Dependency,
+        },
+        WorkflowEdge {
+            from: "clippy".into(),
+            to: "merge-gate".into(),
+            kind: WorkflowEdgeKind::Dependency,
+        },
+        WorkflowEdge {
+            from: "fmt".into(),
+            to: "merge-gate".into(),
+            kind: WorkflowEdgeKind::Dependency,
+        },
     ];
 
-    build_snapshot(nodes, edges, "Demo workflow", "selected", 0.92, WorkflowSource::Demo)
+    build_snapshot(
+        nodes,
+        edges,
+        "Demo workflow",
+        "selected",
+        0.92,
+        WorkflowSource::Demo,
+    )
 }
 
 #[cfg(test)]

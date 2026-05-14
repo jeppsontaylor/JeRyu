@@ -14,18 +14,13 @@ use crate::api::snapshot::{TestPlanView, TestSelection, ValidationDecision, VtiS
 use crate::tui::theme::Theme;
 
 /// Render the full VTI proof view — called from the Tests tab.
-pub fn render_vti_proof(
-    f: &mut Frame,
-    area: Rect,
-    plan: &TestPlanView,
-    theme: &Theme,
-) {
+pub fn render_vti_proof(f: &mut Frame, area: Rect, plan: &TestPlanView, theme: &Theme) {
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(5),   // Summary banner
-            Constraint::Length(6),   // Stats gauges
-            Constraint::Min(8),     // Test lists
+            Constraint::Length(5), // Summary banner
+            Constraint::Length(6), // Stats gauges
+            Constraint::Min(8),    // Test lists
         ])
         .split(area);
 
@@ -75,10 +70,7 @@ pub fn render_vti_proof(
                 theme.secondary(),
             ),
             if plan.global_invalidators_touched {
-                Span::styled(
-                    "  ⚠ GLOBAL INVALIDATOR TOUCHED",
-                    theme.bold(theme.warning),
-                )
+                Span::styled("  ⚠ GLOBAL INVALIDATOR TOUCHED", theme.bold(theme.warning))
             } else {
                 Span::raw("")
             },
@@ -110,29 +102,46 @@ pub fn render_vti_proof(
     let total_f = total.max(1) as f64;
 
     render_stat_tile(
-        f, gauge_cols[0],
-        "Selected", &format!("{}", plan.selected_tests.len()),
+        f,
+        gauge_cols[0],
+        "Selected",
+        &format!("{}", plan.selected_tests.len()),
         plan.selected_tests.len() as f64 / total_f,
-        theme.ok, theme,
+        theme.ok,
+        theme,
     );
     render_stat_tile(
-        f, gauge_cols[1],
-        "Skipped", &format!("{}", plan.skipped_tests.len()),
+        f,
+        gauge_cols[1],
+        "Skipped",
+        &format!("{}", plan.skipped_tests.len()),
         plan.skipped_tests.len() as f64 / total_f,
-        theme.skipped, theme,
+        theme.skipped,
+        theme,
     );
     render_stat_tile(
-        f, gauge_cols[2],
-        "🔥 Accelerated", &format!("{}", plan.accelerated_tests.len()),
+        f,
+        gauge_cols[2],
+        "🔥 Accelerated",
+        &format!("{}", plan.accelerated_tests.len()),
         plan.accelerated_tests.len() as f64 / total_f,
-        theme.vti_fire, theme,
+        theme.vti_fire,
+        theme,
     );
     render_stat_tile(
-        f, gauge_cols[3],
+        f,
+        gauge_cols[3],
         "Miss Rate",
-        &format!("24h:{} 7d:{}", plan.selector_misses_24h, plan.selector_misses_7d),
+        &format!(
+            "24h:{} 7d:{}",
+            plan.selector_misses_24h, plan.selector_misses_7d
+        ),
         plan.selector_misses_24h as f64 / 100.0,
-        if plan.selector_misses_24h > 5 { theme.fail } else { theme.ok },
+        if plan.selector_misses_24h > 5 {
+            theme.fail
+        } else {
+            theme.ok
+        },
         theme,
     );
 
@@ -147,37 +156,51 @@ pub fn render_vti_proof(
         .split(rows[2]);
 
     render_test_list(
-        f, list_cols[0],
-        "Selected Tests", &plan.selected_tests,
-        "[SEL]", theme.ok, theme,
+        f,
+        list_cols[0],
+        "Selected Tests",
+        &plan.selected_tests,
+        "[SEL]",
+        theme.ok,
+        theme,
     );
     render_test_list(
-        f, list_cols[1],
-        "Skipped Tests", &plan.skipped_tests,
-        "[SKIP]", theme.skipped, theme,
+        f,
+        list_cols[1],
+        "Skipped Tests",
+        &plan.skipped_tests,
+        "[SKIP]",
+        theme.skipped,
+        theme,
     );
     render_test_list(
-        f, list_cols[2],
-        "🔥 Accelerated", &plan.accelerated_tests,
-        "[🔥]", theme.vti_fire, theme,
+        f,
+        list_cols[2],
+        "🔥 Accelerated",
+        &plan.accelerated_tests,
+        "[🔥]",
+        theme.vti_fire,
+        theme,
     );
 }
 
 fn render_stat_tile(
-    f: &mut Frame, area: Rect,
-    title: &str, value: &str, ratio: f64,
-    color: Color, theme: &Theme,
+    f: &mut Frame,
+    area: Rect,
+    title: &str,
+    value: &str,
+    ratio: f64,
+    color: Color,
+    theme: &Theme,
 ) {
     let pct = (ratio * 100.0).min(100.0) as u16;
     let lines = vec![
+        Line::from(Span::styled(format!("  {}", value), theme.bold(color))),
         Line::from(Span::styled(
-            format!("  {}", value),
-            theme.bold(color),
-        )),
-        Line::from(Span::styled(
-            format!("  {}", crate::tui::widgets::sparkline::spark_str(
-                &[ratio * 100.0], 1,
-            )),
+            format!(
+                "  {}",
+                crate::tui::widgets::sparkline::spark_str(&[ratio * 100.0], 1,)
+            ),
             Style::default().fg(color),
         )),
     ];
@@ -193,9 +216,13 @@ fn render_stat_tile(
 }
 
 fn render_test_list(
-    f: &mut Frame, area: Rect,
-    title: &str, tests: &[TestSelection],
-    badge: &str, color: Color, theme: &Theme,
+    f: &mut Frame,
+    area: Rect,
+    title: &str,
+    tests: &[TestSelection],
+    badge: &str,
+    color: Color,
+    theme: &Theme,
 ) {
     let block = Block::default()
         .title(format!(" {} ({}) ", title, tests.len()))
@@ -205,10 +232,7 @@ fn render_test_list(
     f.render_widget(block, area);
 
     if tests.is_empty() {
-        f.render_widget(
-            Paragraph::new(Span::styled("  —", theme.muted())),
-            inner,
-        );
+        f.render_widget(Paragraph::new(Span::styled("  —", theme.muted())), inner);
         return;
     }
 
@@ -227,25 +251,18 @@ fn render_test_list(
                 None => String::new(),
             };
             Line::from(vec![
-                Span::styled(
-                    format!(" {} ", badge),
-                    theme.bold(color),
-                ),
+                Span::styled(format!(" {} ", badge), theme.bold(color)),
                 Span::styled(
                     super::truncate_label(&t.test_name, inner.width.saturating_sub(20) as usize),
                     theme.primary(),
                 ),
-                Span::styled(
-                    format!(" {}{}{}", conf, dur, flake),
-                    theme.muted(),
-                ),
+                Span::styled(format!(" {}{}{}", conf, dur, flake), theme.muted()),
             ])
         })
         .collect();
 
     f.render_widget(Paragraph::new(lines), inner);
 }
-
 
 #[cfg(test)]
 mod tests {

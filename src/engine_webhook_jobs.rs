@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::Deserialize;
 use tracing::{error, info};
 
-use super::super::{aux_secondary, check_scale_up, EngineState};
+use super::super::{EngineState, aux_secondary, check_scale_up};
 use crate::state::JobEvent;
 
 #[derive(Debug, Deserialize)]

@@ -4,10 +4,8 @@
 
 use super::app::App;
 use super::runtime::render::{cleanup_screenshot_terminal, parse_capture_tab, write_buffer_png};
-use super::runtime::{
-    input::{hydrate_smoke_state, run_loop},
-    maintenance::cache_maintenance_loop,
-};
+use super::runtime::{input::{hydrate_smoke_state, run_loop}, maintenance::cache_maintenance_loop};
+use crate::tui::flow::collect_once;
 use crate::state::TuiSession;
 use anyhow::Result;
 use ratatui::{Terminal, backend::CrosstermBackend};
@@ -65,6 +63,7 @@ pub async fn run_tui_once(
 
     let mut app = App::new(store, docker_ctl, client);
     hydrate_smoke_state(&mut app).await;
+    seed_live_flow_snapshot(&mut app).await;
 
     let backend = TestBackend::new(120, 40);
     let mut terminal = Terminal::new(backend)?;
@@ -124,6 +123,7 @@ pub async fn capture_tui_png(
     let mut app = App::new(store, docker_ctl, client);
     app.active_tab = parse_capture_tab(tab)?;
     hydrate_smoke_state(&mut app).await;
+    seed_live_flow_snapshot(&mut app).await;
 
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend)?;
@@ -136,4 +136,10 @@ pub async fn capture_tui_png(
     }
     write_buffer_png(terminal.backend().buffer(), output)?;
     Ok(())
+}
+
+async fn seed_live_flow_snapshot(app: &mut App) {
+    let flow_snap = collect_once(&app.store, &app.docker, &app.gitlab).await;
+    let _ = app.flow_tx.send(flow_snap).await;
+    app.tick().await;
 }

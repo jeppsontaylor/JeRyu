@@ -3,7 +3,7 @@
 //! Invariants: Widget rendering is pure over the supplied graph and selected node.
 
 use super::model::{FlowColumnKind, FlowGraph};
-use crate::api::snapshot::{EdgeKind, VtiStatus, CacheVerdict};
+use crate::api::snapshot::{CacheVerdict, EdgeKind, VtiStatus};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -118,7 +118,9 @@ impl<'a> Widget for FlowGraphWidget<'a> {
                             "success" => Color::Green,
                             "running" => Color::Blue,
                             "failed" => Color::Red,
-                            "pending" | "created" => Color::Yellow,
+                            "pending" | "created" | "waiting_for_resource" | "preparing" => {
+                                Color::Yellow
+                            }
                             "canceled" => Color::DarkGray,
                             _ => Color::Gray,
                         };
@@ -127,7 +129,9 @@ impl<'a> Widget for FlowGraphWidget<'a> {
                             "success" => "✓",
                             "running" => "●",
                             "failed" => "✗",
-                            "pending" | "created" => "○",
+                            "pending" | "created" | "waiting_for_resource" | "preparing" => {
+                                "○"
+                            }
                             "canceled" => "⊘",
                             _ => "◇",
                         };
@@ -199,7 +203,9 @@ fn build_badges(node: &super::model::FlowNode) -> String {
     // VTI badges
     if let Some(ref vti) = node.vti_status {
         match vti {
-            VtiStatus::Accelerated { time_saved_secs, .. } => {
+            VtiStatus::Accelerated {
+                time_saved_secs, ..
+            } => {
                 parts.push("[🔥 VTI]");
                 if *time_saved_secs > 0 {
                     // We can't push a formatted string into &str vec, so just the badge
@@ -248,10 +254,12 @@ fn badge_style_for(node: &super::model::FlowNode) -> Style {
             VtiStatus::Accelerated { .. } => {
                 return Style::default()
                     .fg(Color::Rgb(255, 165, 0)) // fire orange
-                    .add_modifier(Modifier::BOLD)
+                    .add_modifier(Modifier::BOLD);
             }
             VtiStatus::Skipped { .. } => {
-                return Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)
+                return Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::BOLD);
             }
             _ => {}
         }

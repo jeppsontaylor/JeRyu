@@ -25,7 +25,7 @@ pub fn draw_inspector(
             "success" => Color::Green,
             "running" => Color::Blue,
             "failed" => Color::Red,
-            "pending" | "created" => Color::Yellow,
+            "pending" | "created" | "waiting_for_resource" | "preparing" => Color::Yellow,
             "canceled" => Color::DarkGray,
             _ => Color::Gray,
         };
@@ -41,9 +41,7 @@ pub fn draw_inspector(
                 Span::styled("  Status: ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
                     &n.status,
-                    Style::default()
-                        .fg(color)
-                        .add_modifier(Modifier::BOLD),
+                    Style::default().fg(color).add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
                     format!("  {}%", n.progress_pct),
@@ -60,15 +58,9 @@ pub fn draw_inspector(
             ]),
             Line::from(vec![
                 Span::styled("  Phase:  ", Style::default().fg(Color::DarkGray)),
-                Span::styled(
-                    format!("{:?}", n.column),
-                    Style::default().fg(Color::Cyan),
-                ),
+                Span::styled(format!("{:?}", n.column), Style::default().fg(Color::Cyan)),
                 Span::styled("  Lane: ", Style::default().fg(Color::DarkGray)),
-                Span::styled(
-                    format!("{:?}", n.lane),
-                    Style::default().fg(Color::Cyan),
-                ),
+                Span::styled(format!("{:?}", n.lane), Style::default().fg(Color::Cyan)),
             ]),
             Line::from(vec![
                 Span::styled("  Flags:  ", Style::default().fg(Color::DarkGray)),
@@ -88,7 +80,10 @@ pub fn draw_inspector(
         // VTI status line
         if let Some(ref vti) = n.vti_status {
             let (vti_label, vti_color) = match vti {
-                VtiStatus::Accelerated { reason, time_saved_secs } => (
+                VtiStatus::Accelerated {
+                    reason,
+                    time_saved_secs,
+                } => (
                     format!("🔥 Accelerated — saved {}s — {}", time_saved_secs, reason),
                     Color::Rgb(255, 165, 0),
                 ),
@@ -100,10 +95,7 @@ pub fn draw_inspector(
                     format!("✓ Selected (conf {:.0}%) — {}", confidence * 100.0, reason),
                     Color::Green,
                 ),
-                VtiStatus::FullSuite => (
-                    "Full suite (no VTI filtering)".to_string(),
-                    Color::Gray,
-                ),
+                VtiStatus::FullSuite => ("Full suite (no VTI filtering)".to_string(), Color::Gray),
             };
             lines.push(Line::from(vec![
                 Span::styled("  VTI:    ", Style::default().fg(Color::DarkGray)),
@@ -117,19 +109,12 @@ pub fn draw_inspector(
         // Cache verdict line
         if let Some(ref cache) = n.cache_verdict {
             let (cache_label, cache_color) = match cache {
-                CacheVerdict::Hit { trust } => (
-                    format!("HIT (trust: {:?})", trust),
-                    Color::Green,
-                ),
+                CacheVerdict::Hit { trust } => (format!("HIT (trust: {:?})", trust), Color::Green),
                 CacheVerdict::Miss => ("MISS".to_string(), Color::Yellow),
-                CacheVerdict::Tainted { reason } => (
-                    format!("TAINTED — {}", reason),
-                    Color::Magenta,
-                ),
-                CacheVerdict::Denied { reason } => (
-                    format!("DENIED — {}", reason),
-                    Color::Red,
-                ),
+                CacheVerdict::Tainted { reason } => {
+                    (format!("TAINTED — {}", reason), Color::Magenta)
+                }
+                CacheVerdict::Denied { reason } => (format!("DENIED — {}", reason), Color::Red),
             };
             lines.push(Line::from(vec![
                 Span::styled("  Cache:  ", Style::default().fg(Color::DarkGray)),

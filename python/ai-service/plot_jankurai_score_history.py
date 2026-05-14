@@ -36,17 +36,13 @@ class ScorePoint:
 
 
 def _short_commit(commit: str) -> str:
-    commit = commit.strip()
-    return commit[:7] if len(commit) > 7 else commit
+    return commit.strip()[:7]
 
 
 def _normalize_record(record: dict, source: str) -> ScorePoint:
-    commit = (
-        str(record.get("commit") or record.get("git", {}).get("head") or "").strip()
-    )
+    commit = str(record.get("commit") or record.get("git", {}).get("head") or "").strip()
     if not commit:
         raise ValueError(f"missing commit in {source}")
-
     generated_at = int(record["generated_at"])
     score = float(record["score"])
     run_id = str(record.get("run_id") or generated_at)
@@ -116,7 +112,6 @@ def build_plot(points: list[ScorePoint], output: Path, dpi: int) -> None:
     for point in points:
         if point.commit not in commits:
             commits.append(point.commit)
-
     palette = [
         "#64748b",  # slate
         "#0f766e",  # teal
@@ -126,7 +121,6 @@ def build_plot(points: list[ScorePoint], output: Path, dpi: int) -> None:
         "#b91c1c",  # red
     ]
     commit_colors = {commit: palette[i % len(palette)] for i, commit in enumerate(commits)}
-
     scores = [point.score for point in points]
     y_min = max(0, int(min(scores)) - 4)
     y_max = min(100, int(max(scores)) + 4)
@@ -155,11 +149,10 @@ def build_plot(points: list[ScorePoint], output: Path, dpi: int) -> None:
     ax.set_title("jankurai score history across audit runs", loc="left", pad=12)
 
     times = [point.when for point in points]
-    line_color = "#334155"
     ax.plot(
         times,
         scores,
-        color=line_color,
+        color="#334155",
         linewidth=2.8,
         alpha=0.85,
         zorder=1,
@@ -206,8 +199,6 @@ def build_plot(points: list[ScorePoint], output: Path, dpi: int) -> None:
             },
         )
 
-    # Label the first point of each commit so the commit transitions are visible
-    # without cluttering the chart.
     seen_commit_label: set[str] = set()
     for point in points:
         if point.commit in seen_commit_label:
@@ -343,7 +334,6 @@ def main() -> int:
         help="extra history file to include; may be passed multiple times",
     )
     args = parser.parse_args()
-
     inputs = list(DEFAULT_INPUTS)
     if args.inputs:
         inputs.extend(args.inputs)

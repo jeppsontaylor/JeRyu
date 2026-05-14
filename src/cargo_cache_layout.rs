@@ -4,7 +4,9 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use crate::cargo_cache::{current_rustc_toolchain, sanitize_segment, usable_sccache_binary, LEASES_DIR_NAME};
+use crate::cargo_cache::{
+    LEASES_DIR_NAME, current_rustc_toolchain, sanitize_segment, usable_sccache_binary,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CargoToolchainKey {

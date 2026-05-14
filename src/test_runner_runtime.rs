@@ -8,7 +8,7 @@ use tokio::time::sleep;
 use tracing::info;
 
 use crate::gitlab_client::GitlabClient;
-use crate::test_runner::{render_ephemeral_ci_yaml, TestRunOpts, TestRunResult};
+use crate::test_runner::{TestRunOpts, TestRunResult, render_ephemeral_ci_yaml};
 
 /// Run a single test command via a dynamic CI pipeline.
 ///

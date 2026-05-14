@@ -12,16 +12,14 @@ use serde::de::DeserializeOwned;
 
 #[path = "gitlab_client_types.rs"]
 mod gitlab_client_types;
-pub use gitlab_client_types::{
-    Job, JobRunner, Issue, MergeRequest, Pipeline, PipelineBridge, PipelineRef,
-    PipelineVariable, PipelineVariableValue, Project, ProjectPatResp, RunnerCreated,
-    RunnerManager,
-};
 use gitlab_client_types::{
-    CommitAction, CreateBranchReq, CreateCommitReq, CreateCommitResp, CreateIssueReq,
-    CreateMrReq, CreatePipelineReq, CreateProjectPatReq, CreateProjectReq, CreateRunnerReq,
-    CreateWebhookReq, NoteReq, PipelineResp, ResetTokenResp, SetPausedReq, UpdateLabelsReq,
-    WebhookResp,
+    CommitAction, CreateBranchReq, CreateCommitReq, CreateCommitResp, CreateIssueReq, CreateMrReq,
+    CreatePipelineReq, CreateProjectPatReq, CreateProjectReq, CreateRunnerReq, CreateWebhookReq,
+    NoteReq, PipelineResp, ResetTokenResp, SetPausedReq, UpdateLabelsReq, WebhookResp,
+};
+pub use gitlab_client_types::{
+    Issue, Job, JobRunner, MergeRequest, Pipeline, PipelineBridge, PipelineRef, PipelineVariable,
+    PipelineVariableValue, Project, ProjectPatResp, RunnerCreated, RunnerManager,
 };
 
 #[path = "gitlab_client_branches.rs"]

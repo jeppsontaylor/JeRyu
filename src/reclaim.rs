@@ -9,7 +9,7 @@ use tracing::{info, warn};
 #[path = "reclaim_support.rs"]
 mod reclaim_support;
 
-pub use reclaim_support::{gc_orphaned_workers, mem_available_gb, run_auto_gc, AutoGcReport};
+pub use reclaim_support::{AutoGcReport, gc_orphaned_workers, mem_available_gb, run_auto_gc};
 
 pub fn live_registry_gc_enabled() -> bool {
     false

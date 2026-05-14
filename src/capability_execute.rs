@@ -251,14 +251,13 @@ pub(crate) async fn request_merge(
     target_branch: String,
     client: &crate::gitlab_client::GitlabClient,
 ) -> CapabilityResponse {
-    match client
-        .accept_merge_request(project_id, mr_iid)
-        .await
-    {
+    match client.accept_merge_request(project_id, mr_iid).await {
         Ok(_) => CapabilityResponse {
             success: true,
             message: format!("merge request !{} requested", mr_iid),
-            data: Some(serde_json::json!({"mr_iid": mr_iid, "source_branch": source_branch, "target_branch": target_branch})),
+            data: Some(
+                serde_json::json!({"mr_iid": mr_iid, "source_branch": source_branch, "target_branch": target_branch}),
+            ),
         },
         Err(e) => err(&format!("request_merge: {}", e)),
     }

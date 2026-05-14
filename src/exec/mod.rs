@@ -6,13 +6,14 @@
 //! as `executor = "custom"`. It handles the lifecycle of the actual job execution:
 //! configuration, provisioning the sandbox, running the user script, and cleaning up.
 
-mod support;
-mod stage;
 mod cleanup;
+mod stage;
+mod stage_cache;
+mod support;
 
-pub use support::*;
-pub use stage::*;
 pub use cleanup::*;
+pub use stage::*;
+pub use support::*;
 
 use anyhow::Result;
 use std::path::{Component, Path};

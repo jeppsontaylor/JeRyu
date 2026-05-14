@@ -97,7 +97,7 @@ pub(crate) fn start_background_sync(app: &App) {
             let running_jobs = match store_feed.recent_job_events(50).await {
                 Ok(jobs) => jobs
                     .into_iter()
-                    .filter(|j| j.status == "running")
+                    .filter(|j| crate::tui::live::is_live_job_status(j.status.as_str()))
                     .take(5)
                     .collect::<Vec<_>>(),
                 Err(_) => Vec::new(),

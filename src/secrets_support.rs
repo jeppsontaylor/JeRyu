@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-use super::{config, SecretError, VaultBootstrapMaterial, VaultEnv};
+use super::{SecretError, VaultBootstrapMaterial, VaultEnv, config};
 
 pub(super) fn random_alnum(len: usize) -> String {
     const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -242,4 +242,3 @@ pub(super) async fn unseal_vault(client: &Client, addr: &str, key: &str) -> Resu
     }
     Ok(())
 }
-

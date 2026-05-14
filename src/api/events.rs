@@ -308,6 +308,9 @@ mod tests {
             TuiEventKind::AgentRaceWinnerSelected.label(),
             "agent.race.winner"
         );
-        assert_eq!(TuiEventKind::TestVtiAccelerated.label(), "test.vti.accelerated");
+        assert_eq!(
+            TuiEventKind::TestVtiAccelerated.label(),
+            "test.vti.accelerated"
+        );
     }
 }

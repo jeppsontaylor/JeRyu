@@ -100,9 +100,7 @@ fn exec_run_rejects_absolute_or_traversal_script_paths() {
     assert!(
         Cli::try_parse_from(["jeryu", "exec", "run", "/tmp/build.sh", "build_script"]).is_err()
     );
-    assert!(
-        Cli::try_parse_from(["jeryu", "exec", "run", "../build.sh", "build_script"]).is_err()
-    );
+    assert!(Cli::try_parse_from(["jeryu", "exec", "run", "../build.sh", "build_script"]).is_err());
 }
 
 #[test]

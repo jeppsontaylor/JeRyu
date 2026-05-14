@@ -176,7 +176,10 @@ pub struct WorkflowSummary {
 impl WorkflowSummary {
     /// Build summary from node statuses.
     pub fn from_nodes(nodes: &[WorkflowNode]) -> Self {
-        let mut s = Self { total: nodes.len() as u32, ..Default::default() };
+        let mut s = Self {
+            total: nodes.len() as u32,
+            ..Default::default()
+        };
         for n in nodes {
             match n.status {
                 WorkflowStatus::Ran => s.passed += 1,
@@ -192,7 +195,9 @@ impl WorkflowSummary {
         let terminal = s.passed + s.error + s.skipped + s.cached;
         s.overall_pct = if s.total > 0 {
             (terminal as f64 / s.total as f64) * 100.0
-        } else { 0.0 };
+        } else {
+            0.0
+        };
         s
     }
 }
@@ -228,10 +233,17 @@ impl WorkflowSnapshot {
     /// Create an empty snapshot with no active workflow data.
     pub fn empty() -> Self {
         Self {
-            generated_at: Utc::now(), title: "No active workflow".into(),
-            source: WorkflowSource::Demo, mode: "none".into(), confidence: 0.0,
-            nodes: Vec::new(), edges: Vec::new(), phases: Vec::new(),
-            summary: WorkflowSummary::default(), selected_node_id: None, outdated: false,
+            generated_at: Utc::now(),
+            title: "No active workflow".into(),
+            source: WorkflowSource::Demo,
+            mode: "none".into(),
+            confidence: 0.0,
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            phases: Vec::new(),
+            summary: WorkflowSummary::default(),
+            selected_node_id: None,
+            outdated: false,
         }
     }
 
@@ -255,9 +267,16 @@ mod tests {
 
     #[test]
     fn status_labels_unique() {
-        let all = [WorkflowStatus::Waiting, WorkflowStatus::Running, WorkflowStatus::Ran,
-            WorkflowStatus::Error, WorkflowStatus::Skipped, WorkflowStatus::Cached,
-            WorkflowStatus::Blocked, WorkflowStatus::Unknown];
+        let all = [
+            WorkflowStatus::Waiting,
+            WorkflowStatus::Running,
+            WorkflowStatus::Ran,
+            WorkflowStatus::Error,
+            WorkflowStatus::Skipped,
+            WorkflowStatus::Cached,
+            WorkflowStatus::Blocked,
+            WorkflowStatus::Unknown,
+        ];
         let labels: Vec<_> = all.iter().map(|s| s.label()).collect();
         let unique: std::collections::HashSet<_> = labels.iter().collect();
         assert_eq!(labels.len(), unique.len());
@@ -273,10 +292,22 @@ mod tests {
     #[test]
     fn summary_from_nodes() {
         let nodes = vec![
-            WorkflowNode { status: WorkflowStatus::Ran, ..Default::default() },
-            WorkflowNode { status: WorkflowStatus::Running, ..Default::default() },
-            WorkflowNode { status: WorkflowStatus::Waiting, ..Default::default() },
-            WorkflowNode { status: WorkflowStatus::Error, ..Default::default() },
+            WorkflowNode {
+                status: WorkflowStatus::Ran,
+                ..Default::default()
+            },
+            WorkflowNode {
+                status: WorkflowStatus::Running,
+                ..Default::default()
+            },
+            WorkflowNode {
+                status: WorkflowStatus::Waiting,
+                ..Default::default()
+            },
+            WorkflowNode {
+                status: WorkflowStatus::Error,
+                ..Default::default()
+            },
         ];
         let s = WorkflowSummary::from_nodes(&nodes);
         assert_eq!(s.total, 4);
@@ -294,7 +325,10 @@ mod tests {
     #[test]
     fn node_lookup() {
         let mut snap = WorkflowSnapshot::empty();
-        snap.nodes.push(WorkflowNode { id: "x".into(), ..Default::default() });
+        snap.nodes.push(WorkflowNode {
+            id: "x".into(),
+            ..Default::default()
+        });
         assert!(snap.node("x").is_some());
         assert!(snap.node("y").is_none());
     }

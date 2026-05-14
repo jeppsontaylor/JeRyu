@@ -21,28 +21,45 @@ pub struct Badge {
 pub fn badge_for_status(status: &str, theme: &Theme) -> Badge {
     match status {
         "success" | "passed" | "green" | "released" => Badge {
-            glyph: "✓", label: "PASS", color: theme.ok,
+            glyph: "✓",
+            label: "PASS",
+            color: theme.ok,
         },
         "running" | "in-flight" | "canary-authorized" => Badge {
-            glyph: "●", label: "RUN", color: theme.running,
+            glyph: "●",
+            label: "RUN",
+            color: theme.running,
         },
-        "pending" | "created" | "waiting" | "ready-for-canary" => Badge {
-            glyph: "○", label: "WAIT", color: theme.waiting,
+        "pending" | "created" | "waiting" | "waiting_for_resource" | "preparing"
+        | "ready-for-canary" => Badge {
+            glyph: "○",
+            label: "WAIT",
+            color: theme.waiting,
         },
         "failed" => Badge {
-            glyph: "✗", label: "FAIL", color: theme.fail,
+            glyph: "✗",
+            label: "FAIL",
+            color: theme.fail,
         },
         "blocked" | "blocked-by-upstream" => Badge {
-            glyph: "⊘", label: "BLOCK", color: theme.blocked,
+            glyph: "⊘",
+            label: "BLOCK",
+            color: theme.blocked,
         },
         "canceled" | "vti-skipped" | "skipped" | "omitted" => Badge {
-            glyph: "⊘", label: "SKIP", color: theme.skipped,
+            glyph: "⊘",
+            label: "SKIP",
+            color: theme.skipped,
         },
         "manual" => Badge {
-            glyph: "◇", label: "MANUAL", color: theme.waiting,
+            glyph: "◇",
+            label: "MANUAL",
+            color: theme.waiting,
         },
         _ => Badge {
-            glyph: "·", label: "INFO", color: theme.text_muted,
+            glyph: "·",
+            label: "INFO",
+            color: theme.text_muted,
         },
     }
 }
@@ -52,9 +69,7 @@ pub fn badge_span(status: &str, theme: &Theme) -> Span<'static> {
     let b = badge_for_status(status, theme);
     Span::styled(
         format!("[{}]", b.label),
-        Style::default()
-            .fg(b.color)
-            .add_modifier(Modifier::BOLD),
+        Style::default().fg(b.color).add_modifier(Modifier::BOLD),
     )
 }
 
@@ -77,7 +92,9 @@ pub fn vti_accelerated_badge(theme: &Theme) -> Span<'static> {
 pub fn vti_skipped_badge(theme: &Theme) -> Span<'static> {
     Span::styled(
         "[SKIP]",
-        Style::default().fg(theme.skipped).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(theme.skipped)
+            .add_modifier(Modifier::BOLD),
     )
 }
 

@@ -14,12 +14,7 @@ use super::model::*;
 use crate::tui::theme::Theme;
 
 /// Draw the full workflow tab: summary banner + phase rows.
-pub fn draw_workflow_tab(
-    f: &mut Frame,
-    area: Rect,
-    snapshot: &WorkflowSnapshot,
-    theme: &Theme,
-) {
+pub fn draw_workflow_tab(f: &mut Frame, area: Rect, snapshot: &WorkflowSnapshot, theme: &Theme) {
     if snapshot.phases.is_empty() {
         draw_empty_state(f, area, snapshot, theme);
         return;
@@ -98,10 +93,7 @@ fn draw_summary_banner(f: &mut Frame, area: Rect, snap: &WorkflowSnapshot, theme
                     .bg(overall_color)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::styled(
-                format!("  mode:{} ", snap.mode),
-                theme.secondary(),
-            ),
+            Span::styled(format!("  mode:{} ", snap.mode), theme.secondary()),
             Span::styled(
                 format!("conf:{:.0}% ", snap.confidence * 100.0),
                 theme.bold(theme.ok),
@@ -141,7 +133,11 @@ fn draw_summary_banner(f: &mut Frame, area: Rect, snap: &WorkflowSnapshot, theme
 fn status_count<'a>(glyph: &str, count: u32, color: Color, theme: &Theme) -> Span<'a> {
     Span::styled(
         format!("{} {}", glyph, count),
-        if count > 0 { theme.bold(color) } else { theme.muted() },
+        if count > 0 {
+            theme.bold(color)
+        } else {
+            theme.muted()
+        },
     )
 }
 
@@ -190,7 +186,9 @@ fn draw_node_card(
     let status_color = node_color(node.status, theme);
 
     let border_style = if is_selected {
-        Style::default().fg(theme.border_accent).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(theme.border_accent)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(status_color)
     };
@@ -217,7 +215,10 @@ fn draw_node_card(
     // Command line
     if let Some(cmd) = &node.command {
         lines.push(Line::from(Span::styled(
-            format!("  {}", crate::tui::widgets::truncate_label(cmd, area.width.saturating_sub(4) as usize)),
+            format!(
+                "  {}",
+                crate::tui::widgets::truncate_label(cmd, area.width.saturating_sub(4) as usize)
+            ),
             theme.muted(),
         )));
     }
@@ -237,16 +238,10 @@ fn draw_node_card(
         ));
     }
     if let Some(pct) = node.progress_pct {
-        badge_spans.push(Span::styled(
-            format!("{}%", pct),
-            theme.bold(status_color),
-        ));
+        badge_spans.push(Span::styled(format!("{}%", pct), theme.bold(status_color)));
     }
     if let Some(eta) = node.eta_secs {
-        badge_spans.push(Span::styled(
-            format!(" eta:{}s", eta),
-            theme.muted(),
-        ));
+        badge_spans.push(Span::styled(format!(" eta:{}s", eta), theme.muted()));
     }
     if badge_spans.len() > 1 {
         lines.push(Line::from(badge_spans));
@@ -286,10 +281,14 @@ mod tests {
         let theme = Theme::dark();
         // Ensure every status maps without panic.
         for s in &[
-            WorkflowStatus::Waiting, WorkflowStatus::Running,
-            WorkflowStatus::Ran, WorkflowStatus::Error,
-            WorkflowStatus::Skipped, WorkflowStatus::Cached,
-            WorkflowStatus::Blocked, WorkflowStatus::Unknown,
+            WorkflowStatus::Waiting,
+            WorkflowStatus::Running,
+            WorkflowStatus::Ran,
+            WorkflowStatus::Error,
+            WorkflowStatus::Skipped,
+            WorkflowStatus::Cached,
+            WorkflowStatus::Blocked,
+            WorkflowStatus::Unknown,
         ] {
             let _ = node_color(*s, &theme);
         }

@@ -9,7 +9,9 @@ fn workspace_path(parts: &[&str]) -> PathBuf {
 }
 
 fn cache_path(parts: &[&str]) -> PathBuf {
-    parts.iter().fold(cache_root_dir(), |path, part| path.join(part))
+    parts
+        .iter()
+        .fold(cache_root_dir(), |path, part| path.join(part))
 }
 
 /// Root data directory for jeryu state on the host.

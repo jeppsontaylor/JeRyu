@@ -14,8 +14,8 @@
 //! Agent tasks are tracked as GitLab Issues with labels:
 //!   agent:pending, agent:running, agent:done, agent:failed
 
-use anyhow::{Context, Result};
 use crate::gitlab_client::{GitlabClient, Issue, ProjectPatResp};
+use anyhow::{Context, Result};
 
 // ---------------------------------------------------------------------------
 // Agent definition
@@ -156,6 +156,11 @@ pub(crate) fn build_agent_task(
 mod runtime;
 
 pub use runtime::*;
+
+#[path = "agent_ops.rs"]
+mod ops;
+
+pub use ops::*;
 
 #[cfg(test)]
 mod tests {

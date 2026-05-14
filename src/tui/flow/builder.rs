@@ -5,6 +5,7 @@
 use super::model::{
     BackendRef, FlowColumn, FlowColumnKind, FlowEdge, FlowGraph, FlowNode, LaneGroup, LaneKind,
 };
+use crate::tui::live::{is_live_job_status, is_terminal_job_status};
 use crate::state::JobEvent;
 use std::collections::{BTreeMap, HashMap};
 
@@ -89,7 +90,7 @@ pub fn build_graph(pipeline_id: i64, jobs: Vec<JobEvent>) -> FlowGraph {
         let column = classify_column(&name);
         let lane = classify_lane(&name);
 
-        let active = job.status == "running" || job.status == "pending" || job.status == "created";
+        let active = is_live_job_status(job.status.as_str());
         let mut elapsed_secs = 0;
         if let Ok(st) = chrono::DateTime::parse_from_rfc3339(&job.received_at) {
             elapsed_secs = now.signed_duration_since(st).num_seconds();
@@ -102,9 +103,9 @@ pub fn build_graph(pipeline_id: i64, jobs: Vec<JobEvent>) -> FlowGraph {
         };
 
         let progress_pct = match job.status.as_str() {
-            "success" => 100,
+            "success" | "skipped" => 100,
             "failed" | "canceled" => 50,
-            "running" => {
+            "running" | "pending" | "created" | "waiting_for_resource" | "preparing" => {
                 if let Some(ref e) = eta {
                     let total = e.remaining_secs + elapsed_secs;
                     if total > 0 {
@@ -116,6 +117,7 @@ pub fn build_graph(pipeline_id: i64, jobs: Vec<JobEvent>) -> FlowGraph {
                     ((elapsed_secs as f64 / 120.0) * 100.0).min(99.0) as u16
                 }
             }
+            _ if is_terminal_job_status(job.status.as_str()) => 100,
             _ => 0,
         };
 
@@ -217,7 +219,11 @@ pub fn build_graph(pipeline_id: i64, jobs: Vec<JobEvent>) -> FlowGraph {
             .collect();
         for &from in &from_ids {
             for &to in &to_ids {
-                edges.push(FlowEdge { from, to, kind: crate::api::snapshot::EdgeKind::StageOrder });
+                edges.push(FlowEdge {
+                    from,
+                    to,
+                    kind: crate::api::snapshot::EdgeKind::StageOrder,
+                });
             }
         }
     }

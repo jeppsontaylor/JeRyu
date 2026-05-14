@@ -174,7 +174,11 @@ fn action_context_types(action_id: &str) -> Vec<EntityKind> {
         "fetch_capsule" => vec![EntityKind::Job, EntityKind::EvidenceCapsule],
         "propose_patch" | "race_patches" => vec![EntityKind::MergeRequest, EntityKind::AgentTask],
         "request_merge" => vec![EntityKind::MergeRequest],
-        "run_tests" => vec![EntityKind::MergeRequest, EntityKind::Pipeline, EntityKind::AgentTask],
+        "run_tests" => vec![
+            EntityKind::MergeRequest,
+            EntityKind::Pipeline,
+            EntityKind::AgentTask,
+        ],
         "plan_validation" => vec![EntityKind::TestPlan, EntityKind::MergeRequest],
         "next_action" | "get_system_snapshot" => vec![EntityKind::System],
         // Tab navigation and UI actions apply everywhere
@@ -196,7 +200,10 @@ mod tests {
         let ids: Vec<_> = actions.iter().map(|a| a.action_id).collect();
         assert!(ids.contains(&"open_logs"), "missing open_logs");
         assert!(ids.contains(&"requeue_job"), "missing requeue_job");
-        assert!(ids.contains(&"explain_blockers"), "missing explain_blockers");
+        assert!(
+            ids.contains(&"explain_blockers"),
+            "missing explain_blockers"
+        );
     }
 
     #[test]
@@ -205,7 +212,10 @@ mod tests {
         let actions = actions_for_entity(&entity);
         let ids: Vec<_> = actions.iter().map(|a| a.action_id).collect();
         assert!(ids.contains(&"pause_pool"), "missing pause_pool");
-        assert!(!ids.contains(&"requeue_job"), "requeue_job should not apply to pool");
+        assert!(
+            !ids.contains(&"requeue_job"),
+            "requeue_job should not apply to pool"
+        );
     }
 
     #[test]

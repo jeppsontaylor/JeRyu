@@ -30,12 +30,9 @@ impl DockerCtl {
     pub fn disconnected() -> Self {
         // Use a non-routable HTTP endpoint. The client constructs fine; actual Docker
         // API calls would error, which is acceptable for demo-only rendering.
-        let docker = Docker::connect_with_http(
-            "http://127.0.0.1:1",
-            120,
-            bollard::API_DEFAULT_VERSION,
-        )
-        .expect("http Docker client");
+        let docker =
+            Docker::connect_with_http("http://127.0.0.1:1", 120, bollard::API_DEFAULT_VERSION)
+                .expect("http Docker client");
         Self { docker }
     }
 }

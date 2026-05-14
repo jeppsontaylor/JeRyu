@@ -17,10 +17,16 @@ pub mod vti_proof;
 /// Shared text truncation for widget labels.
 /// Truncates to `max` characters with a trailing ellipsis if needed.
 pub fn truncate_label(s: &str, max: usize) -> String {
-    if max == 0 { return String::new(); }
-    if s.len() <= max { s.to_string() }
-    else if max > 1 { format!("{}…", &s[..max - 1]) }
-    else { s[..max].to_string() }
+    if max == 0 {
+        return String::new();
+    }
+    if s.len() <= max {
+        s.to_string()
+    } else if max > 1 {
+        format!("{}…", &s[..max - 1])
+    } else {
+        s[..max].to_string()
+    }
 }
 
 #[cfg(test)]

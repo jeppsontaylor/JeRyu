@@ -1,4 +1,4 @@
-use crate::test_runner::{plan_test_run, render_ephemeral_ci_yaml, TestRunOpts};
+use crate::test_runner::{TestRunOpts, plan_test_run, render_ephemeral_ci_yaml};
 
 #[test]
 fn infers_build_routing_for_deploy_commands() {

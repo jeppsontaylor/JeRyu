@@ -37,8 +37,8 @@
 
 pub mod admission;
 pub mod agent;
-pub mod api;
 pub mod agent_surface;
+pub mod api;
 pub mod bootstrap;
 pub mod buildkit;
 pub mod cache;

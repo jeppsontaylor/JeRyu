@@ -21,7 +21,11 @@ pub(crate) fn module_entries(root: &Path) -> Result<Vec<AgentIndexEntry>> {
     Ok(entries)
 }
 
-pub(crate) fn build_entry(root: &Path, path: &Path, proof: &ProofLanesFile) -> Result<AgentIndexEntry> {
+pub(crate) fn build_entry(
+    root: &Path,
+    path: &Path,
+    proof: &ProofLanesFile,
+) -> Result<AgentIndexEntry> {
     let content = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let rel_path = rel(root, path);
     let default_change_type = module_change_type(&rel_path, proof);
@@ -109,14 +113,20 @@ pub(crate) fn header_value_or_empty(content: &str, label: &str) -> String {
     }
 }
 
-pub(crate) fn proof_lanes_for_change_type(proof: &ProofLanesFile, default_change_type: &str) -> Vec<String> {
+pub(crate) fn proof_lanes_for_change_type(
+    proof: &ProofLanesFile,
+    default_change_type: &str,
+) -> Vec<String> {
     match proof.change_type.get(default_change_type) {
         Some(value) => value.lanes.clone(),
         None => Vec::new(),
     }
 }
 
-pub(crate) fn proof_commands_for_lanes(proof: &ProofLanesFile, proof_lanes: &[String]) -> Vec<String> {
+pub(crate) fn proof_commands_for_lanes(
+    proof: &ProofLanesFile,
+    proof_lanes: &[String],
+) -> Vec<String> {
     let mut commands = Vec::with_capacity(proof_lanes.len());
     for lane in proof_lanes {
         if let Some(value) = proof.lane.get(lane) {
@@ -126,7 +136,11 @@ pub(crate) fn proof_commands_for_lanes(proof: &ProofLanesFile, proof_lanes: &[St
     commands
 }
 
-pub(crate) fn check_sections(path: &Path, required: &[&str], issues: &mut Vec<AuditIssue>) -> Result<bool> {
+pub(crate) fn check_sections(
+    path: &Path,
+    required: &[&str],
+    issues: &mut Vec<AuditIssue>,
+) -> Result<bool> {
     let body = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     let mut ok = true;
     for section in required {

@@ -36,34 +36,35 @@ pub fn render_inspector(f: &mut Frame, area: Rect, detail: &EntityDetail, theme:
     let sections = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(4),  // What: state + summary
-            Constraint::Length(4),  // Why: blockers
-            Constraint::Length(4),  // Proof: evidence
-            Constraint::Length(4),  // Actions
+            Constraint::Length(4), // What: state + summary
+            Constraint::Length(4), // Why: blockers
+            Constraint::Length(4), // Proof: evidence
+            Constraint::Length(4), // Actions
             Constraint::Min(1),    // Related
         ])
         .split(inner);
 
     // ── What ────────────────────────────────────────────────────────
-    let mut what_lines = vec![
-        Line::from(vec![
-            Span::styled("  State: ", theme.muted()),
-            Span::styled(
-                &detail.state,
-                theme.bold(theme.status_color(&detail.state)),
-            ),
-        ]),
-    ];
+    let mut what_lines = vec![Line::from(vec![
+        Span::styled("  State: ", theme.muted()),
+        Span::styled(&detail.state, theme.bold(theme.status_color(&detail.state))),
+    ])];
     if !detail.summary.is_empty() {
         what_lines.push(Line::from(vec![
             Span::styled("  ", theme.muted()),
             Span::styled(
-                truncate(&detail.summary, sections[0].width.saturating_sub(4) as usize),
+                truncate(
+                    &detail.summary,
+                    sections[0].width.saturating_sub(4) as usize,
+                ),
                 theme.secondary(),
             ),
         ]));
     }
-    f.render_widget(Paragraph::new(what_lines).wrap(Wrap { trim: true }), sections[0]);
+    f.render_widget(
+        Paragraph::new(what_lines).wrap(Wrap { trim: true }),
+        sections[0],
+    );
 
     // ── Why: blockers ───────────────────────────────────────────────
     let mut why_lines = vec![Line::from(Span::styled(
@@ -89,7 +90,10 @@ pub fn render_inspector(f: &mut Frame, area: Rect, detail: &EntityDetail, theme:
                     theme.bold(sev_color),
                 ),
                 Span::styled(
-                    truncate(&blocker.summary, sections[1].width.saturating_sub(8) as usize),
+                    truncate(
+                        &blocker.summary,
+                        sections[1].width.saturating_sub(8) as usize,
+                    ),
                     theme.primary(),
                 ),
             ]));
@@ -111,12 +115,7 @@ pub fn render_inspector(f: &mut Frame, area: Rect, detail: &EntityDetail, theme:
         for ev in detail.evidence.iter().take(2) {
             proof_lines.push(Line::from(vec![
                 Span::styled(format!("  [{}] ", ev.kind), theme.secondary()),
-                Span::styled(
-                    ev.summary
-                        .as_deref()
-                        .unwrap_or(&ev.id),
-                    theme.primary(),
-                ),
+                Span::styled(ev.summary.as_deref().unwrap_or(&ev.id), theme.primary()),
             ]));
         }
     }
@@ -140,13 +139,7 @@ pub fn render_inspector(f: &mut Frame, area: Rect, detail: &EntityDetail, theme:
                 .unwrap_or(theme.text_muted);
             action_lines.push(Line::from(vec![
                 Span::styled(
-                    format!(
-                        "  {} ",
-                        action
-                            .risk
-                            .map(|r| r.label())
-                            .unwrap_or("—")
-                    ),
+                    format!("  {} ", action.risk.map(|r| r.label()).unwrap_or("—")),
                     Style::default().fg(risk_color),
                 ),
                 Span::styled(&action.label, theme.primary()),

@@ -18,8 +18,8 @@ use tokio::time::{Duration, Instant, sleep};
 
 #[path = "pool_ops.rs"]
 mod pool_ops;
-pub use pool_ops::{delete_pool, drain_pool, pause_pool, resume_pool, rotate_pool_token};
 pub(crate) use pool_ops::wait_for_active_managers;
+pub use pool_ops::{delete_pool, drain_pool, pause_pool, resume_pool, rotate_pool_token};
 
 // ---------------------------------------------------------------------------
 // Scale: bring manager count to target

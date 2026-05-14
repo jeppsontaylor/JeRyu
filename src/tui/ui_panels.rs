@@ -27,7 +27,7 @@ pub(crate) fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
         .state
         .recent_jobs
         .iter()
-        .filter(|j| j.status == "running")
+        .filter(|j| crate::tui::live::is_live_job_status(j.status.as_str()))
         .count();
     let failed_jobs = app
         .state
@@ -196,7 +196,7 @@ pub(crate) fn draw_mission_tab(f: &mut Frame, app: &App, area: Rect) {
         .state
         .runner_feeds
         .iter()
-        .filter(|f| f.status == "running")
+        .filter(|f| crate::tui::live::is_live_job_status(f.status.as_str()))
         .count();
     let feed_failed = app
         .state

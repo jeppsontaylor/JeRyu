@@ -85,9 +85,7 @@ pub fn render_attention_rail(
             } else {
                 spans.push(Span::styled(
                     title,
-                    Style::default()
-                        .fg(sev_color)
-                        .add_modifier(Modifier::BOLD),
+                    Style::default().fg(sev_color).add_modifier(Modifier::BOLD),
                 ));
             }
 

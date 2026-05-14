@@ -1,6 +1,4 @@
-use super::{
-    ActionEntry, RiskTier, Surface,
-};
+use super::{ActionEntry, RiskTier, Surface};
 
 const TUI: &[Surface] = &[Surface::Tui];
 const CLI_TUI: &[Surface] = &[Surface::Cli, Surface::Tui];
@@ -259,8 +257,8 @@ pub fn entries_for_surface(surface: Surface) -> impl Iterator<Item = &'static Ac
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
     use crate::tui::action_registry::{GrantRequirement, SideEffectClass};
+    use std::collections::HashSet;
 
     #[test]
     fn action_ids_are_unique() {

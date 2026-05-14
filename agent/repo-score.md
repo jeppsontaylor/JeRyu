@@ -1,19 +1,19 @@
 # jankurai Repo Score
 
 - Standard: `jankurai`
-- Auditor: `0.8.0`
-- Schema: `1.5.0`
+- Auditor: `1.3.0`
+- Schema: `1.9.0`
 - Paper edition: `2026.05-ed8`
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1778127550`
-- Started at: `1778127550`
-- Elapsed: `3459` ms
+- Run ID: `1778721687`
+- Started at: `1778721687`
+- Elapsed: `7361` ms
 - Scope: `full`
 - Raw score: `91`
 - Final score: `91`
-- Decision: `pass`
+- Decision: `advisory`
 - Minimum score: `85`
 - Caps applied: `none`
 
@@ -65,6 +65,47 @@
 | `release-bad-behavior` | 70 | no |
 | `web-security-bad-behavior` | 68 | no |
 | `repo-rot-bad-behavior` | 88 | no |
+| `comment-hygiene-dangerous-residue` | 72 | no |
+| `ci-local-parity` | 70 | no |
+
+## Copy-Code Redundancy
+
+- Status: `review` hard=`0` warning=`25` files=`306`
+- Policy: min-lines=`10` min-tokens=`100` max-findings=`50` include-tests=`false` strict=`false`
+- Duplicate volume: lines=`55` tokens=`149` bytes=`1538`
+
+- Notes:
+  - hard classes are limited to exact active-source file matches and substantial exact same-name units
+  - warning classes include same-body different-name units and token/block duplication
+  - tests, fixtures, stories, config, Docker, and migrations are omitted unless --include-tests is set
+
+| Kind | Severity | Language | Lines | Tokens | Instances | Reason |
+| --- | --- | --- | ---: | ---: | --- | --- |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 2 | `crates/cargo-witness/src/diagnose.rs:179-180, src/api/agent_session.rs:123-124, src/api/agent_session.rs:198-199, src/api/entity.rs:105-106, src/api/entity.rs:114-115, src/api/entity.rs:137-138, src/api/entity.rs:147-148, src/api/snapshot.rs:90-91, src/api/snapshot.rs:143-144, src/tui/action_registry.rs:79-80, src/tui/action_registry.rs:106-107, src/tui/workflow/model.rs:79-80` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 4 | `db/state.rs:1471-1472, db/state.rs:1534-1535, db/state.rs:1625-1626, db/state.rs:1638-1639, db/state.rs:1677-1678, db/state.rs:2599-2600, db/state.rs:2626-2627, db/state.rs:2653-2654, db/state.rs:2672-2673, db/state.rs:3104-3105` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 7 | 18 | `src/tui/widgets/attention.rs:99-106, src/tui/widgets/timeline.rs:69-76` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 2 | `src/tui/widgets/status_badge.rs:83-84, src/tui/widgets/status_badge.rs:92-93, src/tui/widgets/status_badge.rs:101-102, src/tui/widgets/status_badge.rs:108-109, src/tui/widgets/status_badge.rs:115-116, src/tui/widgets/status_badge.rs:124-125, src/tui/widgets/status_badge.rs:133-134, src/tui/widgets/status_badge.rs:142-143` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 6 | 29 | `src/secrets_runtime.rs:146-152, src/secrets_runtime.rs:154-160` | `same body appears under different names across files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 6 | 13 | `crates/arc-bench/src/exceptions.rs:130-136, crates/arc-bench/src/witness_loop.rs:154-160` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 1 | 2 | `src/api/agent_session.rs:123-124, src/api/entity.rs:105-106, src/api/entity.rs:137-138, src/api/snapshot.rs:143-144, src/tui/action_registry.rs:79-80, src/tui/action_registry.rs:106-107, src/tui/workflow/model.rs:79-80` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 6 | 8 | `src/capability_execute.rs:266-272, src/capability_inspect.rs:244-250` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 5 | 12 | `src/install_support.rs:7-12, src/remote_support.rs:244-249` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 4 | `db/state.rs:3374-3375, db/state.rs:3384-3385, db/state.rs:3394-3395, db/state.rs:3411-3412, db/state.rs:3420-3421` | `same body appears under different names across files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 4 | 14 | `src/cargo_cache_helpers.rs:64-68, src/cargo_cache_layout.rs:223-227` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 2 | `db/state.rs:1910-1911, db/state.rs:2699-2700, db/state.rs:2737-2738, db/state.rs:2839-2840` | `same body appears under different names across files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 1 | 2 | `src/api/agent_session.rs:198-199, src/api/entity.rs:114-115, src/api/entity.rs:147-148, src/api/snapshot.rs:90-91` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 2 | 4 | `src/mcp/tools_schema.rs:29-31, src/mcp/tools_schema.rs:33-35` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 1 | `src/api/entity.rs:178-179, src/gateway/singleflight.rs:64-65, src/tui/workflow/model.rs:234-235` | `same body appears under different names across files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 2 | 1 | `crates/cargo-aer/src/lib.rs:152-154, crates/cargo-witness/src/graph.rs:161-163` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 5 | `src/tui/widgets/status_badge.rs:68-69, src/tui/widgets/status_badge.rs:77-78` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 5 | `db/state.rs:1812-1813, db/state.rs:2442-2443` | `same body appears under different names across files` |
+| `ExactUnitSameName` | `Warning` | `rust` | 1 | 4 | `crates/arc-bench/src/psd_mechanics.rs:329-330, crates/arc-bench/src/repo_shape.rs:104-105` | `same-name semantic unit copied across multiple files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 4 | `src/tui/graph.rs:45-46, src/tui/graph.rs:76-77` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 4 | `src/tui/widgets/status_badge.rs:156-157, src/tui/widgets/status_badge.rs:168-169` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 3 | `src/secrets.rs:238-239, src/secrets.rs:264-265` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 3 | `src/tui/ui_panels_body_tail_extra_tail_help.rs:94-95, src/tui/ui_panels_mission_extra.rs:3-4` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 2 | `db/state.rs:647-648, db/state.rs:654-655` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 1 | `db/state.rs:706-707, db/state.rs:773-774` | `same body appears under different names across files` |
 
 ## Dimensions
 
@@ -74,13 +115,13 @@
 | Contract and boundary integrity | 13 | 93 | 12.09 | contract surface found; generated contract artifacts found |
 | Proof lanes and test routing | 12 | 100 | 12.00 | one-command setup/validation lane found; deterministic fast lane found |
 | Security and supply-chain posture | 12 | 86 | 10.32 | lockfile present; secret or dependency scan tooling found |
-| Code shape and semantic surface | 12 | 80 | 9.60 | largest authored code file: src/exec/stage.rs (460 LOC); most code files stay under 300 LOC |
+| Code shape and semantic surface | 12 | 100 | 12.00 | largest authored code file: src/tui/ui_panels_body_more.rs (350 LOC); most code files stay under 300 LOC |
 | Data truth and workflow safety | 8 | 95 | 7.60 | database surface present; structured db boundary manifest present |
 | Observability and repair evidence | 8 | 98 | 7.84 | observability libraries or patterns found; diagnostic shaping hints found |
 | Context economy and agent instructions | 7 | 100 | 7.00 | root `AGENTS.md` present; root `AGENTS.md` stays short |
-| Jankurai tool adoption and CI replacement | 7 | 76 | 5.32 | control-plane files present; applicable=17 |
-| Python containment and polyglot hygiene | 4 | 80 | 3.20 | Python stays inside exception-only non-product roots; exception-only AI/data service path present |
-| Build speed signals | 4 | 85 | 3.40 | build acceleration markers found; targeted test/build commands found |
+| Jankurai tool adoption and CI replacement | 7 | 26 | 1.82 | control-plane files present; applicable=18 |
+| Python containment and polyglot hygiene | 4 | 100 | 4.00 | no Python files in scope |
+| Build speed signals | 4 | 95 | 3.80 | build acceleration markers found; targeted test/build commands found |
 
 ## Reference Profile Structure
 
@@ -108,33 +149,35 @@
 ## Tool Adoption
 
 - Control plane present: `true`
-- Applicable tools: `17`
+- Applicable tools: `18`
 - Configured: `11`
-- CI evidence: `14`
-- Artifact verified: `6`
-- Replaced count: `14`
-- Missing CI evidence: `audit-ci, proof-routing, ci-bad-behavior, git-bad-behavior, release-bad-behavior, contract-drift, authz-matrix, input-boundary, agent-tool-supply, release-readiness, cost-budget`
+- CI evidence: `1`
+- Artifact verified: `1`
+- Replaced count: `1`
+- Missing CI evidence: `audit-ci, proof-routing, proofbind, proofmark-rust, copy-code, ci-bad-behavior, git-bad-behavior, release-bad-behavior, ux-qa, db-migration-analyze, contract-drift, rust-witness, authz-matrix, input-boundary, agent-tool-supply, release-readiness, cost-budget`
 
 | Tool | Category | Mode | Status | Replaced | Artifacts |
 | --- | --- | --- | --- | --- | --- |
-| `audit-ci` | `audit` | `auto` | `ci_evidence` | `manual repo scoring, ad hoc score gates` | `agent/repo-score.json, agent/repo-score.md` |
-| `proof-routing` | `proof` | `auto` | `ci_evidence` | `ad hoc proof lane selection, manual proof receipts` | `agent/repo-score.json, agent/repo-score.md, target/jankurai/repair-queue.jsonl` |
-| `proofbind` | `proof` | `auto` | `artifact_verified` | `manual changed-surface routing, ad hoc proof obligation lists` | `target/jankurai/proofbind/surface-witness.json, target/jankurai/proofbind/obligations.json` |
-| `proofmark-rust` | `proof` | `auto` | `artifact_verified` | `line-only coverage review, manual in-diff mutation review` | `target/jankurai/proofmark/proofmark-receipt.json, target/jankurai/proofmark/proof-receipt.json` |
+| `audit-ci` | `audit` | `auto` | `configured` | `manual repo scoring, ad hoc score gates` | `agent/repo-score.json, agent/repo-score.md` |
+| `proof-routing` | `proof` | `auto` | `configured` | `ad hoc proof lane selection, manual proof receipts` | `agent/repo-score.json, agent/repo-score.md, target/jankurai/repair-queue.jsonl` |
+| `proofbind` | `proof` | `auto` | `missing` | `manual changed-surface routing, ad hoc proof obligation lists` | `target/jankurai/proofbind/surface-witness.json, target/jankurai/proofbind/obligations.json` |
+| `proofmark-rust` | `proof` | `auto` | `missing` | `line-only coverage review, manual in-diff mutation review` | `target/jankurai/proofmark/proofmark-receipt.json, target/jankurai/proofmark/proof-receipt.json` |
+| `copy-code` | `audit` | `auto` | `missing` | `ad hoc copy-code review, manual duplication triage` | `target/jankurai/copy-code.json, target/jankurai/copy-code.md` |
 | `security` | `security` | `auto` | `artifact_verified` | `gitleaks, dependency review, SBOM/provenance` | `target/jankurai/security/evidence.json` |
 | `ci-bad-behavior` | `security` | `auto` | `configured` | `mutable workflow refs, secret echo/debug workflow checks, non-blocking security scans` | `target/jankurai/language-bad-behavior.log` |
 | `git-bad-behavior` | `audit` | `auto` | `configured` | `destructive git automation, force-push release scripts, hidden stash-based state` | `target/jankurai/language-bad-behavior.log` |
 | `release-bad-behavior` | `release` | `auto` | `configured` | `manual release checklist, ad hoc tag and artifact review, manual provenance review` | `target/jankurai/language-bad-behavior.log` |
-| `ux-qa` | `ux` | `auto` | `artifact_verified` | `playwright, axe-core, visual baselines` | `target/jankurai/ux-qa.json` |
-| `db-migration-analyze` | `db` | `auto` | `artifact_verified` | `manual migration review` | `target/jankurai/migration-report.json` |
-| `contract-drift` | `contract` | `auto` | `ci_evidence` | `handwritten contract drift checks, openapi diff` | `agent/repo-score.json, agent/repo-score.md` |
-| `rust-witness` | `rust` | `auto` | `artifact_verified` | `manual witness graphing` | `target/jankurai/rust/witness-graph.json` |
+| `ux-qa` | `ux` | `auto` | `configured` | `playwright, axe-core, visual baselines` | `target/jankurai/ux-qa.json` |
+| `db-migration-analyze` | `db` | `auto` | `configured` | `manual migration review` | `target/jankurai/migration-report.json` |
+| `contract-drift` | `contract` | `auto` | `configured` | `handwritten contract drift checks, openapi diff` | `agent/repo-score.json, agent/repo-score.md` |
+| `rust-witness` | `rust` | `auto` | `configured` | `manual witness graphing` | `target/jankurai/rust/witness-graph.json` |
 | `vibe-coverage` | `audit` | `auto` | `not_applicable` | `manual vibe-coding coverage spreadsheet` | `target/jankurai/vibe-coverage.json, target/jankurai/vibe-coverage.md` |
-| `authz-matrix` | `security` | `auto` | `ci_evidence` | `manual authz matrix review` | `agent/repo-score.json, agent/repo-score.md` |
-| `input-boundary` | `security` | `auto` | `ci_evidence` | `manual unsafe sink review` | `agent/repo-score.json, agent/repo-score.md` |
-| `agent-tool-supply` | `security` | `auto` | `ci_evidence` | `manual MCP/tool trust review` | `agent/repo-score.json, agent/repo-score.md` |
-| `release-readiness` | `release` | `auto` | `ci_evidence` | `manual launch checklist` | `agent/repo-score.json, agent/repo-score.md` |
-| `cost-budget` | `release` | `auto` | `ci_evidence` | `manual spend review` | `agent/repo-score.json, agent/repo-score.md` |
+| `coverage-evidence` | `proof` | `auto` | `not_applicable` | `manual coverage report review, ad hoc mutation survivor review` | `target/jankurai/coverage/coverage-audit.json, target/jankurai/coverage/coverage-audit.md` |
+| `authz-matrix` | `security` | `auto` | `missing` | `manual authz matrix review` | `agent/repo-score.json, agent/repo-score.md` |
+| `input-boundary` | `security` | `auto` | `missing` | `manual unsafe sink review` | `agent/repo-score.json, agent/repo-score.md` |
+| `agent-tool-supply` | `security` | `auto` | `configured` | `manual MCP/tool trust review` | `agent/repo-score.json, agent/repo-score.md` |
+| `release-readiness` | `release` | `auto` | `missing` | `manual launch checklist` | `agent/repo-score.json, agent/repo-score.md` |
+| `cost-budget` | `release` | `auto` | `missing` | `manual spend review` | `agent/repo-score.json, agent/repo-score.md` |
 
 ## Boundary manifest (ingested)
 
@@ -149,26 +192,7 @@ No audited runtime boundary reclassifications declared.
 
 ## Findings
 
-1. `medium` `shape` `.`
-   Rule: `HLT-001-DEAD-MARKER`
-   Check: `HLT-001-DEAD-MARKER:shape` `soft` confidence `0.76`
-   Route: TLR `Entropy`, lane `fast`, owner `tools`
-   Docs: `docs/audit-rubric.md#future-hostile-language-rule`
-   Reason: `Code shape and semantic surface` scored 80 below the standard floor of 85
-   Fix: split large or ambiguous authored code into smaller semantic modules with focused tests
-   Rerun: `just fast`
-   Fingerprint: `sha256:ba3cb2ff1663fd9146c6fcb128069a609b2abc8dfa949c1cc8d98116d05b6cab`
-   Evidence: largest authored code file: src/exec/stage.rs (460 LOC), most code files stay under 300 LOC, rust bad-behavior advisory signals: 923, ci bad-behavior advisory signals: 2
-2. `medium` `python` `python/ai-service`
-   Rule: `HLT-005-PYTHON-PRODUCT-TRUTH`
-   Check: `HLT-005-PYTHON-PRODUCT-TRUTH:python` `soft` confidence `0.76`
-   Route: TLR `Business truth`, lane `contract`, owner `tools`
-   Docs: `docs/agent-native-standard.md`
-   Reason: `Python containment and polyglot hygiene` scored 80 below the standard floor of 85
-   Fix: remove Python unless it is a dated advanced-ML/data exception and move product truth into Rust, SQL, and generated contracts
-   Rerun: `just fast`
-   Fingerprint: `sha256:5c96e1d3ac9be46c950262f55d16b371e6386195352b43f0cb0c43881de756e8`
-   Evidence: Python stays inside exception-only non-product roots, exception-only AI/data service path present
+No findings.
 
 ## Policy
 
@@ -178,7 +202,4 @@ No audited runtime boundary reclassifications declared.
 
 ## Agent Fix Queue
 
-1. `medium` `HLT-005-PYTHON-PRODUCT-TRUTH` `python/ai-service` - remove Python unless it is a dated advanced-ML/data exception and move product truth into Rust, SQL, and generated contracts
-   Route: `Business truth`/`contract`
-2. `medium` `HLT-001-DEAD-MARKER` `.` - split large or ambiguous authored code into smaller semantic modules with focused tests
-   Route: `Entropy`/`fast`
+No queued fixes.

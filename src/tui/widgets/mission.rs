@@ -10,11 +10,11 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Wrap},
 };
 
+use super::mission_shared::{MetricTile, render_metric_row};
 use crate::api::read_model::{
     AttentionItem, MissionSnapshot, NextActionRecommendation, SystemHealth,
 };
 use crate::tui::theme::Theme;
-use super::mission_shared::{render_metric_row, MetricTile};
 
 /// Render the mission control attention-first cockpit.
 pub fn render_mission(
@@ -30,9 +30,9 @@ pub fn render_mission(
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(5),   // Posture banner
-            Constraint::Length(7),   // Metric tiles
-            Constraint::Min(8),     // Body: attention + proof + actions
+            Constraint::Length(5), // Posture banner
+            Constraint::Length(7), // Metric tiles
+            Constraint::Min(8),    // Body: attention + proof + actions
         ])
         .split(area);
 
@@ -58,35 +58,61 @@ pub fn render_mission(
     };
 
     let banner_lines = vec![
-        Line::from(vec![
-            Span::styled(
-                format!("  {} ", posture_label),
-                Style::default()
-                    .fg(theme.text_inverse)
-                    .bg(posture_color)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ]),
+        Line::from(vec![Span::styled(
+            format!("  {} ", posture_label),
+            Style::default()
+                .fg(theme.text_inverse)
+                .bg(posture_color)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(vec![
             Span::styled("  code:", theme.muted()),
             Span::styled(
                 if mission.safe_to_code { "✓ " } else { "✗ " },
-                Style::default().fg(if mission.safe_to_code { theme.ok } else { theme.fail }),
+                Style::default().fg(if mission.safe_to_code {
+                    theme.ok
+                } else {
+                    theme.fail
+                }),
             ),
             Span::styled("merge:", theme.muted()),
             Span::styled(
-                if mission.safe_to_merge { "✓ " } else { "✗ " },
-                Style::default().fg(if mission.safe_to_merge { theme.ok } else { theme.fail }),
+                if mission.safe_to_merge {
+                    "✓ "
+                } else {
+                    "✗ "
+                },
+                Style::default().fg(if mission.safe_to_merge {
+                    theme.ok
+                } else {
+                    theme.fail
+                }),
             ),
             Span::styled("release:", theme.muted()),
             Span::styled(
-                if mission.safe_to_release { "✓ " } else { "✗ " },
-                Style::default().fg(if mission.safe_to_release { theme.ok } else { theme.fail }),
+                if mission.safe_to_release {
+                    "✓ "
+                } else {
+                    "✗ "
+                },
+                Style::default().fg(if mission.safe_to_release {
+                    theme.ok
+                } else {
+                    theme.fail
+                }),
             ),
             Span::styled("agents:", theme.muted()),
             Span::styled(
-                if mission.agents_can_code { "✓" } else { "✗" },
-                Style::default().fg(if mission.agents_can_code { theme.ok } else { theme.fail }),
+                if mission.agents_can_code {
+                    "✓"
+                } else {
+                    "✗"
+                },
+                Style::default().fg(if mission.agents_can_code {
+                    theme.ok
+                } else {
+                    theme.fail
+                }),
             ),
         ]),
     ];
@@ -102,11 +128,7 @@ pub fn render_mission(
     );
 
     // ── Metric Tiles ────────────────────────────────────────────────
-    let gitlab_label = match health
-        .components()
-        .iter()
-        .find(|c| c.name == "gitlab")
-    {
+    let gitlab_label = match health.components().iter().find(|c| c.name == "gitlab") {
         Some(component) => component.status_label(),
         None => "unknown".to_string(),
     };
@@ -163,7 +185,11 @@ pub fn render_mission(
 
     // Attention queue
     crate::tui::widgets::attention::render_attention_rail(
-        f, body_cols[0], attention, Some(selected_attention), theme,
+        f,
+        body_cols[0],
+        attention,
+        Some(selected_attention),
+        theme,
     );
 
     // Proof stack lanes
@@ -185,10 +211,38 @@ fn metric_color(value: &str, theme: &Theme) -> Color {
 
 fn render_proof_stack(f: &mut Frame, area: Rect, mission: &MissionSnapshot, theme: &Theme) {
     let lanes = vec![
-        ("Capability grants", if mission.safe_to_code { "observed" } else { "blocked" }),
-        ("VTI receipts", if mission.evidence_count > 0 { "present" } else { "needed" }),
-        ("Merge proof", if mission.safe_to_merge { "ready" } else { "blocked" }),
-        ("Release gate", if mission.safe_to_release { "green" } else { "pending" }),
+        (
+            "Capability grants",
+            if mission.safe_to_code {
+                "observed"
+            } else {
+                "blocked"
+            },
+        ),
+        (
+            "VTI receipts",
+            if mission.evidence_count > 0 {
+                "present"
+            } else {
+                "needed"
+            },
+        ),
+        (
+            "Merge proof",
+            if mission.safe_to_merge {
+                "ready"
+            } else {
+                "blocked"
+            },
+        ),
+        (
+            "Release gate",
+            if mission.safe_to_release {
+                "green"
+            } else {
+                "pending"
+            },
+        ),
         ("Agent sandbox", "strict"),
     ];
 
@@ -217,8 +271,10 @@ fn render_proof_stack(f: &mut Frame, area: Rect, mission: &MissionSnapshot, them
 }
 
 fn render_next_actions(
-    f: &mut Frame, area: Rect,
-    actions: &[NextActionRecommendation], theme: &Theme,
+    f: &mut Frame,
+    area: Rect,
+    actions: &[NextActionRecommendation],
+    theme: &Theme,
 ) {
     let block = Block::default()
         .title(" [ Next Actions ] ")
@@ -239,17 +295,24 @@ fn render_next_actions(
     }
 
     let max = inner.height as usize;
-    let lines: Vec<Line> = actions.iter().take(max).map(|a| {
-        let risk_color = theme.status_color(a.risk.label());
-        let label = super::truncate_label(&a.label, inner.width.saturating_sub(10) as usize);
-        Line::from(vec![
-            Span::styled(
-                format!(" {} ", a.risk.label()),
-                Style::default().fg(theme.text_inverse).bg(risk_color).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(format!(" {}", label), theme.primary()),
-        ])
-    }).collect();
+    let lines: Vec<Line> = actions
+        .iter()
+        .take(max)
+        .map(|a| {
+            let risk_color = theme.status_color(a.risk.label());
+            let label = super::truncate_label(&a.label, inner.width.saturating_sub(10) as usize);
+            Line::from(vec![
+                Span::styled(
+                    format!(" {} ", a.risk.label()),
+                    Style::default()
+                        .fg(theme.text_inverse)
+                        .bg(risk_color)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(format!(" {}", label), theme.primary()),
+            ])
+        })
+        .collect();
 
     f.render_widget(Paragraph::new(lines), inner);
 }

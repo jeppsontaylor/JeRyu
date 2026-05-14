@@ -1,11 +1,11 @@
 use super::*;
 
+mod doctor;
 mod explain;
 mod promotion;
-mod doctor;
 
-pub use explain::{build_pipeline_explain_report, render_pipeline_explain_text};
 pub use doctor::{build_pipeline_doctor_report, render_pipeline_doctor_text};
+pub use explain::{build_pipeline_explain_report, render_pipeline_explain_text};
 pub use promotion::{maybe_trigger_production_promotion, trigger_production_promotion};
 pub(crate) use promotion::{pipeline_matches_release_sha, production_promotion_pipeline_id};
 

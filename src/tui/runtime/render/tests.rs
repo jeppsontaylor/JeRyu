@@ -1,5 +1,6 @@
 use super::*;
 use crate::tui::{app::App, ui};
+use ratatui::buffer::Buffer;
 use ratatui::backend::TestBackend;
 
 fn draw_once(app: &mut App) -> Result<()> {
@@ -7,6 +8,13 @@ fn draw_once(app: &mut App) -> Result<()> {
     let mut terminal = Terminal::new(backend)?;
     terminal.draw(|f| ui::draw(f, app))?;
     Ok(())
+}
+
+fn capture_buffer(app: &mut App) -> Result<Buffer> {
+    let backend = TestBackend::new(120, 40);
+    let mut terminal = Terminal::new(backend)?;
+    terminal.draw(|f| ui::draw(f, app))?;
+    Ok(terminal.backend().buffer().clone())
 }
 
 fn job(job_id: i64, status: &str) -> crate::state::JobEvent {
@@ -75,6 +83,25 @@ async fn renders_flow_with_jobs_list_and_live_log() -> Result<()> {
     app.active_tab = crate::tui::app::ActiveTab::Jobs;
     app.active_pane = crate::tui::app::ActivePane::Jobs;
     draw_once(&mut app)?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn renders_jobs_tab_with_live_jobs_and_no_empty_message() -> Result<()> {
+    let mut app = crate::tui::app::test_app().await?;
+    app.state.recent_jobs = vec![
+        job(1, "running"),
+        job(2, "waiting_for_resource"),
+        job(3, "preparing"),
+    ];
+    app.active_tab = crate::tui::app::ActiveTab::Jobs;
+    app.active_pane = crate::tui::app::ActivePane::Jobs;
+
+    let buffer = capture_buffer(&mut app)?;
+    let rendered: String = buffer.content.iter().map(|cell| cell.symbol()).collect();
+    assert!(rendered.contains("test-job-1"));
+    assert!(rendered.contains("WAIT"));
+    assert!(!rendered.contains("Waiting for active pipelines"));
     Ok(())
 }
 

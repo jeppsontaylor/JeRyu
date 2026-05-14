@@ -108,7 +108,7 @@ pub(crate) fn draw_jobs(f: &mut Frame, app: &App, area: Rect) {
                 "success" => "OK",
                 "running" => "RUN",
                 "failed" => "FAIL",
-                "pending" | "created" => "WAIT",
+                "pending" | "created" | "waiting_for_resource" | "preparing" => "WAIT",
                 "canceled" => "STOP",
                 _ => "JOB",
             };
@@ -134,7 +134,7 @@ pub(crate) fn draw_jobs(f: &mut Frame, app: &App, area: Rect) {
                         },
                     )
                 }
-                "running" => {
+                "running" | "pending" | "created" | "waiting_for_resource" | "preparing" => {
                     let elapsed =
                         if let Ok(st) = chrono::DateTime::parse_from_rfc3339(&j.received_at) {
                             now.signed_duration_since(st).num_seconds()
@@ -142,7 +142,14 @@ pub(crate) fn draw_jobs(f: &mut Frame, app: &App, area: Rect) {
                             0
                         };
                     let p = ((elapsed as f64 / 120.0) * 100.0).min(99.0) as u16;
-                    (p, Color::Cyan)
+                    (
+                        p,
+                        if j.status == "running" {
+                            Color::Cyan
+                        } else {
+                            Color::Yellow
+                        },
+                    )
                 }
                 _ => (0, Color::DarkGray),
             };
@@ -298,7 +305,7 @@ pub(crate) fn draw_logs(f: &mut Frame, app: &mut App, area: Rect) {
     let parsed_text = if !log_state.text.is_empty() {
         render_log_text(&log_state.text)
     } else if app.active_pane == ActivePane::Jobs {
-        Text::raw("Choose a running, failed, or recent job. Fetching...")
+        Text::raw("Choose a live, failed, or recent job. Fetching...")
     } else {
         Text::raw("Focus Jobs pane to tail logs...")
     };

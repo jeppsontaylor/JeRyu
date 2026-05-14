@@ -9,6 +9,7 @@ fn job(name: &str, status: &str, allow_failure: bool) -> Job {
         stage: "test".to_string(),
         allow_failure,
         pipeline_id: None,
+        pipeline: None,
         ref_name: Some("main".to_string()),
         web_url: None,
         queued_duration: None,

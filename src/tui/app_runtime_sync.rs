@@ -48,21 +48,30 @@ impl App {
         if let Ok(active_jobs) = gitlab
             .list_jobs(
                 release::DEFAULT_RELEASE_PROJECT_ID,
-                &["running", "pending", "created"],
+                &[
+                    "running",
+                    "pending",
+                    "created",
+                    "waiting_for_resource",
+                    "preparing",
+                ],
             )
             .await
         {
             let now = chrono::Utc::now().to_rfc3339();
             for job in active_jobs {
                 seen.insert(job.id);
-                let pool_name = job
-                    .runner
-                    .and_then(|runner| runner.description)
-                    .or(Some(job.stage));
+                let pipeline_id = job.effective_pipeline_id();
+                let pool_name = Some(
+                    match job.runner.as_ref().and_then(|r| r.description.as_deref()) {
+                        Some(desc) => desc.to_owned(),
+                        None => job.stage.clone(),
+                    },
+                );
                 jobs.push(JobEvent {
                     job_id: job.id,
                     project_id: release::DEFAULT_RELEASE_PROJECT_ID,
-                    pipeline_id: None,
+                    pipeline_id,
                     status: job.status,
                     job_name: Some(job.name),
                     pool_name,
@@ -86,8 +95,8 @@ impl App {
         }
 
         jobs.sort_by(|left, right| {
-            live_job_status_rank(&right.status)
-                .cmp(&live_job_status_rank(&left.status))
+            crate::tui::live::live_job_status_rank(&right.status)
+                .cmp(&crate::tui::live::live_job_status_rank(&left.status))
                 .then_with(|| right.received_at.cmp(&left.received_at))
                 .then_with(|| right.job_id.cmp(&left.job_id))
         });
@@ -207,47 +216,59 @@ impl App {
         _generated_at: chrono::DateTime<chrono::Utc>,
     ) -> Option<crate::tui::flow::PipelineFlow> {
         let release = self.state.release_status.as_ref();
+        let selected_pipeline = self.state.pipelines.get(self.selected_pipeline_index);
         let pipeline_id = if let Some(view) = release {
             if let Some(id) = view.attempt.release_pipeline_id {
                 Some(id)
+            } else if let Some(metrics) = selected_pipeline {
+                Some(metrics.pipeline.pipeline_id)
             } else {
-                self.state
-                    .pipelines
-                    .get(self.selected_pipeline_index)
-                    .map(|metrics| metrics.pipeline.pipeline_id)
+                self.state.recent_jobs.iter().find_map(|job| job.pipeline_id)
             }
-        } else if let Some(metrics) = self.state.pipelines.get(self.selected_pipeline_index) {
+        } else if let Some(metrics) = selected_pipeline {
             Some(metrics.pipeline.pipeline_id)
         } else {
-            self.state
-                .recent_jobs
-                .iter()
-                .find_map(|job| job.pipeline_id)
-        }?;
+            self.state.recent_jobs.iter().find_map(|job| job.pipeline_id)
+        };
 
         let project_id = if let Some(view) = release {
-            Some(view.attempt.project_id)
+            view.attempt.project_id
         } else {
             self.state
                 .recent_jobs
-                .iter()
-                .find(|job| job.pipeline_id == Some(pipeline_id))
+                .first()
                 .map(|job| job.project_id)
+                .unwrap_or(release::DEFAULT_RELEASE_PROJECT_ID)
+        };
+
+        if pipeline_id.is_none() {
+            return crate::tui::flow::recover_flow_from_recent_jobs(project_id, &self.state.recent_jobs);
         }
-        .unwrap_or(release::DEFAULT_RELEASE_PROJECT_ID);
+
+        let pipeline_id = pipeline_id?;
+        let jobs = self
+            .state
+            .recent_jobs
+            .iter()
+            .filter(|job| job.pipeline_id == Some(pipeline_id))
+            .cloned()
+            .collect::<Vec<_>>();
+
+        if jobs.is_empty() {
+            return crate::tui::flow::recover_flow_from_recent_jobs(project_id, &self.state.recent_jobs);
+        }
 
         let ref_name = if let Some(view) = release {
-            Some(view.attempt.ref_name.clone())
+            view.attempt.ref_name.clone()
         } else {
-            self.state
+            match self.state
                 .pipelines
                 .iter()
-                .find(|metrics| metrics.pipeline.pipeline_id == pipeline_id)
-                .map(|metrics| metrics.pipeline.ref_name.clone())
-        };
-        let ref_name = match ref_name {
-            Some(value) => value,
-            None => "main".to_string(),
+                .find(|m| m.pipeline.pipeline_id == pipeline_id)
+            {
+                Some(m) => m.pipeline.ref_name.clone(),
+                None => "main".to_string(),
+            }
         };
 
         let sha = if let Some(view) = release {
@@ -261,67 +282,29 @@ impl App {
         };
 
         let status = if let Some(view) = release {
-            view.attempt.release_pipeline_status.clone()
+            match view.attempt.release_pipeline_status.clone() {
+                Some(s) => s,
+                None => "unknown".to_string(),
+            }
         } else {
-            self.state
+            match self.state
                 .pipelines
                 .iter()
-                .find(|metrics| metrics.pipeline.pipeline_id == pipeline_id)
-                .map(|metrics| metrics.pipeline.status.clone())
+                .find(|m| m.pipeline.pipeline_id == pipeline_id)
+            {
+                Some(m) => m.pipeline.status.clone(),
+                None => "unknown".to_string(),
+            }
         };
-        let status = match status {
-            Some(value) => value,
-            None => "unknown".to_string(),
-        };
 
-        let jobs = self
-            .state
-            .recent_jobs
-            .iter()
-            .filter(|job| job.pipeline_id == Some(pipeline_id))
-            .cloned()
-            .collect::<Vec<_>>();
-
-        if jobs.is_empty() {
-            return None;
-        }
-
-        let graph = crate::tui::flow::build_graph(pipeline_id, jobs);
-        let total = graph.nodes.len();
-        let completed = graph
-            .nodes
-            .iter()
-            .filter(|node| matches!(node.status.as_str(), "success" | "failed" | "canceled"))
-            .count();
-        let running = graph
-            .nodes
-            .iter()
-            .filter(|node| node.status == "running")
-            .count();
-        let progress_pct = if total > 0 {
-            (((completed as f64 + running as f64 * 0.5) / total as f64) * 100.0) as u16
-        } else {
-            0
-        };
-        let current_blocker = graph
-            .nodes
-            .iter()
-            .filter(|node| node.status == "running" || node.status == "failed")
-            .max_by_key(|node| node.elapsed_secs)
-            .and_then(|node| node.job_id);
-
-        Some(crate::tui::flow::PipelineFlow {
+        Some(crate::tui::flow::pipeline_flow_from_jobs(
             pipeline_id,
             project_id,
             ref_name,
             sha,
             status,
-            graph,
-            current_blocker,
-            critical_path: Vec::new(),
-            eta: None,
-            progress_pct,
-        })
+            jobs,
+        ))
     }
 }
 
@@ -331,16 +314,6 @@ mod actions;
 #[cfg(test)]
 #[path = "app_runtime_sync_tests.rs"]
 mod tests;
-
-fn live_job_status_rank(status: &str) -> u8 {
-    match status {
-        "running" => 4,
-        "waiting_for_resource" | "preparing" => 3,
-        "pending" => 2,
-        "created" => 1,
-        _ => 0,
-    }
-}
 
 fn retain_tail(input: &str, max_bytes: usize) -> String {
     if input.len() <= max_bytes {

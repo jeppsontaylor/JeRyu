@@ -1,6 +1,7 @@
-use super::{LiveLogState, TuiStateSnapshot, live_job_status_rank};
+use super::{LiveLogState, TuiStateSnapshot};
 use crate::state::JobEvent;
 use crate::tui::flow::{FlowGraph, FlowSnapshot, PipelineFlow};
+use crate::tui::live::live_job_status_rank;
 use anyhow::Result;
 
 fn job(job_id: i64, status: &str, received_at: &str) -> JobEvent {
@@ -14,6 +15,13 @@ fn job(job_id: i64, status: &str, received_at: &str) -> JobEvent {
         system_id: None,
         queued_duration: None,
         received_at: received_at.into(),
+    }
+}
+
+fn job_without_pipeline(job_id: i64, status: &str, received_at: &str) -> JobEvent {
+    JobEvent {
+        pipeline_id: None,
+        ..job(job_id, status, received_at)
     }
 }
 
@@ -50,7 +58,7 @@ fn live_jobs_sort_running_ahead_of_created_and_pending() {
             job_id: 2,
             project_id: 2,
             pipeline_id: None,
-            status: "running".into(),
+            status: "waiting_for_resource".into(),
             job_name: Some("test-rust-nextest-1".into()),
             pool_name: Some("build".into()),
             system_id: None,
@@ -61,12 +69,45 @@ fn live_jobs_sort_running_ahead_of_created_and_pending() {
             job_id: 3,
             project_id: 2,
             pipeline_id: None,
-            status: "pending".into(),
-            job_name: Some("test-rust-nextest-4".into()),
+            status: "running".into(),
+            job_name: Some("test-rust-nextest-2".into()),
             pool_name: Some("build".into()),
             system_id: None,
             queued_duration: None,
             received_at: "2026-04-23T19:02:00Z".into(),
+        },
+        JobEvent {
+            job_id: 4,
+            project_id: 2,
+            pipeline_id: None,
+            status: "preparing".into(),
+            job_name: Some("test-rust-nextest-3".into()),
+            pool_name: Some("build".into()),
+            system_id: None,
+            queued_duration: None,
+            received_at: "2026-04-23T19:03:00Z".into(),
+        },
+        JobEvent {
+            job_id: 5,
+            project_id: 2,
+            pipeline_id: None,
+            status: "running".into(),
+            job_name: Some("test-rust-nextest-4".into()),
+            pool_name: Some("build".into()),
+            system_id: None,
+            queued_duration: None,
+            received_at: "2026-04-23T19:04:00Z".into(),
+        },
+        JobEvent {
+            job_id: 6,
+            project_id: 2,
+            pipeline_id: None,
+            status: "pending".into(),
+            job_name: Some("test-rust-nextest-5".into()),
+            pool_name: Some("build".into()),
+            system_id: None,
+            queued_duration: None,
+            received_at: "2026-04-23T19:05:00Z".into(),
         },
     ];
 
@@ -78,7 +119,17 @@ fn live_jobs_sort_running_ahead_of_created_and_pending() {
     });
 
     let statuses: Vec<_> = jobs.iter().map(|job| job.status.as_str()).collect();
-    assert_eq!(statuses, vec!["running", "pending", "created"]);
+    assert_eq!(
+        statuses,
+        vec![
+            "running",
+            "running",
+            "preparing",
+            "waiting_for_resource",
+            "pending",
+            "created"
+        ]
+    );
 }
 
 #[tokio::test]
@@ -168,6 +219,31 @@ async fn empty_flow_snapshot_uses_recent_jobs_before_collector_graph_arrives() -
 
     assert_eq!(app.state.flow.active_pipelines.len(), 1);
     assert_eq!(app.state.flow.active_pipelines[0].pipeline_id, 55);
+    assert_eq!(app.state.flow.active_pipelines[0].graph.nodes.len(), 2);
+    assert!(app.state.flow.outdated);
+    Ok(())
+}
+
+#[tokio::test]
+async fn empty_flow_snapshot_recovers_live_jobs_without_pipeline_metadata() -> Result<()> {
+    let mut app = super::test_app().await?;
+    app.state.recent_jobs = vec![
+        job_without_pipeline(1, "running", "2026-04-23T19:00:00Z"),
+        job_without_pipeline(2, "preparing", "2026-04-23T19:01:00Z"),
+    ];
+
+    app.flow_tx
+        .send(FlowSnapshot {
+            generated_at: chrono::Utc::now(),
+            gitlab_online: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    app.tick().await;
+
+    assert_eq!(app.state.flow.active_pipelines.len(), 1);
+    assert_eq!(app.state.flow.active_pipelines[0].pipeline_id, 0);
     assert_eq!(app.state.flow.active_pipelines[0].graph.nodes.len(), 2);
     assert!(app.state.flow.outdated);
     Ok(())
