@@ -130,7 +130,9 @@ fn scan_package(
                 "{} is public_api=true but local validation omits doctests",
                 package.name
             ),
-            suggested_fix: "Add `cargo test -p <crate> --doc` to local_validate or document an AER.".to_string(),
+            suggested_fix:
+                "Add `cargo test -p <crate> --doc` to local_validate or document an AER."
+                    .to_string(),
             existing_exception: existing("public-api-no-doctest-coverage"),
         });
     }
@@ -141,7 +143,11 @@ fn scan_package(
                 || cmd.contains("cargo aer")
                 || command_has_semver_signal(cmd)
         })
-        && !package.agent.local_validate.iter().any(|cmd| cmd.contains("--incompatible"))
+        && !package
+            .agent
+            .local_validate
+            .iter()
+            .any(|cmd| cmd.contains("--incompatible"))
     {
         findings.push(Finding {
             class_id: "workspace-validation-drift".to_string(),
@@ -159,9 +165,7 @@ fn scan_package(
 
     let hidden_io_detected = package_has_hidden_io(&package.package_root);
 
-    if looks_like_core_layer(&package.agent, &package.name)
-        && hidden_io_detected
-    {
+    if looks_like_core_layer(&package.agent, &package.name) && hidden_io_detected {
         findings.push(Finding {
             class_id: "hidden-side-effects".to_string(),
             severity: "warning".to_string(),
@@ -185,7 +189,8 @@ fn scan_function_lengths(
 ) -> Result<Vec<Finding>> {
     let mut findings = Vec::new();
     let contents = read_file_contents(manifest_path)?;
-    let func_re = Regex::new(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z0-9_]+)")?;
+    let func_re =
+        Regex::new(r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z0-9_]+)")?;
     let mut longest = 0usize;
     let mut longest_fn = String::new();
     for cap in func_re.captures_iter(&contents) {
@@ -213,7 +218,9 @@ fn scan_function_lengths(
                 "{} has a long function `{}` at {} lines",
                 package.name, longest_fn, longest
             ),
-            suggested_fix: "Split the function into smaller named helpers that each own one responsibility.".to_string(),
+            suggested_fix:
+                "Split the function into smaller named helpers that each own one responsibility."
+                    .to_string(),
             existing_exception: existing("function-too-long"),
         });
     }
@@ -242,7 +249,8 @@ fn scan_unsafe_blocks(
                 "{} hits the unsafe token {} times",
                 package.name, unsafe_marker_count
             ),
-            suggested_fix: "Audit unsafe blocks for narrower wrappers or safe abstractions.".to_string(),
+            suggested_fix: "Audit unsafe blocks for narrower wrappers or safe abstractions."
+                .to_string(),
             existing_exception: existing("unsafe-surface-heavy"),
         });
     }

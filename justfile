@@ -68,7 +68,6 @@ tui-screenshots:
 tui-screenshot-smoke:
     cargo run --release -p tui-capture -- --cols 48 --rows 6 --out target/tui-capture/smoke.png --dump-text target/tui-capture/smoke.txt -- bash -lc "printf '┌────────────────────────┐\n│ Unicode border test    │\n│ Blocks: █ ▓ ▒ ░        │\n└────────────────────────┘\n'; sleep 2"
 score:
-	rm -f agent/repo-score.json agent/repo-score.md
 	jankurai audit . --mode advisory --json agent/repo-score.json --md agent/repo-score.md --score-history agent/score-history.jsonl --score-history-csv agent/score-history.csv
 doctor:
 	jankurai doctor --fail-on high

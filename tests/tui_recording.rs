@@ -16,7 +16,7 @@ fn jeryu_bin() -> String {
 #[ignore] // Run manually or in CI via `cargo test --test tui_recording`
 fn tui_demo_recording() -> anyhow::Result<()> {
     std::fs::create_dir_all("target/ci-screenshots")?;
-    
+
     let bin = jeryu_bin();
     let config = SpawnConfig::new(&bin)
         .args(["tui", "--demo"])
@@ -83,7 +83,7 @@ fn tui_demo_recording() -> anyhow::Result<()> {
         max_fps: 12,
         ..Default::default()
     };
-    
+
     page.stop_recording_gif("target/ci-screenshots/tui-demo.gif", gif_options)?;
 
     Ok(())

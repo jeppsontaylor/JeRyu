@@ -32,7 +32,7 @@ fn spawn_tui(tab: &str) -> anyhow::Result<Page> {
             .size(120, 36)
             .env("TERM", "xterm-256color")
             .env("COLORTERM", "truecolor")
-            .timeout(Duration::from_secs(8))
+            .timeout(Duration::from_secs(8)),
     )?;
     // Wait for the TUI to finish its first render.
     std::thread::sleep(Duration::from_millis(800));

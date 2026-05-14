@@ -11,13 +11,13 @@ use crate::workspace::WorkspaceSnapshot;
 #[path = "planner_support.rs"]
 mod planner_support;
 
-pub use planner_support::context_metrics;
 use self::planner_support::{
     api_surface_hash, boundary_trigger, collect_profile_commands, context_roots, display_relative,
     display_workspace_root, estimated_cost, generated_at, instruction_locations, matched_paths,
     normalize_changed_paths, owned_path_display, proof_density, public_surfaces,
     required_for_change_types, risk_tags, verify_workspace_fields,
 };
+pub use planner_support::context_metrics;
 
 pub fn build_agent_map(snapshot: &WorkspaceSnapshot) -> AgentMap {
     let members = snapshot
