@@ -1,6 +1,6 @@
 {
-  "report_fingerprint": "sha256:e7b0bbe93b17abbf752e63b7af76a2c8c629e115e5f0c5535d21808983a30b74",
-  "input_fingerprint": "sha256:5d35b872b5bfd43adf38a3f04e082ede64132e64a0fdbecbaee56fd457d0d44a",
+  "report_fingerprint": "sha256:77a6abc6147710507a19abfeb6e70511f18499e93a08f21748b1f66fefe37f6c",
+  "input_fingerprint": "sha256:49c727d500f5537bbf15e473c637cb8dd3fe5846b9aa7ba8ec49612926006fb2",
   "policy_fingerprint": "sha256:4288a09ea1a256b73db79a0953ca6e88b9b823694013e1e0974ae859e7d6c167",
   "manifest_fingerprints": {
     "owner_map": "sha256:b0b5a6ec1dcf49aa1c4d5a4b3b090c300a89fdb7f38fd50691578d130aa2dd85",
@@ -11,7 +11,7 @@
     "standard_version": "sha256:6d84737d2795323e28d70f14863f479329f39f7130bd5021823bddc48d32fba2"
   },
   "dirty_worktree": true,
-  "generated_at": "1778583548",
+  "generated_at": "1778816414",
   "schema_url": "schemas/repo-score.schema.json",
   "standard": "jankurai",
   "standard_version": "0.8.0",
@@ -21,29 +21,36 @@
   "target_stack_id": "rust-ts-vite-react-postgres-bounded-python",
   "target_stack": "Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service",
   "claimed_conformance_level": "HL3",
-  "observed_conformance_level": "HL3",
-  "conformance_decision": "pass",
-  "conformance_blockers": [],
+  "observed_conformance_level": "HL2",
+  "conformance_decision": "block",
+  "conformance_blockers": [
+    "HLT-042-CI-LOCAL-PARITY on .github/workflows/jankurai.yml",
+    "HLT-042-CI-LOCAL-PARITY on .github/workflows/jankurai.yml",
+    "HLT-042-CI-LOCAL-PARITY on .github/workflows/jankurai.yml",
+    "HLT-042-CI-LOCAL-PARITY on .github/workflows/jankurai.yml",
+    "HLT-042-CI-LOCAL-PARITY on .github/workflows/jankurai.yml",
+    "HLT-042-CI-LOCAL-PARITY on .github/workflows/release.yml"
+  ],
   "repo": ".",
-  "run_id": "1778583548",
-  "started_at": "1778583548",
-  "elapsed_ms": 1380,
+  "run_id": "1778816414",
+  "started_at": "1778816414",
+  "elapsed_ms": 1775,
   "scope": {
     "mode": "full",
     "paths": []
   },
-  "score": 95,
-  "raw_score": 95,
+  "score": 70,
+  "raw_score": 94,
   "decision": {
     "status": "advisory",
     "minimum_score": 85,
     "passed": true,
-    "hard_findings": 0,
+    "hard_findings": 6,
     "soft_findings": 0,
     "ratchet": {
-      "baseline_score": 95,
+      "baseline_score": 70,
       "allowed_drop": 0,
-      "passed": true,
+      "passed": false,
       "score_delta": 0,
       "baseline_report_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
       "baseline_input_fingerprint": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -54,7 +61,7 @@
     }
   },
   "git": {
-    "head": "aff0e23",
+    "head": "9a665fb",
     "base": null,
     "changed_files": 0,
     "mode": "full",
@@ -72,13 +79,15 @@
       "low"
     ],
     "mode": "advisory",
-    "standard_version": "0.8.0",
-    "auditor_version": "1.0.0",
-    "schema_version": "1.7.0",
+    "standard_version": "0.9.0",
+    "auditor_version": "1.3.0",
+    "schema_version": "1.9.0",
     "paper_edition": "2026.05-ed8",
     "target_stack": "rust-ts-vite-react-postgres-bounded-python"
   },
-  "caps_applied": [],
+  "caps_applied": [
+    "ci-local-parity"
+  ],
   "hard_rules": [
     {
       "id": "no-root-agent-instructions",
@@ -259,6 +268,10 @@
     {
       "id": "comment-hygiene-dangerous-residue",
       "max_score": 72
+    },
+    {
+      "id": "ci-local-parity",
+      "max_score": 70
     }
   ],
   "dimensions": [
@@ -353,6 +366,7 @@
       "evidence": [
         "largest authored code file: test_font3.rs (16 LOC)",
         "most code files stay under 300 LOC",
+        "copy-code advisory classes found: 6 (advisory only, no score impact)",
         "authored code stays below hard LOC limits with no shape markers",
         "rust bad-behavior advisory signals: 2",
         "ci bad-behavior advisory signals: 3",
@@ -412,22 +426,22 @@
     {
       "name": "Jankurai tool adoption and CI replacement",
       "weight": 7,
-      "score": 72,
-      "weighted_points": 5.04,
+      "score": 64,
+      "weighted_points": 4.48,
       "evidence": [
         "control-plane files present",
-        "applicable=16",
+        "applicable=17",
         "configured=11",
-        "ci_evidence=12",
-        "artifact_verified=5"
+        "ci_evidence=11",
+        "artifact_verified=4"
       ],
       "notes": [
         "some applicable tools are not configured",
         "some applicable tools lack CI evidence",
         "missing CI evidence for `audit-ci`",
         "missing CI evidence for `proof-routing`",
-        "missing CI evidence for `ci-bad-behavior`",
-        "missing CI evidence for `git-bad-behavior`"
+        "missing CI evidence for `copy-code`",
+        "missing CI evidence for `ci-bad-behavior`"
       ]
     },
     {
@@ -471,16 +485,17 @@
         "apps/web/ux-qa.ts"
       ],
       "artifact_backed_proof": [
+        ".github/workflows/jankurai.yml",
         "Cargo.toml",
         "aer-records/EXAMPLE.yaml",
         "aer-records/mega-file-release.yaml",
-        "agent-index.json",
-        "agent/ux-qa.toml"
+        "agent-index.json"
       ],
       "design_tokens": [
         "apps/web/ux-qa.ts"
       ],
       "geometry_runtime": [
+        ".github/workflows/jankurai.yml",
         "agent/ux-qa.toml",
         "apps/web/ux-qa.md",
         "apps/web/ux-qa.ts"
@@ -504,11 +519,11 @@
   },
   "tool_adoption": {
     "control_plane_present": true,
-    "applicable_count": 16,
+    "applicable_count": 17,
     "configured_count": 11,
-    "ci_evidence_count": 12,
-    "artifact_verified_count": 5,
-    "replaced_count": 12,
+    "ci_evidence_count": 11,
+    "artifact_verified_count": 4,
+    "replaced_count": 11,
     "items": [
       {
         "id": "audit-ci",
@@ -612,6 +627,30 @@
         ]
       },
       {
+        "id": "copy-code",
+        "category": "audit",
+        "mode": "auto",
+        "applicable": true,
+        "status": "missing",
+        "replaced_tools": [
+          "ad hoc copy-code review",
+          "manual duplication triage"
+        ],
+        "evidence": [
+          "mode=auto"
+        ],
+        "missing": [
+          "agent/tool-adoption.toml entry",
+          "CI command evidence"
+        ],
+        "local_command": "cargo run -p jankurai -- copy-code . --json target/jankurai/copy-code.json --md target/jankurai/copy-code.md",
+        "ci_command": "cargo run -p jankurai -- copy-code . --json target/jankurai/copy-code.json --md target/jankurai/copy-code.md",
+        "artifact_paths": [
+          "target/jankurai/copy-code.json",
+          "target/jankurai/copy-code.md"
+        ]
+      },
+      {
         "id": "security",
         "category": "security",
         "mode": "auto",
@@ -712,7 +751,7 @@
         "category": "ux",
         "mode": "auto",
         "applicable": true,
-        "status": "artifact_verified",
+        "status": "configured",
         "replaced_tools": [
           "playwright",
           "axe-core",
@@ -720,11 +759,11 @@
         ],
         "evidence": [
           "mode=auto",
-          "tool-adoption config entry present",
-          "CI command found in workflow",
-          "artifact uploads found: target/jankurai/ux-qa.json"
+          "tool-adoption config entry present"
         ],
-        "missing": [],
+        "missing": [
+          "CI command evidence"
+        ],
         "local_command": "jankurai ux audit --config agent/ux-qa.toml --out target/jankurai/ux-qa.json",
         "ci_command": "jankurai ux audit --config agent/ux-qa.toml --out target/jankurai/ux-qa.json",
         "artifact_paths": [
@@ -959,12 +998,13 @@
       }
     ],
     "evidence": {
-      "applicable_count": 16,
+      "applicable_count": 17,
       "applicable_tools": [
         "audit-ci",
         "proof-routing",
         "proofbind",
         "proofmark-rust",
+        "copy-code",
         "security",
         "ci-bad-behavior",
         "git-bad-behavior",
@@ -978,22 +1018,20 @@
         "release-readiness",
         "cost-budget"
       ],
-      "artifact_verified_count": 5,
+      "artifact_verified_count": 4,
       "artifact_verified_tools": [
         "proofbind",
         "proofmark-rust",
         "security",
-        "ux-qa",
         "rust-witness"
       ],
-      "ci_evidence_count": 12,
+      "ci_evidence_count": 11,
       "ci_evidence_tools": [
         "audit-ci",
         "proof-routing",
         "proofbind",
         "proofmark-rust",
         "security",
-        "ux-qa",
         "contract-drift",
         "rust-witness",
         "authz-matrix",
@@ -1021,9 +1059,11 @@
     "missing": [
       "audit-ci",
       "proof-routing",
+      "copy-code",
       "ci-bad-behavior",
       "git-bad-behavior",
       "release-bad-behavior",
+      "ux-qa",
       "db-migration-analyze",
       "contract-drift",
       "authz-matrix",
@@ -1046,6 +1086,371 @@
       "streaming_exception_count": 1
     },
     "reclassifications": []
+  },
+  "copy_code": {
+    "schema_version": "1.1.0",
+    "generated_by": "jankurai copy-code",
+    "generated_at": "2026-05-15T03:40:12.648625+00:00",
+    "repo": ".",
+    "auditor_version": "1.3.0",
+    "status": "review",
+    "policy": {
+      "active_source_only": true,
+      "include_tests": false,
+      "min_lines": 10,
+      "min_tokens": 100,
+      "max_findings": 50,
+      "strict": false,
+      "excluded_roots": [
+        "build/",
+        "cache/",
+        "dist/",
+        "docs/",
+        "generated/",
+        "node_modules/",
+        "paper/",
+        "reference/",
+        "target/",
+        "tips/",
+        "vendor/"
+      ],
+      "warning_only_roots": [
+        "config/",
+        "docker/",
+        "fixtures/",
+        "migrations/",
+        "ops/scripts/",
+        "python_runtime/",
+        "stories/",
+        "runtime_payload/",
+        "seed_data/",
+        "tests/"
+      ]
+    },
+    "summary": {
+      "files_scanned": 186,
+      "files_considered": 12,
+      "active_files": 12,
+      "exact_file_classes": 0,
+      "hard_classes": 0,
+      "warning_classes": 6,
+      "hard_instances": 0,
+      "warning_instances": 25,
+      "duplicate_lines": 6,
+      "duplicate_tokens": 18,
+      "duplicate_bytes": 178,
+      "total_redundant_lines": 19,
+      "total_redundant_tokens": 66,
+      "total_redundant_bytes": 545
+    },
+    "classes": [
+      {
+        "id": "copy-code-body-rust-e60581c6d4098d8b",
+        "kind": "exact_unit_different_name",
+        "severity": "warning",
+        "confidence": "medium",
+        "language": "rust",
+        "duplicate_lines": 1,
+        "duplicate_tokens": 4,
+        "duplicate_bytes": 27,
+        "instance_count": 10,
+        "total_redundant_lines": 9,
+        "total_redundant_tokens": 36,
+        "total_redundant_bytes": 243,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "66871699c03d4e8b",
+        "reason": "same body appears under different names across files",
+        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
+        "instances": [
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 1471,
+            "end_line": 1472,
+            "unit_name": "insert_pool"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 1534,
+            "end_line": 1535,
+            "unit_name": "insert_manager"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 1625,
+            "end_line": 1626,
+            "unit_name": "count_active_managers"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 1638,
+            "end_line": 1639,
+            "unit_name": "upsert_job_event"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 1677,
+            "end_line": 1678,
+            "unit_name": "upsert_ci_job_run"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 2599,
+            "end_line": 2600,
+            "unit_name": "record_git_ref_update"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 2626,
+            "end_line": 2627,
+            "unit_name": "record_git_mirror_job"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 2653,
+            "end_line": 2654,
+            "unit_name": "record_git_risk_approval"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 2672,
+            "end_line": 2673,
+            "unit_name": "record_git_command_artifact"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 3104,
+            "end_line": 3105,
+            "unit_name": "latest_test_plan"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-body-rust-7c57d7d6be5f3cde",
+        "kind": "exact_unit_different_name",
+        "severity": "warning",
+        "confidence": "medium",
+        "language": "rust",
+        "duplicate_lines": 1,
+        "duplicate_tokens": 4,
+        "duplicate_bytes": 37,
+        "instance_count": 5,
+        "total_redundant_lines": 4,
+        "total_redundant_tokens": 16,
+        "total_redundant_bytes": 148,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "5d81fed8550c0576",
+        "reason": "same body appears under different names across files",
+        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
+        "instances": [
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 3374,
+            "end_line": 3375,
+            "unit_name": "count_pipeline_jobs_total"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 3384,
+            "end_line": 3385,
+            "unit_name": "count_pipeline_jobs_completed"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 3394,
+            "end_line": 3395,
+            "unit_name": "count_pipeline_jobs_running"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 3411,
+            "end_line": 3412,
+            "unit_name": "count_tripwire_taints"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 3420,
+            "end_line": 3421,
+            "unit_name": "count_cache_misses"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-body-rust-e29226e00efd9857",
+        "kind": "exact_unit_different_name",
+        "severity": "warning",
+        "confidence": "medium",
+        "language": "rust",
+        "duplicate_lines": 1,
+        "duplicate_tokens": 2,
+        "duplicate_bytes": 20,
+        "instance_count": 4,
+        "total_redundant_lines": 3,
+        "total_redundant_tokens": 6,
+        "total_redundant_bytes": 60,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "4ef6a73438ffbad1",
+        "reason": "same body appears under different names across files",
+        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
+        "instances": [
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 1910,
+            "end_line": 1911,
+            "unit_name": "upsert_tracked_pipeline"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 2699,
+            "end_line": 2700,
+            "unit_name": "upsert_secret_authority"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 2737,
+            "end_line": 2738,
+            "unit_name": "upsert_release_secret_set"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 2839,
+            "end_line": 2840,
+            "unit_name": "insert_secret_audit_event"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-body-rust-14595f13c53e85a8",
+        "kind": "exact_unit_different_name",
+        "severity": "warning",
+        "confidence": "medium",
+        "language": "rust",
+        "duplicate_lines": 1,
+        "duplicate_tokens": 5,
+        "duplicate_bytes": 41,
+        "instance_count": 2,
+        "total_redundant_lines": 1,
+        "total_redundant_tokens": 5,
+        "total_redundant_bytes": 41,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "e76a7c6c4ade0b63",
+        "reason": "same body appears under different names across files",
+        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
+        "instances": [
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 1812,
+            "end_line": 1813,
+            "unit_name": "count_pending_jobs"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 2442,
+            "end_line": 2443,
+            "unit_name": "count_recovery_decisions"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-body-rust-ccc64ef680a9ddd0",
+        "kind": "exact_unit_different_name",
+        "severity": "warning",
+        "confidence": "medium",
+        "language": "rust",
+        "duplicate_lines": 1,
+        "duplicate_tokens": 2,
+        "duplicate_bytes": 19,
+        "instance_count": 2,
+        "total_redundant_lines": 1,
+        "total_redundant_tokens": 2,
+        "total_redundant_bytes": 19,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "e76a7c6c4ade0b63",
+        "reason": "same body appears under different names across files",
+        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
+        "instances": [
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 647,
+            "end_line": 648,
+            "unit_name": "backend_sql"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 654,
+            "end_line": 655,
+            "unit_name": "backend_sql_owned"
+          }
+        ]
+      },
+      {
+        "id": "copy-code-body-rust-ce24788b9afbb7e3",
+        "kind": "exact_unit_different_name",
+        "severity": "warning",
+        "confidence": "medium",
+        "language": "rust",
+        "duplicate_lines": 1,
+        "duplicate_tokens": 1,
+        "duplicate_bytes": 34,
+        "instance_count": 2,
+        "total_redundant_lines": 1,
+        "total_redundant_tokens": 1,
+        "total_redundant_bytes": 34,
+        "effective_severity": "warning",
+        "hard_fail": false,
+        "fingerprint": "e76a7c6c4ade0b63",
+        "reason": "same body appears under different names across files",
+        "recommended_action": "choose one owner for the shared body or intentionally differentiate the behavior",
+        "instances": [
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 706,
+            "end_line": 707,
+            "unit_name": "open_url"
+          },
+          {
+            "path": "db/state.rs",
+            "language": "rust",
+            "start_line": 773,
+            "end_line": 774,
+            "unit_name": "open_memory"
+          }
+        ]
+      }
+    ],
+    "notes": [
+      "hard classes are limited to exact active-source file matches and substantial exact same-name units",
+      "warning classes include same-body different-name units and token/block duplication",
+      "tests, fixtures, stories, config, Docker, and migrations are omitted unless --include-tests is set"
+    ]
   },
   "profile_structure": {
     "applicable_count": 5,
@@ -1289,6 +1694,236 @@
       "noncanonical_count": 0
     }
   },
-  "findings": [],
-  "agent_fix_queue": []
+  "findings": [
+    {
+      "severity": "high",
+      "category": "ci",
+      "path": ".github/workflows/jankurai.yml",
+      "problem": "ops/ci/lib.sh is missing",
+      "agent_fix": "add ops/ci/lib.sh defining shared helpers and tool version pins",
+      "evidence": [
+        "detector=ci.local-parity.lib-missing",
+        "path=.github/workflows/jankurai.yml",
+        "line=1",
+        "proof_window=None",
+        "snippet=name: jankurai"
+      ],
+      "check_id": "HLT-042-CI-LOCAL-PARITY:ci",
+      "hardness": "hard",
+      "confidence": 0.95,
+      "evidence_kind": "repository-scan",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:37915fba1911bbff8067832d71760cb1c395b643f8bf5d61e8dd1f4ab2bcc5ca",
+      "rule_id": "HLT-042-CI-LOCAL-PARITY",
+      "tlr": "Verification",
+      "lane": "fast",
+      "docs_url": "docs/ci-local.md",
+      "owner": "ops",
+      "line": 1,
+      "matched_term": "ci.local-parity.lib-missing",
+      "reason": "ops/ci/lib.sh is the shared helper module (artifact assertions, tool pins) every lane sources"
+    },
+    {
+      "severity": "high",
+      "category": "ci",
+      "path": ".github/workflows/jankurai.yml",
+      "problem": "ops/git-hooks/pre-push is missing",
+      "agent_fix": "add ops/git-hooks/pre-push that runs `bash ops/ci/quality-gates.sh` and wire it via `git config core.hooksPath ops/git-hooks`",
+      "evidence": [
+        "detector=ci.local-parity.pre-push-hook-missing",
+        "path=.github/workflows/jankurai.yml",
+        "line=1",
+        "proof_window=None",
+        "snippet=name: jankurai"
+      ],
+      "check_id": "HLT-042-CI-LOCAL-PARITY:ci",
+      "hardness": "hard",
+      "confidence": 0.95,
+      "evidence_kind": "repository-scan",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:1eddecd5e7ed9fc3919ef4f85fe6c719399ff0704e889c28f7134662a1512fd7",
+      "rule_id": "HLT-042-CI-LOCAL-PARITY",
+      "tlr": "Verification",
+      "lane": "fast",
+      "docs_url": "docs/ci-local.md",
+      "owner": "ops",
+      "line": 1,
+      "matched_term": "ci.local-parity.pre-push-hook-missing",
+      "reason": "without a mandatory pre-push gate, broken code can be pushed and CI is the first place a failure shows up"
+    },
+    {
+      "severity": "high",
+      "category": "ci",
+      "path": ".github/workflows/jankurai.yml",
+      "problem": "scripts/ci-doctor.sh is missing",
+      "agent_fix": "add scripts/ci-doctor.sh listing every tool the ops/ci scripts depend on",
+      "evidence": [
+        "detector=ci.local-parity.doctor-missing",
+        "path=.github/workflows/jankurai.yml",
+        "line=1",
+        "proof_window=None",
+        "snippet=name: jankurai"
+      ],
+      "check_id": "HLT-042-CI-LOCAL-PARITY:ci",
+      "hardness": "hard",
+      "confidence": 0.95,
+      "evidence_kind": "repository-scan",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:4f3bac5529ba53c005699b913af04e7bdeaa4a5538bcd3cd0d736f210438a6e5",
+      "rule_id": "HLT-042-CI-LOCAL-PARITY",
+      "tlr": "Verification",
+      "lane": "fast",
+      "docs_url": "docs/ci-local.md",
+      "owner": "ops",
+      "line": 1,
+      "matched_term": "ci.local-parity.doctor-missing",
+      "reason": "without a doctor script, developers cannot confirm their local environment matches CI"
+    },
+    {
+      "severity": "high",
+      "category": "ci",
+      "path": ".github/workflows/jankurai.yml",
+      "problem": "scripts/ci-local.sh is missing",
+      "agent_fix": "add scripts/ci-local.sh exposing each CI lane locally",
+      "evidence": [
+        "detector=ci.local-parity.runner-missing",
+        "path=.github/workflows/jankurai.yml",
+        "line=1",
+        "proof_window=None",
+        "snippet=name: jankurai"
+      ],
+      "check_id": "HLT-042-CI-LOCAL-PARITY:ci",
+      "hardness": "hard",
+      "confidence": 0.95,
+      "evidence_kind": "repository-scan",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:8c0df3fda16a40e9a6b8ccf848f557b954f5560e130076937fc056ae021e3fce",
+      "rule_id": "HLT-042-CI-LOCAL-PARITY",
+      "tlr": "Verification",
+      "lane": "fast",
+      "docs_url": "docs/ci-local.md",
+      "owner": "ops",
+      "line": 1,
+      "matched_term": "ci.local-parity.runner-missing",
+      "reason": "scripts/ci-local.sh is the local entry point that delegates to the same ops/ci scripts the workflows call"
+    },
+    {
+      "severity": "high",
+      "category": "ci",
+      "path": ".github/workflows/jankurai.yml",
+      "problem": "workflow inlines CI commands instead of delegating to ops/ci/*.sh",
+      "agent_fix": "extract the workflow steps into ops/ci/<lane>.sh and call them with `bash ops/ci/<lane>.sh`",
+      "evidence": [
+        "detector=ci.local-parity.workflow-not-thin",
+        "path=.github/workflows/jankurai.yml",
+        "line=12",
+        "proof_window=None",
+        "snippet=jobs:"
+      ],
+      "check_id": "HLT-042-CI-LOCAL-PARITY:ci",
+      "hardness": "hard",
+      "confidence": 0.95,
+      "evidence_kind": "repository-scan",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:ba344f9676c430768708b53b4ec1933119d58e63d9c2e754504cbc03add48853",
+      "rule_id": "HLT-042-CI-LOCAL-PARITY",
+      "tlr": "Verification",
+      "lane": "fast",
+      "docs_url": "docs/ci-local.md",
+      "owner": "ops",
+      "line": 12,
+      "matched_term": "ci.local-parity.workflow-not-thin",
+      "reason": "without a single source of truth, local runs drift from CI and breakage is only visible after push"
+    },
+    {
+      "severity": "high",
+      "category": "ci",
+      "path": ".github/workflows/release.yml",
+      "problem": "workflow inlines CI commands instead of delegating to ops/ci/*.sh",
+      "agent_fix": "extract the workflow steps into ops/ci/<lane>.sh and call them with `bash ops/ci/<lane>.sh`",
+      "evidence": [
+        "detector=ci.local-parity.workflow-not-thin",
+        "path=.github/workflows/release.yml",
+        "line=24",
+        "proof_window=None",
+        "snippet=jobs:"
+      ],
+      "check_id": "HLT-042-CI-LOCAL-PARITY:ci",
+      "hardness": "hard",
+      "confidence": 0.95,
+      "evidence_kind": "repository-scan",
+      "rerun_command": "just fast",
+      "fingerprint": "sha256:f280e695679fbe0c4b1256ce68614ebb4a9012f8f98c5a4c088c15400a8ccb50",
+      "rule_id": "HLT-042-CI-LOCAL-PARITY",
+      "tlr": "Verification",
+      "lane": "fast",
+      "docs_url": "docs/ci-local.md",
+      "owner": "ops",
+      "line": 24,
+      "matched_term": "ci.local-parity.workflow-not-thin",
+      "reason": "without a single source of truth, local runs drift from CI and breakage is only visible after push"
+    }
+  ],
+  "agent_fix_queue": [
+    {
+      "path": ".github/workflows/jankurai.yml",
+      "priority": "high",
+      "rule_id": "HLT-042-CI-LOCAL-PARITY",
+      "tlr": "Verification",
+      "lane": "fast",
+      "owner": "ops",
+      "task": "add ops/ci/lib.sh defining shared helpers and tool version pins",
+      "why": "ops/ci/lib.sh is missing"
+    },
+    {
+      "path": ".github/workflows/jankurai.yml",
+      "priority": "high",
+      "rule_id": "HLT-042-CI-LOCAL-PARITY",
+      "tlr": "Verification",
+      "lane": "fast",
+      "owner": "ops",
+      "task": "add ops/git-hooks/pre-push that runs `bash ops/ci/quality-gates.sh` and wire it via `git config core.hooksPath ops/git-hooks`",
+      "why": "ops/git-hooks/pre-push is missing"
+    },
+    {
+      "path": ".github/workflows/jankurai.yml",
+      "priority": "high",
+      "rule_id": "HLT-042-CI-LOCAL-PARITY",
+      "tlr": "Verification",
+      "lane": "fast",
+      "owner": "ops",
+      "task": "add scripts/ci-doctor.sh listing every tool the ops/ci scripts depend on",
+      "why": "scripts/ci-doctor.sh is missing"
+    },
+    {
+      "path": ".github/workflows/jankurai.yml",
+      "priority": "high",
+      "rule_id": "HLT-042-CI-LOCAL-PARITY",
+      "tlr": "Verification",
+      "lane": "fast",
+      "owner": "ops",
+      "task": "add scripts/ci-local.sh exposing each CI lane locally",
+      "why": "scripts/ci-local.sh is missing"
+    },
+    {
+      "path": ".github/workflows/jankurai.yml",
+      "priority": "high",
+      "rule_id": "HLT-042-CI-LOCAL-PARITY",
+      "tlr": "Verification",
+      "lane": "fast",
+      "owner": "ops",
+      "task": "extract the workflow steps into ops/ci/<lane>.sh and call them with `bash ops/ci/<lane>.sh`",
+      "why": "workflow inlines CI commands instead of delegating to ops/ci/*.sh"
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "priority": "high",
+      "rule_id": "HLT-042-CI-LOCAL-PARITY",
+      "tlr": "Verification",
+      "lane": "fast",
+      "owner": "ops",
+      "task": "extract the workflow steps into ops/ci/<lane>.sh and call them with `bash ops/ci/<lane>.sh`",
+      "why": "workflow inlines CI commands instead of delegating to ops/ci/*.sh"
+    }
+  ]
 }

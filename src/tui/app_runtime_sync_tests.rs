@@ -1,5 +1,8 @@
-use super::{LiveLogState, TuiStateSnapshot, live_job_status_rank};
-use crate::state::JobEvent;
+use super::{
+    LiveLogState, StageProgress, TuiStateSnapshot, build_stage_progress_from_ci_runs,
+    build_stage_progress_from_events, live_job_status_rank,
+};
+use crate::state::{CiJobRun, JobEvent};
 use crate::tui::flow::{FlowGraph, FlowSnapshot, PipelineFlow};
 use anyhow::Result;
 
@@ -231,4 +234,145 @@ async fn opening_and_scrolling_logs_controls_follow_mode() -> Result<()> {
     assert!(app.follow_log_tail);
     assert_eq!(app.log_scroll_offset, u16::MAX);
     Ok(())
+}
+
+// ── Stage progress helpers ────────────────────────────────────────────────────
+
+fn ci_run(stage: &str, status: &str) -> CiJobRun {
+    CiJobRun {
+        job_id: 1,
+        project_id: 2,
+        pipeline_id: 100,
+        root_pipeline_id: 100,
+        pipeline_sha: "abc".into(),
+        ref_name: "main".into(),
+        job_name: format!("job-{stage}"),
+        stage: stage.into(),
+        status: status.into(),
+        runner: None,
+        runner_pool: None,
+        queued_duration_secs: None,
+        duration_secs: None,
+        started_at: None,
+        finished_at: None,
+        web_url: None,
+        observed_at: "2026-05-14T10:00:00Z".into(),
+    }
+}
+
+fn event_for_pipeline(pipeline_id: i64, pool: &str, status: &str) -> JobEvent {
+    JobEvent {
+        job_id: 1,
+        project_id: 2,
+        pipeline_id: Some(pipeline_id),
+        status: status.into(),
+        job_name: Some(format!("job-{pool}")),
+        pool_name: Some(pool.into()),
+        system_id: None,
+        queued_duration: None,
+        received_at: "2026-05-14T10:00:00Z".into(),
+    }
+}
+
+#[test]
+fn stage_progress_from_ci_runs_groups_and_counts() {
+    let runs = vec![
+        ci_run("build", "success"),
+        ci_run("build", "success"),
+        ci_run("test", "running"),
+        ci_run("test", "pending"),
+        ci_run("test", "failed"),
+        ci_run("deploy", "pending"),
+    ];
+    let stages = build_stage_progress_from_ci_runs(&runs);
+
+    assert_eq!(stages.len(), 3);
+
+    assert_eq!(stages[0].stage_name, "build");
+    assert_eq!(stages[0].total_jobs, 2);
+    assert_eq!(stages[0].completed_jobs, 2);
+    assert_eq!(stages[0].running_jobs, 0);
+    assert_eq!(stages[0].failed_jobs, 0);
+    assert_eq!(stages[0].status, "success");
+
+    assert_eq!(stages[1].stage_name, "test");
+    assert_eq!(stages[1].total_jobs, 3);
+    assert_eq!(stages[1].running_jobs, 1);
+    assert_eq!(stages[1].failed_jobs, 1);
+    // failed_jobs > 0 → failed, even with running jobs
+    assert_eq!(stages[1].status, "failed");
+
+    assert_eq!(stages[2].stage_name, "deploy");
+    assert_eq!(stages[2].total_jobs, 1);
+    assert_eq!(stages[2].completed_jobs, 0);
+    assert_eq!(stages[2].status, "pending");
+}
+
+#[test]
+fn stage_progress_from_ci_runs_preserves_insertion_order() {
+    let runs = vec![ci_run("z-stage", "success"), ci_run("a-stage", "success")];
+    let stages = build_stage_progress_from_ci_runs(&runs);
+    assert_eq!(stages[0].stage_name, "z-stage");
+    assert_eq!(stages[1].stage_name, "a-stage");
+}
+
+#[test]
+fn stage_progress_from_events_filters_by_pipeline_id() {
+    let events = vec![
+        event_for_pipeline(100, "build", "success"),
+        event_for_pipeline(100, "test", "running"),
+        event_for_pipeline(100, "test", "success"),
+        event_for_pipeline(999, "build", "running"), // different pipeline → excluded
+    ];
+    let stages = build_stage_progress_from_events(&events, 100);
+
+    assert_eq!(stages.len(), 2);
+
+    assert_eq!(stages[0].stage_name, "build");
+    assert_eq!(stages[0].total_jobs, 1);
+    assert_eq!(stages[0].completed_jobs, 1);
+    assert_eq!(stages[0].status, "success");
+
+    assert_eq!(stages[1].stage_name, "test");
+    assert_eq!(stages[1].total_jobs, 2);
+    assert_eq!(stages[1].running_jobs, 1);
+    assert_eq!(stages[1].completed_jobs, 1);
+    assert_eq!(stages[1].status, "running");
+}
+
+#[test]
+fn stage_progress_overall_pct_weights_running_at_half() {
+    // 2 success + 2 running out of 6 total → (2 + 2*0.5) / 6 = 50%
+    let stages = vec![
+        StageProgress {
+            stage_name: "build".into(),
+            total_jobs: 2,
+            completed_jobs: 2,
+            running_jobs: 0,
+            failed_jobs: 0,
+            status: "success".into(),
+            ..Default::default()
+        },
+        StageProgress {
+            stage_name: "test".into(),
+            total_jobs: 4,
+            completed_jobs: 0,
+            running_jobs: 2,
+            failed_jobs: 0,
+            status: "running".into(),
+            ..Default::default()
+        },
+    ];
+    let total: usize = stages.iter().map(|s| s.total_jobs).sum();
+    let completed: usize = stages.iter().map(|s| s.completed_jobs).sum();
+    let running: usize = stages.iter().map(|s| s.running_jobs).sum();
+    let pct = ((completed as f64 + running as f64 * 0.5) / total as f64 * 100.0) as u16;
+    assert_eq!(pct, 50);
+}
+
+#[test]
+fn stage_progress_from_events_empty_when_no_matching_pipeline() {
+    let events = vec![event_for_pipeline(999, "build", "running")];
+    let stages = build_stage_progress_from_events(&events, 100);
+    assert!(stages.is_empty());
 }

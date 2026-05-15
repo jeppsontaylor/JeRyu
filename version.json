@@ -1,10 +1,10 @@
 {
   "name": "JeRyu",
-  "version": "1.0.0",
-  "cargo_workspace_version": "1.0.0",
+  "version": "1.0.1",
+  "cargo_workspace_version": "1.0.1",
   "release_line": "V1.00",
   "status": "stable",
-  "date": "2026-04-27",
+  "date": "2026-05-14",
   "tag_policy": {
     "release_candidate": "v1.0.0-rc.N after required proof lanes pass",
     "stable": "v1.0.0 after release and security lanes pass"

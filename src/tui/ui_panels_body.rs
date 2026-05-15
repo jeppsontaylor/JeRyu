@@ -1,24 +1,46 @@
 use super::*;
+
 pub(crate) fn draw_release_tab(f: &mut Frame, app: &App, area: Rect) {
     let cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Min(40), Constraint::Length(34)])
         .split(area);
 
-    // Center: Release Gate Matrix
+    // Left: gate matrix stacked above pipeline progress
+    let gate_h = if app.state.release_status.is_some() {
+        12u16
+    } else {
+        4u16
+    };
+    let left_rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(gate_h.min(area.height.saturating_sub(7))),
+            Constraint::Min(5),
+        ])
+        .split(cols[0]);
+
+    draw_release_gates(f, app, left_rows[0]);
+    draw_pipeline_progress(f, app, left_rows[1]);
+
+    // Right: per-job list for active pipeline
+    draw_release_job_list(f, app, cols[1]);
+}
+
+fn draw_release_gates(f: &mut Frame, app: &App, area: Rect) {
+    let border_color = app
+        .state
+        .release_status
+        .as_ref()
+        .map(|r| release_color(&r.canary_state))
+        .unwrap_or(Color::DarkGray);
+
     let gate_block = Block::default()
         .title(" [ Release Gate Matrix ] ")
         .borders(Borders::ALL)
-        .border_style(
-            Style::default().fg(app
-                .state
-                .release_status
-                .as_ref()
-                .map(|r| release_color(&r.canary_state))
-                .unwrap_or(Color::DarkGray)),
-        );
-    let gate_inner = gate_block.inner(cols[0]);
-    f.render_widget(gate_block, cols[0]);
+        .border_style(Style::default().fg(border_color));
+    let gate_inner = gate_block.inner(area);
+    f.render_widget(gate_block, area);
 
     if let Some(ref rel) = app.state.release_status {
         let attempt = &rel.attempt;
@@ -99,7 +121,8 @@ pub(crate) fn draw_release_tab(f: &mut Frame, app: &App, area: Rect) {
             ),
         ];
 
-        let header = Line::from(vec![Span::styled(
+        let sep_width = gate_inner.width.saturating_sub(4) as usize;
+        let header = Line::from(Span::styled(
             format!(
                 "  RELEASE: {}  Phase: {}  ",
                 attempt.version, rel.canary_state
@@ -107,33 +130,26 @@ pub(crate) fn draw_release_tab(f: &mut Frame, app: &App, area: Rect) {
             Style::default()
                 .fg(release_color(&rel.canary_state))
                 .add_modifier(Modifier::BOLD),
-        )]);
-
+        ));
         let sep = Line::from(Span::styled(
-            format!(
-                "  {:-<width$}",
-                "",
-                width = gate_inner.width.saturating_sub(4) as usize
-            ),
+            format!("  {:-<sep_width$}", ""),
             Style::default().fg(Color::DarkGray),
         ));
-
-        let col_header = Line::from(vec![Span::styled(
+        let col_header = Line::from(Span::styled(
             format!("  {:<28} {:<7} {:<16} Detail", "Gate", "Status", "State"),
             Style::default()
                 .fg(Color::Gray)
                 .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
-        )]);
+        ));
 
         let mut lines = vec![header, sep.clone(), col_header, sep.clone()];
         for (gate, badge, state, detail) in &gate_rows {
             let badge_color = match *badge {
                 "[OK]" => Color::Green,
-                "[RUN]" => Color::Blue,
+                "[RUN]" => Color::Cyan,
                 "[FAIL]" => Color::Red,
                 _ => Color::Yellow,
             };
-            let short_detail = short_text(detail, 20);
             lines.push(Line::from(vec![
                 Span::raw(format!("  {:<28} ", gate)),
                 Span::styled(
@@ -143,51 +159,90 @@ pub(crate) fn draw_release_tab(f: &mut Frame, app: &App, area: Rect) {
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(format!("{:<16} ", state), Style::default().fg(Color::White)),
-                Span::styled(short_detail, Style::default().fg(Color::DarkGray)),
+                Span::styled(short_text(detail, 20), Style::default().fg(Color::DarkGray)),
             ]));
         }
-
         f.render_widget(Paragraph::new(lines), gate_inner);
     } else {
         f.render_widget(
-            Paragraph::new("\n  No release in progress.\n  Waiting for first green main pipeline.")
-                .style(Style::default().fg(Color::DarkGray)),
+            Paragraph::new(vec![
+                Line::from(Span::styled(
+                    "  No active release attempt.",
+                    Style::default().fg(Color::Yellow),
+                )),
+                Line::from(Span::styled(
+                    "  Waiting for green main pipeline.",
+                    Style::default().fg(Color::DarkGray),
+                )),
+            ]),
             gate_inner,
         );
     }
-
-    // Right: Inspector shows release note / progress report
-    draw_release_inspector(f, app, cols[1]);
 }
 
-pub(crate) fn draw_release_inspector(f: &mut Frame, app: &App, area: Rect) {
+pub(crate) fn draw_release_job_list(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
-        .title(" [ Inspector ] ")
+        .title(" [ Jobs ] ")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Cyan));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let content = if let Some(ref rel) = app.state.release_status {
-        let attempt = &rel.attempt;
-        format!(
-            "sha: {}\nref: {}\n\ncanary_url:\n{}\n\nnote:\n{}\n\neligibility:\n{}",
-            attempt.sha.get(..12).unwrap_or(&attempt.sha),
-            attempt.ref_name,
-            rel.canary_public_url.as_deref().unwrap_or("n/a"),
-            attempt.canary_note.as_deref().unwrap_or("(none)"),
-            rel.eligibility,
-        )
-    } else {
-        "No release attempt.\n\nActions available:\n  n/a".to_string()
-    };
+    let active_pid = app
+        .state
+        .pipeline_progress_view
+        .as_ref()
+        .map(|p| p.pipeline_id);
+    let tick = app.tick_count;
+    let max_name = inner.width.saturating_sub(5) as usize;
 
-    f.render_widget(
-        Paragraph::new(content)
-            .style(Style::default().fg(Color::White))
-            .wrap(Wrap { trim: false }),
-        inner,
-    );
+    let mut lines: Vec<Line> = Vec::new();
+
+    let jobs: Vec<&crate::state::JobEvent> = app
+        .state
+        .recent_jobs
+        .iter()
+        .filter(|j| active_pid.map_or(true, |pid| j.pipeline_id == Some(pid)))
+        .take(inner.height as usize)
+        .collect();
+
+    for job in &jobs {
+        let (dot, color) = match job.status.as_str() {
+            "success" => ("●", Color::Green),
+            "running" => {
+                if tick % 4 < 2 {
+                    ("◉", Color::Cyan)
+                } else {
+                    ("◎", Color::Cyan)
+                }
+            }
+            "failed" => {
+                if tick % 4 < 2 {
+                    ("✕", Color::Red)
+                } else {
+                    ("✕", Color::LightRed)
+                }
+            }
+            "pending" | "created" => ("○", Color::Yellow),
+            "canceled" => ("○", Color::DarkGray),
+            _ => ("○", Color::Gray),
+        };
+        let name = short_text(job.job_name.as_deref().unwrap_or("?"), max_name);
+        lines.push(Line::from(vec![
+            Span::raw(" "),
+            Span::styled(format!("{dot} "), Style::default().fg(color)),
+            Span::styled(name, Style::default().fg(Color::White)),
+        ]));
+    }
+
+    if lines.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "  No jobs tracked",
+            Style::default().fg(Color::DarkGray),
+        )));
+    }
+
+    f.render_widget(Paragraph::new(lines), inner);
 }
 
 // ---------------------------------------------------------------------------

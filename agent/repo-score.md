@@ -7,15 +7,15 @@
 - Target stack ID: `rust-ts-vite-react-postgres-bounded-python`
 - Target stack: `Rust core + TypeScript/React/Vite + PostgreSQL + generated contracts + exception-only Python AI/data service`
 - Repo: `.`
-- Run ID: `1778583548`
-- Started at: `1778583548`
-- Elapsed: `1380` ms
+- Run ID: `1778816414`
+- Started at: `1778816414`
+- Elapsed: `1775` ms
 - Scope: `full`
-- Raw score: `95`
-- Final score: `95`
+- Raw score: `94`
+- Final score: `70`
 - Decision: `advisory`
 - Minimum score: `85`
-- Caps applied: `none`
+- Caps applied: `ci-local-parity`
 
 ## Hard Rule Caps
 
@@ -66,6 +66,27 @@
 | `web-security-bad-behavior` | 68 | no |
 | `repo-rot-bad-behavior` | 88 | no |
 | `comment-hygiene-dangerous-residue` | 72 | no |
+| `ci-local-parity` | 70 | yes |
+
+## Copy-Code Redundancy
+
+- Status: `review` hard=`0` warning=`6` files=`12`
+- Policy: min-lines=`10` min-tokens=`100` max-findings=`50` include-tests=`false` strict=`false`
+- Duplicate volume: lines=`6` tokens=`18` bytes=`178`
+
+- Notes:
+  - hard classes are limited to exact active-source file matches and substantial exact same-name units
+  - warning classes include same-body different-name units and token/block duplication
+  - tests, fixtures, stories, config, Docker, and migrations are omitted unless --include-tests is set
+
+| Kind | Severity | Language | Lines | Tokens | Instances | Reason |
+| --- | --- | --- | ---: | ---: | --- | --- |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 4 | `db/state.rs:1471-1472, db/state.rs:1534-1535, db/state.rs:1625-1626, db/state.rs:1638-1639, db/state.rs:1677-1678, db/state.rs:2599-2600, db/state.rs:2626-2627, db/state.rs:2653-2654, db/state.rs:2672-2673, db/state.rs:3104-3105` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 4 | `db/state.rs:3374-3375, db/state.rs:3384-3385, db/state.rs:3394-3395, db/state.rs:3411-3412, db/state.rs:3420-3421` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 2 | `db/state.rs:1910-1911, db/state.rs:2699-2700, db/state.rs:2737-2738, db/state.rs:2839-2840` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 5 | `db/state.rs:1812-1813, db/state.rs:2442-2443` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 2 | `db/state.rs:647-648, db/state.rs:654-655` | `same body appears under different names across files` |
+| `ExactUnitDifferentName` | `Warning` | `rust` | 1 | 1 | `db/state.rs:706-707, db/state.rs:773-774` | `same body appears under different names across files` |
 
 ## Dimensions
 
@@ -79,7 +100,7 @@
 | Data truth and workflow safety | 8 | 85 | 6.80 | database surface present; structured db boundary manifest present |
 | Observability and repair evidence | 8 | 98 | 7.84 | observability libraries or patterns found; diagnostic shaping hints found |
 | Context economy and agent instructions | 7 | 100 | 7.00 | root `AGENTS.md` present; root `AGENTS.md` stays short |
-| Jankurai tool adoption and CI replacement | 7 | 72 | 5.04 | control-plane files present; applicable=16 |
+| Jankurai tool adoption and CI replacement | 7 | 64 | 4.48 | control-plane files present; applicable=17 |
 | Python containment and polyglot hygiene | 4 | 100 | 4.00 | no Python files in scope |
 | Build speed signals | 4 | 95 | 3.80 | build acceleration markers found; targeted test/build commands found |
 
@@ -109,12 +130,12 @@
 ## Tool Adoption
 
 - Control plane present: `true`
-- Applicable tools: `16`
+- Applicable tools: `17`
 - Configured: `11`
-- CI evidence: `12`
-- Artifact verified: `5`
-- Replaced count: `12`
-- Missing CI evidence: `audit-ci, proof-routing, ci-bad-behavior, git-bad-behavior, release-bad-behavior, db-migration-analyze, contract-drift, authz-matrix, agent-tool-supply, release-readiness, cost-budget`
+- CI evidence: `11`
+- Artifact verified: `4`
+- Replaced count: `11`
+- Missing CI evidence: `audit-ci, proof-routing, copy-code, ci-bad-behavior, git-bad-behavior, release-bad-behavior, ux-qa, db-migration-analyze, contract-drift, authz-matrix, agent-tool-supply, release-readiness, cost-budget`
 
 | Tool | Category | Mode | Status | Replaced | Artifacts |
 | --- | --- | --- | --- | --- | --- |
@@ -122,11 +143,12 @@
 | `proof-routing` | `proof` | `auto` | `ci_evidence` | `ad hoc proof lane selection, manual proof receipts` | `agent/repo-score.json, agent/repo-score.md, target/jankurai/repair-queue.jsonl` |
 | `proofbind` | `proof` | `auto` | `artifact_verified` | `manual changed-surface routing, ad hoc proof obligation lists` | `target/jankurai/proofbind/surface-witness.json, target/jankurai/proofbind/obligations.json` |
 | `proofmark-rust` | `proof` | `auto` | `artifact_verified` | `line-only coverage review, manual in-diff mutation review` | `target/jankurai/proofmark/proofmark-receipt.json, target/jankurai/proofmark/proof-receipt.json` |
+| `copy-code` | `audit` | `auto` | `missing` | `ad hoc copy-code review, manual duplication triage` | `target/jankurai/copy-code.json, target/jankurai/copy-code.md` |
 | `security` | `security` | `auto` | `artifact_verified` | `gitleaks, dependency review, SBOM/provenance` | `target/jankurai/security/evidence.json` |
 | `ci-bad-behavior` | `security` | `auto` | `configured` | `mutable workflow refs, secret echo/debug workflow checks, non-blocking security scans` | `target/jankurai/language-bad-behavior.log` |
 | `git-bad-behavior` | `audit` | `auto` | `configured` | `destructive git automation, force-push release scripts, hidden stash-based state` | `target/jankurai/language-bad-behavior.log` |
 | `release-bad-behavior` | `release` | `auto` | `configured` | `manual release checklist, ad hoc tag and artifact review, manual provenance review` | `target/jankurai/language-bad-behavior.log` |
-| `ux-qa` | `ux` | `auto` | `artifact_verified` | `playwright, axe-core, visual baselines` | `target/jankurai/ux-qa.json` |
+| `ux-qa` | `ux` | `auto` | `configured` | `playwright, axe-core, visual baselines` | `target/jankurai/ux-qa.json` |
 | `db-migration-analyze` | `db` | `auto` | `configured` | `manual migration review` | `target/jankurai/migration-report.json` |
 | `contract-drift` | `contract` | `auto` | `ci_evidence` | `handwritten contract drift checks, openapi diff` | `agent/repo-score.json, agent/repo-score.md` |
 | `rust-witness` | `rust` | `auto` | `artifact_verified` | `manual witness graphing` | `target/jankurai/rust/witness-graph.json` |
@@ -151,7 +173,72 @@ No audited runtime boundary reclassifications declared.
 
 ## Findings
 
-No findings.
+1. `high` `ci` `.github/workflows/jankurai.yml:1`
+   Rule: `HLT-042-CI-LOCAL-PARITY`
+   Check: `HLT-042-CI-LOCAL-PARITY:ci` `hard` confidence `0.95`
+   Route: TLR `Verification`, lane `fast`, owner `ops`
+   Docs: `docs/ci-local.md`
+   Matched term: `ci.local-parity.lib-missing`
+   Reason: ops/ci/lib.sh is the shared helper module (artifact assertions, tool pins) every lane sources
+   Fix: add ops/ci/lib.sh defining shared helpers and tool version pins
+   Rerun: `just fast`
+   Fingerprint: `sha256:37915fba1911bbff8067832d71760cb1c395b643f8bf5d61e8dd1f4ab2bcc5ca`
+   Evidence: detector=ci.local-parity.lib-missing, path=.github/workflows/jankurai.yml, line=1, proof_window=None, snippet=name: jankurai
+2. `high` `ci` `.github/workflows/jankurai.yml:1`
+   Rule: `HLT-042-CI-LOCAL-PARITY`
+   Check: `HLT-042-CI-LOCAL-PARITY:ci` `hard` confidence `0.95`
+   Route: TLR `Verification`, lane `fast`, owner `ops`
+   Docs: `docs/ci-local.md`
+   Matched term: `ci.local-parity.pre-push-hook-missing`
+   Reason: without a mandatory pre-push gate, broken code can be pushed and CI is the first place a failure shows up
+   Fix: add ops/git-hooks/pre-push that runs `bash ops/ci/quality-gates.sh` and wire it via `git config core.hooksPath ops/git-hooks`
+   Rerun: `just fast`
+   Fingerprint: `sha256:1eddecd5e7ed9fc3919ef4f85fe6c719399ff0704e889c28f7134662a1512fd7`
+   Evidence: detector=ci.local-parity.pre-push-hook-missing, path=.github/workflows/jankurai.yml, line=1, proof_window=None, snippet=name: jankurai
+3. `high` `ci` `.github/workflows/jankurai.yml:1`
+   Rule: `HLT-042-CI-LOCAL-PARITY`
+   Check: `HLT-042-CI-LOCAL-PARITY:ci` `hard` confidence `0.95`
+   Route: TLR `Verification`, lane `fast`, owner `ops`
+   Docs: `docs/ci-local.md`
+   Matched term: `ci.local-parity.doctor-missing`
+   Reason: without a doctor script, developers cannot confirm their local environment matches CI
+   Fix: add scripts/ci-doctor.sh listing every tool the ops/ci scripts depend on
+   Rerun: `just fast`
+   Fingerprint: `sha256:4f3bac5529ba53c005699b913af04e7bdeaa4a5538bcd3cd0d736f210438a6e5`
+   Evidence: detector=ci.local-parity.doctor-missing, path=.github/workflows/jankurai.yml, line=1, proof_window=None, snippet=name: jankurai
+4. `high` `ci` `.github/workflows/jankurai.yml:1`
+   Rule: `HLT-042-CI-LOCAL-PARITY`
+   Check: `HLT-042-CI-LOCAL-PARITY:ci` `hard` confidence `0.95`
+   Route: TLR `Verification`, lane `fast`, owner `ops`
+   Docs: `docs/ci-local.md`
+   Matched term: `ci.local-parity.runner-missing`
+   Reason: scripts/ci-local.sh is the local entry point that delegates to the same ops/ci scripts the workflows call
+   Fix: add scripts/ci-local.sh exposing each CI lane locally
+   Rerun: `just fast`
+   Fingerprint: `sha256:8c0df3fda16a40e9a6b8ccf848f557b954f5560e130076937fc056ae021e3fce`
+   Evidence: detector=ci.local-parity.runner-missing, path=.github/workflows/jankurai.yml, line=1, proof_window=None, snippet=name: jankurai
+5. `high` `ci` `.github/workflows/jankurai.yml:12`
+   Rule: `HLT-042-CI-LOCAL-PARITY`
+   Check: `HLT-042-CI-LOCAL-PARITY:ci` `hard` confidence `0.95`
+   Route: TLR `Verification`, lane `fast`, owner `ops`
+   Docs: `docs/ci-local.md`
+   Matched term: `ci.local-parity.workflow-not-thin`
+   Reason: without a single source of truth, local runs drift from CI and breakage is only visible after push
+   Fix: extract the workflow steps into ops/ci/<lane>.sh and call them with `bash ops/ci/<lane>.sh`
+   Rerun: `just fast`
+   Fingerprint: `sha256:ba344f9676c430768708b53b4ec1933119d58e63d9c2e754504cbc03add48853`
+   Evidence: detector=ci.local-parity.workflow-not-thin, path=.github/workflows/jankurai.yml, line=12, proof_window=None, snippet=jobs:
+6. `high` `ci` `.github/workflows/release.yml:24`
+   Rule: `HLT-042-CI-LOCAL-PARITY`
+   Check: `HLT-042-CI-LOCAL-PARITY:ci` `hard` confidence `0.95`
+   Route: TLR `Verification`, lane `fast`, owner `ops`
+   Docs: `docs/ci-local.md`
+   Matched term: `ci.local-parity.workflow-not-thin`
+   Reason: without a single source of truth, local runs drift from CI and breakage is only visible after push
+   Fix: extract the workflow steps into ops/ci/<lane>.sh and call them with `bash ops/ci/<lane>.sh`
+   Rerun: `just fast`
+   Fingerprint: `sha256:f280e695679fbe0c4b1256ce68614ebb4a9012f8f98c5a4c088c15400a8ccb50`
+   Evidence: detector=ci.local-parity.workflow-not-thin, path=.github/workflows/release.yml, line=24, proof_window=None, snippet=jobs:
 
 ## Policy
 
@@ -161,4 +248,15 @@ No findings.
 
 ## Agent Fix Queue
 
-No queued fixes.
+1. `high` `HLT-042-CI-LOCAL-PARITY` `.github/workflows/jankurai.yml` - add ops/ci/lib.sh defining shared helpers and tool version pins
+   Route: `Verification`/`fast`
+2. `high` `HLT-042-CI-LOCAL-PARITY` `.github/workflows/jankurai.yml` - add ops/git-hooks/pre-push that runs `bash ops/ci/quality-gates.sh` and wire it via `git config core.hooksPath ops/git-hooks`
+   Route: `Verification`/`fast`
+3. `high` `HLT-042-CI-LOCAL-PARITY` `.github/workflows/jankurai.yml` - add scripts/ci-doctor.sh listing every tool the ops/ci scripts depend on
+   Route: `Verification`/`fast`
+4. `high` `HLT-042-CI-LOCAL-PARITY` `.github/workflows/jankurai.yml` - add scripts/ci-local.sh exposing each CI lane locally
+   Route: `Verification`/`fast`
+5. `high` `HLT-042-CI-LOCAL-PARITY` `.github/workflows/jankurai.yml` - extract the workflow steps into ops/ci/<lane>.sh and call them with `bash ops/ci/<lane>.sh`
+   Route: `Verification`/`fast`
+6. `high` `HLT-042-CI-LOCAL-PARITY` `.github/workflows/release.yml` - extract the workflow steps into ops/ci/<lane>.sh and call them with `bash ops/ci/<lane>.sh`
+   Route: `Verification`/`fast`
