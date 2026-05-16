@@ -3,12 +3,12 @@
 //! Invariants: Render-only; reads app state, never mutates it.
 //!
 //! Right-side detail pane for the Delivery view. Five sub-tabs:
-//!   * Overview  — status / kind / command / deps / timing / badges / reason
-//!   * Logs      — live tail from LiveLogState (per-node)
-//!   * Deps      — incoming + outgoing dependency lists
-//!   * Evidence  — capsule id, artifacts, related PR labels (stub)
-//!   * Actions   — context-sensitive buttons (Rerun, Open in GitLab,
-//!                 View capsule, Rollback for promote nodes)
+//!   * Overview — status / kind / command / deps / timing / badges / reason
+//!   * Logs — live tail from LiveLogState (per-node)
+//!   * Deps — incoming + outgoing dependency lists
+//!   * Evidence — capsule id, artifacts, related PR labels (stub)
+//!   * Actions — context-sensitive buttons (Rerun, Open in GitLab,
+//!     View capsule, Rollback for promote nodes)
 //!
 //! When the terminal is too narrow for a side pane, the legacy modal
 //! overlay in `ui.rs` is rendered instead.
@@ -74,6 +74,7 @@ impl InspectorTab {
 
 /// Render the inspector pane in `area`. The selected node is drawn from
 /// `pr.snapshot` using the (phase_idx, node_idx) cursor on `nav`.
+#[allow(clippy::too_many_arguments)]
 pub fn draw_inspector_pane(
     f: &mut Frame,
     area: Rect,

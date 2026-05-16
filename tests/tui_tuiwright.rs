@@ -45,36 +45,35 @@ fn spawn_tui(tab: &str) -> anyhow::Result<Page> {
 fn workflow_tab_renders_header_and_content() -> anyhow::Result<()> {
     let page = spawn_tui("workflow")?;
 
-    // The header bar must show the Workflow tab label.
-    page.wait_for_text("Workflow", Duration::from_secs(5))?;
+    // The header bar must show the Delivery (Workflow) tab label.
+    page.wait_for_text("Delivery", Duration::from_secs(5))?;
 
-    // The demo fixture renders phase rows with "Phase 0" visible.
-    page.wait_for_text("Phase 0", Duration::from_secs(3))?;
+    // The 5-PR demo renders the canonical pre-merge phase header.
+    page.wait_for_text("Pre-merge CI", Duration::from_secs(3))?;
 
-    // Take a screenshot for visual inspection.
     std::fs::create_dir_all("target/tuiwright")?;
     page.screenshot("target/tuiwright/workflow-default.png")?;
 
     Ok(())
 }
 
-// ── Test: Workflow tab shows demo node labels ───────────────────────────
+// ── Test: Workflow tab shows demo PR + status glyphs ────────────────────
 
 #[test]
 fn workflow_demo_shows_node_labels() -> anyhow::Result<()> {
     let page = spawn_tui("workflow")?;
 
-    // Demo snapshot includes "cargo check" and "VTI plan" nodes.
-    page.wait_for_text("cargo check", Duration::from_secs(5))?;
+    // The 5-PR demo includes a PR #1842 chip in the PR rail.
+    page.wait_for_text("#1842", Duration::from_secs(5))?;
 
-    // The summary banner should show status glyphs.
+    // The mission strip + cards should contain status glyphs.
     let screen = page.screen();
     let text = screen.plain_text();
 
-    // Verify at least one status glyph is present (✓ for passed nodes).
     assert!(
-        text.contains('✓') || text.contains("RAN"),
-        "expected passed node marker in workflow view"
+        text.contains('✓') || text.contains('●') || text.contains("RAN") || text.contains("OPEN"),
+        "expected a status glyph or label in delivery view; got:\n{}",
+        text
     );
 
     page.screenshot("target/tuiwright/workflow-nodes.png")?;

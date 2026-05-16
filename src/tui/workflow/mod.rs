@@ -16,3 +16,6 @@ pub mod phase_rail;
 pub mod pr_rail;
 pub mod regions;
 pub mod widget;
+
+#[cfg(test)]
+mod render_tests;

@@ -60,6 +60,7 @@ pub fn draw_workflow_tab(
 /// Render the Delivery view — mission strip, PR rail, phase rail, DAG canvas,
 /// minimap, and footer for the currently selected PR. Populates `hit_map`
 /// with the region rects so the mouse handler can dispatch clicks.
+#[allow(clippy::too_many_arguments)]
 pub fn draw_delivery_tab(
     f: &mut Frame,
     area: Rect,
@@ -123,6 +124,7 @@ fn visible(r: Rect) -> Option<Rect> {
 
 /// Hit-map-aware DAG canvas. Mirrors `draw_dag_canvas` but pushes each
 /// rendered card's rect into `hit_map` for mouse hit-testing.
+#[allow(clippy::too_many_arguments)]
 pub fn draw_dag_canvas_with_hits(
     f: &mut Frame,
     dag_area: Rect,
@@ -183,6 +185,7 @@ pub fn draw_dag_canvas_with_hits(
     draw_viewport_indicator(f, dag_area, nav, theme);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_phase_row_with_hits(
     f: &mut Frame,
     area: Rect,
@@ -450,6 +453,7 @@ fn status_count<'a>(glyph: &str, count: u32, color: Color, theme: &Theme) -> Spa
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_phase_row(
     f: &mut Frame,
     area: Rect,
@@ -517,6 +521,7 @@ fn draw_phase_row(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_node_card(
     f: &mut Frame,
     area: Rect,
@@ -537,14 +542,14 @@ fn draw_node_card(
             .fg(theme.border_accent)
             .add_modifier(Modifier::BOLD)
     } else if stalled {
-        let pulse = if (tick / 2) % 2 == 0 {
+        let pulse = if (tick / 2).is_multiple_of(2) {
             Modifier::BOLD
         } else {
             Modifier::empty()
         };
         Style::default().fg(theme.warning).add_modifier(pulse)
     } else if node.status == WorkflowStatus::Running {
-        let pulse = if (tick / 4) % 2 == 0 {
+        let pulse = if (tick / 4).is_multiple_of(2) {
             Modifier::BOLD
         } else {
             Modifier::empty()
