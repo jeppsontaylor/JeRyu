@@ -14,7 +14,9 @@ use super::hit_map::DeliveryHitMap;
 use super::minimap::draw_minimap;
 use super::mission_strip::draw_mission_strip;
 use super::model::*;
-use super::nav::{WorkflowNav, BANNER_H, EDGE_GUTTER_H, NODE_CARD_H, NODE_CARD_W, PHASE_HEADER_H};
+use super::nav::{
+    WorkflowNav, WorkflowZoom, BANNER_H, EDGE_GUTTER_H, NODE_CARD_H, NODE_CARD_W, PHASE_HEADER_H,
+};
 use super::phase_rail::draw_phase_rail;
 use super::pr_rail::draw_pr_rail;
 use super::regions::{compute_regions, DeliveryRegions};
@@ -232,7 +234,7 @@ fn draw_phase_row_with_hits(
             }
             let card_rect = Rect::new(render_x, cards_y, cw, cards_h.min(NODE_CARD_H - 1));
             let is_selected = phase_idx == nav.phase_idx && ni == nav.node_idx;
-            draw_node_card(f, card_rect, node, is_selected, snap, theme, tick);
+            draw_node_card(f, card_rect, node, is_selected, snap, theme, tick, nav.zoom);
             hit_map.cards.push((card_rect, phase_idx, ni));
         }
     }
@@ -330,7 +332,7 @@ fn draw_no_pr_state(f: &mut Frame, area: Rect, theme: &Theme) {
 
 fn draw_delivery_footer(f: &mut Frame, area: Rect, _delivery: &DeliverySnapshot, theme: &Theme) {
     let hint =
-        " ↑↓←→ move · </> PR · []/PgUp/PgDn pan · f follow · b blocker · c crit · Enter inspect · r rollback · ? help";
+        " ↑↓←→ move · </> PR · []/PgUp/PgDn pan · f follow · b blocker · c crit · z zoom · Enter inspect · r rollback · ? help";
     let line = Line::from(Span::styled(hint, theme.muted()));
     f.render_widget(Paragraph::new(line), area);
 }
@@ -510,7 +512,7 @@ fn draw_phase_row(
 
             let card_rect = Rect::new(render_x, cards_y, cw, cards_h.min(NODE_CARD_H - 1));
             let is_selected = phase_idx == nav.phase_idx && ni == nav.node_idx;
-            draw_node_card(f, card_rect, node, is_selected, snap, theme, tick);
+            draw_node_card(f, card_rect, node, is_selected, snap, theme, tick, nav.zoom);
         }
     }
 }
@@ -523,16 +525,25 @@ fn draw_node_card(
     snap: &WorkflowSnapshot,
     theme: &Theme,
     tick: u64,
+    zoom: WorkflowZoom,
 ) {
     let status_color = node_color(node.status, theme);
+    let stalled = is_stalled(node, chrono::Utc::now());
 
-    // Running nodes get a pulsing border effect.
+    // Border style: selected → bright accent; stalled running → amber pulse;
+    // running → green pulse; otherwise → status color.
     let border_style = if is_selected {
         Style::default()
             .fg(theme.border_accent)
             .add_modifier(Modifier::BOLD)
+    } else if stalled {
+        let pulse = if (tick / 2) % 2 == 0 {
+            Modifier::BOLD
+        } else {
+            Modifier::empty()
+        };
+        Style::default().fg(theme.warning).add_modifier(pulse)
     } else if node.status == WorkflowStatus::Running {
-        // Pulse: alternate between bright and dim every second (4 ticks at 250ms).
         let pulse = if (tick / 4) % 2 == 0 {
             Modifier::BOLD
         } else {
@@ -552,20 +563,26 @@ fn draw_node_card(
         None => "",
     };
 
-    let title_max = area.width.saturating_sub(18) as usize;
+    // Accent prefix from the node kind (agent, auto-merge, promote, etc.).
+    let accent = node.kind.glyph();
+    let title_max = area.width.saturating_sub(22) as usize;
     let title = format!(
-        " {} {} {}{}{}",
+        " {} {} {} {}{}{}{}",
         node.status.glyph(),
+        if accent.is_empty() { " " } else { accent },
         node.status.label(),
         crate::tui::widgets::truncate_label(&node.label, title_max),
         if node.critical_path { " [CRIT]" } else { "" },
         if is_selected { " [SEL]" } else { "" },
+        if stalled { " [STALL]" } else { "" },
     );
 
     let mut lines = Vec::new();
 
-    // Command line.
-    if let Some(cmd) = &node.command {
+    // Command line — hidden in Overview/Dense zoom levels.
+    if zoom == WorkflowZoom::Cards
+        && let Some(cmd) = &node.command
+    {
         lines.push(Line::from(Span::styled(
             format!(
                 "  {}",
@@ -590,10 +607,19 @@ fn draw_node_card(
         ));
     }
     if let Some(pct) = node.progress_pct {
-        badge_spans.push(Span::styled(format!("{}%", pct), theme.bold(status_color)));
+        badge_spans.push(Span::styled(
+            format!("{} {}%", progress_bar(pct, 10), pct),
+            theme.bold(status_color),
+        ));
     }
     if let Some(eta) = node.eta_secs {
         badge_spans.push(Span::styled(format!(" eta:{}s", eta), theme.muted()));
+    }
+    if node.kind.is_rollback_eligible() && matches!(node.status, WorkflowStatus::Ran | WorkflowStatus::Running) {
+        badge_spans.push(Span::styled(" [ROLLBACK]", theme.bold(theme.warning)));
+    }
+    if matches!(node.kind, WorkflowNodeKind::AgentReview { .. }) {
+        badge_spans.push(Span::styled(" agent", theme.bold(theme.agent)));
     }
     // Intelligence chip: failed/blocked nodes show "blocks N · reason".
     if matches!(node.status, WorkflowStatus::Error | WorkflowStatus::Blocked) {
@@ -618,7 +644,8 @@ fn draw_node_card(
             badge_spans.push(Span::styled(reason_excerpt, theme.muted()));
         }
     }
-    if badge_spans.len() > 1 {
+    // Overview zoom hides badges entirely; Cards/Dense always show them.
+    if zoom != WorkflowZoom::Overview && badge_spans.len() > 1 {
         lines.push(Line::from(badge_spans));
     }
 
@@ -764,6 +791,32 @@ fn set_cell(
         cell.set_symbol(symbol);
         cell.set_style(style);
     }
+}
+
+/// Render a block-character progress bar (e.g. `███░░░░ 41%` style).
+fn progress_bar(pct: u16, width: usize) -> String {
+    let pct = pct.min(100) as usize;
+    let filled = pct * width / 100;
+    let empty = width - filled;
+    format!("{}{}", "█".repeat(filled), "░".repeat(empty))
+}
+
+/// Determine whether a running node has overrun its ETA budget (eta*1.5,
+/// 90s floor) using the same logic as `intelligence::detect_stalls`.
+fn is_stalled(node: &WorkflowNode, now: chrono::DateTime<chrono::Utc>) -> bool {
+    if !matches!(node.status, WorkflowStatus::Running) {
+        return false;
+    }
+    let Some(started) = node.started_at else {
+        return false;
+    };
+    let elapsed = (now - started).num_seconds().max(0) as u64;
+    let budget = node
+        .eta_secs
+        .map(|e| ((e as f64) * 1.5) as u64)
+        .unwrap_or(90)
+        .max(90);
+    elapsed > budget
 }
 
 /// Choose edge color based on the target node's status.

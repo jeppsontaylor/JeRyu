@@ -11,6 +11,35 @@ pub const PHASE_HEADER_H: u16 = 1;
 pub const EDGE_GUTTER_H: u16 = 3;
 pub const BANNER_H: u16 = 4;
 
+/// Detail-level zoom for node cards.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum WorkflowZoom {
+    /// Status + label only (one content row).
+    Overview,
+    /// Default: status, command, badges (two content rows).
+    #[default]
+    Cards,
+    /// Status, label, and a single progress/badge row.
+    Dense,
+}
+
+impl WorkflowZoom {
+    pub fn next(self) -> Self {
+        match self {
+            Self::Overview => Self::Cards,
+            Self::Cards => Self::Dense,
+            Self::Dense => Self::Overview,
+        }
+    }
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Overview => "overview",
+            Self::Cards => "cards",
+            Self::Dense => "dense",
+        }
+    }
+}
+
 /// Navigation state for the workflow tab.
 #[derive(Debug, Clone, Default)]
 pub struct WorkflowNav {
@@ -28,6 +57,8 @@ pub struct WorkflowNav {
     pub canvas_height: i32,
     /// Cached total canvas width (set during render).
     pub canvas_width: i32,
+    /// Detail-level zoom for node cards.
+    pub zoom: WorkflowZoom,
 }
 
 impl WorkflowNav {
@@ -398,5 +429,16 @@ mod tests {
         };
         nav.restore_selection(&snap, None);
         assert_eq!(nav.phase_idx, 0);
+    }
+
+    #[test]
+    fn workflow_zoom_cycles_overview_cards_dense() {
+        let mut z = WorkflowZoom::Overview;
+        z = z.next();
+        assert_eq!(z, WorkflowZoom::Cards);
+        z = z.next();
+        assert_eq!(z, WorkflowZoom::Dense);
+        z = z.next();
+        assert_eq!(z, WorkflowZoom::Overview);
     }
 }

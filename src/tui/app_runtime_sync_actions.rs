@@ -405,6 +405,10 @@ impl App {
         self.workflow_inspect_open = !self.workflow_inspect_open;
     }
 
+    pub fn workflow_cycle_zoom(&mut self) {
+        self.workflow_nav.zoom = self.workflow_nav.zoom.next();
+    }
+
     pub fn inspector_cycle_next(&mut self) {
         self.inspector_tab = self.inspector_tab.next();
     }

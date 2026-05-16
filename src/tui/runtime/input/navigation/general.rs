@@ -126,6 +126,10 @@ pub(crate) async fn handle(app: &mut App, key: KeyEvent) -> Result<Option<bool>>
             app.delivery_next_pr();
             Ok(Some(false))
         }
+        KeyCode::Char('z') if app.active_tab == ActiveTab::Workflow && !app.maximize_logs => {
+            app.workflow_cycle_zoom();
+            Ok(Some(false))
+        }
 
         // ─── General keys (non-workflow) ───────────────────────────
         KeyCode::Tab if app.active_tab != ActiveTab::Workflow => {
