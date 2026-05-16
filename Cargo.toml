@@ -84,7 +84,13 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-feature
 # Docker control
 bollard = "0.18"
 
-# SQLite state
+# SQLite/Postgres state. Migration to RedlineDB v1.0.1 is tracked in
+# docs/redline-jansu-issues.md — RedlineDB is the canonical storage engine
+# going forward, but two blockers defer the migration to a follow-up PR:
+#   R-1: RedlineDB's sync API is not a sqlx drop-in; 19 call sites need a
+#        spawn_blocking adapter or full async rewrite (~20+ hours).
+#   R-2: RedlineDB requires rustc 1.95; jeryu currently builds on 1.92.
+# Both are tracked in docs/redline-jansu-issues.md.
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "postgres", "any"] }
 
 # Serialization

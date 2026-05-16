@@ -126,7 +126,18 @@ mod tests {
     use std::io::Write;
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn test_sandbox_proxy_injection() {
+        // Hold PATH_ENV_LOCK for the duration: this test spawns a child bash
+        // that inherits this process's env. If another test concurrently
+        // mutates env (HTTP_PROXY, PATH, etc.), the spawn races and bash
+        // sees stale env. Serializing with the global PATH_ENV_LOCK keeps
+        // parallel-test runs deterministic. The std::sync::MutexGuard does
+        // cross `.await` points — that's intentional here (test-only).
+        let _guard = crate::test_sync::PATH_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+
         let config = SandboxConfig {
             use_strict_network_isolation: false,
             proxy_host: "127.0.0.1".into(),

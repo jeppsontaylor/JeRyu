@@ -88,6 +88,15 @@ check: fast score security rust-map rust-witness rust-diagnose
 # ============================================================
 # These are pre-PR / developer-machine only. CI never calls them.
 
+# Run the full local CI parity script — mirrors what remote CI runs.
+# If this exits 0, you can push to PR with full confidence.
+ci-parity:
+	bash scripts/ci-parity.sh
+
+# Same as ci-parity but skip slow checks (integration tests, jankurai audit).
+ci-parity-fast:
+	bash scripts/ci-parity.sh --fast --no-audit
+
 # Run the autonomy-only unit tests (no network).
 autonomy-fast:
 	cargo test -p jeryu --lib autonomy:: llm:: agent_review:: approval:: -- --test-threads=4

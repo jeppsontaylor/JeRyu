@@ -1,9 +1,11 @@
 use super::*;
 use std::os::unix::fs::PermissionsExt;
-use std::sync::{LazyLock, Mutex};
 use tempfile::TempDir;
 
-static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+// Use the crate-wide PATH_ENV_LOCK so we serialize against EVERY test that
+// touches PATH (sandbox::tests::test_sandbox_proxy_injection,
+// remote_shell_tests::*, etc.), not just other tests inside this file.
+use crate::test_sync::PATH_ENV_LOCK as ENV_LOCK;
 
 fn set_env_var<K: AsRef<std::ffi::OsStr>, V: AsRef<std::ffi::OsStr>>(key: K, value: V) {
     // SAFETY: these tests serialize environment mutation with ENV_LOCK and

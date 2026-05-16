@@ -54,6 +54,13 @@ fn remote_install_plan_includes_service_mode_and_steps() {
 
 #[test]
 fn remote_plan_is_json_serializable_without_network() {
+    // Hold PATH_ENV_LOCK: build_remote_plan reads PATH via command_exists()
+    // to detect ssh/ssh-keygen. Other tests mutate PATH in parallel which
+    // causes flake (ssh_keygen present but ssh missing during the racy window).
+    let _guard = crate::test_sync::PATH_ENV_LOCK
+        .lock()
+        .unwrap_or_else(|p| p.into_inner());
+
     let cfg = sample_remote_config("xbabe1");
     let plan = build_remote_plan(
         &cfg,
