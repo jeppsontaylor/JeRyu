@@ -26,7 +26,10 @@ impl WitnessNotes {
             Some(v) => v == "true",
             None => false,
         };
-        Self { classification, escalated }
+        Self {
+            classification,
+            escalated,
+        }
     }
 }
 

@@ -19,19 +19,37 @@ pub(super) fn draw_release_evidence_pane(f: &mut Frame, app: &App, area: Rect) {
 
     if let Some(ref rel) = app.state.release_status {
         let attempt = &rel.attempt;
+        let release_identity_detail = format!(
+            "upstream={:?} release={:?} prod={:?}",
+            attempt.upstream_pipeline_id,
+            attempt.release_pipeline_id,
+            attempt.production_pipeline_id
+        );
 
         let gate_rows: Vec<(&str, &str, &str, &str)> = vec![
             (
                 "Main branch green",
-                if attempt.upstream_status == "success" { "[OK]" } else { "[WAIT]" },
+                if attempt.upstream_status == "success" {
+                    "[OK]"
+                } else {
+                    "[WAIT]"
+                },
                 attempt.upstream_status.as_str(),
                 "",
             ),
             (
                 "Release identity",
-                if rel.release_identity_ok { "[OK]" } else { "[WAIT]" },
-                if rel.release_identity_ok { "verified" } else { "pending" },
-                "",
+                if rel.release_identity_ok {
+                    "[OK]"
+                } else {
+                    "[WAIT]"
+                },
+                if rel.release_identity_ok {
+                    "verified"
+                } else {
+                    "pending"
+                },
+                release_identity_detail.as_str(),
             ),
             (
                 "Release pipeline",
@@ -88,16 +106,27 @@ pub(super) fn draw_release_evidence_pane(f: &mut Frame, app: &App, area: Rect) {
         ];
 
         let header = Line::from(vec![Span::styled(
-            format!("  RELEASE: {}  Phase: {}  ", attempt.version, rel.canary_state),
-            Style::default().fg(release_color(&rel.canary_state)).add_modifier(Modifier::BOLD),
+            format!(
+                "  RELEASE: {}  Phase: {}  ",
+                attempt.version, rel.canary_state
+            ),
+            Style::default()
+                .fg(release_color(&rel.canary_state))
+                .add_modifier(Modifier::BOLD),
         )]);
         let sep = Line::from(Span::styled(
-            format!("  {:-<width$}", "", width = gate_inner.width.saturating_sub(4) as usize),
+            format!(
+                "  {:-<width$}",
+                "",
+                width = gate_inner.width.saturating_sub(4) as usize
+            ),
             Style::default().fg(Color::DarkGray),
         ));
         let col_header = Line::from(vec![Span::styled(
             format!("  {:<28} {:<7} {:<16} Detail", "Gate", "Status", "State"),
-            Style::default().fg(Color::Gray).add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+            Style::default()
+                .fg(Color::Gray)
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
         )]);
 
         let mut lines = vec![header, sep.clone(), col_header, sep.clone()];
@@ -111,7 +140,12 @@ pub(super) fn draw_release_evidence_pane(f: &mut Frame, app: &App, area: Rect) {
             let short_detail = short_text(detail, 20);
             lines.push(Line::from(vec![
                 Span::raw(format!("  {:<28} ", gate)),
-                Span::styled(format!("{:<7} ", badge), Style::default().fg(badge_color).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    format!("{:<7} ", badge),
+                    Style::default()
+                        .fg(badge_color)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(format!("{:<16} ", state), Style::default().fg(Color::White)),
                 Span::styled(short_detail, Style::default().fg(Color::DarkGray)),
             ]));

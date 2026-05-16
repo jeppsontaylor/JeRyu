@@ -39,7 +39,11 @@ pub(super) async fn run_release_dry_run(version: &str) -> ReleaseDryRunReport {
     let preflight = release::release_preflight(None).await;
     checks.push((
         "preflight".into(),
-        if preflight.ok { "PASS".into() } else { "FAIL".into() },
+        if preflight.ok {
+            "PASS".into()
+        } else {
+            "FAIL".into()
+        },
     ));
     if !preflight.ok {
         blockers.push(format!(
@@ -48,7 +52,11 @@ pub(super) async fn run_release_dry_run(version: &str) -> ReleaseDryRunReport {
         ));
     }
 
-    ReleaseDryRunReport { version: version.to_string(), checks, blockers }
+    ReleaseDryRunReport {
+        version: version.to_string(),
+        checks,
+        blockers,
+    }
 }
 
 pub(super) async fn run_release_submit(version: &str, force: bool, dry_run: bool) -> Result<()> {
@@ -126,7 +134,15 @@ pub(super) async fn run_release_approve(
 
     let pr_str = pr.to_string();
     let author_out = tokio::process::Command::new("gh")
-        .args(["pr", "view", &pr_str, "--json", "author", "--jq", ".author.login"])
+        .args([
+            "pr",
+            "view",
+            &pr_str,
+            "--json",
+            "author",
+            "--jq",
+            ".author.login",
+        ])
         .output()
         .await
         .map_err(|e| anyhow::anyhow!("gh pr view failed: {e}"))?;
@@ -136,7 +152,9 @@ pub(super) async fn run_release_approve(
             String::from_utf8_lossy(&author_out.stderr)
         ));
     }
-    let author = String::from_utf8_lossy(&author_out.stdout).trim().to_string();
+    let author = String::from_utf8_lossy(&author_out.stdout)
+        .trim()
+        .to_string();
 
     if !approver.is_empty() && approver == author {
         return Err(anyhow::anyhow!(
@@ -176,7 +194,10 @@ pub(super) fn trim_head(s: &str, n: usize) -> String {
 }
 
 pub(super) async fn run(cmd: &str, args: &[&str]) -> Result<()> {
-    let out = tokio::process::Command::new(cmd).args(args).output().await?;
+    let out = tokio::process::Command::new(cmd)
+        .args(args)
+        .output()
+        .await?;
     if !out.status.success() {
         return Err(anyhow::anyhow!(
             "{} {} failed (exit={:?}): {}",

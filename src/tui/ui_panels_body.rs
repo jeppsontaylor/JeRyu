@@ -133,7 +133,6 @@ fn draw_release_rollback_pane(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(list, area);
 }
 
-
 pub(crate) fn draw_release_inspector(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .title(" [ Inspector ] ")

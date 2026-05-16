@@ -59,12 +59,14 @@ pub(crate) async fn execute_release_commands(subcmd: ReleaseCommands) -> Result<
         ReleaseCommands::Reconcile {
             project_id,
             ref_name,
+            fresh,
             json,
         } => {
             let (client, _) = load_client()?;
             let db = state::Db::open().await?;
             let report =
-                release::reconcile_release_for_ref(&db, &client, project_id, &ref_name).await?;
+                release::reconcile_release_for_ref(&db, &client, project_id, &ref_name, fresh)
+                    .await?;
             if json {
                 println!("{}", serde_json::to_string_pretty(&report)?);
             } else {
@@ -127,7 +129,11 @@ pub(crate) async fn execute_release_commands(subcmd: ReleaseCommands) -> Result<
             if json {
                 println!("{}", serde_json::to_string_pretty(&report)?);
             } else {
-                let status = if report.blockers.is_empty() { "OK" } else { "BLOCKED" };
+                let status = if report.blockers.is_empty() {
+                    "OK"
+                } else {
+                    "BLOCKED"
+                };
                 println!("Doctor [{status}]: {}", report.version);
                 println!("  next_action: {}", report.next_action);
                 println!("  canary_complete: {}", report.canary_complete);

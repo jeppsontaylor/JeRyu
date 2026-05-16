@@ -110,6 +110,14 @@ pub fn render_release_status_text(report: &ReleaseStatusReport) -> String {
         let _ = writeln!(out, "    SHA:       {}", attempt.sha);
         let _ = writeln!(
             out,
+            "    Active:    {} (upstream {:?}, release {:?}, prod {:?})",
+            attempt.version,
+            attempt.upstream_pipeline_id,
+            attempt.release_pipeline_id,
+            attempt.production_pipeline_id
+        );
+        let _ = writeln!(
+            out,
             "    Upstream:  {} (pipeline {:?})",
             attempt.upstream_status, attempt.upstream_pipeline_id
         );
@@ -234,7 +242,7 @@ pub async fn watch_release_status(
     interval_secs: u64,
 ) -> Result<()> {
     use std::io::{self, Write};
-    use tokio::time::{Duration, sleep};
+    use tokio::time::{sleep, Duration};
 
     let mut stdout = io::stdout();
     loop {

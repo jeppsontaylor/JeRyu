@@ -33,12 +33,15 @@ pub(crate) enum ReleaseCommands {
         #[arg(long, default_value_t = false)]
         json: bool,
     },
-    /// Reconcile release attempts against the latest successful upstream pipeline.
+    /// Reconcile release attempts, resuming the current release by default.
     Reconcile {
         #[arg(long, default_value = "2")]
         project_id: i64,
         #[arg(long = "ref-name", alias = "ref", default_value = "main")]
         ref_name: String,
+        /// Force a fresh upstream pipeline selection instead of resuming the current release.
+        #[arg(long, default_value_t = false)]
+        fresh: bool,
         #[arg(long, default_value_t = false)]
         json: bool,
     },

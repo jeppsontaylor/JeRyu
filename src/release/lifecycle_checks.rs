@@ -124,8 +124,9 @@ pub async fn release_doctor(version: &str, run_preflight: bool) -> DoctorReport 
                 code: "GATE_MISSING".to_string(),
                 gate: Some(name.to_string()),
                 detail: format!("{} not found at {}", name, path.display()),
-                recommended_action: "run: jeryu release reconcile (triggers new canary attempt)"
-                    .to_string(),
+                recommended_action:
+                    "run: jeryu release reconcile (resumes the active release attempt by default)"
+                        .to_string(),
             });
         }
     }
@@ -138,7 +139,7 @@ pub async fn release_doctor(version: &str, run_preflight: bool) -> DoctorReport 
             gate: None,
             detail: format!("release-lock.json not found at {}", lock_path.display()),
             recommended_action:
-                "run: jeryu release reconcile (generates lock on next canary trigger)".to_string(),
+                "run: jeryu release reconcile (reuses the current release attempt or starts one if needed)".to_string(),
         });
     }
 
