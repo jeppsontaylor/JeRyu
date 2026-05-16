@@ -138,6 +138,11 @@ mod tests {
 
         let mut script_file = tempfile::NamedTempFile::new().unwrap();
         script_file.write_all(b"echo $HTTP_PROXY").unwrap();
+        // Flush + fsync so the spawned bash sees the bytes on disk. Without
+        // this the spawn can race the kernel writeback and bash reads an
+        // empty file ("No such file or directory" or empty output).
+        script_file.flush().unwrap();
+        script_file.as_file().sync_all().unwrap();
 
         let child = sandbox
             .spawn_script(script_file.path().to_str().unwrap())

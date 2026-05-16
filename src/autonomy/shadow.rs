@@ -23,7 +23,6 @@ use crate::autonomy::types::{
 };
 use chrono::{DateTime, TimeZone, Utc};
 use std::path::PathBuf;
-use std::process::Command;
 
 // --- Public surface ---------------------------------------------------------
 
@@ -313,38 +312,53 @@ struct GitCommit {
 }
 
 fn walk_commits(opts: &ShadowOptions) -> Result<Vec<GitCommit>, ShadowError> {
-    let mut args: Vec<String> = vec!["log".into(), "--format=%H|%h|%aI|%an|%P|%s".into()];
-    if opts.merges_only {
-        args.push("--merges".into());
-    } else {
-        args.push("--no-merges".into());
-    }
-    if let Some(n) = opts.max_commits {
-        args.push(format!("--max-count={n}"));
-    }
-    if let Some(s) = opts.since_seconds {
-        args.push(format!("--since={s} seconds ago"));
-    }
-    let out = run_git(&opts.repo_root, &args)?;
+    let repo = git2::Repository::open(&opts.repo_root)
+        .map_err(|e| ShadowError::Git(format!("open repo: {e}")))?;
+    let mut walk = repo
+        .revwalk()
+        .map_err(|e| ShadowError::Git(format!("revwalk: {e}")))?;
+    walk.push_head()
+        .map_err(|e| ShadowError::Git(format!("push HEAD: {e}")))?;
+    walk.set_sorting(git2::Sort::TIME)
+        .map_err(|e| ShadowError::Git(format!("set sorting: {e}")))?;
+
+    let cutoff = opts
+        .since_seconds
+        .map(|s| Utc::now().timestamp() - s as i64);
     let mut commits = Vec::new();
-    for line in out.lines() {
-        if line.trim().is_empty() {
+    let cap = opts.max_commits.unwrap_or(usize::MAX);
+
+    for oid_result in walk {
+        if commits.len() >= cap {
+            break;
+        }
+        let oid = oid_result.map_err(|e| ShadowError::Git(format!("walk: {e}")))?;
+        let commit = repo
+            .find_commit(oid)
+            .map_err(|e| ShadowError::Git(format!("find commit {oid}: {e}")))?;
+        let parent_count = commit.parent_count();
+        let is_merge = parent_count > 1;
+        if opts.merges_only && !is_merge {
             continue;
         }
-        let mut parts = line.splitn(6, '|');
-        let sha = parts.next().unwrap_or("").to_string();
-        let short_sha = parts.next().unwrap_or("").to_string();
-        let committed_at_raw = parts.next().unwrap_or("");
-        let author = parts.next().unwrap_or("").to_string();
-        let parents_raw = parts.next().unwrap_or("");
-        let subject = parts.next().unwrap_or("").to_string();
-        if sha.is_empty() {
+        if !opts.merges_only && is_merge {
             continue;
         }
-        let committed_at = chrono::DateTime::parse_from_rfc3339(committed_at_raw)
-            .map(|d| d.with_timezone(&Utc))
-            .unwrap_or_else(|_| Utc.timestamp_opt(0, 0).single().unwrap_or_else(Utc::now));
-        let parent_sha = parents_raw.split_whitespace().next().map(|s| s.to_string());
+        let time_secs = commit.time().seconds();
+        if let Some(cut) = cutoff
+            && time_secs < cut
+        {
+            break;
+        }
+        let sha = oid.to_string();
+        let short_sha = sha.chars().take(7).collect::<String>();
+        let committed_at = Utc
+            .timestamp_opt(time_secs, 0)
+            .single()
+            .unwrap_or_else(Utc::now);
+        let author = commit.author().name().unwrap_or("(unknown)").to_string();
+        let parent_sha = commit.parent_id(0).ok().map(|p| p.to_string());
+        let subject = commit.summary().unwrap_or("").to_string();
         commits.push(GitCommit {
             sha,
             short_sha,
@@ -358,68 +372,73 @@ fn walk_commits(opts: &ShadowOptions) -> Result<Vec<GitCommit>, ShadowError> {
 }
 
 fn stat_changed_files(repo_root: &PathBuf, sha: &str) -> Vec<ChangedFile> {
-    let Ok(out) = run_git(
-        repo_root,
-        &[
-            "show".into(),
-            "--stat".into(),
-            "--format=".into(),
-            sha.into(),
-        ],
-    ) else {
+    use std::cell::RefCell;
+    let Ok(repo) = git2::Repository::open(repo_root) else {
         return vec![];
     };
-    let mut files = Vec::new();
-    for line in out.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || !line.contains('|') {
-            continue;
-        }
-        // Skip the final " N files changed, ..." summary line.
-        if trimmed.starts_with(|c: char| c.is_ascii_digit()) && trimmed.contains(" file") {
-            continue;
-        }
-        let Some((path_part, count_part)) = line.split_once('|') else {
-            continue;
-        };
-        let path = path_part.trim().to_string();
-        if path.is_empty() {
-            continue;
-        }
-        // Binary marker: "path | Bin 0 -> 1234 bytes" — record path, no counts.
-        let (added, removed) = if count_part.trim_start().starts_with("Bin") {
-            (0, 0)
-        } else {
-            // "  12 ++++--" — tally + / - chars (the numeric prefix is the total).
-            let marks = count_part
-                .trim()
-                .split_once(char::is_whitespace)
-                .map(|x| x.1)
-                .unwrap_or("");
-            (
-                marks.chars().filter(|c| *c == '+').count() as u32,
-                marks.chars().filter(|c| *c == '-').count() as u32,
-            )
-        };
-        files.push(ChangedFile {
-            path,
-            risk_tags: vec![],
-            lines_added: added,
-            lines_removed: removed,
-        });
-    }
-    files
+    let Ok(oid) = git2::Oid::from_str(sha) else {
+        return vec![];
+    };
+    let Ok(commit) = repo.find_commit(oid) else {
+        return vec![];
+    };
+    let Ok(this_tree) = commit.tree() else {
+        return vec![];
+    };
+    let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
+    let Ok(diff) = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&this_tree), None) else {
+        return vec![];
+    };
+    // RefCell so both the file callback and the line callback can mutate the
+    // same Vec — git2's API hands us each closure as &mut FnMut so we can't
+    // share &mut Vec across them directly.
+    let files: RefCell<Vec<ChangedFile>> = RefCell::new(Vec::new());
+    let _ = diff.foreach(
+        &mut |delta, _progress| {
+            let path = delta
+                .new_file()
+                .path()
+                .or_else(|| delta.old_file().path())
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            if !path.is_empty() {
+                files.borrow_mut().push(ChangedFile {
+                    path,
+                    risk_tags: vec![],
+                    lines_added: 0,
+                    lines_removed: 0,
+                });
+            }
+            true
+        },
+        None,
+        None,
+        Some(&mut |delta, _hunk, line| {
+            let path = delta
+                .new_file()
+                .path()
+                .or_else(|| delta.old_file().path())
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let mut files = files.borrow_mut();
+            if let Some(entry) = files.iter_mut().find(|f| f.path == path) {
+                match line.origin() {
+                    '+' => entry.lines_added += 1,
+                    '-' => entry.lines_removed += 1,
+                    _ => {}
+                }
+            }
+            true
+        }),
+    );
+    files.into_inner()
 }
 
 fn resolve_default_branch(repo_root: &PathBuf) -> Result<String, ShadowError> {
+    let repo = git2::Repository::open(repo_root)
+        .map_err(|e| ShadowError::Git(format!("open repo: {e}")))?;
     for cand in ["main", "master"] {
-        let args = [
-            "show-ref".into(),
-            "--verify".into(),
-            "--quiet".into(),
-            format!("refs/heads/{cand}"),
-        ];
-        if run_git(repo_root, &args).is_ok() {
+        if repo.find_reference(&format!("refs/heads/{cand}")).is_ok() {
             return Ok(cand.to_string());
         }
     }
@@ -432,34 +451,43 @@ fn classify_actual(
     short_sha: &str,
     default_branch: &str,
 ) -> ActualOutcome {
-    let branch_args = [
-        "branch".into(),
-        "--contains".into(),
-        sha.into(),
-        "--format=%(refname:short)".into(),
-    ];
-    let on_default = run_git(repo_root, &branch_args)
-        .map(|out| {
-            out.lines()
-                .any(|l| l.trim().trim_start_matches('*').trim() == default_branch)
-        })
-        .unwrap_or(false);
+    let Ok(repo) = git2::Repository::open(repo_root) else {
+        return ActualOutcome::NotOnDefaultBranch;
+    };
+    let Ok(target_oid) = git2::Oid::from_str(sha) else {
+        return ActualOutcome::NotOnDefaultBranch;
+    };
+    // Is target_oid in the ancestry of default_branch?
+    let Ok(branch_ref) = repo.find_reference(&format!("refs/heads/{default_branch}")) else {
+        return ActualOutcome::NotOnDefaultBranch;
+    };
+    let Ok(branch_oid) = branch_ref.peel_to_commit().map(|c| c.id()) else {
+        return ActualOutcome::NotOnDefaultBranch;
+    };
+    let on_default = matches!(repo.graph_descendant_of(branch_oid, target_oid), Ok(true))
+        || branch_oid == target_oid;
     if !on_default {
         return ActualOutcome::NotOnDefaultBranch;
     }
-    // Look for `Revert ...<short_sha>...` in any reachable commit subject.
-    let log_args = [
-        "log".into(),
-        "--all".into(),
-        format!("--grep=Revert .*{short_sha}"),
-        "-E".into(),
-        "--format=%H".into(),
-        "-n".into(),
-        "1".into(),
-    ];
-    let reverted = run_git(repo_root, &log_args)
-        .map(|out| !out.trim().is_empty())
-        .unwrap_or(false);
+    // Look for "Revert ...<short_sha>..." in any commit subject reachable from
+    // the default branch (walking back from the branch tip).
+    let revert_needle = "Revert";
+    let short_needle = short_sha;
+    let mut reverted = false;
+    if let Ok(mut walk) = repo.revwalk() {
+        let _ = walk.push(branch_oid);
+        for oid_result in walk {
+            let Ok(oid) = oid_result else { continue };
+            let Ok(commit) = repo.find_commit(oid) else {
+                continue;
+            };
+            let summary = commit.summary().unwrap_or("");
+            if summary.contains(revert_needle) && summary.contains(short_needle) {
+                reverted = true;
+                break;
+            }
+        }
+    }
     if reverted {
         ActualOutcome::Reverted
     } else {
@@ -479,22 +507,7 @@ fn score_agreement(predicted: GateDecision, actual: ActualOutcome) -> Agreement 
     }
 }
 
-fn run_git(repo_root: &PathBuf, args: &[String]) -> Result<String, ShadowError> {
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(repo_root)
-        .args(args.iter().map(|s| s.as_str()))
-        .output()
-        .map_err(|e| ShadowError::Git(format!("spawn git: {e}")))?;
-    if !out.status.success() {
-        return Err(ShadowError::Git(format!(
-            "git {:?} failed: {}",
-            args,
-            String::from_utf8_lossy(&out.stderr)
-        )));
-    }
-    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
-}
+// run_git removed: all git operations now use the `git2` crate (no subprocess).
 
 fn default_passing_tests() -> TestsSection {
     TestsSection {
@@ -668,20 +681,22 @@ mod tests {
 
     #[test]
     fn merges_only_filters_to_merge_commits() {
-        // Probe: is there at least one merge commit in HEAD ancestry? If not,
-        // the assertion is trivially that we got an empty result set.
-        let probe = std::process::Command::new("git")
-            .args([
-                "-C",
-                env!("CARGO_MANIFEST_DIR"),
-                "log",
-                "--merges",
-                "--max-count=1",
-                "--format=%H",
-            ])
-            .output();
-        let has_merge = probe
-            .map(|o| !String::from_utf8_lossy(&o.stdout).trim().is_empty())
+        // Probe: is there at least one merge commit in HEAD ancestry? Use git2
+        // directly so the test doesn't depend on the `git` CLI being on PATH.
+        let has_merge = git2::Repository::open(env!("CARGO_MANIFEST_DIR"))
+            .and_then(|repo| {
+                let mut walk = repo.revwalk()?;
+                walk.push_head()?;
+                for oid in walk.take(200) {
+                    let oid = oid?;
+                    if let Ok(commit) = repo.find_commit(oid)
+                        && commit.parent_count() > 1
+                    {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            })
             .unwrap_or(false);
 
         let opts = ShadowOptions {

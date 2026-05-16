@@ -196,12 +196,22 @@ pub(crate) async fn fresh_release_pool() -> AnyPool {
 pub(crate) async fn fresh_release_pool_shared() -> AnyPool {
     use sqlx::any::{AnyPoolOptions, install_default_drivers};
     install_default_drivers();
+    // Use a file-backed temp DB instead of `:memory:` with shared-cache. The
+    // `mode=memory&cache=shared` combo in sqlx's any-pool doesn't reliably
+    // share schema across pool connections — the second connection often sees
+    // "no such table: foundry_candidates" before the first connection's DDL
+    // commits. A file-backed temp DB guarantees all connections in the pool
+    // see the same on-disk schema.
+    let tmp = tempfile::NamedTempFile::new().expect("tempfile for shared release pool");
+    let url = format!("sqlite:{}?mode=rwc", tmp.path().display());
     let pool = AnyPoolOptions::new()
         .max_connections(4)
-        .connect("sqlite:file:foundry_repo_test_shared?mode=memory&cache=shared")
+        .connect(&url)
         .await
-        .expect("connect shared in-memory sqlite");
-    // Drop any leftover table from a prior run.
+        .expect("connect file-backed shared sqlite");
+    // Leak the tempfile so it lives for the duration of the test process —
+    // SQLite needs the underlying file to stay valid while connections hold it.
+    std::mem::forget(tmp);
     let _ = sqlx::query("DROP TABLE IF EXISTS foundry_candidates")
         .execute(&pool)
         .await;

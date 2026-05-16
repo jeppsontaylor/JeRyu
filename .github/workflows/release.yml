@@ -99,7 +99,9 @@ jobs:
     name: Provenance + SBOM
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    needs: build
+    # Needs preflight for `${{ needs.preflight.outputs.version }}` on line 116
+    # and needs build for the downloaded binary artifact.
+    needs: [preflight, build]
     permissions:
       id-token: write
       contents: read

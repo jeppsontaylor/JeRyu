@@ -63,6 +63,9 @@ name = "jeryu"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+# Multiple binaries (jeryu + autonomy) means `cargo run -p jeryu` is ambiguous.
+# Pick jeryu as the default so CI commands and `cargo run --` keep working.
+default-run = "jeryu"
 
 [dependencies]
 # Async runtime
