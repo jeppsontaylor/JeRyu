@@ -25,8 +25,10 @@ audit-fast base="origin/main":
     mkdir -p target/jankurai
     jankurai audit . --changed-fast --changed-from {{base}} --json target/jankurai/audit-fast.json --md target/jankurai/audit-fast.md --timings-json target/jankurai/audit-timings.json --mode advisory
 
-jankurai-src-check JANKURAI_SRC="../jankurai":
-    cargo check -p jankurai --manifest-path {{JANKURAI_SRC}}/Cargo.toml --locked
+jankurai-install JANKURAI_TAG="v1.4.1":
+    # Jankurai MUST be installed from URL with an explicit version tag.
+    # Local-path installs are not supported (they produce version drift).
+    cargo install --git https://github.com/neverhuman/jankurai.git --tag {{JANKURAI_TAG}} jankurai --locked
 
 bench:
     cargo bench --workspace --no-fail-fast

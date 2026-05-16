@@ -33,9 +33,14 @@ jobs:
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.8
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
       - name: Install jankurai
+        # Jankurai MUST be installed from a URL with an explicit version tag.
+        # Local-path installs are not supported (they produce version drift
+        # between dev machines and CI). Bump JANKURAI_TAG to upgrade.
+        env:
+          JANKURAI_GIT: https://github.com/neverhuman/jankurai.git
+          JANKURAI_TAG: v1.4.1
         run: |
-          git clone --depth 1 https://github.com/neverhuman/jankurai.git /tmp/jankurai-src
-          cargo install --path /tmp/jankurai-src --locked
+          cargo install --git "$JANKURAI_GIT" --tag "$JANKURAI_TAG" jankurai --locked
       - run: jankurai --version
       - name: Workflow lint
         run: actionlint .github/workflows/*.yml

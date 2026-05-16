@@ -7,7 +7,6 @@ members = [
     "crates/cargo-aer",
     "crates/arc-bench",
     "crates/tui-capture",
-    "crates/tuiwright",
     "crates/adapters/cache-brain",
     "crates/jeryu-gcd",
 ]
@@ -132,7 +131,10 @@ cache-brain-adapter = { path = "crates/adapters/cache-brain" }
 async-trait = "0.1"
 
 [dev-dependencies]
-tuiwright = { path = "crates/tuiwright" }
+# Tuiwright is NOT managed as a library in this repo. It MUST be pulled from
+# the jankurai workspace at an explicit version tag — never a local path.
+# Bump the `tag` to upgrade; Cargo.lock pins the exact commit.
+tuiwright = { git = "https://github.com/neverhuman/jankurai.git", tag = "v1.4.1" }
 
 [package.metadata.agent]
 purpose = "Single-binary CI/CD control plane for GitLab-based pipelines"
