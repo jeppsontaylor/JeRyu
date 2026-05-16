@@ -173,6 +173,25 @@ impl WorkflowNav {
         self.canvas_width = (max_nodes_in_phase * NODE_CARD_W as i32).max(80);
     }
 
+    /// Restore selection by looking up a remembered node id in the new
+    /// snapshot. Falls back to (0,0) when the id is no longer present.
+    pub fn restore_selection(&mut self, snap: &WorkflowSnapshot, remembered: Option<&str>) {
+        if let Some(id) = remembered
+            && let Some((pi, ni)) = snap.locate_node(id)
+        {
+            self.phase_idx = pi;
+            self.node_idx = ni;
+            return;
+        }
+        // Fallback: clamp current coords against new snapshot.
+        if self.phase_idx >= snap.phases.len() {
+            self.phase_idx = 0;
+            self.node_idx = 0;
+            return;
+        }
+        self.clamp_node(snap);
+    }
+
     /// Get the currently selected node ID.
     pub fn selected_node_id<'a>(&self, snap: &'a WorkflowSnapshot) -> Option<&'a str> {
         snap.phases
@@ -344,5 +363,40 @@ mod tests {
 
         nav.page_left(80);
         assert_eq!(nav.viewport_x, 0); // 40 - 40 = 0
+    }
+
+    #[test]
+    fn restore_selection_finds_node_by_id() {
+        let snap = build_demo_snapshot();
+        // Demo snapshot has "merge-gate" in the last phase.
+        let mut nav = WorkflowNav::default();
+        nav.restore_selection(&snap, Some("merge-gate"));
+        let id = nav.selected_node_id(&snap);
+        assert_eq!(id, Some("merge-gate"));
+    }
+
+    #[test]
+    fn restore_selection_resets_on_missing_id() {
+        let snap = build_demo_snapshot();
+        let mut nav = WorkflowNav {
+            phase_idx: 99,
+            node_idx: 99,
+            ..Default::default()
+        };
+        nav.restore_selection(&snap, Some("no-such-node"));
+        assert_eq!(nav.phase_idx, 0);
+        assert_eq!(nav.node_idx, 0);
+    }
+
+    #[test]
+    fn restore_selection_clamps_without_remembered_id() {
+        let snap = build_demo_snapshot();
+        let mut nav = WorkflowNav {
+            phase_idx: snap.phases.len() + 5,
+            node_idx: 99,
+            ..Default::default()
+        };
+        nav.restore_selection(&snap, None);
+        assert_eq!(nav.phase_idx, 0);
     }
 }
