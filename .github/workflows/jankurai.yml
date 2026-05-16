@@ -33,15 +33,26 @@ jobs:
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.8
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
       - name: Install jankurai
-        # Jankurai MUST be installed from a URL with an explicit version tag.
+        # Jankurai MUST be installed from a URL with an explicit commit SHA.
         # Local-path installs are not supported (they produce version drift
-        # between dev machines and CI). Bump JANKURAI_TAG to upgrade.
+        # between dev machines and CI). Bump JANKURAI_REV to upgrade.
         env:
           JANKURAI_GIT: https://github.com/neverhuman/jankurai.git
-          JANKURAI_TAG: v1.4.1
+          JANKURAI_REV: 407362865d6a7e56bc609a934f4bd4eb36d64e00
         run: |
-          cargo install --git "$JANKURAI_GIT" --tag "$JANKURAI_TAG" jankurai --locked
+          cargo install --git "$JANKURAI_GIT" --rev "$JANKURAI_REV" jankurai --locked
       - run: jankurai --version
+      - name: Install gitleaks (needed by tools/security-lane.sh preflight)
+        run: |
+          VERSION="8.30.0"
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: Install syft (needed by tools/security-lane.sh preflight)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
+            | sudo sh -s -- -b /usr/local/bin v1.40.0
+          syft --version
       - name: Workflow lint
         run: actionlint .github/workflows/*.yml
       - name: Security strict preflight
