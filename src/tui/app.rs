@@ -341,6 +341,20 @@ pub struct App {
     /// etc.). Shown in the Inspector's Actions tab; cleared after a few ticks.
     pub delivery_action_message: Option<String>,
 
+    /// Mission Control action pane (Wave 5 — Evidence Gate). Holds focus,
+    /// pending-input buffer, and last-result summary so the cockpit can
+    /// surface Approve/Block/Repair/Freeze/KillBell verdicts without a
+    /// terminal drop-out.
+    pub action_pane: crate::tui::workflow::actions::ActionPaneState,
+
+    /// Side-effect surface for the Mission Control action buttons (Wave
+    /// 6.A). Defaults to `FakeActionAdapter` so existing code paths (and
+    /// unit tests) keep working without a database; production builds
+    /// replace this at startup via [`App::try_install_production_adapter`]
+    /// which wires the SQL pool, GitHub client, and signing key behind the
+    /// same `ActionAdapter` trait seam.
+    pub action_adapter: std::sync::Arc<dyn crate::tui::workflow::action_adapter::ActionAdapter>,
+
     sync_rx: mpsc::Receiver<TuiStateSnapshot>,
     sync_tx: mpsc::Sender<TuiStateSnapshot>,
 

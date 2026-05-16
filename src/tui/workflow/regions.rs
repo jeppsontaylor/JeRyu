@@ -56,9 +56,7 @@ pub fn compute_regions(area: Rect) -> DeliveryRegions {
     let pr_rail = Rect::new(area.x, area.y + mission_h, area.width, pr_rail_h);
 
     let middle_y = area.y + mission_h + pr_rail_h;
-    let middle_h = area
-        .height
-        .saturating_sub(mission_h + pr_rail_h + footer_h);
+    let middle_h = area.height.saturating_sub(mission_h + pr_rail_h + footer_h);
 
     // Horizontal split of the middle row.
     let phase_rail_w = if area.width >= SHOW_PHASE_RAIL_AT {
@@ -75,9 +73,19 @@ pub fn compute_regions(area: Rect) -> DeliveryRegions {
 
     let phase_rail = Rect::new(area.x, middle_y, phase_rail_w, middle_h);
     let canvas = Rect::new(area.x + phase_rail_w, middle_y, canvas_w, middle_h);
-    let minimap = Rect::new(area.x + phase_rail_w + canvas_w, middle_y, minimap_w, middle_h);
+    let minimap = Rect::new(
+        area.x + phase_rail_w + canvas_w,
+        middle_y,
+        minimap_w,
+        middle_h,
+    );
 
-    let footer = Rect::new(area.x, area.y + area.height - footer_h, area.width, footer_h);
+    let footer = Rect::new(
+        area.x,
+        area.y + area.height - footer_h,
+        area.width,
+        footer_h,
+    );
 
     DeliveryRegions {
         mission,
@@ -142,9 +150,6 @@ mod tests {
         );
 
         // phase_rail + canvas + minimap = area.width
-        assert_eq!(
-            r.phase_rail.width + r.canvas.width + r.minimap.width,
-            180
-        );
+        assert_eq!(r.phase_rail.width + r.canvas.width + r.minimap.width, 180);
     }
 }

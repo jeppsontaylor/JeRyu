@@ -1310,6 +1310,101 @@ impl Db {
                 repaired        INTEGER NOT NULL DEFAULT 0,
                 created_at      TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS launch_ledger (
+                id                TEXT PRIMARY KEY,
+                kind              TEXT NOT NULL,
+                subject_id        TEXT NOT NULL,
+                repo              TEXT,
+                actor             TEXT NOT NULL,
+                payload           TEXT NOT NULL,
+                signature_algo    TEXT NOT NULL,
+                signature_key_id  TEXT NOT NULL,
+                signature_value   TEXT NOT NULL,
+                recorded_at       TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_launch_ledger_subject
+                ON launch_ledger(subject_id, recorded_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_launch_ledger_kind
+                ON launch_ledger(kind, recorded_at DESC);
+
+            -- Wave 4: Kill Bell global-pause state. Persisted so a pause
+            -- outlives process restart. Each row is an explicit state
+            -- transition. The most-recent row by set_at DESC is the
+            -- current state. Pauses carry an expires_at TTL so a forgotten
+            -- pause cannot permanently brick the autonomous-delivery
+            -- control plane: KillBell::current() auto-arms once now is
+            -- past expires_at.
+            CREATE TABLE IF NOT EXISTS kill_bell_state (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                state       TEXT NOT NULL CHECK(state IN ('armed','paused')),
+                reason      TEXT,
+                paused_by   TEXT,
+                paused_at   TEXT,
+                expires_at  TEXT,
+                set_at      TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_kill_bell_state_set_at
+                ON kill_bell_state(set_at DESC);
+
+            -- Wave 7.A: VerdictStore. Persists VibeGate verdicts so a
+            -- long-running daemon can poll active verdicts across process
+            -- restart. body_json is the source of truth for the full
+            -- serialized VibeGateVerdict (per-column fields exist only for
+            -- indexed queries). superseded_at is set when a newer verdict
+            -- for the same (repo, merge_request) pair replaces this row,
+            -- which keeps load_latest cheap.
+            CREATE TABLE IF NOT EXISTS verdicts (
+                id                TEXT PRIMARY KEY,
+                repo              TEXT NOT NULL,
+                merge_request     TEXT,
+                head_sha          TEXT NOT NULL,
+                policy_sha        TEXT NOT NULL,
+                target_branch     TEXT NOT NULL,
+                risk              TEXT NOT NULL,
+                decision          TEXT NOT NULL,
+                expires_at        TEXT NOT NULL,
+                created_at        TEXT NOT NULL,
+                body_json         TEXT NOT NULL,
+                signature_algo    TEXT NOT NULL,
+                signature_key_id  TEXT NOT NULL,
+                signature_value   TEXT NOT NULL,
+                superseded_at     TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_verdicts_repo_mr
+                ON verdicts(repo, merge_request, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_verdicts_active
+                ON verdicts(expires_at, superseded_at);
+
+            -- Wave 3.5.B: SqlFoundryQueue. Backs FoundryTrain so the release
+            -- candidate queue survives process restart. drained_at is a
+            -- legitimate lifecycle column updated when drain_ready() ships a
+            -- batch (this table is intentionally NOT append-only). The
+            -- partial-style index keeps pending lookups cheap.
+            CREATE TABLE IF NOT EXISTS foundry_candidates (
+                id            TEXT PRIMARY KEY,
+                head_sha      TEXT NOT NULL,
+                source_branch TEXT NOT NULL,
+                commits_json  TEXT NOT NULL,
+                created_at    TEXT NOT NULL,
+                drained_at    TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_foundry_candidates_pending
+                ON foundry_candidates(drained_at, created_at);
+
+            CREATE TABLE IF NOT EXISTS llm_budget_ledger (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                repo_scope TEXT NOT NULL,
+                prompt_tokens INTEGER NOT NULL,
+                completion_tokens INTEGER NOT NULL,
+                micro_usd INTEGER NOT NULL,
+                recorded_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_llm_budget_ledger_scope_time
+                ON llm_budget_ledger(repo_scope, recorded_at DESC);
             "#;
         let schema = match self.backend {
             StateBackend::Sqlite => sqlite_schema.to_string(),
@@ -1408,6 +1503,50 @@ impl Db {
                 .execute(&self.pool)
                 .await;
         }
+
+        // launch_ledger is append-only: defend in depth with SQLite triggers.
+        // The Rust API in src/autonomy/ledger.rs has no update/delete methods,
+        // but the triggers stop anyone who reaches the DB directly.
+        let _ = sqlx::query(
+            "CREATE TRIGGER IF NOT EXISTS launch_ledger_no_update
+                 BEFORE UPDATE ON launch_ledger
+             BEGIN
+                 SELECT RAISE(ABORT, 'launch_ledger is append-only');
+             END",
+        )
+        .execute(&self.pool)
+        .await;
+        let _ = sqlx::query(
+            "CREATE TRIGGER IF NOT EXISTS launch_ledger_no_delete
+                 BEFORE DELETE ON launch_ledger
+             BEGIN
+                 SELECT RAISE(ABORT, 'launch_ledger is append-only');
+             END",
+        )
+        .execute(&self.pool)
+        .await;
+
+        // Wave 8.D: llm_budget_ledger is append-only too. The Rust API in
+        // src/llm/sql_budget_ledger.rs has no update/delete methods; these
+        // triggers stop anyone who reaches the DB out of band.
+        let _ = sqlx::query(
+            "CREATE TRIGGER IF NOT EXISTS llm_budget_ledger_no_update
+                 BEFORE UPDATE ON llm_budget_ledger
+             BEGIN
+                 SELECT RAISE(ABORT, 'llm_budget_ledger is append-only');
+             END",
+        )
+        .execute(&self.pool)
+        .await;
+        let _ = sqlx::query(
+            "CREATE TRIGGER IF NOT EXISTS llm_budget_ledger_no_delete
+                 BEFORE DELETE ON llm_budget_ledger
+             BEGIN
+                 SELECT RAISE(ABORT, 'llm_budget_ledger is append-only');
+             END",
+        )
+        .execute(&self.pool)
+        .await;
 
         Ok(())
     }
@@ -3738,6 +3877,76 @@ mod tests {
     async fn open_memory_uses_sqlite_recovery() -> Result<()> {
         let db = setup_db().await?;
         assert_eq!(db.backend(), StateBackend::Sqlite);
+        Ok(())
+    }
+
+    // --- Wave 5 coverage-boost: SQL semicolon-in-comment regression --------
+
+    /// Wave 4.E regression fence. The `migrate()` schema is split on `;` via
+    /// `schema.split(';')`. If a future contributor adds a line-comment
+    /// (`-- ...`) containing a `;` character INSIDE the schema literal,
+    /// the splitter would slice the comment in half and the second half
+    /// would be executed as raw SQL, breaking 30+ state tests as it did
+    /// once before. We keep this guard: scan only the lines that live
+    /// inside a raw-string literal (`r#"..."#`) starting near the
+    /// `sqlite_schema` binding for any SQL line-comment (`--`) containing
+    /// a `;` and fail loudly with a remediation hint.
+    #[test]
+    fn sqlite_schema_has_no_line_comments_containing_semicolons() {
+        let src = std::fs::read_to_string(file!()).expect("read state.rs source");
+        let mut in_schema_literal = false;
+        let mut offenders: Vec<(usize, String)> = Vec::new();
+        for (lineno, line) in src.lines().enumerate() {
+            // Toggle on the schema literal's raw-string fences. The literal
+            // opens with `let sqlite_schema = r#"` and closes with `"#;`.
+            if !in_schema_literal {
+                if line.contains("let sqlite_schema = r#\"") {
+                    in_schema_literal = true;
+                }
+                continue;
+            }
+            if line.trim_start().starts_with("\"#") {
+                in_schema_literal = false;
+                continue;
+            }
+            // Inside the schema literal: any `--` is a SQL line-comment
+            // marker. Disallow `;` after it.
+            if let Some(idx) = line.find("--") {
+                let after = &line[idx + 2..];
+                if after.contains(';') {
+                    offenders.push((lineno + 1, line.to_string()));
+                }
+            }
+        }
+        assert!(
+            offenders.is_empty(),
+            "sqlite_schema literal contains SQL line-comments with ';' which would \
+             break schema.split(';') in migrate(); fix by removing the semicolon \
+             from the comment or by switching the migration to a comment-aware \
+             splitter. Offending lines: {:#?}",
+            offenders
+        );
+    }
+
+    /// Calling `migrate()` twice in a row (via two open_memory() calls on
+    /// the same logical schema) must succeed: every DDL statement is
+    /// `CREATE ... IF NOT EXISTS` and the migration must be idempotent.
+    /// This is the safety net that lets Wave 5 redeployers re-run boot
+    /// without dropping their DB.
+    #[tokio::test]
+    async fn migrate_is_idempotent_no_op_on_second_invocation() -> Result<()> {
+        // First open: fresh in-memory db with full migration.
+        let db = setup_db().await?;
+        // The second migrate() call must complete without erroring; every
+        // CREATE TABLE is guarded with IF NOT EXISTS, ALTERs are tolerated
+        // via let _ =, and the index creation is also IF NOT EXISTS.
+        db.migrate().await?;
+        // After the second run the schema is still serviceable: we can
+        // execute a smoke query against one of the known tables.
+        let _: Vec<(String,)> =
+            sqlx::query_as("SELECT name FROM sqlite_master WHERE type='table' AND name='pools'")
+                .fetch_all(&db.pool)
+                .await?;
         Ok(())
     }
 

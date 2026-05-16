@@ -80,3 +80,51 @@ rust-diagnose:
 	jankurai rust diagnose .
 check: fast score security rust-map rust-witness rust-diagnose
 # jankurai scaffold Justfile
+
+# ============================================================
+# Evidence Gate / VibeGate Delivery Spine — local recipes
+# ============================================================
+# These are pre-PR / developer-machine only. CI never calls them.
+
+# Run the autonomy-only unit tests (no network).
+autonomy-fast:
+	cargo test -p jeryu --lib autonomy:: llm:: agent_review:: approval:: -- --test-threads=4
+
+# Run the mock end-to-end pipeline test (no network).
+autonomy-e2e:
+	cargo test --test autonomy_e2e
+
+# Run ALL live LLM tests against keys in env / ~/.jeryu/secrets/llm.env / ~/llm.env.
+# Refuses to run if $CI=true. Pre-PR only.
+live:
+	./scripts/local-live.sh all
+
+# Single-shot live sub-targets.
+live-smoke:
+	./scripts/local-live.sh smoke
+
+live-doctor:
+	./scripts/local-live.sh doctor
+
+live-e2e:
+	./scripts/local-live.sh e2e
+
+live-github:
+	./scripts/local-live.sh github
+
+# Full pre-PR check: compile -> unit -> mock e2e -> live.
+# Run this before opening any PR that touches the Evidence Gate spine.
+pre-pr:
+	./scripts/pre-pr.sh
+
+# Quick CLI demo: probe every configured LLM provider.
+autonomy-doctor:
+	cargo run --quiet --bin autonomy -- doctor
+
+# Quick CLI demo: review a diff piped on stdin.
+# Example:
+#   git diff origin/main | just autonomy-review-stdin
+autonomy-review-stdin head_sha="0000000000000000000000000000000000000000" policy_sha="cccccccccccccccccccccccccccccccccccccccc":
+	cargo run --quiet --bin autonomy -- review \
+		--head-sha {{head_sha}} --policy-sha {{policy_sha}} \
+		--target-branch main --evidence-pack-id evp_cli

@@ -55,7 +55,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
             let theme = crate::tui::theme::Theme::dark();
 
             use crate::tui::workflow::inspector::{
-                draw_inspector_pane, INSPECTOR_MIN_TERM_W, INSPECTOR_W,
+                INSPECTOR_MIN_TERM_W, INSPECTOR_W, draw_inspector_pane,
             };
             let main_area = chunks[1];
             // Show the side-pane inspector when open AND there's room. Otherwise
@@ -87,8 +87,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                     &theme,
                     app.tick_count,
                 );
-                app.delivery_hit_map =
-                    crate::tui::workflow::hit_map::DeliveryHitMap::default();
+                app.delivery_hit_map = crate::tui::workflow::hit_map::DeliveryHitMap::default();
             } else {
                 let mut hit_map = crate::tui::workflow::hit_map::DeliveryHitMap::default();
                 crate::tui::workflow::widget::draw_delivery_tab(
@@ -153,17 +152,19 @@ fn draw_workflow_inspect_overlay(f: &mut Frame, app: &App) {
     let area = f.area();
 
     // Center a box covering ~60% of the screen.
-    let overlay_w = (area.width * 3 / 5).max(50).min(area.width.saturating_sub(4));
-    let overlay_h = (area.height * 3 / 5).max(16).min(area.height.saturating_sub(4));
+    let overlay_w = (area.width * 3 / 5)
+        .max(50)
+        .min(area.width.saturating_sub(4));
+    let overlay_h = (area.height * 3 / 5)
+        .max(16)
+        .min(area.height.saturating_sub(4));
     let ox = area.x + (area.width.saturating_sub(overlay_w)) / 2;
     let oy = area.y + (area.height.saturating_sub(overlay_h)) / 2;
     let overlay_area = Rect::new(ox, oy, overlay_w, overlay_h);
 
     f.render_widget(Clear, overlay_area);
 
-    let selected_id = app
-        .workflow_nav
-        .selected_node_id(&app.workflow_snapshot);
+    let selected_id = app.workflow_nav.selected_node_id(&app.workflow_snapshot);
     let node = selected_id.and_then(|id| app.workflow_snapshot.node(id));
 
     let mut lines = Vec::new();
@@ -245,10 +246,7 @@ fn draw_workflow_inspect_overlay(f: &mut Frame, app: &App) {
         if let Some(ref vti) = node.vti_status {
             lines.push(Line::from(vec![
                 Span::styled("  VTI:      ", theme.muted()),
-                Span::styled(
-                    format!("{}", vti.badge()),
-                    theme.bold(theme.vti_fire),
-                ),
+                Span::styled(format!("{}", vti.badge()), theme.bold(theme.vti_fire)),
             ]));
         }
 

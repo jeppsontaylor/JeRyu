@@ -20,8 +20,7 @@ pub(crate) fn handle_delivery_mouse(app: &mut App, m: MouseEvent) {
         // ─── Wheel: pan viewport ────────────────────────────────────
         MouseEventKind::ScrollUp => {
             if DeliveryHitMap::contains(app.delivery_hit_map.canvas, x, y) {
-                app.workflow_nav.viewport_y =
-                    (app.workflow_nav.viewport_y - WHEEL_STEP).max(0);
+                app.workflow_nav.viewport_y = (app.workflow_nav.viewport_y - WHEEL_STEP).max(0);
             }
         }
         MouseEventKind::ScrollDown => {
@@ -33,14 +32,12 @@ pub(crate) fn handle_delivery_mouse(app: &mut App, m: MouseEvent) {
                         .map(|r| r.height as i32)
                         .unwrap_or(0))
                 .max(0);
-                app.workflow_nav.viewport_y =
-                    (app.workflow_nav.viewport_y + WHEEL_STEP).min(max);
+                app.workflow_nav.viewport_y = (app.workflow_nav.viewport_y + WHEEL_STEP).min(max);
             }
         }
         MouseEventKind::ScrollLeft => {
             if DeliveryHitMap::contains(app.delivery_hit_map.canvas, x, y) {
-                app.workflow_nav.viewport_x =
-                    (app.workflow_nav.viewport_x - WHEEL_STEP).max(0);
+                app.workflow_nav.viewport_x = (app.workflow_nav.viewport_x - WHEEL_STEP).max(0);
             }
         }
         MouseEventKind::ScrollRight => {
@@ -52,8 +49,7 @@ pub(crate) fn handle_delivery_mouse(app: &mut App, m: MouseEvent) {
                         .map(|r| r.width as i32)
                         .unwrap_or(0))
                 .max(0);
-                app.workflow_nav.viewport_x =
-                    (app.workflow_nav.viewport_x + WHEEL_STEP).min(max);
+                app.workflow_nav.viewport_x = (app.workflow_nav.viewport_x + WHEEL_STEP).min(max);
             }
         }
 
@@ -81,10 +77,8 @@ pub(crate) fn handle_delivery_mouse(app: &mut App, m: MouseEvent) {
                     .unwrap_or(0);
                 let max_x = (app.workflow_nav.canvas_width - canvas_w).max(0);
                 let max_y = (app.workflow_nav.canvas_height - canvas_h).max(0);
-                app.workflow_nav.viewport_x =
-                    (app.workflow_nav.viewport_x + dx).clamp(0, max_x);
-                app.workflow_nav.viewport_y =
-                    (app.workflow_nav.viewport_y + dy).clamp(0, max_y);
+                app.workflow_nav.viewport_x = (app.workflow_nav.viewport_x + dx).clamp(0, max_x);
+                app.workflow_nav.viewport_y = (app.workflow_nav.viewport_y + dy).clamp(0, max_y);
                 app.drag_origin = Some((x, y));
             }
         }
@@ -123,22 +117,15 @@ fn handle_click(app: &mut App, x: u16, y: u16) {
         {
             app.workflow_nav.phase_idx = pi;
             app.workflow_nav.node_idx = ni;
-            let dag_h = app
-                .delivery_hit_map
-                .canvas
-                .map(|r| r.height)
-                .unwrap_or(30);
-            let dag_w = app
-                .delivery_hit_map
-                .canvas
-                .map(|r| r.width)
-                .unwrap_or(120);
+            let dag_h = app.delivery_hit_map.canvas.map(|r| r.height).unwrap_or(30);
+            let dag_w = app.delivery_hit_map.canvas.map(|r| r.width).unwrap_or(120);
             app.workflow_nav.ensure_selected_visible(dag_h, dag_w);
         }
         return;
     }
 
-    // Node card click → select (second click on already-selected → toggle inspector).
+    // Node card click promotes that node (second click on the promoted
+    // node toggles the inspector).
     if let Some((pi, ni)) = app.delivery_hit_map.card_at(x, y) {
         let already = pi == app.workflow_nav.phase_idx && ni == app.workflow_nav.node_idx;
         app.workflow_nav.phase_idx = pi;

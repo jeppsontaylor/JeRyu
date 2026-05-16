@@ -26,10 +26,7 @@ pub fn compute_first_blocker(snap: &WorkflowSnapshot) -> Option<&WorkflowNode> {
     for phase in &snap.phases {
         for nid in &phase.node_ids {
             if let Some(node) = snap.node(nid)
-                && matches!(
-                    node.status,
-                    WorkflowStatus::Error | WorkflowStatus::Blocked
-                )
+                && matches!(node.status, WorkflowStatus::Error | WorkflowStatus::Blocked)
             {
                 return Some(node);
             }
@@ -80,7 +77,12 @@ pub fn compute_critical_path(snap: &WorkflowSnapshot) -> Vec<String> {
         .iter()
         .filter(|(nid, _)| {
             snap.node(nid)
-                .map(|n| !matches!(n.status, WorkflowStatus::Ran | WorkflowStatus::Cached | WorkflowStatus::Skipped))
+                .map(|n| {
+                    !matches!(
+                        n.status,
+                        WorkflowStatus::Ran | WorkflowStatus::Cached | WorkflowStatus::Skipped
+                    )
+                })
                 .unwrap_or(false)
         })
         .max_by_key(|(_, d)| *d)
@@ -159,7 +161,9 @@ pub fn detect_stalls(snap: &WorkflowSnapshot, now: DateTime<Utc>) -> Vec<String>
         if !matches!(n.status, WorkflowStatus::Running) {
             continue;
         }
-        let Some(started) = n.started_at else { continue };
+        let Some(started) = n.started_at else {
+            continue;
+        };
         let elapsed = (now - started).num_seconds().max(0) as u64;
         let budget = n
             .eta_secs
@@ -207,14 +211,18 @@ pub fn compute_ship_readiness(snap: &WorkflowSnapshot) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::delivery::build_demo_delivery;
+    use super::*;
 
     #[test]
     fn first_blocker_in_demo_is_build_web() {
         let snap = build_demo_delivery();
         // PR 1842 has the build-web Error.
-        let pr = snap.pull_requests.iter().find(|p| p.number == 1842).unwrap();
+        let pr = snap
+            .pull_requests
+            .iter()
+            .find(|p| p.number == 1842)
+            .unwrap();
         let blocker = compute_first_blocker(&pr.snapshot).unwrap();
         assert!(
             blocker.id.contains("build-web") || blocker.id.contains("e2e"),
@@ -227,14 +235,22 @@ mod tests {
     fn first_blocker_is_none_when_clean() {
         let snap = build_demo_delivery();
         // PR 1835 is healthy through canary.
-        let pr = snap.pull_requests.iter().find(|p| p.number == 1835).unwrap();
+        let pr = snap
+            .pull_requests
+            .iter()
+            .find(|p| p.number == 1835)
+            .unwrap();
         assert!(compute_first_blocker(&pr.snapshot).is_none());
     }
 
     #[test]
     fn critical_path_is_non_empty_for_active_pr() {
         let snap = build_demo_delivery();
-        let pr = snap.pull_requests.iter().find(|p| p.number == 1841).unwrap();
+        let pr = snap
+            .pull_requests
+            .iter()
+            .find(|p| p.number == 1841)
+            .unwrap();
         let path = compute_critical_path(&pr.snapshot);
         assert!(!path.is_empty());
     }
@@ -242,7 +258,11 @@ mod tests {
     #[test]
     fn downstream_impact_of_blocker_is_positive() {
         let snap = build_demo_delivery();
-        let pr = snap.pull_requests.iter().find(|p| p.number == 1842).unwrap();
+        let pr = snap
+            .pull_requests
+            .iter()
+            .find(|p| p.number == 1842)
+            .unwrap();
         let blocker = compute_first_blocker(&pr.snapshot).unwrap();
         let impact = compute_downstream_impact(&pr.snapshot, &blocker.id);
         assert!(impact > 0, "build-web failure should block downstream work");
@@ -251,7 +271,11 @@ mod tests {
     #[test]
     fn ship_readiness_for_blocked_pr_is_low() {
         let snap = build_demo_delivery();
-        let pr = snap.pull_requests.iter().find(|p| p.number == 1842).unwrap();
+        let pr = snap
+            .pull_requests
+            .iter()
+            .find(|p| p.number == 1842)
+            .unwrap();
         let r = compute_ship_readiness(&pr.snapshot);
         assert!(r < 50.0, "blocked PR should not be near ready; got {r}");
     }
@@ -259,8 +283,16 @@ mod tests {
     #[test]
     fn ship_readiness_for_canary_pr_is_higher() {
         let snap = build_demo_delivery();
-        let blocked = snap.pull_requests.iter().find(|p| p.number == 1842).unwrap();
-        let canary = snap.pull_requests.iter().find(|p| p.number == 1835).unwrap();
+        let blocked = snap
+            .pull_requests
+            .iter()
+            .find(|p| p.number == 1842)
+            .unwrap();
+        let canary = snap
+            .pull_requests
+            .iter()
+            .find(|p| p.number == 1835)
+            .unwrap();
         let r_blocked = compute_ship_readiness(&blocked.snapshot);
         let r_canary = compute_ship_readiness(&canary.snapshot);
         assert!(

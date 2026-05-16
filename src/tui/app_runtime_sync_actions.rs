@@ -356,7 +356,11 @@ impl App {
 
     /// Tab cycles to the next node in the current phase (wrapping).
     pub fn workflow_tab_next(&mut self) {
-        if let Some(phase) = self.workflow_snapshot.phases.get(self.workflow_nav.phase_idx) {
+        if let Some(phase) = self
+            .workflow_snapshot
+            .phases
+            .get(self.workflow_nav.phase_idx)
+        {
             if !phase.node_ids.is_empty() {
                 self.workflow_nav.node_idx =
                     (self.workflow_nav.node_idx + 1) % phase.node_ids.len();
@@ -551,10 +555,7 @@ impl App {
             .workflow_nav
             .selected_node_id(&self.workflow_snapshot)
             .map(str::to_string);
-        let remembered_pr = self
-            .delivery_snapshot
-            .selected()
-            .map(|pr| pr.number);
+        let remembered_pr = self.delivery_snapshot.selected().map(|pr| pr.number);
 
         // TODO: when live PR/CI data is wired, plug collect_delivery_snapshot
         // with PrInput from the GitLab + agent layer here. Until then the

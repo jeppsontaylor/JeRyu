@@ -67,7 +67,11 @@ impl InspectorTab {
 
     pub fn prev(self) -> Self {
         let mut idx = Self::ALL.iter().position(|t| *t == self).unwrap_or(0);
-        idx = if idx == 0 { Self::ALL.len() - 1 } else { idx - 1 };
+        idx = if idx == 0 {
+            Self::ALL.len() - 1
+        } else {
+            idx - 1
+        };
         Self::ALL[idx]
     }
 }
@@ -90,10 +94,7 @@ pub fn draw_inspector_pane(
     }
 
     let Some(pr) = delivery.selected() else {
-        f.render_widget(
-            empty_block(theme, " Inspect "),
-            area,
-        );
+        f.render_widget(empty_block(theme, " Inspect "), area);
         return;
     };
     let node = nav_node_id.and_then(|id| pr.snapshot.node(id));
@@ -139,7 +140,11 @@ fn draw_tab_strip(
     theme: &Theme,
 ) {
     let title_text = match node {
-        Some(n) => format!(" {} {} ", n.status.glyph(), n.label.chars().take(28).collect::<String>()),
+        Some(n) => format!(
+            " {} {} ",
+            n.status.glyph(),
+            n.label.chars().take(28).collect::<String>()
+        ),
         None => format!(" PR #{} ", pr.number),
     };
     let block = Block::default()
@@ -180,7 +185,12 @@ fn draw_overview(f: &mut Frame, area: Rect, node: Option<&WorkflowNode>, theme: 
     };
 
     let mut lines = Vec::new();
-    lines.push(row("Status", node.status.label(), theme.bold(status_color), theme));
+    lines.push(row(
+        "Status",
+        node.status.label(),
+        theme.bold(status_color),
+        theme,
+    ));
     lines.push(row("Kind", node.kind.label(), theme.secondary(), theme));
     if let Some(cmd) = &node.command {
         lines.push(row("Command", cmd, theme.primary(), theme));
@@ -218,10 +228,7 @@ fn draw_overview(f: &mut Frame, area: Rect, node: Option<&WorkflowNode>, theme: 
     }
     if let Some(reason) = &node.reason {
         lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            "  Reason:",
-            theme.muted(),
-        )));
+        lines.push(Line::from(Span::styled("  Reason:", theme.muted())));
         lines.push(Line::from(Span::styled(
             format!("    {}", reason),
             theme.secondary(),
@@ -303,7 +310,10 @@ fn draw_deps(
         .collect();
 
     let mut lines = Vec::new();
-    lines.push(Line::from(Span::styled("  Incoming:", theme.bold(theme.text_primary))));
+    lines.push(Line::from(Span::styled(
+        "  Incoming:",
+        theme.bold(theme.text_primary),
+    )));
     if node.deps.is_empty() {
         lines.push(Line::from(Span::styled("    (none)", theme.muted())));
     } else {
@@ -318,7 +328,10 @@ fn draw_deps(
         }
     }
     lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled("  Outgoing:", theme.bold(theme.text_primary))));
+    lines.push(Line::from(Span::styled(
+        "  Outgoing:",
+        theme.bold(theme.text_primary),
+    )));
     if children.is_empty() {
         lines.push(Line::from(Span::styled("    (none)", theme.muted())));
     } else {
@@ -388,24 +401,47 @@ fn draw_actions(
 
     let mut add = |label: &str, hint: &str, color: ratatui::style::Color| {
         lines.push(Line::from(vec![
-            Span::styled(format!("  [ {} ]", label), Style::default().fg(color).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                format!("  [ {} ]", label),
+                Style::default().fg(color).add_modifier(Modifier::BOLD),
+            ),
             Span::raw("  "),
             Span::styled(hint.to_string(), theme.muted()),
         ]));
     };
 
-    add(" Rerun       ", "press R (stub until backend wiring)", theme.running);
+    add(
+        " Rerun       ",
+        "press R (stub until backend wiring)",
+        theme.running,
+    );
     if node.kind.is_rollback_eligible() {
-        add(" Rollback    ", "press r — builds rollback report (dry-run)", theme.warning);
+        add(
+            " Rollback    ",
+            "press r — builds rollback report (dry-run)",
+            theme.warning,
+        );
     }
     if matches!(node.kind, WorkflowNodeKind::AgentReview { .. }) {
-        add(" View prompt", "stub: agent review wiring pending", theme.agent);
+        add(
+            " View prompt",
+            "stub: agent review wiring pending",
+            theme.agent,
+        );
     }
     if let Some(bk) = &node.backend {
         let _ = bk;
-        add(" Open in GitLab", "stub: open backend job page", theme.production);
+        add(
+            " Open in GitLab",
+            "stub: open backend job page",
+            theme.production,
+        );
     }
-    add(" View capsule", "stub: capsule evidence viewer", theme.vti_fire);
+    add(
+        " View capsule",
+        "stub: capsule evidence viewer",
+        theme.vti_fire,
+    );
 
     if let Some(msg) = action_message {
         lines.push(Line::from(""));

@@ -173,10 +173,10 @@ pub fn post_check_run(gate: &ReleaseReadyGate, repo_slug: &str, head_sha: &str) 
 
     {
         use std::io::Write;
-        let stdin = child
-            .stdin
-            .as_mut()
-            .ok_or_else(|| anyhow::anyhow!("gh did not expose stdin"))?;
+        let stdin = match child.stdin.as_mut() {
+            Some(s) => s,
+            None => return Err(anyhow::anyhow!("gh did not expose stdin")),
+        };
         stdin.write_all(payload_str.as_bytes())?;
     }
 

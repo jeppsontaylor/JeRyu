@@ -36,6 +36,10 @@
       "command": "just score",
       "purpose": "verify root security config remains routed"
     },
+    ".autonomy/": {
+      "command": "cargo test -p jeryu --lib autonomy::",
+      "purpose": "verify Evidence Gate config + schemas stay in sync with the autonomy module"
+    },
     "AGENTS.md": {
       "command": "just score",
       "purpose": "verify root routing remains visible to the audit"
@@ -111,6 +115,10 @@
     "agent/": {
       "command": "just score",
       "purpose": "verify manifests remain parseable and authoritative"
+    },
+    "agent_bridge.md": {
+      "command": "just score",
+      "purpose": "verify Evidence Gate <> autonomy bridge notes stay routed"
     },
     "agent/coverage-sources.toml": {
       "command": "jankurai coverage audit . --config agent/coverage-sources.toml --json target/jankurai/coverage/coverage-audit.json --md target/jankurai/coverage/coverage-audit.md && just score",
@@ -272,9 +280,57 @@
       "command": "just fast",
       "purpose": "verify Rust source files remain routed"
     },
+    "src/agent_review/": {
+      "command": "cargo test -p jeryu --lib agent_review::",
+      "purpose": "verify reviewer agent runtime (Security/TestIntegrity/Runtime/Lockfile/Nightwatch) and judge fusion"
+    },
+    "src/approval/": {
+      "command": "cargo test -p jeryu --lib approval::",
+      "purpose": "verify quorum + SHA-binding invariants (no_self_approval, distinct identities, exact head/policy bind)"
+    },
+    "src/autonomy/": {
+      "command": "cargo test -p jeryu --lib autonomy::",
+      "purpose": "verify Evidence Gate autonomy plane: typed objects, signed ledger, daemon, HTTP server, conditions, risk model"
+    },
+    "src/bin/autonomy.rs": {
+      "command": "cargo test -p jeryu --test cli_smoke",
+      "purpose": "verify autonomy CLI surface (doctor/review/judge/evidence/daemon/serve)"
+    },
+    "src/git_host/": {
+      "command": "cargo test -p jeryu --lib git_host::",
+      "purpose": "verify GitHub adapter + CODEOWNERS parser used by the judge's required-team cross-check"
+    },
+    "src/llm/": {
+      "command": "cargo test -p jeryu --lib llm::",
+      "purpose": "verify per-role router chains, SQL budget ledger, scrub/secrets, and openai-compatible client"
+    },
+    "src/release/canary.rs": {
+      "command": "cargo test -p jeryu --lib release::canary",
+      "purpose": "verify Nightwatch canary ring ladder + SLO-breach-beats-time-in-ring invariant"
+    },
+    "src/release/foundry.rs": {
+      "command": "cargo test -p jeryu --lib release::foundry",
+      "purpose": "verify FoundryTrain build-once + ReleasePassport ed25519 signing"
+    },
+    "src/release/sql_foundry_queue.rs": {
+      "command": "cargo test -p jeryu --lib release::sql_foundry_queue",
+      "purpose": "verify SQL-backed FoundryTrain queue mirrors in-memory drain trigger semantics"
+    },
     "src/test_intel/": {
       "command": "cargo test -p jeryu -- test_intel",
       "purpose": "verify VTI test-intelligence sources remain routed"
+    },
+    "src/tui/workflow/action_adapter.rs": {
+      "command": "cargo test -p jeryu --lib tui::workflow::action_adapter",
+      "purpose": "verify TUI action adapter trait + ProductionActionAdapter wiring"
+    },
+    "src/tui/workflow/actions.rs": {
+      "command": "cargo test -p jeryu --lib tui::workflow::actions",
+      "purpose": "verify Mission Control 5-button action surface (Approve/Block/Repair/Freeze/KillBell)"
+    },
+    "src/tui/workflow/delivery.rs": {
+      "command": "cargo test -p jeryu --lib tui::workflow",
+      "purpose": "verify delivery workflow model, collector, mission strip, rails, inspector"
     },
     "tarpaulin-report.json": {
       "command": "just fast",
@@ -311,6 +367,22 @@
     "tests/": {
       "command": "cargo test -p jeryu --test '*' -- --test-threads=1",
       "purpose": "verify integration tests remain routed"
+    },
+    "tests/autonomy_e2e.rs": {
+      "command": "cargo test -p jeryu --test autonomy_e2e",
+      "purpose": "verify mock-only Evidence Gate end-to-end (intent → evidence → review → judge → verdict → passport)"
+    },
+    "tests/cli_smoke.rs": {
+      "command": "cargo test -p jeryu --test cli_smoke",
+      "purpose": "verify autonomy CLI subcommand surface stays stable"
+    },
+    "tests/coverage_more.rs": {
+      "command": "cargo test -p jeryu --test coverage_more",
+      "purpose": "verify Evidence Gate edge-case coverage (error paths, schema drift, signature refusal)"
+    },
+    "tests/llm_doctor.rs": {
+      "command": "cargo test -p jeryu --test llm_doctor",
+      "purpose": "verify llm provider doctor classifies OK/AUTH/RATE/DOWN correctly against mock responses"
     },
     "token-budget.toml": {
       "command": "just score",

@@ -14,7 +14,9 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
-use super::intelligence::{compute_critical_path, compute_downstream_impact, compute_first_blocker, compute_ship_readiness};
+use super::intelligence::{
+    compute_critical_path, compute_downstream_impact, compute_first_blocker, compute_ship_readiness,
+};
 use super::model::*;
 use crate::tui::theme::Theme;
 
@@ -79,19 +81,13 @@ fn build_lines<'a>(
             Span::raw(" "),
             Span::styled(title, theme.bold(theme.text_primary)),
             Span::raw("  ·  "),
-            Span::styled(
-                format!("by {}", pr.author),
-                theme.muted(),
-            ),
+            Span::styled(format!("by {}", pr.author), theme.muted()),
             Span::raw("  ·  "),
             Span::styled(status_label.to_string(), theme.bold(banner_color)),
             Span::raw("  ·  "),
             Span::styled(format!("at {}", phase_label), theme.secondary()),
             Span::raw("  ·  "),
-            Span::styled(
-                format!("ship {:.0}%", ship_pct),
-                theme.bold(banner_color),
-            ),
+            Span::styled(format!("ship {:.0}%", ship_pct), theme.bold(banner_color)),
         ];
         // Blocker (intelligence): label + downstream count.
         if let Some(blocker) = compute_first_blocker(&pr.snapshot) {
@@ -139,10 +135,16 @@ fn build_lines<'a>(
     let f = &snap.fleet_summary;
     let mut roll = vec![
         Span::raw(" "),
-        Span::styled(format!("OPEN {} ", f.open_prs), theme.bold(theme.text_primary)),
+        Span::styled(
+            format!("OPEN {} ", f.open_prs),
+            theme.bold(theme.text_primary),
+        ),
         Span::styled(format!("· RUN {} ", f.running), theme.bold(theme.running)),
         Span::styled(format!("· BLOCK {} ", f.blocked), theme.bold(theme.fail)),
-        Span::styled(format!("· MERGED {} ", f.merged_today), theme.bold(theme.ok)),
+        Span::styled(
+            format!("· MERGED {} ", f.merged_today),
+            theme.bold(theme.ok),
+        ),
         Span::styled(
             format!("· READY {} ", f.ready_to_ship),
             theme.bold(theme.ok),
@@ -162,10 +164,7 @@ fn build_lines<'a>(
     }
     if let Some(url) = &f.canary_url {
         roll.push(Span::raw("· "));
-        roll.push(Span::styled(
-            format!("canary={}", url),
-            theme.muted(),
-        ));
+        roll.push(Span::styled(format!("canary={}", url), theme.muted()));
     }
     lines.push(Line::from(roll));
 

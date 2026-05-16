@@ -6,7 +6,7 @@ use ratatui::{Terminal, backend::TestBackend};
 
 use super::delivery::build_demo_delivery;
 use super::hit_map::DeliveryHitMap;
-use super::inspector::{draw_inspector_pane, InspectorTab};
+use super::inspector::{InspectorTab, draw_inspector_pane};
 use super::nav::WorkflowNav;
 use super::widget::draw_delivery_tab;
 use crate::tui::app::LiveLogState;
@@ -23,15 +23,7 @@ fn delivery_view_renders_at_200x60_without_panic() {
     let mut term = Terminal::new(backend).unwrap();
 
     term.draw(|f| {
-        draw_delivery_tab(
-            f,
-            f.area(),
-            &snap,
-            &nav,
-            &theme,
-            0,
-            &mut hits,
-        );
+        draw_delivery_tab(f, f.area(), &snap, &nav, &theme, 0, &mut hits);
     })
     .unwrap();
 
@@ -39,9 +31,15 @@ fn delivery_view_renders_at_200x60_without_panic() {
     // be visible at this terminal size.
     assert!(hits.mission.is_some(), "mission strip should be visible");
     assert!(hits.pr_rail.is_some(), "PR rail should be visible");
-    assert!(hits.phase_rail.is_some(), "phase rail should be visible at 200 cols");
+    assert!(
+        hits.phase_rail.is_some(),
+        "phase rail should be visible at 200 cols"
+    );
     assert!(hits.canvas.is_some(), "canvas should be visible");
-    assert!(hits.minimap.is_some(), "minimap should be visible at 200 cols");
+    assert!(
+        hits.minimap.is_some(),
+        "minimap should be visible at 200 cols"
+    );
 
     // First-PR card hit boxes populated.
     assert!(
@@ -60,20 +58,15 @@ fn delivery_view_collapses_chrome_at_narrow_terminal() {
     let backend = TestBackend::new(90, 30);
     let mut term = Terminal::new(backend).unwrap();
     term.draw(|f| {
-        draw_delivery_tab(
-            f,
-            f.area(),
-            &snap,
-            &nav,
-            &theme,
-            0,
-            &mut hits,
-        );
+        draw_delivery_tab(f, f.area(), &snap, &nav, &theme, 0, &mut hits);
     })
     .unwrap();
 
     assert!(hits.canvas.is_some());
-    assert!(hits.phase_rail.is_none(), "phase rail collapses below 120 cols");
+    assert!(
+        hits.phase_rail.is_none(),
+        "phase rail collapses below 120 cols"
+    );
     assert!(hits.minimap.is_none(), "minimap collapses below 160 cols");
 }
 
@@ -120,15 +113,7 @@ fn ticking_progress_doesnt_panic_with_pulsing_borders() {
     let mut term = Terminal::new(backend).unwrap();
     for tick in 0..8 {
         term.draw(|f| {
-            draw_delivery_tab(
-                f,
-                f.area(),
-                &snap,
-                &nav,
-                &theme,
-                tick,
-                &mut hits,
-            );
+            draw_delivery_tab(f, f.area(), &snap, &nav, &theme, tick, &mut hits);
         })
         .unwrap();
     }

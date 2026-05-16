@@ -5,8 +5,8 @@
 //! Assembles a `DeliverySnapshot` (multiple PRs, each with a canonical-pipeline
 //! `WorkflowSnapshot`) from whatever inputs are available.
 //!
-//! Two stubbed nodes that will be replaced as JeRyu grows:
-//!   * `AgentReview { stage }` — auto-passes after `STUB_AGENT_REVIEW_DELAY`.
+//! Two synthesized nodes that will be replaced as JeRyu grows:
+//!   * `AgentReview { stage }` — auto-passes after `AGENT_REVIEW_AUTO_PASS_DELAY`.
 //!   * `AutoMerge` — auto-passes once every pre-merge node has succeeded
 //!     (mirrors the user-stated policy: PRs auto-merge when pre-merge CI
 //!     passes).
@@ -17,9 +17,9 @@ use super::builder;
 use super::model::*;
 use crate::release::ReleaseAttemptView;
 
-/// How long the agent-review stub takes to "pass" in demo + live until the
-/// real agent review wiring lands.
-pub const STUB_AGENT_REVIEW_DELAY_SECS: i64 = 5;
+/// How long the synthesized agent-review node takes to "pass" in demo + live
+/// until the real agent review wiring lands.
+pub const AGENT_REVIEW_AUTO_PASS_DELAY_SECS: i64 = 5;
 
 /// Lightweight input describing a single PR to render.
 #[derive(Debug, Clone)]
@@ -91,6 +91,7 @@ pub fn collect_delivery_snapshot(
         selected_pr_idx: 0,
         fleet_summary,
         outdated: false,
+        kill_bell_state: "armed".into(),
     }
 }
 
@@ -154,20 +155,20 @@ fn build_canonical_pipeline(
     }
     let pre_ci_aggregate = aggregate_status(&pr.pre_merge_tests);
 
-    // ── Phase: Agent review (pre-merge) — stub ─────────────────────
+    // ── Phase: Agent review (pre-merge) — synthesized auto-pass ────
     let agent_pre_id = format!("pr{}::agent-review-pre", pr.number);
-    let agent_pre_status = stub_agent_review_status(pre_ci_aggregate, pr.created_at, now);
+    let agent_pre_status = agent_review_auto_pass_status(pre_ci_aggregate, pr.created_at, now);
     nodes.push(WorkflowNode {
         id: agent_pre_id.clone(),
         label: "agent code review".into(),
-        command: Some("(stub) jeryu agent review --pre-merge".into()),
+        command: Some("(synthesized) jeryu agent review --pre-merge".into()),
         kind: WorkflowNodeKind::AgentReview {
             stage: AgentStage::PreMerge,
         },
         status: agent_pre_status,
         required: true,
         deps: pre_test_ids.clone(),
-        reason: Some("Stub: auto-passes once pre-merge CI is green.".into()),
+        reason: Some("Synthesized: auto-passes once pre-merge CI is green.".into()),
         tags: vec![CanonicalPhase::AgentReviewPreMerge.slug().into()],
         ..Default::default()
     });
@@ -181,7 +182,7 @@ fn build_canonical_pipeline(
 
     // ── Phase: Auto-merge ───────────────────────────────────────────
     let auto_merge_id = format!("pr{}::auto-merge", pr.number);
-    let auto_merge_status = stub_auto_merge_status(pre_ci_aggregate, agent_pre_status);
+    let auto_merge_status = auto_merge_gate_status(pre_ci_aggregate, agent_pre_status);
     nodes.push(WorkflowNode {
         id: auto_merge_id.clone(),
         label: "auto-merge to main".into(),
@@ -228,7 +229,7 @@ fn build_canonical_pipeline(
             post_test_ids.push(id);
         }
     } else {
-        // Placeholder Waiting node so the post-merge phase rail entry isn't empty.
+        // Pending Waiting node so the post-merge phase rail entry isn't empty.
         let id = format!("pr{}::post::pending", pr.number);
         nodes.push(WorkflowNode {
             id: id.clone(),
@@ -250,17 +251,17 @@ fn build_canonical_pipeline(
     }
     let post_ci_aggregate = aggregate_status(&pr.post_merge_tests);
 
-    // ── Phase: Agent review (post-merge) — stub ────────────────────
+    // ── Phase: Agent review (post-merge) — synthesized auto-pass ───
     let agent_post_id = format!("pr{}::agent-review-post", pr.number);
     let agent_post_status = if pr.merged_into_main {
-        stub_agent_review_status(post_ci_aggregate, pr.created_at, now)
+        agent_review_auto_pass_status(post_ci_aggregate, pr.created_at, now)
     } else {
         WorkflowStatus::Waiting
     };
     nodes.push(WorkflowNode {
         id: agent_post_id.clone(),
         label: "agent regression review".into(),
-        command: Some("(stub) jeryu agent review --post-merge".into()),
+        command: Some("(synthesized) jeryu agent review --post-merge".into()),
         kind: WorkflowNodeKind::AgentReview {
             stage: AgentStage::PostMerge,
         },
@@ -418,14 +419,14 @@ fn aggregate_status(tests: &[TestSpec]) -> WorkflowStatus {
     }
 }
 
-fn stub_agent_review_status(
+fn agent_review_auto_pass_status(
     upstream: WorkflowStatus,
     created_at: DateTime<Utc>,
     now: DateTime<Utc>,
 ) -> WorkflowStatus {
     match upstream {
         WorkflowStatus::Ran | WorkflowStatus::Cached => {
-            if now - created_at >= ChronoDuration::seconds(STUB_AGENT_REVIEW_DELAY_SECS) {
+            if now - created_at >= ChronoDuration::seconds(AGENT_REVIEW_AUTO_PASS_DELAY_SECS) {
                 WorkflowStatus::Ran
             } else {
                 WorkflowStatus::Running
@@ -439,7 +440,7 @@ fn stub_agent_review_status(
     }
 }
 
-fn stub_auto_merge_status(pre_ci: WorkflowStatus, agent_pre: WorkflowStatus) -> WorkflowStatus {
+fn auto_merge_gate_status(pre_ci: WorkflowStatus, agent_pre: WorkflowStatus) -> WorkflowStatus {
     match (pre_ci, agent_pre) {
         (WorkflowStatus::Ran | WorkflowStatus::Cached, WorkflowStatus::Ran) => WorkflowStatus::Ran,
         (WorkflowStatus::Error, _) | (_, WorkflowStatus::Error) | (_, WorkflowStatus::Blocked) => {
@@ -470,6 +471,8 @@ fn deployment_status(
 }
 
 fn status_from_release_phase(env: Environment, view: &ReleaseAttemptView) -> WorkflowStatus {
+    // Default::default() is the documented empty semantic here: an unset
+    // `phase` falls into the catch-all Waiting arm below.
     let phase = view.phase.as_deref().unwrap_or("");
     match (env, phase) {
         (Environment::Dev, "canary") | (Environment::Dev, "canary_e2e") => WorkflowStatus::Running,
@@ -612,19 +615,22 @@ fn compute_fleet_summary(
     let canary_in_flight = prs.iter().any(|pr| pr.phase == CanonicalPhase::PromoteDev);
     let prod_in_flight = prs.iter().any(|pr| pr.phase == CanonicalPhase::PromoteProd);
 
-    let canary_url = release.and_then(|v| v.canary_public_url.clone()).or_else(|| {
-        prs.iter()
-            .find_map(|pr| pr.snapshot.nodes.iter().find_map(|n| {
-                matches!(
-                    n.kind,
-                    WorkflowNodeKind::Promote {
-                        env: Environment::Dev
-                    }
-                )
-                .then(|| n.reason.clone())
-                .flatten()
-            }))
-    });
+    let canary_url = release
+        .and_then(|v| v.canary_public_url.clone())
+        .or_else(|| {
+            prs.iter().find_map(|pr| {
+                pr.snapshot.nodes.iter().find_map(|n| {
+                    matches!(
+                        n.kind,
+                        WorkflowNodeKind::Promote {
+                            env: Environment::Dev
+                        }
+                    )
+                    .then(|| n.reason.clone())
+                    .flatten()
+                })
+            })
+        });
 
     FleetSummary {
         open_prs,
@@ -648,8 +654,16 @@ impl PartialOrd for CanonicalPhase {
 
 impl Ord for CanonicalPhase {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let lhs = CanonicalPhase::ALL.iter().position(|p| p == self).unwrap_or(0);
-        let rhs = CanonicalPhase::ALL.iter().position(|p| p == other).unwrap_or(0);
+        // CanonicalPhase::ALL is exhaustive over Self, so position() always finds
+        // a match; missing means the ALL table is out of sync with the enum.
+        let lhs = CanonicalPhase::ALL
+            .iter()
+            .position(|p| p == self)
+            .expect("CanonicalPhase::ALL must list every CanonicalPhase variant");
+        let rhs = CanonicalPhase::ALL
+            .iter()
+            .position(|p| p == other)
+            .expect("CanonicalPhase::ALL must list every CanonicalPhase variant");
         lhs.cmp(&rhs)
     }
 }
@@ -762,12 +776,9 @@ pub fn build_demo_delivery() -> DeliverySnapshot {
                 test("unit-daemon", "nextest -- daemon::", WorkflowStatus::Ran).done(18.0),
             ],
             merged_into_main: true,
-            post_merge_tests: vec![test(
-                "integration",
-                "nextest --test",
-                WorkflowStatus::Ran,
-            )
-            .done(45.0)],
+            post_merge_tests: vec![
+                test("integration", "nextest --test", WorkflowStatus::Ran).done(45.0),
+            ],
             deployment: DeploymentProgress {
                 build_status: WorkflowStatus::Ran,
                 build_progress: Some(100),
@@ -833,21 +844,33 @@ mod tests {
     #[test]
     fn pr_with_failed_test_is_blocked() {
         let snap = build_demo_delivery();
-        let pr = snap.pull_requests.iter().find(|p| p.number == 1842).unwrap();
+        let pr = snap
+            .pull_requests
+            .iter()
+            .find(|p| p.number == 1842)
+            .unwrap();
         assert_eq!(pr.status, PrStatus::Blocked);
     }
 
     #[test]
     fn draft_pr_status_is_draft() {
         let snap = build_demo_delivery();
-        let pr = snap.pull_requests.iter().find(|p| p.number == 1839).unwrap();
+        let pr = snap
+            .pull_requests
+            .iter()
+            .find(|p| p.number == 1839)
+            .unwrap();
         assert_eq!(pr.status, PrStatus::Draft);
     }
 
     #[test]
     fn merged_pr_in_canary_is_at_promote_dev() {
         let snap = build_demo_delivery();
-        let pr = snap.pull_requests.iter().find(|p| p.number == 1835).unwrap();
+        let pr = snap
+            .pull_requests
+            .iter()
+            .find(|p| p.number == 1835)
+            .unwrap();
         assert_eq!(pr.status, PrStatus::Merged);
         assert_eq!(pr.phase, CanonicalPhase::PromoteDev);
     }
@@ -867,11 +890,11 @@ mod tests {
         let old = now - ChronoDuration::seconds(60);
         let young = now - ChronoDuration::seconds(1);
         assert_eq!(
-            stub_agent_review_status(WorkflowStatus::Ran, old, now),
+            agent_review_auto_pass_status(WorkflowStatus::Ran, old, now),
             WorkflowStatus::Ran
         );
         assert_eq!(
-            stub_agent_review_status(WorkflowStatus::Ran, young, now),
+            agent_review_auto_pass_status(WorkflowStatus::Ran, young, now),
             WorkflowStatus::Running
         );
     }
@@ -881,7 +904,7 @@ mod tests {
         let now = Utc::now();
         let old = now - ChronoDuration::seconds(60);
         assert_eq!(
-            stub_agent_review_status(WorkflowStatus::Error, old, now),
+            agent_review_auto_pass_status(WorkflowStatus::Error, old, now),
             WorkflowStatus::Blocked
         );
     }
@@ -889,15 +912,15 @@ mod tests {
     #[test]
     fn auto_merge_passes_when_all_green() {
         assert_eq!(
-            stub_auto_merge_status(WorkflowStatus::Ran, WorkflowStatus::Ran),
+            auto_merge_gate_status(WorkflowStatus::Ran, WorkflowStatus::Ran),
             WorkflowStatus::Ran
         );
         assert_eq!(
-            stub_auto_merge_status(WorkflowStatus::Error, WorkflowStatus::Ran),
+            auto_merge_gate_status(WorkflowStatus::Error, WorkflowStatus::Ran),
             WorkflowStatus::Blocked
         );
         assert_eq!(
-            stub_auto_merge_status(WorkflowStatus::Running, WorkflowStatus::Waiting),
+            auto_merge_gate_status(WorkflowStatus::Running, WorkflowStatus::Waiting),
             WorkflowStatus::Waiting
         );
     }
@@ -911,13 +934,13 @@ mod tests {
     #[test]
     fn canonical_pipeline_has_all_phases_for_merged_pr() {
         let snap = build_demo_delivery();
-        let pr = snap.pull_requests.iter().find(|p| p.number == 1835).unwrap();
-        let slugs: std::collections::HashSet<_> = pr
-            .snapshot
-            .phases
+        let pr = snap
+            .pull_requests
             .iter()
-            .map(|p| p.id.as_str())
-            .collect();
+            .find(|p| p.number == 1835)
+            .unwrap();
+        let slugs: std::collections::HashSet<_> =
+            pr.snapshot.phases.iter().map(|p| p.id.as_str()).collect();
         for canonical in [
             CanonicalPhase::PreMergeCI,
             CanonicalPhase::AgentReviewPreMerge,

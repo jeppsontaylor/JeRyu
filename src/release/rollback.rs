@@ -7,6 +7,9 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
+
+use crate::autonomy::types::ReleaseRollbackPlan;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RollbackStep {
@@ -106,6 +109,77 @@ pub fn write_evidence(report: &RollbackReport, evidence_dir: PathBuf) -> Result<
     Ok(path)
 }
 
+// ---------------------------------------------------------------------------
+// Rollback drill — Law 7 ("no rollback drill = no prod")
+// ---------------------------------------------------------------------------
+//
+// Wave 3 evidence-gate enforcement: every staging artifact must be exercised
+// against a real rollback plan before promotion. The drill times the executor,
+// captures any error, and reports a structured `RollbackDrillResult` the
+// release gate inspects (and the orchestrator injects as the
+// `rollback_drill_failed` hard-stop when `passed == false`).
+
+/// Outcome of a single rollback drill run. Recorded in evidence and consumed
+/// by the release gate. `rolled_back_to` is the artifact digest the rollback
+/// would have returned production to (typically the previous-known-good).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RollbackDrillResult {
+    pub passed: bool,
+    pub rolled_back_to: Option<String>,
+    pub elapsed_secs: u64,
+    pub error: Option<String>,
+}
+
+/// Pluggable execution backend for the rollback drill. Production wires a
+/// real implementation (channel-pointer mover + flag toggler); tests and dev
+/// use `DryRunRollbackExecutor`. Implementations MUST be side-effect free in
+/// dry-run mode and MUST surface failures as `Err` rather than panicking.
+pub trait RollbackExecutor: Send + Sync {
+    fn execute(&self, plan: &ReleaseRollbackPlan, staging_artifact_digest: &str) -> Result<()>;
+}
+
+/// Default executor used in tests and local development. Sleeps briefly to
+/// give `rollback_drill` a measurable `elapsed_secs` and always succeeds. The
+/// 50ms is a deliberate floor — it surfaces obvious wiring bugs (zero elapsed
+/// = drill never actually ran) without slowing test suites.
+pub struct DryRunRollbackExecutor;
+
+impl RollbackExecutor for DryRunRollbackExecutor {
+    fn execute(&self, _plan: &ReleaseRollbackPlan, _staging_artifact_digest: &str) -> Result<()> {
+        std::thread::sleep(Duration::from_millis(50));
+        Ok(())
+    }
+}
+
+/// Run a rollback drill against `executor`, timing the call and capturing any
+/// error. The `rolled_back_to` field is set to the artifact digest the
+/// rollback targeted (the staging artifact passed in is the artifact whose
+/// rollback we exercised; success means the executor was able to take the
+/// system back to that artifact's known-good predecessor).
+pub async fn rollback_drill(
+    executor: &dyn RollbackExecutor,
+    plan: &ReleaseRollbackPlan,
+    staging_artifact_digest: &str,
+) -> RollbackDrillResult {
+    let started = Instant::now();
+    let outcome = executor.execute(plan, staging_artifact_digest);
+    let elapsed_secs = started.elapsed().as_secs();
+    match outcome {
+        Ok(()) => RollbackDrillResult {
+            passed: true,
+            rolled_back_to: Some(staging_artifact_digest.to_string()),
+            elapsed_secs,
+            error: None,
+        },
+        Err(e) => RollbackDrillResult {
+            passed: false,
+            rolled_back_to: None,
+            elapsed_secs,
+            error: Some(format!("{e:#}")),
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,5 +219,89 @@ mod tests {
         assert!(path.exists());
         let body = std::fs::read_to_string(&path).expect("read");
         assert!(body.contains("3.0.1-rc.1"));
+    }
+
+    fn drill_plan() -> ReleaseRollbackPlan {
+        ReleaseRollbackPlan {
+            strategy: "revert_commit".into(),
+            tested: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn rollback_drill_passes_with_dry_run_executor() {
+        let exec = DryRunRollbackExecutor;
+        let plan = drill_plan();
+        let digest = "sha256:abc";
+        let result = rollback_drill(&exec, &plan, digest).await;
+        assert!(result.passed, "dry-run executor must report drill passed");
+        assert!(result.error.is_none(), "passing drill has no error");
+    }
+
+    /// Custom executor that always fails. Used to prove that errors flow into
+    /// `RollbackDrillResult.error` instead of panicking or swallowing.
+    struct FailingExecutor;
+    impl RollbackExecutor for FailingExecutor {
+        fn execute(
+            &self,
+            _plan: &ReleaseRollbackPlan,
+            _staging_artifact_digest: &str,
+        ) -> Result<()> {
+            anyhow::bail!("channel pointer move refused: stale lease")
+        }
+    }
+
+    #[tokio::test]
+    async fn rollback_drill_fails_when_executor_errs() {
+        let exec = FailingExecutor;
+        let plan = drill_plan();
+        let result = rollback_drill(&exec, &plan, "sha256:def").await;
+        assert!(!result.passed, "failing executor must mark drill as failed");
+        assert!(result.rolled_back_to.is_none(), "no target on failure");
+        let err = result.error.expect("error must be populated");
+        assert!(
+            err.contains("channel pointer move refused"),
+            "error preserved: {err}"
+        );
+    }
+
+    /// Custom executor that sleeps long enough to push `elapsed_secs >= 1`,
+    /// proving the timing instrumentation is wired through.
+    struct SlowExecutor;
+    impl RollbackExecutor for SlowExecutor {
+        fn execute(
+            &self,
+            _plan: &ReleaseRollbackPlan,
+            _staging_artifact_digest: &str,
+        ) -> Result<()> {
+            std::thread::sleep(Duration::from_millis(1_050));
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn rollback_drill_records_elapsed_secs() {
+        let exec = SlowExecutor;
+        let plan = drill_plan();
+        let result = rollback_drill(&exec, &plan, "sha256:slow").await;
+        assert!(result.passed);
+        assert!(
+            result.elapsed_secs >= 1,
+            "expected elapsed_secs >= 1 after >1s sleep, got {}",
+            result.elapsed_secs
+        );
+    }
+
+    #[tokio::test]
+    async fn rollback_drill_records_rolled_back_to_on_success() {
+        let exec = DryRunRollbackExecutor;
+        let plan = drill_plan();
+        let digest = "sha256:cafebabe";
+        let result = rollback_drill(&exec, &plan, digest).await;
+        assert_eq!(
+            result.rolled_back_to.as_deref(),
+            Some(digest),
+            "rolled_back_to must echo the staging artifact digest on success"
+        );
     }
 }

@@ -149,8 +149,8 @@ impl WorkflowNav {
                     // Center the node in the viewport.
                     self.viewport_y =
                         (node_y - (visible_h as i32) / 2).clamp(0, self.max_viewport_y(visible_h));
-                    self.viewport_x = (node_x - (visible_w as i32) / 2)
-                        .clamp(0, self.max_viewport_x(visible_w));
+                    self.viewport_x =
+                        (node_x - (visible_w as i32) / 2).clamp(0, self.max_viewport_x(visible_w));
                     return;
                 }
             }

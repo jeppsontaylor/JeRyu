@@ -13,12 +13,7 @@ use ratatui::{
 use super::model::*;
 use crate::tui::theme::Theme;
 
-pub fn draw_phase_rail(
-    f: &mut Frame,
-    area: Rect,
-    delivery: &DeliverySnapshot,
-    theme: &Theme,
-) {
+pub fn draw_phase_rail(f: &mut Frame, area: Rect, delivery: &DeliverySnapshot, theme: &Theme) {
     if area.width == 0 || area.height == 0 {
         return;
     }

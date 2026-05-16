@@ -15,11 +15,11 @@ use super::minimap::draw_minimap;
 use super::mission_strip::draw_mission_strip;
 use super::model::*;
 use super::nav::{
-    WorkflowNav, WorkflowZoom, BANNER_H, EDGE_GUTTER_H, NODE_CARD_H, NODE_CARD_W, PHASE_HEADER_H,
+    BANNER_H, EDGE_GUTTER_H, NODE_CARD_H, NODE_CARD_W, PHASE_HEADER_H, WorkflowNav, WorkflowZoom,
 };
 use super::phase_rail::draw_phase_rail;
 use super::pr_rail::draw_pr_rail;
-use super::regions::{compute_regions, DeliveryRegions};
+use super::regions::{DeliveryRegions, compute_regions};
 use crate::tui::theme::Theme;
 
 /// Height of one full phase row on the virtual canvas
@@ -150,20 +150,12 @@ pub fn draw_dag_canvas_with_hits(
         if render_y >= 0 && (render_y as u16) < dag_area.y + dag_area.height {
             let clipped_y = render_y.max(dag_area.y as i32) as u16;
             let max_bottom = dag_area.y + dag_area.height;
-            let clipped_h = ((render_y + phase_h).min(max_bottom as i32) - clipped_y as i32)
-                .max(0) as u16;
+            let clipped_h =
+                ((render_y + phase_h).min(max_bottom as i32) - clipped_y as i32).max(0) as u16;
             if clipped_h > 0 {
                 let phase_rect = Rect::new(dag_area.x, clipped_y, dag_area.width, clipped_h);
                 draw_phase_row_with_hits(
-                    f,
-                    phase_rect,
-                    pi,
-                    phase,
-                    snapshot,
-                    nav,
-                    theme,
-                    tick,
-                    hit_map,
+                    f, phase_rect, pi, phase, snapshot, nav, theme, tick, hit_map,
                 );
             }
         }
@@ -203,7 +195,8 @@ fn draw_phase_row_with_hits(
     // Phase header line.
     let phase_title = format!(" {} ", phase.title);
     let header_style = Style::default().fg(theme.border_subtle);
-    let dashes: String = "─".repeat(area.width.saturating_sub(phase_title.len() as u16 + 2) as usize);
+    let dashes: String =
+        "─".repeat(area.width.saturating_sub(phase_title.len() as u16 + 2) as usize);
     let header_line = Line::from(vec![
         Span::styled("─", header_style),
         Span::styled(
@@ -215,7 +208,10 @@ fn draw_phase_row_with_hits(
         Span::styled(dashes, header_style),
     ]);
     if area.height > 0 {
-        f.render_widget(Paragraph::new(header_line), Rect::new(area.x, area.y, area.width, 1));
+        f.render_widget(
+            Paragraph::new(header_line),
+            Rect::new(area.x, area.y, area.width, 1),
+        );
     }
     let cards_y = area.y + 1;
     let cards_h = area.height.saturating_sub(1);
@@ -274,8 +270,8 @@ pub fn draw_dag_canvas(
         if render_y >= 0 && (render_y as u16) < dag_area.y + dag_area.height {
             let clipped_y = render_y.max(dag_area.y as i32) as u16;
             let max_bottom = dag_area.y + dag_area.height;
-            let clipped_h = ((render_y + phase_h).min(max_bottom as i32) - clipped_y as i32)
-                .max(0) as u16;
+            let clipped_h =
+                ((render_y + phase_h).min(max_bottom as i32) - clipped_y as i32).max(0) as u16;
             if clipped_h > 0 {
                 let phase_rect = Rect::new(dag_area.x, clipped_y, dag_area.width, clipped_h);
                 draw_phase_row(f, phase_rect, pi, phase, snapshot, nav, theme, tick);
@@ -294,14 +290,7 @@ pub fn draw_dag_canvas(
                     dag_area.width,
                     EDGE_GUTTER_H.min(dag_area.y + dag_area.height - gutter_y as u16),
                 );
-                draw_edge_gutter(
-                    f,
-                    gutter_rect,
-                    pi,
-                    snapshot,
-                    nav,
-                    theme,
-                );
+                draw_edge_gutter(f, gutter_rect, pi, snapshot, nav, theme);
             }
         }
     }
@@ -334,8 +323,7 @@ fn draw_no_pr_state(f: &mut Frame, area: Rect, theme: &Theme) {
 }
 
 fn draw_delivery_footer(f: &mut Frame, area: Rect, _delivery: &DeliverySnapshot, theme: &Theme) {
-    let hint =
-        " ↑↓←→ move · </> PR · []/PgUp/PgDn pan · f follow · b blocker · c crit · z zoom · Enter inspect · r rollback · ? help";
+    let hint = " ↑↓←→ move · </> PR · []/PgUp/PgDn pan · f follow · b blocker · c crit · z zoom · Enter inspect · r rollback · ? help";
     let line = Line::from(Span::styled(hint, theme.muted()));
     f.render_widget(Paragraph::new(line), area);
 }
@@ -389,11 +377,7 @@ fn draw_summary_banner(
         theme.waiting
     };
 
-    let follow_badge = if nav.follow_active {
-        " [FOLLOW] "
-    } else {
-        ""
-    };
+    let follow_badge = if nav.follow_active { " [FOLLOW] " } else { "" };
 
     let lines = vec![
         Line::from(vec![
@@ -474,7 +458,8 @@ fn draw_phase_row(
     let phase_title = format!(" {} ", phase.title);
     let header_style = Style::default().fg(theme.border_subtle);
     // Build a dashed line header.
-    let dashes: String = "─".repeat(area.width.saturating_sub(phase_title.len() as u16 + 2) as usize);
+    let dashes: String =
+        "─".repeat(area.width.saturating_sub(phase_title.len() as u16 + 2) as usize);
     let header_line = Line::from(vec![
         Span::styled("─", header_style),
         Span::styled(
@@ -486,7 +471,10 @@ fn draw_phase_row(
         Span::styled(dashes, header_style),
     ]);
     if area.height > 0 {
-        f.render_widget(Paragraph::new(header_line), Rect::new(area.x, area.y, area.width, 1));
+        f.render_widget(
+            Paragraph::new(header_line),
+            Rect::new(area.x, area.y, area.width, 1),
+        );
     }
 
     // Render node cards below the header.
@@ -620,7 +608,9 @@ fn draw_node_card(
     if let Some(eta) = node.eta_secs {
         badge_spans.push(Span::styled(format!(" eta:{}s", eta), theme.muted()));
     }
-    if node.kind.is_rollback_eligible() && matches!(node.status, WorkflowStatus::Ran | WorkflowStatus::Running) {
+    if node.kind.is_rollback_eligible()
+        && matches!(node.status, WorkflowStatus::Ran | WorkflowStatus::Running)
+    {
         badge_spans.push(Span::styled(" [ROLLBACK]", theme.bold(theme.warning)));
     }
     if matches!(node.kind, WorkflowNodeKind::AgentReview { .. }) {
@@ -712,7 +702,10 @@ fn draw_edge_gutter(
         for (pi, parent_nid) in current_phase.node_ids.iter().enumerate() {
             if !next_node.deps.contains(parent_nid) {
                 // Also check edges for stage-order dependencies.
-                let has_edge = snap.edges.iter().any(|e| e.from == *parent_nid && e.to == *next_nid);
+                let has_edge = snap
+                    .edges
+                    .iter()
+                    .any(|e| e.from == *parent_nid && e.to == *next_nid);
                 if !has_edge {
                     continue;
                 }
@@ -867,9 +860,7 @@ fn draw_viewport_indicator(f: &mut Frame, area: Rect, nav: &WorkflowNav, theme: 
         f.render_widget(
             Paragraph::new(Line::from(Span::styled(
                 indicator,
-                Style::default()
-                    .fg(theme.text_muted)
-                    .bg(theme.bg_surface),
+                Style::default().fg(theme.text_muted).bg(theme.bg_surface),
             ))),
             Rect::new(ix, iy, iw, 1),
         );

@@ -40,6 +40,13 @@ pub async fn run_tui(
     if demo {
         app.apply_demo_fixture();
     } else {
+        // Wave 6.A: try to upgrade Mission Control's action surface to the
+        // production adapter. Non-fatal: when the DB/token/key chain isn't
+        // available we keep the default FakeActionAdapter so the cockpit
+        // still renders and reports `Failed("no adapter wired")` per click.
+        if let Err(e) = app.try_install_production_adapter().await {
+            tracing::warn!(target: "tui.cockpit", err = %e, "action adapter stays fake");
+        }
         hydrate_smoke_state(&mut app).await;
         app.start_background_sync();
     }

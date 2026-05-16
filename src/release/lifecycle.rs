@@ -7,8 +7,8 @@ mod launch;
 #[path = "lifecycle_support.rs"]
 mod support;
 
+pub(crate) use checks::{ReleaseLock, release_lock_path, write_release_lock};
 pub use checks::{release_doctor, release_preflight};
-pub(crate) use checks::{release_lock_path, write_release_lock, ReleaseLock};
 pub use launch::launch_canary_for_green_pipeline;
 pub(crate) use support::{
     pipeline_has_release_execution_jobs, release_impacting_change, upstream_image_handoff,

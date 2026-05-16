@@ -2,6 +2,8 @@
 //! Proof: `cargo nextest run -p jeryu -- tui::workflow`
 //! Invariants: Workflow subsystem is a self-contained plan-driven test execution DAG.
 
+pub mod action_adapter;
+pub mod actions;
 pub mod builder;
 pub mod collector;
 pub mod delivery;

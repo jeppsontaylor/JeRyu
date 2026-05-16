@@ -108,13 +108,17 @@ pub enum WorkflowNodeKind {
     VtiPlan,
     Sentinel,
     /// Stubbed agent code-review step (pre- or post-merge).
-    AgentReview { stage: AgentStage },
+    AgentReview {
+        stage: AgentStage,
+    },
     /// Automatic-merge policy node (passes when pre-merge CI + agent review pass).
     AutoMerge,
     /// Immutable artifact build (container image, binary, etc.).
     BuildArtifact,
     /// Promote an artifact into a target environment.
-    Promote { env: Environment },
+    Promote {
+        env: Environment,
+    },
     /// Post-deploy monitoring + rollback gate.
     Monitor,
     #[default]
@@ -493,6 +497,16 @@ pub struct DeliverySnapshot {
     pub fleet_summary: FleetSummary,
     /// True when the snapshot is older than its expected refresh interval.
     pub outdated: bool,
+    /// Mission Control mirror of the autonomy Kill Bell state. The TUI
+    /// reflects this string (`"armed"`, `"paused"`, …) so operators can
+    /// see the current pause posture without polling the autonomy plane.
+    /// Default is `"armed"`.
+    #[serde(default = "default_kill_bell_state")]
+    pub kill_bell_state: String,
+}
+
+fn default_kill_bell_state() -> String {
+    "armed".to_string()
 }
 
 impl DeliverySnapshot {
@@ -504,6 +518,7 @@ impl DeliverySnapshot {
             selected_pr_idx: 0,
             fleet_summary: FleetSummary::default(),
             outdated: false,
+            kill_bell_state: default_kill_bell_state(),
         }
     }
 
@@ -663,7 +678,8 @@ mod tests {
 
     #[test]
     fn canonical_phases_have_unique_slugs() {
-        let slugs: std::collections::HashSet<_> = CanonicalPhase::ALL.iter().map(|p| p.slug()).collect();
+        let slugs: std::collections::HashSet<_> =
+            CanonicalPhase::ALL.iter().map(|p| p.slug()).collect();
         assert_eq!(slugs.len(), CanonicalPhase::ALL.len());
     }
 

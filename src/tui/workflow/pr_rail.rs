@@ -31,10 +31,7 @@ pub fn draw_pr_rail(f: &mut Frame, area: Rect, snap: &DeliverySnapshot, theme: &
 
     if snap.pull_requests.is_empty() {
         f.render_widget(
-            Paragraph::new(Line::from(Span::styled(
-                " no active PRs",
-                theme.muted(),
-            ))),
+            Paragraph::new(Line::from(Span::styled(" no active PRs", theme.muted()))),
             inner,
         );
         return;
@@ -113,8 +110,8 @@ fn chip_width(pr: &PullRequestView) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::delivery::build_demo_delivery;
+    use super::*;
 
     #[test]
     fn hit_test_returns_first_pr_for_leading_column() {

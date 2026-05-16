@@ -242,7 +242,7 @@ pub async fn watch_release_status(
     interval_secs: u64,
 ) -> Result<()> {
     use std::io::{self, Write};
-    use tokio::time::{sleep, Duration};
+    use tokio::time::{Duration, sleep};
 
     let mut stdout = io::stdout();
     loop {
