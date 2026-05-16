@@ -392,9 +392,7 @@ fn stat_changed_files(repo_root: &PathBuf, sha: &str) -> Vec<ChangedFile> {
         } else {
             // "  12 ++++--" — tally + / - chars (the numeric prefix is the total).
             let marks = count_part
-                .trim()
-                .splitn(2, char::is_whitespace)
-                .nth(1)
+                .trim().split_once(char::is_whitespace).map(|x| x.1)
                 .unwrap_or("");
             (
                 marks.chars().filter(|c| *c == '+').count() as u32,
@@ -756,10 +754,12 @@ mod tests {
                 ActualOutcome::LandedOnDefaultBranch,
             ),
         ];
-        let mut summary = ShadowSummary::default();
-        summary.commits_walked = results.len();
-        summary.agreement_rate = 2.0 / 3.0;
-        summary.results = results;
+        let summary = ShadowSummary {
+            commits_walked: results.len(),
+            agreement_rate: 2.0 / 3.0,
+            results,
+            ..Default::default()
+        };
         assert!((summary.agreement_rate - 2.0 / 3.0).abs() < 1e-9);
         let rendered = render_summary(&summary, &[]);
         assert!(
@@ -820,11 +820,13 @@ mod tests {
             mk(GateDecision::Reject, ActualOutcome::LandedOnDefaultBranch),
             mk(GateDecision::AllowMerge, ActualOutcome::Reverted),
         ];
-        let mut summary = ShadowSummary::default();
-        summary.commits_walked = results.len();
-        // 0 matches over 3 applicable = 0.0
-        summary.agreement_rate = 0.0;
-        summary.results = results;
+        let summary = ShadowSummary {
+            commits_walked: results.len(),
+            // 0 matches over 3 applicable = 0.0
+            agreement_rate: 0.0,
+            results,
+            ..Default::default()
+        };
         assert_eq!(summary.agreement_rate, 0.0);
         let rendered = render_summary(&summary, &[]);
         assert!(

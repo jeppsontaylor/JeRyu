@@ -246,7 +246,7 @@ fn draw_workflow_inspect_overlay(f: &mut Frame, app: &App) {
         if let Some(ref vti) = node.vti_status {
             lines.push(Line::from(vec![
                 Span::styled("  VTI:      ", theme.muted()),
-                Span::styled(format!("{}", vti.badge()), theme.bold(theme.vti_fire)),
+                Span::styled(vti.badge().to_string(), theme.bold(theme.vti_fire)),
             ]));
         }
 

@@ -1,3 +1,4 @@
+#![allow(clippy::field_reassign_with_default)]
 //! Live smoke test for Phase 2 — Evidence Gate security reviewer end-to-end
 //! through OpenRouter.
 //!

@@ -100,7 +100,7 @@ fn map_parsed_to_receipt(
     let findings = p
         .findings
         .into_iter()
-        .filter_map(|v| parse_finding(v))
+        .filter_map(parse_finding)
         .collect();
     AgentApprovalReceipt {
         schema: SchemaTag::new(),

@@ -160,7 +160,7 @@ async fn sqli_diff_lands_reject_through_full_pipeline() {
     // wins and the verdict is Reject.
     let outcome = judge(JudgeInputs {
         pack: &pack,
-        receipts: &[security_receipt.clone()],
+        receipts: std::slice::from_ref(&security_receipt),
         policy: &policies,
         repo: "jeryu/e2e",
         target_branch: "main",

@@ -29,6 +29,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::path::Path;
 
 use crate::autonomy::signing::{EdSigningKey, Signature, sha256_digest};
 use crate::autonomy::types::{
@@ -143,13 +144,11 @@ impl FoundryTrain {
         }
 
         // Trigger 3: split-on-high-risk for the head item.
-        if self.cfg.split_on_high_risk {
-            if let Some(front) = q.front() {
-                if front.commits.len() > self.cfg.max_commits {
+        if self.cfg.split_on_high_risk
+            && let Some(front) = q.front()
+                && front.commits.len() > self.cfg.max_commits {
                     return vec![q.pop_front().expect("front present")];
                 }
-            }
-        }
 
         let total_commits: usize = q.iter().map(|c| c.commits.len()).sum();
         // Empty queue → zero age. We already early-returned on empty above,
@@ -243,7 +242,7 @@ pub struct ShellArtifactBuilder {
 impl ShellArtifactBuilder {
     /// Returns true iff the binary path exists and is executable-ish (we
     /// only check existence; full PATH lookup is intentionally out of scope).
-    fn bin_available(path: &PathBuf) -> bool {
+    fn bin_available(path: &Path) -> bool {
         path.exists()
     }
 
@@ -521,6 +520,7 @@ fn short_hash(
     full[..26].to_string()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn canonical_signing_body(
     id: &str,
     artifact_digest: &str,

@@ -80,7 +80,7 @@ impl EscalationConfig {
 /// `EscalationEvent::name()` and document it in `.autonomy/autonomy.yml`.
 #[derive(Debug, Clone)]
 pub enum EscalationEvent {
-    RequireHuman { verdict: VibeGateVerdict },
+    RequireHuman { verdict: Box<VibeGateVerdict> },
     KillBellEngaged { reason: String, paused_by: String },
 }
 
@@ -423,7 +423,7 @@ mod tests {
 
     fn require_human_event() -> EscalationEvent {
         EscalationEvent::RequireHuman {
-            verdict: sample_verdict(),
+            verdict: Box::new(sample_verdict()),
         }
     }
 

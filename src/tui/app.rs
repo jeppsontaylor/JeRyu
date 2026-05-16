@@ -239,6 +239,8 @@ pub struct TuiStateSnapshot {
     // Agent-first release process:
     pub release_stages: ReleaseStageSnapshot,
     pub approvals_queue: Vec<PendingApproval>,
+    // TUI connection status: true if state was fetched within the last 10s
+    pub agent_connected: bool,
 }
 
 /// Counts of in-flight items per stage of the release funnel. Sourced from

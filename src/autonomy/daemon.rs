@@ -287,7 +287,7 @@ impl Daemon {
         // 3g. Escalate, unless either disabled or under Kill Bell.
         if self.config.escalation_enabled && !report.kill_bell_paused {
             let event = EscalationEvent::RequireHuman {
-                verdict: verdict.clone(),
+                verdict: Box::new(verdict.clone()),
             };
             let results = dispatch_all(
                 &self.escalation_config,

@@ -347,19 +347,24 @@ mod tests {
 
     #[test]
     fn page_up_clamps_at_zero() {
-        let mut nav = WorkflowNav::default();
-        nav.viewport_y = 10;
-        nav.canvas_height = 100;
+        let nav = WorkflowNav {
+            viewport_y: 10,
+            canvas_height: 100,
+            ..Default::default()
+        };
 
+        let mut nav = nav;
         nav.page_up(40);
         assert_eq!(nav.viewport_y, 0); // 10 - 20 = -10, clamped to 0
     }
 
     #[test]
     fn home_resets_viewport() {
-        let mut nav = WorkflowNav::default();
-        nav.viewport_y = 50;
-        nav.viewport_x = 30;
+        let mut nav = WorkflowNav {
+            viewport_y: 50,
+            viewport_x: 30,
+            ..Default::default()
+        };
         nav.home();
         assert_eq!(nav.viewport_y, 0);
         assert_eq!(nav.viewport_x, 0);
@@ -385,9 +390,11 @@ mod tests {
 
     #[test]
     fn horizontal_panning() {
-        let mut nav = WorkflowNav::default();
-        nav.canvas_width = 200;
-        nav.canvas_height = 100;
+        let mut nav = WorkflowNav {
+            canvas_width: 200,
+            canvas_height: 100,
+            ..Default::default()
+        };
 
         nav.page_right(80);
         assert_eq!(nav.viewport_x, 40); // 50% of 80

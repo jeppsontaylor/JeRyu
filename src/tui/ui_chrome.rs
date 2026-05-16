@@ -271,6 +271,19 @@ pub(crate) fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
             Span::raw("")
         },
         outdated_span,
+        // Agent connection status: blinking green when connected, red when disconnected
+        {
+            let is_connected = app.state.agent_connected;
+            let tick = app.tick_count;
+            if is_connected {
+                // blink at 0.5 Hz when connected
+                let modifier = if (tick / 2) % 2 == 0 { Modifier::BOLD } else { Modifier::empty() };
+                Span::styled(" ●", Style::default().fg(Color::Rgb(102, 204, 153)).add_modifier(modifier))
+            } else {
+                // static red when disconnected
+                Span::styled(" ●", Style::default().fg(Color::Rgb(255, 102, 102)))
+            }
+        },
     ];
 
     let mut tab_spans: Vec<Span> = vec![];

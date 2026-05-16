@@ -177,10 +177,7 @@ fn sd_notify(msg: &str) -> std::io::Result<()> {
             if let Some(stripped) = socket.strip_prefix('@') {
                 let mut path = vec![0u8];
                 path.extend(stripped.as_bytes());
-                let addr = match std::str::from_utf8(&path) {
-                    Ok(a) => a,
-                    Err(_) => "/dev/null",
-                };
+                let addr = std::str::from_utf8(&path).unwrap_or("/dev/null");
                 let _ = sock.send_to(bytes, addr);
             }
         }

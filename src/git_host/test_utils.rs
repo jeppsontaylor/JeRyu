@@ -78,6 +78,7 @@ pub struct FakeGitHost {
     /// can distinguish "we seeded an explicit None" from "we never
     /// seeded anything" (the latter falls through to `Ok(None)` per the
     /// trait default).
+    #[allow(clippy::type_complexity)]
     pub target_policy_shas: Arc<Mutex<HashMap<(String, String), Option<String>>>>,
     pub recorded_calls: Arc<Mutex<Vec<RecordedCall>>>,
     /// When set, the NEXT call to a method whose name matches this string

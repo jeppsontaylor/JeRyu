@@ -244,5 +244,6 @@ pub(crate) fn build_demo_state(
         event_ticker_offset: 0,
         release_stages: demo_release_stages(),
         approvals_queue: demo_approvals_queue(),
+        agent_connected: true, // demo is "connected"
     }
 }

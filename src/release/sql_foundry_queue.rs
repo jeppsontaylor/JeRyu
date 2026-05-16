@@ -12,9 +12,9 @@
 //!          (a) summed `commits.len() >= max_commits`, OR
 //!          (b) the oldest pending candidate has waited
 //!              `>= max_wait_minutes` since `created_at`.
-//!     A drain "removes" candidates by setting `drained_at = now` — the
-//!     row is preserved for audit but excluded from future `drain_ready`
-//!     and `peek_pending` calls (lifecycle update, not append-only).
+//!          A drain "removes" candidates by setting `drained_at = now` — the
+//!          row is preserved for audit but excluded from future `drain_ready`
+//!          and `peek_pending` calls (lifecycle update, not append-only).
 //!   - `commits_json` is the source of truth for the candidate's commit
 //!     list; per-column fields exist only for indexed queries.
 //!

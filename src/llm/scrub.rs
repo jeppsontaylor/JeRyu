@@ -74,8 +74,8 @@ fn scan_pure_rust(diff: &str) -> Vec<ScrubFinding> {
     let mut findings = Vec::new();
     for (idx, line) in diff.lines().enumerate() {
         for (kind, pat) in patterns {
-            if let Ok(re) = regex::Regex::new(pat) {
-                if let Some(m) = re.find(line) {
+            if let Ok(re) = regex::Regex::new(pat)
+                && let Some(m) = re.find(line) {
                     let snippet = m.as_str();
                     let redacted = if snippet.len() > 8 {
                         format!(
@@ -93,7 +93,6 @@ fn scan_pure_rust(diff: &str) -> Vec<ScrubFinding> {
                         matched_snippet: redacted,
                     });
                 }
-            }
         }
     }
     findings

@@ -434,7 +434,7 @@ mod tests {
         for task in 0..4 {
             let bell = bell.clone();
             handles.push(tokio::spawn(async move {
-                let k = EdSigningKey::generate(&format!("op-{task}"));
+                let k = EdSigningKey::generate(format!("op-{task}"));
                 for _ in 0..3 {
                     bell.pause("rush", &format!("op-{task}"), 60, &k, now)
                         .await

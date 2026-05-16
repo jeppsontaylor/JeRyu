@@ -805,6 +805,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn try_install_production_adapter_succeeds_when_secrets_resolve() {
         let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         // SAFETY: tests in this crate co-operatively guard env mutation via
@@ -867,6 +868,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn try_install_production_adapter_keeps_fake_when_token_missing() {
         let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let prev_token = std::env::var("GITHUB_TOKEN").ok();

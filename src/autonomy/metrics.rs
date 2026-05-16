@@ -69,6 +69,7 @@ pub struct Histogram {
 }
 
 /// Pull all metrics from the SQL surfaces. Snapshot-only — no background work.
+#[allow(clippy::vec_init_then_push)]
 pub async fn collect(
     ledger: &SqlLedger,
     kill_bell: &KillBell,
@@ -331,11 +332,10 @@ fn count_nightwatch_rollbacks(entries: &[LaunchLedgerEntry]) -> u64 {
             if e.actor.starts_with("reviewer-nightwatch") {
                 return true;
             }
-            if let Some(reason) = e.payload.get("reason").and_then(|v| v.as_str()) {
-                if reason.contains("nightwatch") {
+            if let Some(reason) = e.payload.get("reason").and_then(|v| v.as_str())
+                && reason.contains("nightwatch") {
                     return true;
                 }
-            }
             false
         })
         .count() as u64
@@ -372,15 +372,14 @@ fn recent_rollback_pairs(entries: &[LaunchLedgerEntry], limit: usize) -> Vec<i64
                     .push(e.recorded_at);
             }
             LedgerKind::RollbackInitiated => {
-                if let Some(queue) = promo_by_subject.get_mut(e.subject_id.as_str()) {
-                    if !queue.is_empty() {
+                if let Some(queue) = promo_by_subject.get_mut(e.subject_id.as_str())
+                    && !queue.is_empty() {
                         let promoted_at = queue.remove(0);
                         let delta = (e.recorded_at - promoted_at).num_seconds();
                         // Negative deltas (clock skew, out-of-order ingest)
                         // would skew MTTR; clamp at 0.
                         pairs.push(delta.max(0));
                     }
-                }
             }
             _ => {}
         }

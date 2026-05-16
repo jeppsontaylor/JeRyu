@@ -404,6 +404,7 @@ mod tests {
     #[derive(Debug)]
     struct FakeTelemetry {
         snapshot: Mutex<Result<TelemetrySnapshot, String>>,
+        #[allow(clippy::type_complexity)]
         calls: Mutex<Vec<(u8, DateTime<Utc>, DateTime<Utc>)>>,
     }
 

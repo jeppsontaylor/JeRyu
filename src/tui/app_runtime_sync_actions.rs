@@ -360,12 +360,10 @@ impl App {
             .workflow_snapshot
             .phases
             .get(self.workflow_nav.phase_idx)
-        {
-            if !phase.node_ids.is_empty() {
+            && !phase.node_ids.is_empty() {
                 self.workflow_nav.node_idx =
                     (self.workflow_nav.node_idx + 1) % phase.node_ids.len();
             }
-        }
         self.workflow_nav
             .ensure_selected_visible(self.last_dag_h(), self.last_dag_w());
     }

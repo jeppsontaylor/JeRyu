@@ -1,3 +1,4 @@
+#![allow(clippy::field_reassign_with_default)]
 //! Live end-to-end test: real LLM reviewer → real policy bundle → real judge.
 //!
 //! Proves the Evidence Gate spine works against a real provider (not a mock).
@@ -159,7 +160,7 @@ async fn full_spine_live_sqli_lands_reject() {
     eprintln!("[live-e2e] judging...");
     let outcome = judge(JudgeInputs {
         pack: &pack,
-        receipts: &[receipt.clone()],
+        receipts: std::slice::from_ref(&receipt),
         policy: &policies,
         repo: "jeryu/live-e2e",
         target_branch: "main",

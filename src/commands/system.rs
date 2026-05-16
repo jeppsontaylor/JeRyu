@@ -84,6 +84,7 @@ pub async fn execute_system_status() -> Result<()> {
         );
     }
 
+    #[allow(clippy::manual_unwrap_or_default)]
     let managed = match docker_ctl.list_managed_containers().await {
         Ok(c) => c,
         Err(_) => Vec::new(),
@@ -100,6 +101,7 @@ pub async fn execute_system_status() -> Result<()> {
         println!("    {} [{}]", name, state);
     }
 
+    #[allow(clippy::manual_unwrap_or_default)]
     let events = match db.recent_job_events(5).await {
         Ok(e) => e,
         Err(_) => Vec::new(),

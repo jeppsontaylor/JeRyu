@@ -210,11 +210,10 @@ pub async fn serve_with_listener(
 ) -> Result<()> {
     let mut handled: u64 = 0;
     loop {
-        if let Some(limit) = config.shutdown_after_requests {
-            if handled >= limit {
+        if let Some(limit) = config.shutdown_after_requests
+            && handled >= limit {
                 return Ok(());
             }
-        }
         let (stream, peer) = match listener.accept().await {
             Ok(pair) => pair,
             Err(err) => {
@@ -313,8 +312,8 @@ async fn handle_connection(mut stream: TcpStream, state: Arc<AppState>) -> Resul
             .headers
             .get("content-length")
             .and_then(|v| v.parse::<usize>().ok());
-        if let Some(cl) = content_length {
-            if cl > MAX_WEBHOOK_BODY_BYTES {
+        if let Some(cl) = content_length
+            && cl > MAX_WEBHOOK_BODY_BYTES {
                 let response =
                     render_response(413, "application/json", "{\"error\":\"payload too large\"}");
                 // Drain any in-flight body bytes before closing so the
@@ -326,7 +325,6 @@ async fn handle_connection(mut stream: TcpStream, state: Arc<AppState>) -> Resul
                 let _ = stream.shutdown().await;
                 return Ok(());
             }
-        }
         let want = content_length.unwrap_or(0);
         let already = buf.len().saturating_sub(header_end);
         // Read remaining bytes (if any) up to Content-Length. Defensive cap.
@@ -631,11 +629,10 @@ async fn handle_webhook(request: &HttpRequest, body: &[u8], state: &AppState) ->
     }
 
     // --- 5. user callback (best effort) -------------------------------
-    if let Some(cb) = state.on_event_callback.as_ref() {
-        if let Err(err) = cb.on_event(event.clone()).await {
+    if let Some(cb) = state.on_event_callback.as_ref()
+        && let Err(err) = cb.on_event(event.clone()).await {
             tracing::warn!(error = %err, "webhook callback errored; 202 anyway");
         }
-    }
 
     // --- 6. 202 ack ----------------------------------------------------
     let body = format!(

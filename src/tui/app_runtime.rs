@@ -160,10 +160,10 @@ impl App {
     ///                     owned by ops). Signed `HumanEscalationRequested`
     ///                     with payload `{"action":"freeze_intent","hours":H}`.
     /// - `KillBell`      → `pause_kill_bell(reason, "tui.cockpit.v1", 86400)`.
-    ///                     The adapter's `KillBell::pause` already appends
-    ///                     the `KillBellEngaged` row; we MUST NOT also
-    ///                     append here (regression test
-    ///                     `kill_bell_action_does_not_double_append_ledger_entry`).
+    ///   The adapter's `KillBell::pause` already appends
+    ///   the `KillBellEngaged` row; we MUST NOT also
+    ///   append here (regression test
+    ///   `kill_bell_action_does_not_double_append_ledger_entry`).
     ///
     /// Every actor stamp is `"tui.cockpit.v1"`; that string is the
     /// audit-trail anchor for human-in-the-loop interrupts. See

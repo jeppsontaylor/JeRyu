@@ -294,7 +294,7 @@ impl CacheProxy {
                                 bytes.len()
                             );
                             stream.write_all(resp_head.as_bytes()).await?;
-                            stream.write_all(&bytes).await?;
+                            stream.write_all(bytes).await?;
 
                             let _ = db
                                 .record_cache_request(

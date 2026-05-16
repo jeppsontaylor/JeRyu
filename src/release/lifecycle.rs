@@ -27,8 +27,8 @@ pub async fn reconcile_release_for_ref(
         .into_iter()
         .next();
 
-    if !fresh {
-        if let Some(existing) = recent_attempt
+    if !fresh
+        && let Some(existing) = recent_attempt
             .as_ref()
             .filter(|attempt| should_resume_existing_release_attempt_for_reconcile(attempt))
         {
@@ -52,7 +52,6 @@ pub async fn reconcile_release_for_ref(
             )
             .await;
         }
-    }
 
     let Some(pipeline) =
         latest_release_candidate_pipeline_for_ref(client, project_id, ref_name).await?
@@ -125,8 +124,8 @@ async fn reconcile_existing_release_attempt(
     let version = attempt.version.clone();
     let sha = attempt.sha.clone();
     let mut existing = Some(attempt);
-    if let Some(attempt) = existing.as_ref() {
-        if let Some(release_pipeline_id) = attempt.release_pipeline_id {
+    if let Some(attempt) = existing.as_ref()
+        && let Some(release_pipeline_id) = attempt.release_pipeline_id {
             let release_pipeline = client
                 .get_pipeline(project_id, release_pipeline_id)
                 .await
@@ -154,7 +153,6 @@ async fn reconcile_existing_release_attempt(
                 existing = db.get_release_attempt(project_id, ref_name, &sha).await?;
             }
         }
-    }
     let _existing_canary_status = existing
         .as_ref()
         .map(|attempt| attempt.canary_status.as_str())
@@ -178,8 +176,8 @@ async fn reconcile_existing_release_attempt(
     )
     .await?;
 
-    if let Some(latest) = report.latest.as_ref() {
-        if maybe_trigger_production_promotion(
+    if let Some(latest) = report.latest.as_ref()
+        && maybe_trigger_production_promotion(
             db,
             client,
             project_id,
@@ -201,7 +199,6 @@ async fn reconcile_existing_release_attempt(
             )
             .await;
         }
-    }
 
     Ok(report)
 }
@@ -217,8 +214,8 @@ async fn reconcile_new_release_attempt(
     let mut existing = db
         .get_release_attempt(project_id, ref_name, &pipeline.sha)
         .await?;
-    if let Some(attempt) = existing.as_ref() {
-        if let Some(release_pipeline_id) = attempt.release_pipeline_id {
+    if let Some(attempt) = existing.as_ref()
+        && let Some(release_pipeline_id) = attempt.release_pipeline_id {
             let release_pipeline = client
                 .get_pipeline(project_id, release_pipeline_id)
                 .await
@@ -254,7 +251,6 @@ async fn reconcile_new_release_attempt(
                     .await?;
             }
         }
-    }
     let mut existing_canary_status = existing
         .as_ref()
         .map(|attempt| attempt.canary_status.as_str())
@@ -314,8 +310,8 @@ async fn reconcile_new_release_attempt(
     )
     .await?;
 
-    if let Some(latest) = report.latest.as_ref() {
-        if maybe_trigger_production_promotion(
+    if let Some(latest) = report.latest.as_ref()
+        && maybe_trigger_production_promotion(
             db,
             client,
             project_id,
@@ -337,7 +333,6 @@ async fn reconcile_new_release_attempt(
             )
             .await;
         }
-    }
 
     Ok(report)
 }

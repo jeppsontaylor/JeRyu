@@ -206,10 +206,7 @@ impl LlmProvider for OpenAiCompatibleClient {
         // Per OpenAI-compatible spec, `usage` is optional; absence
         // means "the provider did not report token counts" — the
         // surrounding code records zeroed totals, which is the spec.
-        let usage = match parsed.usage {
-            Some(u) => u,
-            None => Usage::default(),
-        };
+        let usage = parsed.usage.unwrap_or_default();
         let model = match parsed.model {
             Some(m) => m,
             None => params.model.clone(),
