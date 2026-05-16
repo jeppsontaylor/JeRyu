@@ -1307,7 +1307,9 @@ fn synth_escalation_event(event: &str) -> Result<jeryu::autonomy::escalation::Es
                 // does not need to be real ed25519.
                 signature: jeryu::autonomy::signing::Signature::default_unsigned(),
             };
-            Ok(EscalationEvent::RequireHuman { verdict: Box::new(verdict) })
+            Ok(EscalationEvent::RequireHuman {
+                verdict: Box::new(verdict),
+            })
         }
         other => Err(anyhow!(
             "unknown event '{other}'; use require_human or kill_bell_engaged"

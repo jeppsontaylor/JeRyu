@@ -146,9 +146,10 @@ impl FoundryTrain {
         // Trigger 3: split-on-high-risk for the head item.
         if self.cfg.split_on_high_risk
             && let Some(front) = q.front()
-                && front.commits.len() > self.cfg.max_commits {
-                    return vec![q.pop_front().expect("front present")];
-                }
+            && front.commits.len() > self.cfg.max_commits
+        {
+            return vec![q.pop_front().expect("front present")];
+        }
 
         let total_commits: usize = q.iter().map(|c| c.commits.len()).sum();
         // Empty queue → zero age. We already early-returned on empty above,

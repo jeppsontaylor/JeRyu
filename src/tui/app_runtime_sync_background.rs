@@ -217,13 +217,15 @@ pub(crate) fn start_background_sync(app: &App) {
                     let stages = {
                         let mut s = Vec::new();
                         if let Ok(runs) = store.list_ci_job_runs(project_id, pid).await
-                            && !runs.is_empty() {
-                                s = build_stage_progress_from_ci_runs(&runs);
-                            }
+                            && !runs.is_empty()
+                        {
+                            s = build_stage_progress_from_ci_runs(&runs);
+                        }
                         if s.is_empty()
-                            && let Ok(events) = store.recent_job_events(100).await {
-                                s = build_stage_progress_from_events(&events, pid);
-                            }
+                            && let Ok(events) = store.recent_job_events(100).await
+                        {
+                            s = build_stage_progress_from_events(&events, pid);
+                        }
                         s
                     };
 

@@ -333,9 +333,10 @@ fn count_nightwatch_rollbacks(entries: &[LaunchLedgerEntry]) -> u64 {
                 return true;
             }
             if let Some(reason) = e.payload.get("reason").and_then(|v| v.as_str())
-                && reason.contains("nightwatch") {
-                    return true;
-                }
+                && reason.contains("nightwatch")
+            {
+                return true;
+            }
             false
         })
         .count() as u64
@@ -373,13 +374,14 @@ fn recent_rollback_pairs(entries: &[LaunchLedgerEntry], limit: usize) -> Vec<i64
             }
             LedgerKind::RollbackInitiated => {
                 if let Some(queue) = promo_by_subject.get_mut(e.subject_id.as_str())
-                    && !queue.is_empty() {
-                        let promoted_at = queue.remove(0);
-                        let delta = (e.recorded_at - promoted_at).num_seconds();
-                        // Negative deltas (clock skew, out-of-order ingest)
-                        // would skew MTTR; clamp at 0.
-                        pairs.push(delta.max(0));
-                    }
+                    && !queue.is_empty()
+                {
+                    let promoted_at = queue.remove(0);
+                    let delta = (e.recorded_at - promoted_at).num_seconds();
+                    // Negative deltas (clock skew, out-of-order ingest)
+                    // would skew MTTR; clamp at 0.
+                    pairs.push(delta.max(0));
+                }
             }
             _ => {}
         }

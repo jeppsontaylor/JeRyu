@@ -31,27 +31,27 @@ pub async fn reconcile_release_for_ref(
         && let Some(existing) = recent_attempt
             .as_ref()
             .filter(|attempt| should_resume_existing_release_attempt_for_reconcile(attempt))
-        {
-            info!(
-                project_id,
-                ref_name = %ref_name,
-                sha = %existing.sha,
-                version = %existing.version,
-                upstream_pipeline_id = ?existing.upstream_pipeline_id,
-                release_pipeline_id = ?existing.release_pipeline_id,
-                production_pipeline_id = ?existing.production_pipeline_id,
-                selection_mode = "resume-existing",
-                "resuming existing release attempt instead of selecting a new pipeline"
-            );
-            return reconcile_existing_release_attempt(
-                db,
-                client,
-                project_id,
-                ref_name,
-                existing.clone(),
-            )
-            .await;
-        }
+    {
+        info!(
+            project_id,
+            ref_name = %ref_name,
+            sha = %existing.sha,
+            version = %existing.version,
+            upstream_pipeline_id = ?existing.upstream_pipeline_id,
+            release_pipeline_id = ?existing.release_pipeline_id,
+            production_pipeline_id = ?existing.production_pipeline_id,
+            selection_mode = "resume-existing",
+            "resuming existing release attempt instead of selecting a new pipeline"
+        );
+        return reconcile_existing_release_attempt(
+            db,
+            client,
+            project_id,
+            ref_name,
+            existing.clone(),
+        )
+        .await;
+    }
 
     let Some(pipeline) =
         latest_release_candidate_pipeline_for_ref(client, project_id, ref_name).await?
@@ -125,34 +125,34 @@ async fn reconcile_existing_release_attempt(
     let sha = attempt.sha.clone();
     let mut existing = Some(attempt);
     if let Some(attempt) = existing.as_ref()
-        && let Some(release_pipeline_id) = attempt.release_pipeline_id {
-            let release_pipeline = client
-                .get_pipeline(project_id, release_pipeline_id)
-                .await
-                .with_context(|| {
-                    format!("refresh release pipeline {release_pipeline_id} before reconcile")
-                })?;
-            if attempt.release_pipeline_status.as_deref() != Some(release_pipeline.status.as_str())
-            {
-                existing = db
-                    .update_release_pipeline_status(release_pipeline_id, &release_pipeline.status)
-                    .await?;
-            }
-            if matches!(release_pipeline.status.as_str(), "failed" | "canceled")
-                && existing
-                    .as_ref()
-                    .map(|attempt| attempt.canary_status.as_str())
-                    == Some("running")
-            {
-                let note = format!(
-                    "release-execution pipeline {release_pipeline_id} ended with status {}",
-                    release_pipeline.status
-                );
-                db.finish_release_canary(project_id, ref_name, &sha, "failed", Some(&note))
-                    .await?;
-                existing = db.get_release_attempt(project_id, ref_name, &sha).await?;
-            }
+        && let Some(release_pipeline_id) = attempt.release_pipeline_id
+    {
+        let release_pipeline = client
+            .get_pipeline(project_id, release_pipeline_id)
+            .await
+            .with_context(|| {
+                format!("refresh release pipeline {release_pipeline_id} before reconcile")
+            })?;
+        if attempt.release_pipeline_status.as_deref() != Some(release_pipeline.status.as_str()) {
+            existing = db
+                .update_release_pipeline_status(release_pipeline_id, &release_pipeline.status)
+                .await?;
         }
+        if matches!(release_pipeline.status.as_str(), "failed" | "canceled")
+            && existing
+                .as_ref()
+                .map(|attempt| attempt.canary_status.as_str())
+                == Some("running")
+        {
+            let note = format!(
+                "release-execution pipeline {release_pipeline_id} ended with status {}",
+                release_pipeline.status
+            );
+            db.finish_release_canary(project_id, ref_name, &sha, "failed", Some(&note))
+                .await?;
+            existing = db.get_release_attempt(project_id, ref_name, &sha).await?;
+        }
+    }
     let _existing_canary_status = existing
         .as_ref()
         .map(|attempt| attempt.canary_status.as_str())
@@ -187,18 +187,18 @@ async fn reconcile_existing_release_attempt(
         )
         .await?
         .is_some()
-        {
-            return build_release_status_report(
-                db,
-                ReleaseStatusQuery {
-                    project_id: Some(project_id),
-                    ref_name: Some(ref_name.to_string()),
-                    sha: Some(latest.attempt.sha.clone()),
-                    limit: 5,
-                },
-            )
-            .await;
-        }
+    {
+        return build_release_status_report(
+            db,
+            ReleaseStatusQuery {
+                project_id: Some(project_id),
+                ref_name: Some(ref_name.to_string()),
+                sha: Some(latest.attempt.sha.clone()),
+                limit: 5,
+            },
+        )
+        .await;
+    }
 
     Ok(report)
 }
@@ -215,42 +215,36 @@ async fn reconcile_new_release_attempt(
         .get_release_attempt(project_id, ref_name, &pipeline.sha)
         .await?;
     if let Some(attempt) = existing.as_ref()
-        && let Some(release_pipeline_id) = attempt.release_pipeline_id {
-            let release_pipeline = client
-                .get_pipeline(project_id, release_pipeline_id)
-                .await
-                .with_context(|| {
-                    format!("refresh release pipeline {release_pipeline_id} before reconcile")
-                })?;
-            if attempt.release_pipeline_status.as_deref() != Some(release_pipeline.status.as_str())
-            {
-                existing = db
-                    .update_release_pipeline_status(release_pipeline_id, &release_pipeline.status)
-                    .await?;
-            }
-            if matches!(release_pipeline.status.as_str(), "failed" | "canceled")
-                && existing
-                    .as_ref()
-                    .map(|attempt| attempt.canary_status.as_str())
-                    == Some("running")
-            {
-                let note = format!(
-                    "release-execution pipeline {release_pipeline_id} ended with status {}",
-                    release_pipeline.status
-                );
-                db.finish_release_canary(
-                    project_id,
-                    ref_name,
-                    &pipeline.sha,
-                    "failed",
-                    Some(&note),
-                )
+        && let Some(release_pipeline_id) = attempt.release_pipeline_id
+    {
+        let release_pipeline = client
+            .get_pipeline(project_id, release_pipeline_id)
+            .await
+            .with_context(|| {
+                format!("refresh release pipeline {release_pipeline_id} before reconcile")
+            })?;
+        if attempt.release_pipeline_status.as_deref() != Some(release_pipeline.status.as_str()) {
+            existing = db
+                .update_release_pipeline_status(release_pipeline_id, &release_pipeline.status)
                 .await?;
-                existing = db
-                    .get_release_attempt(project_id, ref_name, &pipeline.sha)
-                    .await?;
-            }
         }
+        if matches!(release_pipeline.status.as_str(), "failed" | "canceled")
+            && existing
+                .as_ref()
+                .map(|attempt| attempt.canary_status.as_str())
+                == Some("running")
+        {
+            let note = format!(
+                "release-execution pipeline {release_pipeline_id} ended with status {}",
+                release_pipeline.status
+            );
+            db.finish_release_canary(project_id, ref_name, &pipeline.sha, "failed", Some(&note))
+                .await?;
+            existing = db
+                .get_release_attempt(project_id, ref_name, &pipeline.sha)
+                .await?;
+        }
+    }
     let mut existing_canary_status = existing
         .as_ref()
         .map(|attempt| attempt.canary_status.as_str())
@@ -321,18 +315,18 @@ async fn reconcile_new_release_attempt(
         )
         .await?
         .is_some()
-        {
-            return build_release_status_report(
-                db,
-                ReleaseStatusQuery {
-                    project_id: Some(project_id),
-                    ref_name: Some(ref_name.to_string()),
-                    sha: Some(latest.attempt.sha.clone()),
-                    limit: 5,
-                },
-            )
-            .await;
-        }
+    {
+        return build_release_status_report(
+            db,
+            ReleaseStatusQuery {
+                project_id: Some(project_id),
+                ref_name: Some(ref_name.to_string()),
+                sha: Some(latest.attempt.sha.clone()),
+                limit: 5,
+            },
+        )
+        .await;
+    }
 
     Ok(report)
 }

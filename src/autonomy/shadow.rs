@@ -392,7 +392,9 @@ fn stat_changed_files(repo_root: &PathBuf, sha: &str) -> Vec<ChangedFile> {
         } else {
             // "  12 ++++--" — tally + / - chars (the numeric prefix is the total).
             let marks = count_part
-                .trim().split_once(char::is_whitespace).map(|x| x.1)
+                .trim()
+                .split_once(char::is_whitespace)
+                .map(|x| x.1)
                 .unwrap_or("");
             (
                 marks.chars().filter(|c| *c == '+').count() as u32,

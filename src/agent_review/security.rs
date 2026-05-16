@@ -97,11 +97,7 @@ fn map_parsed_to_receipt(
         "block" => ReviewDecision::Block,
         _ => ReviewDecision::Abstain,
     };
-    let findings = p
-        .findings
-        .into_iter()
-        .filter_map(parse_finding)
-        .collect();
+    let findings = p.findings.into_iter().filter_map(parse_finding).collect();
     AgentApprovalReceipt {
         schema: SchemaTag::new(),
         id: id.to_string(),
