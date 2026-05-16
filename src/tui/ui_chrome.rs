@@ -277,7 +277,7 @@ pub(crate) fn draw_header_tabs(f: &mut Frame, app: &mut App, area: Rect) {
             let tick = app.tick_count;
             if is_connected {
                 // blink at 0.5 Hz when connected
-                let modifier = if (tick / 2) % 2 == 0 {
+                let modifier = if (tick / 2).is_multiple_of(2) {
                     Modifier::BOLD
                 } else {
                     Modifier::empty()
