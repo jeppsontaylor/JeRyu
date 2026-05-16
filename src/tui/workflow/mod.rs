@@ -4,6 +4,7 @@
 
 pub mod builder;
 pub mod collector;
+pub mod delivery;
 pub mod model;
 pub mod nav;
 pub mod widget;
