@@ -116,6 +116,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
                     selected_id.as_deref(),
                     app.inspector_tab,
                     &app.state.live_log,
+                    app.delivery_action_message.as_deref(),
                     &theme,
                 );
             } else if app.workflow_inspect_open {

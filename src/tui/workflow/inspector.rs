@@ -81,6 +81,7 @@ pub fn draw_inspector_pane(
     nav_node_id: Option<&str>,
     tab: InspectorTab,
     live_log: &LiveLogState,
+    action_message: Option<&str>,
     theme: &Theme,
 ) {
     if area.width == 0 || area.height == 0 {
@@ -117,7 +118,7 @@ pub fn draw_inspector_pane(
         InspectorTab::Logs => draw_logs(f, content_area, node, live_log, theme),
         InspectorTab::Deps => draw_deps(f, content_area, &pr.snapshot, node, theme),
         InspectorTab::Evidence => draw_evidence(f, content_area, node, theme),
-        InspectorTab::Actions => draw_actions(f, content_area, node, theme),
+        InspectorTab::Actions => draw_actions(f, content_area, node, action_message, theme),
     }
 }
 
@@ -366,7 +367,13 @@ fn draw_evidence(f: &mut Frame, area: Rect, node: Option<&WorkflowNode>, theme: 
     );
 }
 
-fn draw_actions(f: &mut Frame, area: Rect, node: Option<&WorkflowNode>, theme: &Theme) {
+fn draw_actions(
+    f: &mut Frame,
+    area: Rect,
+    node: Option<&WorkflowNode>,
+    action_message: Option<&str>,
+    theme: &Theme,
+) {
     let Some(node) = node else {
         return draw_placeholder(f, area, "no node selected", theme);
     };
@@ -388,7 +395,7 @@ fn draw_actions(f: &mut Frame, area: Rect, node: Option<&WorkflowNode>, theme: &
 
     add(" Rerun       ", "press R (stub until backend wiring)", theme.running);
     if node.kind.is_rollback_eligible() {
-        add(" Rollback    ", "press r — reverts environment (Wave 8)", theme.warning);
+        add(" Rollback    ", "press r — builds rollback report (dry-run)", theme.warning);
     }
     if matches!(node.kind, WorkflowNodeKind::AgentReview { .. }) {
         add(" View prompt", "stub: agent review wiring pending", theme.agent);
@@ -398,6 +405,18 @@ fn draw_actions(f: &mut Frame, area: Rect, node: Option<&WorkflowNode>, theme: &
         add(" Open in GitLab", "stub: open backend job page", theme.production);
     }
     add(" View capsule", "stub: capsule evidence viewer", theme.vti_fire);
+
+    if let Some(msg) = action_message {
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "  Last action:",
+            theme.bold(theme.text_primary),
+        )));
+        lines.push(Line::from(Span::styled(
+            format!("    {}", msg),
+            theme.bold(theme.warning),
+        )));
+    }
 
     f.render_widget(
         Paragraph::new(lines).block(empty_block(theme, " Actions ")),

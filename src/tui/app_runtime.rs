@@ -54,6 +54,7 @@ impl App {
             inspector_tab: crate::tui::workflow::inspector::InspectorTab::default(),
             delivery_hit_map: crate::tui::workflow::hit_map::DeliveryHitMap::default(),
             drag_origin: None,
+            delivery_action_message: None,
             sync_rx,
             sync_tx,
             log_rx,

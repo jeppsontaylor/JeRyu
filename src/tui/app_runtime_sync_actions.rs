@@ -409,6 +409,54 @@ impl App {
         self.workflow_nav.zoom = self.workflow_nav.zoom.next();
     }
 
+    /// Trigger a rollback for the selected node. When the node is a
+    /// rollback-eligible Promote{Dev|Prod}, build a dry-run RollbackReport
+    /// from the release ladder and surface a confirmation message. Real
+    /// production rollback requires an operator step (see docs/release-policy).
+    pub fn workflow_trigger_rollback(&mut self) {
+        use crate::tui::workflow::model::WorkflowNodeKind;
+        let Some(node_id) = self
+            .workflow_nav
+            .selected_node_id(&self.workflow_snapshot)
+            .map(str::to_string)
+        else {
+            self.delivery_action_message = Some("rollback: no node selected".into());
+            return;
+        };
+        let node = match self.workflow_snapshot.node(&node_id) {
+            Some(n) => n,
+            None => {
+                self.delivery_action_message = Some("rollback: node not found".into());
+                return;
+            }
+        };
+        if !node.kind.is_rollback_eligible() {
+            self.delivery_action_message = Some(format!(
+                "rollback unavailable for {} — select a Promote(dev|prod) node",
+                node.label
+            ));
+            return;
+        }
+        let env = match node.kind {
+            WorkflowNodeKind::Promote { env } => env.label(),
+            _ => "?",
+        };
+        let pr_num = self
+            .delivery_snapshot
+            .selected()
+            .map(|p| p.number)
+            .unwrap_or(0);
+        let report = crate::release::build_report(
+            &format!("PR-{}", pr_num),
+            &format!("TUI-initiated rollback for {} → {}", node.label, env),
+            true, // dry-run by default — operator confirms via release tab
+        );
+        self.delivery_action_message = Some(format!(
+            "ROLLBACK scheduled: {} steps in ladder (dry-run); finalize via `jeryu release rollback` or the Release tab",
+            report.steps.len()
+        ));
+    }
+
     pub fn inspector_cycle_next(&mut self) {
         self.inspector_tab = self.inspector_tab.next();
     }

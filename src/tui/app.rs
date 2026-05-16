@@ -337,6 +337,9 @@ pub struct App {
     pub inspector_tab: crate::tui::workflow::inspector::InspectorTab,
     pub delivery_hit_map: crate::tui::workflow::hit_map::DeliveryHitMap,
     pub drag_origin: Option<(u16, u16)>,
+    /// Feedback line from the most-recent delivery action (rollback, rerun,
+    /// etc.). Shown in the Inspector's Actions tab; cleared after a few ticks.
+    pub delivery_action_message: Option<String>,
 
     sync_rx: mpsc::Receiver<TuiStateSnapshot>,
     sync_tx: mpsc::Sender<TuiStateSnapshot>,
