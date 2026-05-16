@@ -1,4 +1,4 @@
-use crate::tui::app::App;
+use crate::tui::app::{ActiveTab, App};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -12,7 +12,10 @@ pub(crate) async fn handle(app: &mut App, key: KeyEvent) -> Result<Option<bool>>
         }
         KeyCode::Char('q') => Ok(Some(true)),
         KeyCode::Esc => {
-            if app.maximize_logs {
+            if app.workflow_inspect_open {
+                app.workflow_inspect_open = false;
+                Ok(Some(false))
+            } else if app.maximize_logs {
                 app.close_log_view();
                 Ok(Some(false))
             } else {
@@ -31,19 +34,86 @@ pub(crate) async fn handle(app: &mut App, key: KeyEvent) -> Result<Option<bool>>
             app.toggle_pool_paused().await?;
             Ok(Some(false))
         }
-        KeyCode::Tab => {
+
+        // ─── Workflow-specific keys ────────────────────────────────
+        // Arrow keys, Tab, Enter, panning — intercepted when Workflow tab is active.
+        KeyCode::Up | KeyCode::Char('k')
+            if app.active_tab == ActiveTab::Workflow && !app.maximize_logs =>
+        {
+            app.workflow_up();
+            Ok(Some(false))
+        }
+        KeyCode::Down | KeyCode::Char('j')
+            if app.active_tab == ActiveTab::Workflow && !app.maximize_logs =>
+        {
+            app.workflow_down();
+            Ok(Some(false))
+        }
+        KeyCode::Left | KeyCode::Char('h')
+            if app.active_tab == ActiveTab::Workflow && !app.maximize_logs =>
+        {
+            app.workflow_left();
+            Ok(Some(false))
+        }
+        KeyCode::Right | KeyCode::Char('l')
+            if app.active_tab == ActiveTab::Workflow && !app.maximize_logs =>
+        {
+            app.workflow_right();
+            Ok(Some(false))
+        }
+        KeyCode::Tab if app.active_tab == ActiveTab::Workflow && !app.maximize_logs => {
+            app.workflow_tab_next();
+            Ok(Some(false))
+        }
+        KeyCode::Enter if app.active_tab == ActiveTab::Workflow && !app.maximize_logs => {
+            app.workflow_toggle_inspect();
+            Ok(Some(false))
+        }
+        KeyCode::PageDown | KeyCode::Char(' ')
+            if app.active_tab == ActiveTab::Workflow && !app.maximize_logs =>
+        {
+            app.workflow_page_down();
+            Ok(Some(false))
+        }
+        KeyCode::PageUp if app.active_tab == ActiveTab::Workflow && !app.maximize_logs => {
+            app.workflow_page_up();
+            Ok(Some(false))
+        }
+        KeyCode::Char(']') if app.active_tab == ActiveTab::Workflow && !app.maximize_logs => {
+            app.workflow_page_right();
+            Ok(Some(false))
+        }
+        KeyCode::Char('[') if app.active_tab == ActiveTab::Workflow && !app.maximize_logs => {
+            app.workflow_page_left();
+            Ok(Some(false))
+        }
+        KeyCode::Home if app.active_tab == ActiveTab::Workflow && !app.maximize_logs => {
+            app.workflow_home();
+            Ok(Some(false))
+        }
+        KeyCode::End if app.active_tab == ActiveTab::Workflow && !app.maximize_logs => {
+            app.workflow_end();
+            Ok(Some(false))
+        }
+        KeyCode::Char('f') if app.active_tab == ActiveTab::Workflow && !app.maximize_logs => {
+            app.workflow_toggle_follow();
+            Ok(Some(false))
+        }
+
+        // ─── General keys (non-workflow) ───────────────────────────
+        KeyCode::Tab if app.active_tab != ActiveTab::Workflow => {
             app.cycle_tab_next();
             Ok(Some(false))
         }
-        KeyCode::Right => {
+        KeyCode::Right if app.active_tab != ActiveTab::Workflow => {
             app.cycle_pane_next();
             Ok(Some(false))
         }
-        KeyCode::Left => {
+        KeyCode::Left if app.active_tab != ActiveTab::Workflow => {
             app.cycle_pane_prev();
             Ok(Some(false))
         }
-        KeyCode::Up => {
+        KeyCode::Up if app.active_tab != ActiveTab::Workflow => {
             if app.maximize_logs {
                 app.scroll_logs_up(1);
             } else {
@@ -51,7 +121,7 @@ pub(crate) async fn handle(app: &mut App, key: KeyEvent) -> Result<Option<bool>>
             }
             Ok(Some(false))
         }
-        KeyCode::Down => {
+        KeyCode::Down if app.active_tab != ActiveTab::Workflow => {
             if app.maximize_logs {
                 app.scroll_logs_down(1);
             } else {

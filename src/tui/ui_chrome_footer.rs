@@ -79,7 +79,7 @@ pub(crate) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
                 " v:view-mode  Enter:history  ↑↓:move  /:search  ?:help  ^K:palette  q:quit"
             }
             ActiveTab::Workflow => {
-                " ↑↓:phase  ←→:node  Enter:inspect  i:info  /:search  ?:help  ^K:palette  q:quit"
+                " ↑↓:phase  ←→:node  Tab:next  Enter:inspect  PgUp/Dn:pan50%  []:pan-h  f:follow  Home/End  ?:help  ^K:palette  q:quit"
             }
             ActiveTab::Mission => {
                 " .:next-action  ?:explain  Enter:inspect  /:search  ^K:palette  q:quit"

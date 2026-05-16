@@ -327,6 +327,11 @@ pub struct App {
     pub search_query: String,
     pub help_overlay_open: bool,
 
+    // Workflow DAG state:
+    pub workflow_nav: crate::tui::workflow::nav::WorkflowNav,
+    pub workflow_snapshot: crate::tui::workflow::model::WorkflowSnapshot,
+    pub workflow_inspect_open: bool,
+
     sync_rx: mpsc::Receiver<TuiStateSnapshot>,
     sync_tx: mpsc::Sender<TuiStateSnapshot>,
 
