@@ -332,6 +332,9 @@ pub struct App {
     pub workflow_snapshot: crate::tui::workflow::model::WorkflowSnapshot,
     pub workflow_inspect_open: bool,
 
+    // Delivery view (multi-PR canonical pipeline):
+    pub delivery_snapshot: crate::tui::workflow::model::DeliverySnapshot,
+
     sync_rx: mpsc::Receiver<TuiStateSnapshot>,
     sync_tx: mpsc::Sender<TuiStateSnapshot>,
 

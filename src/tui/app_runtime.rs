@@ -50,6 +50,7 @@ impl App {
             workflow_nav: crate::tui::workflow::nav::WorkflowNav::default(),
             workflow_snapshot: crate::tui::workflow::model::WorkflowSnapshot::empty(),
             workflow_inspect_open: false,
+            delivery_snapshot: crate::tui::workflow::model::DeliverySnapshot::empty(),
             sync_rx,
             sync_tx,
             log_rx,

@@ -49,17 +49,29 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 
     match app.active_tab {
         ActiveTab::Workflow => {
-            // Ensure snapshot is populated and canvas size is computed.
+            // Refresh the Delivery snapshot and the mirrored workflow snapshot
+            // for the legacy nav helpers.
             app.refresh_workflow_snapshot();
             let theme = crate::tui::theme::Theme::dark();
-            crate::tui::workflow::widget::draw_workflow_tab(
-                f,
-                chunks[1],
-                &app.workflow_snapshot,
-                &app.workflow_nav,
-                &theme,
-                app.tick_count,
-            );
+            if app.delivery_snapshot.pull_requests.is_empty() {
+                crate::tui::workflow::widget::draw_workflow_tab(
+                    f,
+                    chunks[1],
+                    &app.workflow_snapshot,
+                    &app.workflow_nav,
+                    &theme,
+                    app.tick_count,
+                );
+            } else {
+                crate::tui::workflow::widget::draw_delivery_tab(
+                    f,
+                    chunks[1],
+                    &app.delivery_snapshot,
+                    &app.workflow_nav,
+                    &theme,
+                    app.tick_count,
+                );
+            }
 
             // Inspect overlay: expanded view of the selected node.
             if app.workflow_inspect_open {

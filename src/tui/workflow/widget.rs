@@ -10,8 +10,13 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
+use super::minimap::draw_minimap;
+use super::mission_strip::draw_mission_strip;
 use super::model::*;
 use super::nav::{WorkflowNav, BANNER_H, EDGE_GUTTER_H, NODE_CARD_H, NODE_CARD_W, PHASE_HEADER_H};
+use super::phase_rail::draw_phase_rail;
+use super::pr_rail::draw_pr_rail;
+use super::regions::{compute_regions, DeliveryRegions};
 use crate::tui::theme::Theme;
 
 /// Height of one full phase row on the virtual canvas
@@ -20,6 +25,7 @@ use crate::tui::theme::Theme;
 const _PHASE_ROW_H: i32 = PHASE_HEADER_H as i32 + NODE_CARD_H as i32 + EDGE_GUTTER_H as i32;
 
 /// Draw the full workflow tab: summary banner + scrollable DAG with edges.
+/// Legacy entry point retained for the single-workflow code path.
 pub fn draw_workflow_tab(
     f: &mut Frame,
     area: Rect,
@@ -45,6 +51,63 @@ pub fn draw_workflow_tab(
         return;
     }
     let dag_area = Rect::new(area.x, dag_y, area.width, dag_h);
+    draw_dag_canvas(f, dag_area, snapshot, nav, theme, tick);
+}
+
+/// Render the Delivery view — mission strip, PR rail, phase rail, DAG canvas,
+/// minimap, and footer for the currently selected PR.
+pub fn draw_delivery_tab(
+    f: &mut Frame,
+    area: Rect,
+    delivery: &DeliverySnapshot,
+    nav: &WorkflowNav,
+    theme: &Theme,
+    tick: u64,
+) {
+    let regions = compute_regions(area);
+
+    if DeliveryRegions::is_visible(regions.mission) {
+        draw_mission_strip(f, regions.mission, delivery, theme);
+    }
+    if DeliveryRegions::is_visible(regions.pr_rail) {
+        draw_pr_rail(f, regions.pr_rail, delivery, theme);
+    }
+    if DeliveryRegions::is_visible(regions.phase_rail) {
+        draw_phase_rail(f, regions.phase_rail, delivery, theme);
+    }
+    if DeliveryRegions::is_visible(regions.canvas) {
+        if let Some(pr) = delivery.selected() {
+            if pr.snapshot.phases.is_empty() {
+                draw_empty_state(f, regions.canvas, &pr.snapshot, theme);
+            } else {
+                draw_dag_canvas(f, regions.canvas, &pr.snapshot, nav, theme, tick);
+            }
+        } else {
+            draw_no_pr_state(f, regions.canvas, theme);
+        }
+    }
+    if DeliveryRegions::is_visible(regions.minimap) {
+        draw_minimap(f, regions.minimap, delivery, nav, theme);
+    }
+    if DeliveryRegions::is_visible(regions.footer) {
+        draw_delivery_footer(f, regions.footer, delivery, theme);
+    }
+}
+
+/// Render the scrollable DAG canvas inside `dag_area`. Reused by both the
+/// legacy workflow tab and the new Delivery view.
+pub fn draw_dag_canvas(
+    f: &mut Frame,
+    dag_area: Rect,
+    snapshot: &WorkflowSnapshot,
+    nav: &WorkflowNav,
+    theme: &Theme,
+    tick: u64,
+) {
+    let dag_h = dag_area.height;
+    if dag_h == 0 {
+        return;
+    }
 
     // Render phases with viewport clipping.
     for (pi, phase) in snapshot.phases.iter().enumerate() {
@@ -96,6 +159,35 @@ pub fn draw_workflow_tab(
 
     // --- Viewport position indicator ---
     draw_viewport_indicator(f, dag_area, nav, theme);
+}
+
+fn draw_no_pr_state(f: &mut Frame, area: Rect, theme: &Theme) {
+    let lines = vec![
+        Line::from(""),
+        Line::from(Span::styled(
+            "  No active pull requests",
+            theme.bold(theme.text_muted),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "  Open a PR to see the full delivery flow.",
+            theme.muted(),
+        )),
+    ];
+    f.render_widget(
+        Paragraph::new(lines).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border_subtle)),
+        ),
+        area,
+    );
+}
+
+fn draw_delivery_footer(f: &mut Frame, area: Rect, _delivery: &DeliverySnapshot, theme: &Theme) {
+    let hint = " ↑↓←→ select · [ ] PR · b blocker · c crit · / search · f follow · z zoom · Enter inspect · r rollback";
+    let line = Line::from(Span::styled(hint, theme.muted()));
+    f.render_widget(Paragraph::new(line), area);
 }
 
 fn draw_empty_state(f: &mut Frame, area: Rect, _snapshot: &WorkflowSnapshot, theme: &Theme) {

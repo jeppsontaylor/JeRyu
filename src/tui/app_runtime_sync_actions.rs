@@ -407,14 +407,47 @@ impl App {
 
     /// Rebuild the workflow snapshot from the collector (called on tick).
     pub fn refresh_workflow_snapshot(&mut self) {
-        use crate::tui::workflow::builder::build_demo_snapshot;
-        // TODO: once live VTI data is wired, use collector::collect_snapshot here.
-        // For now, rebuild from demo if empty, or keep existing live data.
-        if self.workflow_snapshot.phases.is_empty() {
-            self.workflow_snapshot = build_demo_snapshot();
+        self.refresh_delivery_snapshot();
+    }
+
+    /// Rebuild the Delivery (multi-PR) snapshot, mirror the selected PR's
+    /// per-pipeline DAG into `workflow_snapshot` for the legacy nav/render
+    /// codepath, and reapply persistent selection + follow-active.
+    pub fn refresh_delivery_snapshot(&mut self) {
+        use crate::tui::workflow::delivery::build_demo_delivery;
+
+        // Remember the previously focused node id so selection survives the
+        // rebuild (panes/cards may reshuffle as live data arrives).
+        let remembered_node_id = self
+            .workflow_nav
+            .selected_node_id(&self.workflow_snapshot)
+            .map(str::to_string);
+        let remembered_pr = self
+            .delivery_snapshot
+            .selected()
+            .map(|pr| pr.number);
+
+        // TODO: when live PR/CI data is wired, plug collect_delivery_snapshot
+        // with PrInput from the GitLab + agent layer here. Until then the
+        // demo factory tells the canonical 5-PR story.
+        if self.delivery_snapshot.pull_requests.is_empty() {
+            self.delivery_snapshot = build_demo_delivery();
         }
+        if let Some(num) = remembered_pr {
+            self.delivery_snapshot.select_by_number(num);
+        }
+
+        // Mirror the currently selected PR's per-pipeline DAG into the
+        // legacy workflow_snapshot so the existing WorkflowNav helpers keep
+        // operating on the right data.
+        if let Some(pr) = self.delivery_snapshot.selected() {
+            self.workflow_snapshot = pr.snapshot.clone();
+        }
+
         self.workflow_nav
             .compute_canvas_size(&self.workflow_snapshot);
+        self.workflow_nav
+            .restore_selection(&self.workflow_snapshot, remembered_node_id.as_deref());
 
         if self.workflow_nav.follow_active {
             self.workflow_nav.follow_running(
