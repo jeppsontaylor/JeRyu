@@ -76,13 +76,17 @@ jobs:
         # its findings as data but DO NOT block the PR on score regression.
         # Re-enable strict ratcheting AFTER the release lands on main and a
         # new baseline is captured.
+        #
+        # `continue-on-error: true` is the ONLY mechanism we use to make this
+        # advisory — we deliberately avoid trailing shell terminators that
+        # would mask real script bugs (see tests/language_bad_behavior.rs).
         continue-on-error: true
         run: |
           mkdir -p target/jankurai
           git show origin/main:agent/repo-score.json > target/jankurai/accepted-baseline.json
           JANKURAI_BASELINE=target/jankurai/accepted-baseline.json \
           JANKURAI_AUDIT_MODE=ratchet \
-          bash ops/ci/jankurai-lane.sh audit || true
+          bash ops/ci/jankurai-lane.sh audit
       - name: Upload jankurai SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@53e96ec3b35fce51c141c0d6f0e31028a448722d # v3
