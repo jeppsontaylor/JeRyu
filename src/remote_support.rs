@@ -44,9 +44,17 @@ pub(crate) fn save_remote_config(cfg: &RemoteConfig) -> Result<()> {
 }
 
 pub(crate) fn ssh_args(cfg: &RemoteConfig) -> Vec<String> {
-    let mut args = vec![
-        "-p".to_string(),
-        cfg.ssh_port.to_string(),
+    let mut args: Vec<String> = Vec::new();
+    // Only pass `-p` when the configured port differs from SSH's default (22).
+    // Passing `-p 22` explicitly OVERRIDES any `Port` directive the user has
+    // in ~/.ssh/config for this Host, which breaks setups where the target
+    // alias resolves to a non-22 port via Host config. When `-p` is omitted,
+    // ssh falls back to ~/.ssh/config's Port directive (or 22 if none).
+    if cfg.ssh_port != 22 {
+        args.push("-p".to_string());
+        args.push(cfg.ssh_port.to_string());
+    }
+    args.extend([
         "-o".to_string(),
         "StrictHostKeyChecking=accept-new".to_string(),
         "-o".to_string(),
@@ -55,7 +63,7 @@ pub(crate) fn ssh_args(cfg: &RemoteConfig) -> Vec<String> {
         "ControlPersist=10m".to_string(),
         "-o".to_string(),
         "ControlPath=~/.ssh/jeryu-%r@%h:%p".to_string(),
-    ];
+    ]);
     if let Some(identity) = &cfg.identity {
         args.push("-i".to_string());
         args.push(identity.clone());
