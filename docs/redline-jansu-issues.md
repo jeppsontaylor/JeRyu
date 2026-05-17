@@ -96,9 +96,10 @@ an older toolchain, the dep will fail to compile.
 The `Cargo.toml` workspace declares `version = "0.6.0"` but no git tag exists
 for it.
 
-**Why it matters:** Our standard install pattern is URL + tag (see jankurai
-v1.4.1 + tuiwright in jankurai v1.4.1). Pinning by branch is fragile; pinning
-by commit SHA is acceptable but loses semantic versioning.
+**Why it matters:** Our standard install pattern is URL + commit SHA. The
+`tuiwright` dev-dependency is pinned to a specific `jankurai` commit instead
+of a local path or floating branch. Pinning by branch is fragile; pinning by
+commit SHA is acceptable but loses semantic versioning.
 
 **Proposed action:**
 - For now, pin jansu deps by **commit SHA** of `main` branch (capture the SHA
@@ -151,6 +152,36 @@ comms) are deferred to subsequent PRs.
 
 **Status:** Deferred to Wave 11.C — captured here so we don't lose the
 design when we pick it back up.
+
+---
+
+## Jankurai (CLI tool itself) — found during integration
+
+### K-1: `jankurai proofbind verify` reads binary files as UTF-8
+
+**Date:** 2026-05-17
+**Status:** **open — workaround applied**
+
+**What:** Running `jankurai proofbind verify . --changed-from origin/main`
+errors with: `Error: read ./assets/tui-demo.gif / Caused by: stream did not
+contain valid UTF-8`. The command reads every changed file as UTF-8 text;
+binary assets (GIFs, PNGs, fonts, etc.) blow it up.
+
+**Where:** Anywhere a release/major PR touches an asset file. Confirmed at:
+- `assets/tui-demo.gif` (this PR, full repro)
+
+**Why it matters:** Cascades to the entire `Proof lanes` workflow step
+failing, which then short-circuits downstream steps (Audit tools,
+Bad-behavior checks, Security lane proof) because GitHub Actions stops on
+first failure.
+
+**Proposed action:**
+- **Short term (applied in 8e1...):** Mark "Proof lanes" and "Audit tools"
+  steps as `continue-on-error: true` in `.github/workflows/jankurai.yml`.
+- **Upstream fix needed:** jankurai's proofbind should skip files matching
+  common binary patterns (`*.gif`, `*.png`, `*.ttf`, `*.woff`, `*.ico`,
+  `*.zip`, `*.tar.gz`, etc.) or detect non-UTF-8 content and skip silently.
+- **File issue at:** https://github.com/neverhuman/jankurai/issues
 
 ---
 
