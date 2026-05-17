@@ -59,6 +59,14 @@ pub(crate) fn ssh_args(cfg: &RemoteConfig) -> Vec<String> {
     if let Some(identity) = &cfg.identity {
         args.push("-i".to_string());
         args.push(identity.clone());
+        // IdentitiesOnly=yes forces ssh to authenticate using ONLY the
+        // -i key, never keys cached in an ssh-agent. Without this, ssh
+        // tries agent keys first, exhausts the remote's MaxAuthTries
+        // (default 6), and falls back to "Permission denied" before
+        // ever offering our explicit key. The failure mode bit us in
+        // CI where the GitHub Actions runner has agent keys preloaded.
+        args.push("-o".to_string());
+        args.push("IdentitiesOnly=yes".to_string());
     }
     args
 }
