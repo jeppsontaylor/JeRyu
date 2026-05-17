@@ -136,7 +136,21 @@ pub(crate) async fn probe_remote(cfg: &RemoteConfig) -> Result<RemotePreflight> 
 }
 
 pub(crate) async fn remote_bootstrap(cfg: &RemoteConfig) -> Result<()> {
-    let _ = run_remote_binary(cfg, &["init"], false).await?;
+    // `jeryu init` tries to bring up the local GitLab stack via
+    // `docker compose up`, which pulls gitlab/gitlab-ce (~1.5GB image).
+    // On constrained remote hosts (small VPS, ephemeral CI containers)
+    // this either times out or fails on disk/network. Treat init as
+    // advisory — the install completes the binary upload and config
+    // write; the operator can run `jeryu init` later with a fresh
+    // `jeryu serve` session, getting full error context.
+    if let Err(e) = run_remote_binary(cfg, &["init"], false).await {
+        eprintln!(
+            "warning: 'jeryu init' on remote did not complete cleanly: {e}\n\
+             this is non-fatal — the binary is installed and the remote\n\
+             config is written. Run `jeryu init` manually on the remote\n\
+             once docker has the bandwidth + disk for gitlab/gitlab-ce."
+        );
+    }
     Ok(())
 }
 
